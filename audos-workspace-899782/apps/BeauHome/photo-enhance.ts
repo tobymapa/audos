@@ -21,7 +21,7 @@
  *  2. TRANSPARENT NORMALIZATION (Pass Forty-Nine — the universal
  *     transparency rule): the cut-out goes through the SAME normalization
  *     every online-sourced product gets (trimTransparent): the alpha edge
- *     is ERODED ~2px (border-artifact cleanup — the thin rectangular
+ *     is ERODED ~4px (border-artifact cleanup — the thin rectangular
  *     frame line a source photograph can bake in), the frame is
  *     TIGHT-CROPPED to the item's bounding box plus a fixed 4px margin,
  *     the cut is judged and vision-verified on BOTH real grounds, and the
@@ -473,7 +473,7 @@ export function containFit(
  *
  *  · NORM_VERSION (13) — the stored image is the piece's GENUINE
  *    alpha-channel transparent cutout (Pass Forty-Nine, the universal
- *    transparency rule): background removed, alpha edge eroded ~2px,
+ *    transparency rule): background removed, alpha edge eroded ~4px,
  *    tight-cropped to the silhouette + 4px margin, verified on both real
  *    grounds and stored on the CDN. Settled.
  *  · 12 — the Pass Forty-Six B opaque #fbf8f1 paper cards. A solid card is
@@ -874,7 +874,7 @@ function isHttpImage(url?: string | null): boolean {
  * all are left alone (their placeholder tile stays — nothing is
  * AI-generated any more). On success the piece's canonical image becomes
  * the STORED GENUINE transparent cutout (background removed, alpha edge
- * eroded ~2px, tight-cropped to the silhouette + 4px margin, verified on
+ * eroded ~4px, tight-cropped to the silhouette + 4px margin, verified on
  * both real grounds) and its URL is returned; on failure the previous
  * image is left untouched and null is returned.
  *
@@ -885,7 +885,7 @@ function isHttpImage(url?: string | null): boolean {
 export async function regeneratePieceImage(
   pieceId: number,
   fields: GarmentFields,
-  options: { anchorUrl?: string | null } = {},
+  options: { anchorUrl?: string | null; forceReprocess?: boolean } = {},
 ): Promise<string | null> {
   if (regeneratingIds.has(pieceId)) return null;
   regeneratingIds.add(pieceId);
@@ -908,7 +908,7 @@ export async function regeneratePieceImage(
     // THE ONE INGESTION PIPELINE (Pass Forty-Nine — the universal
     // transparency rule). The user-upload path now runs the SAME four steps
     // the online-sourcing path runs: background removal (Photoroom, then
-    // the client-side fallback), ~2px alpha-edge EROSION (border-artifact
+    // the client-side fallback), ~4px alpha-edge EROSION (border-artifact
     // cleanup), TIGHT CROP to the silhouette + 4px, quality + vision
     // verification on both real grounds, and durable storage as a GENUINE
     // alpha-channel transparent PNG with an `image_cutouts` row pointing at
@@ -921,6 +921,7 @@ export async function regeneratePieceImage(
       category: fields.category ?? null,
       name: fields.name ?? null,
       pieceId,
+      forceReprocess: options.forceReprocess,
     });
     // Every tier failed, or the finished cut never reached the CDN (a data
     // URL must not be written into the row): the previous image is kept
@@ -987,10 +988,10 @@ const TIGHT_CROP_PAD_PX = 4;
  * removal only removes background-COLOURED regions, so a thin border/frame
  * stroke a retailer or scraper baked into the source photograph (a
  * different colour from the ground) survives the pass and reads as a faint
- * rectangle around the item. Shrinking the opaque region by ~2px eats those
+ * rectangle around the item. Shrinking the opaque region by ~4px eats those
  * hairline artifacts — and the white fringe removal sometimes leaves — while
  * costing the garment itself nothing visible. */
-const ALPHA_ERODE_PX = 2;
+const ALPHA_ERODE_PX = 4;
 
 /**
  * GRAYSCALE EROSION of the alpha channel — each pass replaces every pixel's
@@ -1032,7 +1033,7 @@ function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: n
 
 /**
  * HOLLOW-FRAME REMOVAL — the second half of the border-artifact cleanup
- * (pipeline v5). The ~2px erosion above eats HAIRLINE frame strokes; a
+ * (pipeline v5). The ~4px erosion above eats HAIRLINE frame strokes; a
  * heavier baked-in border — the 3–6px rectangle a retailer or scraper drew
  * around the source photograph, in a colour the background remover has no
  * reason to touch — survives it and reads as a dark line around the item on
@@ -1117,7 +1118,7 @@ function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): vo
  * THE NORMALIZATION STEP — run ONCE at ingestion, never at render time.
  * Three things happen here, in order:
  *
- *   1. BORDER-ARTIFACT CLEANUP — the alpha channel is eroded ~2px inward
+ *   1. BORDER-ARTIFACT CLEANUP — the alpha channel is eroded ~4px inward
  *      (`erodeAlpha`), which removes the thin rectangular border/frame
  *      strokes that survive background removal when the source photograph
  *      had one baked in, along with any 1–2px white fringe.
@@ -1253,7 +1254,7 @@ export function isTransparentCutout(url: string): boolean {
 //    and flagged low-confidence.
 //
 // NORMALIZATION + VERIFICATION (trimTransparent, after whichever tier
-// succeeded): erode the alpha edge ~2px (removing thin border/frame
+// succeeded): erode the alpha edge ~4px (removing thin border/frame
 // artifacts that survive removal), TIGHT-CROP to the item's bounding box
 // with a fixed 4px margin — the stored PNG is barely bigger than the
 // silhouette itself — and JUDGE the alpha channel (Step 3's first half).
@@ -1669,6 +1670,10 @@ export interface FlatLayRequest {
    * own photograph — recorded on the stored row so a piece's cutout can be
    * found from the piece as well as from the image. */
   pieceId?: number | null;
+  /** Internal — skip settled/persisted cutout cache and re-run ingestion.
+   * Used only by the v51 erosion-remediation batch. In-flight jobs still
+   * dedupe through boardCutouts. */
+  forceReprocess?: boolean;
 }
 
 /**
@@ -1723,8 +1728,10 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
   const category = request.category ?? null;
   // Nothing to ingest at all: not a failure, so nothing is flagged for review.
   if (!source) return Promise.resolve(uncutAsset('', category, false));
-  const settled = peekFlatLayAsset(source);
-  if (settled) return Promise.resolve(settled);
+  if (!request.forceReprocess) {
+    const settled = peekFlatLayAsset(source);
+    if (settled) return Promise.resolve(settled);
+  }
   const running = boardCutouts.get(source);
   if (running) return running;
 
@@ -1764,7 +1771,7 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
           // most often sees is the faint border/frame line or fringe the
           // first erosion did not fully eat, and the documented fix for that
           // is MORE EROSION: re-running the normalization on the cut itself
-          // erodes the alpha a further ~2px and re-crops. Only a retried cut
+          // erodes the alpha a further ~4px and re-crops. Only a retried cut
           // that passes BOTH the alpha metrics and a fresh vision check
           // replaces the original — anything else keeps the original cut and
           // flags it for review exactly as before.
@@ -1896,7 +1903,7 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
       // to try and would only run the same remover a second time.
       if (onlyOnBody) {
         const onBody = await removeBackgroundFromUrl(chosen);
-        return await finish(await trimTransparent(onBody), 2);
+        return await finish(await trimTransparent(onBody), 4);
       }
       throw new Error('no tier produced a clean cutout');
     } catch (error) {
@@ -1981,7 +1988,7 @@ export interface PreparedProductPhoto {
 }
 
 /** Run the search/URL image phase before Save: the source image through THE
- * ONE transparent ingestion pipeline (Pass Forty-Nine) — removal, ~2px alpha
+ * ONE transparent ingestion pipeline (Pass Forty-Nine) — removal, ~4px alpha
  * erosion, 4px tight crop, verification on both real grounds, durable
  * storage. `cleaned: true` means the returned URL is a stored GENUINE
  * alpha-channel transparent PNG. Failure returns the original as a usable
@@ -2101,7 +2108,7 @@ export async function resolveNewestPieces(count: number): Promise<void> {
 // Retroactive batch (Pass Forty-Nine) — on first app load, EVERY existing
 // wardrobe piece with a stored photo is re-run through THE ONE ingestion
 // pipeline: real photo in, stored GENUINE alpha-channel transparent cutout
-// out (background removed, alpha edge eroded ~2px, tight-cropped to the
+// out (background removed, alpha edge eroded ~4px, tight-cropped to the
 // silhouette + 4px margin, verified on both real grounds). NO exemptions —
 // every piece with a photoUrl goes through, so no legacy paper card or raw
 // image survives as a display image. Processing is SEQUENTIAL — one piece
@@ -2142,19 +2149,103 @@ function looksLikeRawUpload(url: string): boolean {
   return /storage\.googleapis\.com\/audos-images\//i.test(url) && !/\/generated-images\//i.test(url);
 }
 
+// v51: one-time 4px-erosion remediation — re-cut norm-v14 pieces whose
+// stored display cutout fails the dual-ground vision check, from original.
+const EROSION_REMEDIATION_FLAG_KEY = 'bgRemovalV51';
+
+function erosionRemediationFlagSet(): boolean {
+  try {
+    return localStorage.getItem(EROSION_REMEDIATION_FLAG_KEY) != null;
+  } catch {
+    return false;
+  }
+}
+
+function markErosionRemediationFlag(): void {
+  try {
+    localStorage.setItem(EROSION_REMEDIATION_FLAG_KEY, '1');
+  } catch { /* storage unavailable — batch may retry next visit */ }
+}
+
+async function runErosionRemediationBatch(
+  pieces: WardrobePiece[],
+  materials: Record<number, string>,
+  onProgress?: (progress: MigrationProgress) => void,
+  patterns: Record<number, string | null | undefined> = {},
+): Promise<number> {
+  if (migrationRunning || erosionRemediationFlagSet()) return 0;
+  migrationRunning = true;
+  let changed = 0;
+  let completed = true;
+  try {
+    const [originals, normVersions] = await Promise.all([fetchPhotoOriginals(), fetchNormVersions()]);
+    const fieldsFor = (piece: WardrobePiece) =>
+      garmentFieldsFromPiece(piece, materials[piece.id], patterns[piece.id] || null);
+
+    const targets: WardrobePiece[] = [];
+    for (const piece of pieces) {
+      if ((normVersions[piece.id] || 0) !== NORM_VERSION) continue;
+      const displayUrl = String(piece.photo_url || '').trim();
+      if (!isHttpImage(displayUrl)) continue;
+      const anchorUrl = String(originals[piece.id] || '').trim();
+      if (!isHttpImage(anchorUrl)) {
+        completed = false;
+        console.warn(`[Ethaion] erosion remediation: "${piece.name}" — deferred, no stored original`);
+        continue;
+      }
+      const visionClean = await verifyCutoutWithVision(displayUrl).catch(() => null);
+      if (visionClean == null) {
+        console.warn(`[Ethaion] erosion remediation: "${piece.name}" — verification unavailable, skipped`);
+        continue;
+      }
+      if (visionClean === false) targets.push(piece);
+    }
+
+    const total = targets.length;
+    if (total === 0) {
+      if (completed) markErosionRemediationFlag();
+      return 0;
+    }
+    onProgress?.({ total, done: 0, active: true });
+
+    let done = 0;
+    for (const piece of targets) {
+      const url = await regeneratePieceImage(piece.id, fieldsFor(piece), {
+        anchorUrl: originals[piece.id],
+        forceReprocess: true,
+      });
+      if (url) {
+        changed += 1;
+        console.log(`[Ethaion] erosion remediation: "${piece.name}" — success`);
+      } else {
+        completed = false;
+        console.log(`[Ethaion] erosion remediation: "${piece.name}" — failed, previous image kept`);
+      }
+      done += 1;
+      onProgress?.({ total, done, active: done < total });
+    }
+
+    if (completed) markErosionRemediationFlag();
+    onProgress?.({ total, done, active: false });
+    return changed;
+  } finally {
+    migrationRunning = false;
+  }
+}
+
 export async function runPhotoMigration(
   pieces: WardrobePiece[],
   materials: Record<number, string>,
   onProgress?: (progress: MigrationProgress) => void,
   patterns: Record<number, string | null | undefined> = {},
 ): Promise<number> {
-  if (migrationRunning) return 0;
+  let changed = await runErosionRemediationBatch(pieces, materials, onProgress, patterns);
   // One-time flag: once the Pass Twenty-Six batch has completed on this
   // device, it never re-runs on reload. (New uploads are settled at add
   // time by settleProductPhoto, so nothing is missed.)
-  if (batchFlagSet()) return 0;
+  if (batchFlagSet()) return changed;
+  if (migrationRunning) return changed;
   migrationRunning = true;
-  let changed = 0;
   try {
     const [meta, originals, normVersions] = await Promise.all([fetchPhotoMeta(), fetchPhotoOriginals(), fetchNormVersions()]);
 
@@ -2193,7 +2284,7 @@ export async function runPhotoMigration(
     const total = targets.length;
     if (total === 0) {
       markBatchFlag();
-      return 0;
+      return changed;
     }
     onProgress?.({ total, done: 0, active: true });
 
