@@ -7,8 +7,9 @@
  * cropped to the silhouette + 4px, verified) into a GENUINE alpha-channel
  * transparent PNG (Pass Forty-Nine — the universal transparency rule). A
  * genuine cutout renders BARE here — no plate, no border, no ground of its
- * own — so no rectangular line can ever appear around an item; only a
- * photograph that has no cutout yet is shown honestly plated.
+ * own — so no rectangular line can ever appear around an item; a photograph
+ * that has no cutout yet is NEVER shown raw — the quiet processing tile
+ * holds its place while its ingestion (scheduled from this tile) runs.
  *
  * While a piece is being (re)generated its place is held by the quiet
  * processing tile (never the raw source photograph); the pipeline pushes
@@ -23,7 +24,7 @@
  * synchronous lookup, never a pipeline run.
  */
 import { useEffect, useState } from 'react';
-import { isStoredCutoutUrl, peekCutoutRecord } from './image-pipeline';
+import { isStoredCutoutUrl, peekCutoutRecord, whenIdle } from './image-pipeline';
 
 export interface CanonicalGarmentFields {
   name?: string | null;
@@ -109,15 +110,49 @@ export function CanonicalGarment({
   const candidate = liveGarmentImage(pieceId) || photoUrl || fields.photoUrl || fields.photo_url || '';
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [candidate]);
-  // The stored transparent PNG, when the pipeline made a clean one for this
-  // photograph. `flatLayReady` is the gate rather than merely `ready`: a cut
-  // that kept the wearer in it, or one the verification step flagged, has no
-  // business replacing the piece's own settled card.
+  // The stored transparent PNG, when the pipeline made one for this
+  // photograph. Any stored transparent PNG counts here — including a tier-2
+  // (on-body) or flagged cut: the compositions hold those out themselves,
+  // but as a TILE a processed transparent cutout always beats a placeholder,
+  // and a raw photograph is never an option (universal transparency rule).
   const stored = peekCutoutRecord(candidate);
-  const cutout = stored?.flatLayReady ? stored.transparentImageUrl : '';
+  const cutout = stored?.transparentImageUrl || '';
   const [cutoutBroken, setCutoutBroken] = useState(false);
   useEffect(() => setCutoutBroken(false), [cutout]);
   const display = cutout && !cutoutBroken ? cutout : candidate;
+  // UNIVERSAL TRANSPARENCY (the founder's rule): a photograph the pipeline
+  // has not cut yet is NEVER painted raw. Its ingestion is scheduled from
+  // here — idle-time, deduplicated and queued inside the pipeline itself —
+  // and the quiet processing tile below holds its place until the genuine
+  // transparent cutout lands and the registry event repaints the tile.
+  const genuineCutout = (!!cutout && !cutoutBroken) || isStoredCutoutUrl(candidate);
+  useEffect(() => {
+    if (!candidate || genuineCutout) return;
+    let live = true;
+    whenIdle(() => {
+      if (!live) return;
+      // Dynamic import: photo-enhance imports THIS module, so the static
+      // dependency has to keep running one way only.
+      void import('./photo-enhance')
+        .then((m) =>
+          m.flatLayAssetForShelf({
+            candidates: candidate,
+            category: fields.category ?? null,
+            name: fields.name ?? null,
+            pieceId: pieceId ?? null,
+          }),
+        )
+        .then((asset) => {
+          if (live && asset?.ready) {
+            window.dispatchEvent(new CustomEvent('ethaion:garment-image-ready'));
+          }
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      live = false;
+    };
+  }, [candidate, genuineCutout, fields.category, fields.name, pieceId]);
 
   // Subtle in-progress indicator while the pipeline (re)generates this
   // piece's image; the PREVIOUS image stays fully visible underneath.
@@ -140,7 +175,6 @@ export function CanonicalGarment({
     // it. `cutout` is the stored record's PNG; `isStoredCutoutUrl` catches
     // the case where the candidate URL itself IS the stored cutout (the
     // piece's canonical image since Pass Forty-Nine).
-    const genuineCutout = (!!cutout && !cutoutBroken) || isStoredCutoutUrl(candidate);
     if (genuineCutout) {
       return (
         <span
@@ -166,57 +200,22 @@ export function CanonicalGarment({
         </span>
       );
     }
-    if (regenerating) {
-      // The pipeline is cutting this piece RIGHT NOW: hold its place with
-      // the quiet processing tile rather than showing the raw source
-      // photograph — an unprocessed image is never presented as the item's
-      // display image (founder's rule).
-      return (
-        <span
-          className={`hab-plate relative inline-flex items-center justify-center overflow-hidden bg-[#eadfcb] ${className}`}
-          role="img"
-          aria-label={`${label} — being prepared`}
-        >
-          <span
-            className="block w-1/3 opacity-70"
-            style={{ background: 'var(--space-neutral-300, #dccdb2)', aspectRatio: '1 / 1' }}
-            aria-hidden="true"
-          />
-          {regenBadge}
-        </span>
-      );
-    }
-    // A photograph with no cutout yet — legacy image, or a cut the pipeline
-    // could not make. Presented honestly as a framed photograph (the same
-    // rule the Fitting shelf and the product plates follow), which falls
-    // away the moment a genuine cutout lands.
+    // NO CUTOUT YET — the pipeline is cutting it now (regenerating), or its
+    // ingestion was just scheduled above. Either way the quiet processing
+    // tile holds the piece's place: a raw, unprocessed photograph is NEVER
+    // presented as the item's display image (founder's universal
+    // transparency rule — the framed-photograph fallback is retired), and
+    // the genuine cutout swaps in the moment it lands.
     return (
       <span
-        className={`hab-plate relative inline-flex items-center justify-center overflow-hidden bg-[#fbf8f1] ${className}`}
+        className={`hab-plate relative inline-flex items-center justify-center overflow-hidden bg-[#eadfcb] ${className}`}
         role="img"
-        aria-label={label}
+        aria-label={`${label} — being prepared`}
       >
-        {/* The image is ABSOLUTELY positioned inside the (relative) plate
-            rather than sized with percentage height in normal flow: a
-            percentage-height child inside an aspect-ratio box resolves to
-            ZERO height in some desktop engines (older Safari/WebKit), which
-            made piece images invisible on desktop while phones showed them.
-            Absolute offsets resolve against the plate box reliably
-            everywhere; the 5px inset preserves the plate's mat padding. */}
-        <img
-          src={display}
-          alt={label}
-          className="absolute object-contain bg-[#fbf8f1]"
-          style={{ top: '5px', left: '5px', width: 'calc(100% - 10px)', height: 'calc(100% - 10px)' }}
-          loading="lazy"
-          width={1080}
-          height={1440}
-          onError={() => {
-            // A stored cutout that will not load is not a missing photograph:
-            // fall back to the piece's own canonical card first.
-            if (display !== candidate) setCutoutBroken(true);
-            else setBroken(true);
-          }}
+        <span
+          className="block w-1/3 opacity-70"
+          style={{ background: 'var(--space-neutral-300, #dccdb2)', aspectRatio: '1 / 1' }}
+          aria-hidden="true"
         />
         {regenBadge}
       </span>

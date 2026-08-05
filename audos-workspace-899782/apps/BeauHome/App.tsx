@@ -68,7 +68,8 @@ import { BeauAssessmentProvider } from './beau-assessment-context';
 import { SaveProfileNudge, isGuestUnsaved } from './save-profile';
 import { TODAY_BOARD_EVENT, getTodayBoard, peekTodayBoard, type TodayBoard } from './today-board';
 import { useReassessStatus } from './reassess-queue';
-import { WEATHER_EVENT, WeatherLine, ensureSharedWeather } from './weather-context';
+import { WEATHER_EVENT, WeatherLine, ensureSharedWeather, useSharedWeather } from './weather-context';
+import { composeTodayCopy } from './today-copy';
 import { sortByBodyOrder } from './body-order';
 
 // Code splitting (Pass Forty-Seven; widened in Pass Fifty): every surface
@@ -1434,9 +1435,41 @@ const WhatToWearToday = memo(function WhatToWearToday({
   useEffect(() => {
     ensureSharedWeather(homeCity(profile));
   }, [profile]);
+  // THE DAILY COPY (founder's copy contract, today-copy.ts). The headline
+  // and body are GENERATED, never hard-coded: they ride on the cached today
+  // board (produced with the chosen pieces from the same live weather — one
+  // unit, regenerated once per day per location, and together on “ask for
+  // another”). Until a board with copy exists — first compose still out, or
+  // a board cached before the contract — the same generator runs here on
+  // the live weather, so the card is never empty and never a question.
+  const [board, setBoard] = useState<TodayBoard | null>(() => peekTodayBoard(pieces));
+  useEffect(() => {
+    const sync = () => setBoard(peekTodayBoard(pieces));
+    sync();
+    window.addEventListener(TODAY_BOARD_EVENT, sync);
+    window.addEventListener(WEATHER_EVENT, sync);
+    return () => {
+      window.removeEventListener(TODAY_BOARD_EVENT, sync);
+      window.removeEventListener(WEATHER_EVENT, sync);
+    };
+  }, [pieces]);
+  const { weather } = useSharedWeather();
+  const copy = useMemo(() => {
+    if (board?.headline && board?.body) return { headline: board.headline, body: board.body };
+    const byId = new Map(pieces.map((p) => [p.id, p]));
+    const chosen = (board?.pieceIds || [])
+      .map((id) => byId.get(id))
+      .filter((p): p is WardrobePiece => !!p)
+      .map((p) => ({ name: p.name, category: p.category, slot: p.slot }));
+    const generated = composeTodayCopy({ weather, pieces: chosen });
+    return {
+      headline: board?.headline || generated.headline,
+      body: board?.body || generated.body,
+    };
+  }, [board, pieces, weather]);
   return (
     <section
-      aria-label="What to wear today?"
+      aria-label="Beau · today — the day's outfit"
       className="px-6 sm:px-10 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
       style={{ background: '#241a12', paddingTop: '48px', paddingBottom: '52px' }}
     >
@@ -1454,14 +1487,19 @@ const WhatToWearToday = memo(function WhatToWearToday({
           >
             Beau · today
           </p>
+          {/* [headline] — the weather-driven judgement call, 3–8 words,
+              never a question. Generated fresh with each day's board. */}
           <h3 style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '32px', lineHeight: 1.1, color: '#f6f0e5' }}>
-            What to wear today?
+            {copy.headline}
           </h3>
+          {/* [body] — the pieces, named plainly, and why they hold up all
+              day. Never mechanism copy. */}
           <p className="mt-2" style={{ fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.6, color: '#f6f0e5', opacity: 0.78, maxWidth: '56ch' }}>
-            Tell Beau what you’re doing and he’ll pull a look from what you own — checked against today’s weather.
+            {copy.body}
           </p>
-          {/* Location + conditions — ONE shared state with The Fitting:
-              change it in either place and both update instantly. */}
+          {/* [meta] — City · Temp°C · Condition + “Change location” (or
+              “Set your location” when unknown). ONE shared state with The
+              Fitting: change it in either place and both update instantly. */}
           <div className="mt-3">
             <WeatherLine tone="dark" />
           </div>
@@ -2134,14 +2172,16 @@ export default function BeauHome() {
                 look, Plan for a trip). This distinction holds everywhere. */}
 
             {/* 1 — "Build a look": plain tappable hairline row — opens The
-                Fitting with an empty board (the manual entry point). */}
+                Fitting with an empty board (the manual entry point). Styled
+                IDENTICALLY to "Plan for a trip" below (founder's fix pass):
+                the same full WardrobeActionRow treatment, not the compact
+                variant — same typography, dividers and colours. */}
             <div className="px-6 sm:px-10">
               <div className="max-w-[1180px] mx-auto">
                 <WardrobeActionRow
                   rowLabel="Build a look"
                   descriptor="Pull together an outfit from what you own."
                   onClick={openManualFitting}
-                  compact
                 />
               </div>
             </div>

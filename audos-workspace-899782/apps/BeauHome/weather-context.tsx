@@ -42,6 +42,18 @@ export interface SharedWeather {
   feelsLike: number | null;
   /** Brief condition label — Clear / Partly cloudy / Rain / Snow… */
   label: string;
+  /** The local hour (0–23) rain first becomes likely today (≥50% hourly
+   * probability) — what lets Beau's daily copy say “Rain by six” rather
+   * than a bare percentage. null when no rain is expected, or when the
+   * reading has no hourly data (an adopted reading, an older cache). */
+  rainStartHour: number | null;
+  /** The local hour (0–23) of today's warmest reading — the shape of the
+   * day's curve (“Cool morning, warm by two”). null without hourly data. */
+  warmestHour: number | null;
+  /** The temperature around 08:00 / 20:00 local — the ends of the curve.
+   * null without hourly data. */
+  morningC: number | null;
+  eveningC: number | null;
   fetchedAt: number;
 }
 
@@ -103,6 +115,9 @@ async function fetchWeatherAt(lat: number, lon: number, city: string): Promise<S
       // reason about how the day FEELS rather than the raw digit.
       current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m',
       daily: 'temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+      // The hourly curve is what Beau's daily copy reads: when rain starts,
+      // when the day peaks, how the morning compares to the evening.
+      hourly: 'temperature_2m,precipitation_probability',
       forecast_days: '1',
       timezone: 'auto',
     });
@@ -118,6 +133,28 @@ async function fetchWeatherAt(lat: number, lon: number, city: string): Promise<S
     const humidity = numberOrNull(data?.current?.relative_humidity_2m);
     const apparentC = numberOrNull(data?.current?.apparent_temperature);
     const windKmh = Math.round(Number(data?.current?.wind_speed_10m ?? 0));
+    // The day's curve, from the hourly forecast (one value per local hour).
+    const hourlyTemps: number[] = Array.isArray(data?.hourly?.temperature_2m)
+      ? data.hourly.temperature_2m.map((v: unknown) => Number(v))
+      : [];
+    const hourlyPrecip: number[] = Array.isArray(data?.hourly?.precipitation_probability)
+      ? data.hourly.precipitation_probability.map((v: unknown) => Number(v))
+      : [];
+    let warmestHour: number | null = null;
+    for (let i = 0; i < hourlyTemps.length && i < 24; i += 1) {
+      if (Number.isFinite(hourlyTemps[i]) && (warmestHour == null || hourlyTemps[i] > hourlyTemps[warmestHour])) {
+        warmestHour = i;
+      }
+    }
+    let rainStartHour: number | null = null;
+    for (let i = 0; i < hourlyPrecip.length && i < 24; i += 1) {
+      if (Number.isFinite(hourlyPrecip[i]) && hourlyPrecip[i] >= 50) {
+        rainStartHour = i;
+        break;
+      }
+    }
+    const morningC = Number.isFinite(hourlyTemps[8]) ? Math.round(hourlyTemps[8]) : null;
+    const eveningC = Number.isFinite(hourlyTemps[20]) ? Math.round(hourlyTemps[20]) : null;
     return {
       city,
       tempC: temp,
@@ -129,6 +166,10 @@ async function fetchWeatherAt(lat: number, lon: number, city: string): Promise<S
       apparentC,
       feelsLike: feelsLikeC({ tempC: temp, apparentC, humidity, windKmh }),
       label: describeCode(Number(data?.current?.weather_code ?? 1)),
+      rainStartHour,
+      warmestHour,
+      morningC,
+      eveningC,
       fetchedAt: Date.now(),
     };
   } catch {
@@ -225,8 +266,11 @@ export async function detectSharedLocation(): Promise<boolean> {
  * and apparent temperature are optional — feels-like is derived from
  * whatever the caller has. */
 export function adoptSharedWeather(
-  w: Omit<SharedWeather, 'fetchedAt' | 'humidity' | 'apparentC' | 'feelsLike'> &
-    Partial<Pick<SharedWeather, 'humidity' | 'apparentC' | 'feelsLike'>>,
+  w: Omit<
+    SharedWeather,
+    'fetchedAt' | 'humidity' | 'apparentC' | 'feelsLike' | 'rainStartHour' | 'warmestHour' | 'morningC' | 'eveningC'
+  > &
+    Partial<Pick<SharedWeather, 'humidity' | 'apparentC' | 'feelsLike' | 'rainStartHour' | 'warmestHour' | 'morningC' | 'eveningC'>>,
 ): void {
   const humidity = w.humidity ?? null;
   const apparentC = w.apparentC ?? null;
@@ -235,6 +279,10 @@ export function adoptSharedWeather(
     humidity,
     apparentC,
     feelsLike: w.feelsLike ?? feelsLikeC({ tempC: w.tempC, apparentC, humidity, windKmh: w.windKmh }),
+    rainStartHour: w.rainStartHour ?? null,
+    warmestHour: w.warmestHour ?? null,
+    morningC: w.morningC ?? null,
+    eveningC: w.eveningC ?? null,
     fetchedAt: Date.now(),
   };
   status = 'ready';

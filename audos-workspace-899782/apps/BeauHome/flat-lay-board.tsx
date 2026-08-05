@@ -51,11 +51,14 @@
  *
  * TWO THINGS THE DARK PANEL NEEDS, and only it (`panel: 'walnut'`, the Today
  * card):
- *   · ONE LIGHT CANVAS under the WHOLE outfit — a single field in the card
- *     tone #FBF8F1, inset from the slab's edge, sharp-cornered, carrying one
- *     inset frame 10px inside its own edge — 2px in the house hairline tone
- *     #D9CFBE (2px, not 1px: the thinner line failed to read; the founder's
- *     spec allows a 1.5px fallback if 2px proves too heavy). On walnut a
+ *   · ONE LIGHT CANVAS under the WHOLE outfit — a single field in the
+ *     slightly darker beige #EDE8DF (the founder's 7-point fix pass — one
+ *     step darker than the #FBF8F1 card tone), inset from the slab's edge,
+ *     sharp-cornered, carrying one inset frame 10px inside its own edge —
+ *     2px in dark walnut #241a12 (the same fix pass: the hairline #D9CFBE
+ *     line is retired here). The composition is CLIPPED to the area inside
+ *     that frame (`.today-clip`, overflow hidden), so no piece can ever
+ *     render across the line and break the framed effect. On walnut a
  *     navy jacket or a
  *     black shoe washes out to nothing; the canvas is what keeps a dark
  *     piece visible. It is the ONLY background surface in the card: a light
@@ -312,10 +315,20 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
     const slotWidth = box.width / items.length;
     items.forEach((piece, i) => {
       const height = referenceHeightPct(piece);
-      const width = Math.min(slotWidth, aspectWidthPct(piece, height) ?? slotWidth);
+      // PROPORTIONS RULE (founder's fix): the category reference height IS
+      // the item's render height — the zone's width never shrinks it. A
+      // tight-cropped cutout keeps its true aspect ratio at that height even
+      // when that makes it wider than its slot (the box is centred on the
+      // slot and clamped to the board; the clipped tray absorbs any rare
+      // spill). Capping the box at the slot width — the old behaviour — is
+      // what silently shrank a wide-cropped shirt well below its 70cm
+      // reference against the 104cm trousers. Only a dimension-less legacy
+      // image still falls back to the slot's own width.
+      const natural = aspectWidthPct(piece, height);
+      const width = natural == null ? slotWidth : Math.min(natural, 96);
       placed.push({
         piece,
-        left: box.left + i * slotWidth + (slotWidth - width) / 2,
+        left: clamp(box.left + i * slotWidth + (slotWidth - width) / 2, 0, 100 - width),
         top: box.top,
         width,
         height,
@@ -341,7 +354,11 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
   const torsoLayers = [...groups.torso].reverse();
   torsoLayers.forEach((piece, i) => {
     const height = referenceHeightPct(piece);
-    const width = Math.min(ZONE_TORSO.width, aspectWidthPct(piece, height) ?? ZONE_TORSO.width);
+    // Same proportions rule as placeRow: the reference height is never
+    // sacrificed to the zone's width — a top at 70cm renders at ~67% of the
+    // 104cm trousers whatever its crop's aspect ratio happens to be.
+    const natural = aspectWidthPct(piece, height);
+    const width = natural == null ? ZONE_TORSO.width : Math.min(natural, 96);
     placed.push({
       piece,
       left: clamp(ZONE_TORSO.left + (ZONE_TORSO.width - width) / 2 - TORSO_LAYER_SHIFT * i, 0, 100 - width),
@@ -412,14 +429,17 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
  * THE TRAY — the Today card's literal structure, and it is ONE surface with
  * bare cutouts lying on it:
  *
- *   .today-canvas   ONE light field, the only background in the card. Inset
- *                   16px from the walnut slab, sharp-cornered, with a single
- *                   2px #D9CFBE frame 10px inside its own edge (the ::before)
- *                   — a picture frame sitting inside the canvas boundary,
- *                   never a stroke on the boundary itself. (2px, not 1px, per
- *                   the founder's spec — fall back to 1.5px only if 2px reads
- *                   too heavy.)
- *   .today-stage    the transparent positioning box inside the canvas. The
+ *   .today-canvas   ONE light field, the only background in the card — the
+ *                   slightly darker beige #EDE8DF (founder's fix pass).
+ *                   Inset 16px from the walnut slab, sharp-cornered, with a
+ *                   single 2px dark-walnut #241a12 frame 10px inside its own
+ *                   edge (the ::before) — a picture frame sitting inside the
+ *                   canvas boundary, never a stroke on the boundary itself.
+ *   .today-clip     the clipping box INSIDE the inset frame (the canvas's
+ *                   12px padding lands its edge exactly on the frame's inner
+ *                   edge; overflow hidden). Every piece renders inside it,
+ *                   so nothing can cross the frame line (founder's fix).
+ *   .today-stage    the transparent positioning box inside the clip. The
  *                   composer's percentages are relative to it, so the
  *                   composition keeps the 480 × 600 portrait proportion the
  *                   zone system is designed on.
@@ -439,9 +459,10 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
  */
 const TRAY_CSS =
   '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:480px;' +
-  'margin:16px 16px 16px auto;background:var(--today-canvas-ground,#FBF8F1);border-radius:0;min-height:160px;height:auto;' +
-  'transition:min-height 0.2s ease;display:flex;align-items:center;justify-content:center}' +
-  '.today-canvas::before{content:"";position:absolute;inset:10px;border:2px solid #D9CFBE;pointer-events:none;z-index:0}' +
+  'margin:16px 16px 16px auto;background:var(--today-canvas-ground,#EDE8DF);border-radius:0;min-height:160px;height:auto;' +
+  'padding:12px;transition:min-height 0.2s ease;display:flex;align-items:center;justify-content:center}' +
+  '.today-canvas::before{content:"";position:absolute;inset:10px;border:2px solid #241a12;pointer-events:none;z-index:20}' +
+  '.today-clip{position:relative;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
   '.today-stage{position:relative;width:min(240px,100%);margin:0 auto;aspect-ratio:var(--aspect,480/600);background:transparent;border:none;box-shadow:none}' +
   '.today-piece{position:absolute;left:var(--x);top:var(--y);width:var(--w);height:var(--h);' +
   'z-index:var(--z);box-sizing:border-box;display:flex;align-items:center;' +
@@ -510,10 +531,11 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   const trayItems = placed;
   const trayAspect = aspect;
   // THE LIGHT GROUND, and there is only ever ONE of it. On the walnut panel it
-  // is the tray's single canvas under the whole outfit (below); on paper the
-  // stage already is one, so nothing is added there — and nowhere does a piece
-  // get a ground of its own.
-  const canvasGround = panel === 'walnut' ? '#FBF8F1' : 'transparent';
+  // is the tray's single canvas under the whole outfit (below) — the slightly
+  // darker beige #EDE8DF (founder's fix pass); on paper the stage already is
+  // one, so nothing is added there — and nowhere does a piece get a ground of
+  // its own.
+  const canvasGround = panel === 'walnut' ? '#EDE8DF' : 'transparent';
   // The board itself is transparent. On the tray it is the positioning box
   // INSIDE the canvas; every piece is an absolutely-positioned child of it.
   const board = (
@@ -631,7 +653,10 @@ export function FlatLayBoard<T extends FlatLayPiece>({
         aria-label={ariaLabel}
       >
         <style>{TRAY_CSS}</style>
-        {board}
+        {/* The clip — its edge sits exactly on the inset frame's inner edge
+            (canvas padding 12px = 10px inset + 2px stroke), and overflow is
+            hidden, so no piece can render across the frame line. */}
+        <div className="today-clip">{board}</div>
       </div>
     );
   }
@@ -648,21 +673,24 @@ export function FlatLayBoard<T extends FlatLayPiece>({
           className="uppercase"
           style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', color: '#8A7F70' }}
         >
-          Shown as photographs
+          Not on the board yet
         </p>
         <p style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.6, color: '#8A7F70', marginTop: '2px' }}>
           These have no clean cutout yet — the image is still being prepared, the only photography that
-          exists is worn, or the cut came back imperfect. Beau shows them as photographs rather than laying
-          them among the cutouts.
+          exists is worn, or the cut came back imperfect. Beau names them here rather than laying anything
+          unfinished among the cutouts.
         </p>
         <div className="flex flex-wrap gap-4" style={{ marginTop: '10px' }}>
           {heldOut.map((piece) => (
             <div key={piece.key} className="flex items-center gap-2" style={{ maxWidth: '220px' }}>
-              {piece.image && (
+              {/* Only a GENUINE transparent cutout may appear even here — a
+                  raw photograph is never an item's display image (universal
+                  transparency rule), and the plate/border is gone with it. */}
+              {piece.image && isTransparentCutout(piece.image) && (
                 <span
                   aria-hidden="true"
                   className="flex-shrink-0 flex items-center justify-center"
-                  style={{ width: '40px', height: '40px', background: '#FBF8F1', border: '1px solid #D9CFBE', boxSizing: 'border-box', overflow: 'hidden' }}
+                  style={{ width: '40px', height: '40px', background: 'transparent', boxSizing: 'border-box', overflow: 'hidden' }}
                 >
                   <img
                     src={piece.image}

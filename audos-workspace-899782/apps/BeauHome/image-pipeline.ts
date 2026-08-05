@@ -54,8 +54,13 @@ export const CLASSIFIER_VERSION = 1;
  * remediation pass (a further ~2px alpha erosion + re-crop, in photo-enhance)
  * before the cut is flagged — older rows are re-ingested once so cuts that
  * were flagged `vision-artifacts` under v3 get the remediation instead of
- * staying held out of the compositions forever. */
-export const CUTOUT_PIPELINE_VERSION = 4;
+ * staying held out of the compositions forever. v5: Step 2 gained
+ * HOLLOW-FRAME REMOVAL — connected-region analysis clears any baked-in
+ * rectangular border stroke that survives the ~2px erosion, whatever its
+ * thickness (photo-enhance `stripFrameComponents`) — so older rows are
+ * re-ingested once and no stored cut can carry a border artifact against
+ * either the light or the dark ground. */
+export const CUTOUT_PIPELINE_VERSION = 5;
 
 /** FNV-1a hex — a short stable key for a URL, since the URL itself is far too
  * long to index and can carry a query string that varies by delivery size. */

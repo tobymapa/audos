@@ -214,22 +214,16 @@ function PinCard({ piece, onRemove }: { piece: FittingPiece; onRemove: () => voi
       >
         <X className="w-3 h-3" />
       </button>
-      {/* A stored cutout lies straight on the ground with nothing behind it; a
-          photograph that has no cutout yet is shown as a framed photograph on
-          paper rather than blended into the panel — same rule as the shelf. */}
+      {/* A stored cutout lies straight on the ground with nothing behind it.
+          A photograph that has no cutout yet is NEVER shown raw or plated on
+          a white box (the universal transparency rule): the quiet tile holds
+          its place until the genuine cutout lands. */}
       {/* Absolutely positioned image: a percentage-height child inside an
           aspect-ratio box collapses on some desktop engines (older
           Safari/WebKit) — the pin's image must render at every viewport. */}
       <span className="relative block w-full aspect-[3/4] overflow-hidden">
-        {img ? (
-          <span
-            className="absolute inset-0 flex items-center justify-center"
-            style={
-              isTransparentCutout(img)
-                ? undefined
-                : { background: '#FBF8F1', border: '1px solid #D9CFBE', boxSizing: 'border-box', padding: '3px' }
-            }
-          >
+        {img && isTransparentCutout(img) ? (
+          <span className="absolute inset-0 flex items-center justify-center">
             <img
               src={img}
               alt={piece.name}
@@ -311,9 +305,9 @@ function pieceInCategory(piece: FittingPiece, categoryId: string): boolean {
  * lifestyle background, and breaks on any dark panel. The rule now (evaluated
  * at render, in force from the very first paint): a STORED transparent cutout
  * from the ingestion pipeline is drawn bare on the shelf's own paper, and a
- * photograph the pipeline has not cut yet is PLATED — shown as an honest
- * framed photograph (#FBF8F1 ground, 1px #D9CFBE hairline) until its real
- * cutout lands and the plate falls away.
+ * photograph the pipeline has not cut yet is NEVER shown raw and never plated
+ * on a white box (the universal transparency rule) — the flat processing tone
+ * holds the tile's space until its real cutout lands.
  *
  * NO FRAME AND NO GROUND EITHER. The plate treatment (a mat border and sepia)
  * is gone from the shelf, and so is the warm-stone fill that used to sit under
@@ -420,28 +414,28 @@ function ShelfThumb({ piece }: { piece: FittingPiece }) {
   const srcSet = img ? productImageSrcSet(img, width) : '';
 
   // A STORED CUTOUT needs no ground at all — it floats on the shelf's own
-  // paper. A photograph the pipeline has not cut yet is PLATED instead of
-  // blended: multiply was only ever a display-layer trick, it tinted the
-  // garment and did nothing about a lifestyle background, and it breaks on any
-  // dark ground. Evaluated during render, so the tile is right on first paint.
+  // paper. A photograph the pipeline has not cut yet is NEVER shown raw and
+  // never plated on a white box (the universal transparency rule): the quiet
+  // processing tone holds the tile's space until the stored PNG lands.
+  // Evaluated during render, so the tile is right on first paint.
   const cut = !!img && isTransparentCutout(img);
   return (
     <span
       className="block w-full"
       style={{
         aspectRatio: '4 / 5',
-        // The aspect ratio alone reserves the tile's space. The paper plate
-        // appears only while there is a photograph and no cutout for it, and
-        // falls away the moment the stored PNG lands.
-        background: cut || !img ? 'transparent' : '#FBF8F1',
-        border: cut || !img ? 'none' : '1px solid #D9CFBE',
-        padding: cut || !img ? 0 : '4px',
+        // The aspect ratio alone reserves the tile's space; while a
+        // photograph waits on its cutout the flat processing tone shows,
+        // and it falls away the moment the stored PNG lands.
+        background: cut || !img ? 'transparent' : '#eadfcb',
+        border: 'none',
+        padding: 0,
         position: 'relative',
         overflow: 'hidden',
         boxSizing: 'border-box',
       }}
     >
-      {img && (
+      {cut && (
         <img
           src={cappedImageUrl(img, width)}
           {...(srcSet ? { srcSet, sizes: SHELF_TILE_SIZES } : null)}
@@ -2299,17 +2293,11 @@ export function FittingRoomTab({
                     {packingList.map((p) => (
                       <div key={p.key} className="w-[92px] sm:w-[104px] flex-shrink-0">
                         <span className="relative block w-full aspect-square overflow-hidden">
-                          {p.image ? (
-                            /* Cutout: bare on the paper. Uncut photograph:
-                               framed on a paper plate, never blended in. */
-                            <span
-                              className="absolute inset-0 flex items-center justify-center"
-                              style={
-                                isTransparentCutout(p.image)
-                                  ? undefined
-                                  : { background: '#FBF8F1', border: '1px solid #D9CFBE', boxSizing: 'border-box', padding: '3px' }
-                              }
-                            >
+                          {p.image && isTransparentCutout(p.image) ? (
+                            /* Only the genuine cutout renders, bare on the
+                               paper — never a raw photograph and never a
+                               plated white box (universal transparency). */
+                            <span className="absolute inset-0 flex items-center justify-center">
                               <img
                                 src={p.image}
                                 alt={p.name}
@@ -2317,6 +2305,8 @@ export function FittingRoomTab({
                                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                               />
                             </span>
+                          ) : p.image ? (
+                            <span className="absolute inset-0 bg-[#eadfcb]" aria-hidden="true" />
                           ) : (
                             <span
                               className="absolute inset-0 flex items-center justify-center text-center px-1 text-[var(--color-neutral-600,#856c51)]"

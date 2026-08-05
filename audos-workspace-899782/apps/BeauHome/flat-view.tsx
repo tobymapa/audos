@@ -28,22 +28,22 @@ export { FlatLayBoard, composeFlatLayBoard };
 export type { FlatLayPiece, FlatLayPlacedItem } from './flat-lay-board';
 
 /** How a board image sits on the canvas. A stored cutout (a genuine
- * transparent PNG from the ingestion pipeline) is drawn as-is, straight on the
- * canvas. A photograph we could not cut is NOT blended into the ground — that
- * tints the garment, does nothing about a lifestyle background and breaks
- * outright on a dark panel; it is shown as a framed photograph on its own
- * paper plate instead, which reads honestly on any ground. */
-function PlatedBoardPhoto({ src, alt }: { src: string; alt: string }) {
+ * transparent PNG from the ingestion pipeline) is drawn as-is, straight on
+ * the canvas. A photograph the pipeline has not cut yet is NEVER shown raw
+ * and never plated on a white box (the founder's universal transparency
+ * rule — a solid box behind an item is exactly what the flat-lay must never
+ * show): the quiet processing tile holds its place until the cutout lands. */
+function ProcessingBoardTile({ name }: { name: string }) {
   return (
     <span
-      className="absolute inset-0 flex items-center justify-center"
-      style={{ background: '#FBF8F1', border: '1px solid #D9CFBE', boxSizing: 'border-box', padding: '4px' }}
+      className="absolute inset-0 flex items-center justify-center bg-[#eadfcb]"
+      role="img"
+      aria-label={`${name} — image being prepared`}
     >
-      <img
-        src={src}
-        alt={alt}
-        loading="eager"
-        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
+      <span
+        className="block w-1/3 opacity-70"
+        style={{ background: 'var(--space-neutral-300, #dccdb2)', aspectRatio: '1 / 1' }}
+        aria-hidden="true"
       />
     </span>
   );
@@ -154,10 +154,10 @@ function BoardCard({
     <div className={`relative flex-shrink-0 ${wide ? 'w-[104px] sm:w-[128px]' : 'w-[96px] sm:w-[118px]'}`}>
       {/* A stored cutout gets no plate frame and no ground of its own — the
           same rule the flat-lay canvas follows, so a piece does not change
-          appearance depending on which board it lands on. Only a photograph
-          with no cutout is framed (PlatedBoardPhoto above). The board is above
-          the fold in The Fitting, so its images load eagerly rather than
-          waiting on the lazy queue. */}
+          appearance depending on which board it lands on. A photograph with
+          no cutout yet shows the processing tile (ProcessingBoardTile above)
+          — never the raw source. The board is above the fold in The Fitting,
+          so its images load eagerly rather than waiting on the lazy queue. */}
       {/* The image is absolutely positioned inside the (relative) aspect box:
           a percentage-height child inside an aspect-ratio box collapses to
           zero height on some desktop engines (older Safari/WebKit), which
@@ -171,7 +171,7 @@ function BoardCard({
             loading="eager"
           />
         ) : piece.image ? (
-          <PlatedBoardPhoto src={piece.image} alt={piece.name} />
+          <ProcessingBoardTile name={piece.name} />
         ) : (
           <span
             className="absolute inset-0 flex items-center justify-center text-center px-1 text-[var(--color-neutral-600,#856c51)]"

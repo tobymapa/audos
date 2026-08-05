@@ -20,8 +20,9 @@
  */
 import { composeFittingBoard, fetchTodayWeatherLine } from './fitting-ai';
 import { fetchMaterials, type StyleProfile, type WardrobePiece } from './profile-data';
-import { getStoredSharedCity, sharedFilterTempC } from './weather-context';
+import { getSharedWeather, getStoredSharedCity, sharedFilterTempC } from './weather-context';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
+import { composeTodayCopy } from './today-copy';
 
 export interface TodayBoard {
   pieceIds: number[];
@@ -29,6 +30,13 @@ export interface TodayBoard {
   /** Set when today's conditions leave a genuine hole in the wardrobe — the
    * honest alternative to quietly composing with a wrong-season piece. */
   gapNote?: string | null;
+  /** THE DAILY COPY (founder's copy contract, today-copy.ts) — generated
+   * WITH the board from the same live weather + chosen pieces, and cached
+   * with it as ONE unit: a recompose (new day, new city, adjusted board)
+   * regenerates both together, never separately. Absent on boards cached
+   * before the contract landed — the card then derives copy at render. */
+  headline?: string | null;
+  body?: string | null;
   composedAt: number;
 }
 
@@ -134,10 +142,21 @@ export async function getTodayBoard({
       weatherLine,
       warmth,
     });
+    // THE DAILY COPY — headline + body, from the same live inputs the board
+    // itself was composed from (the shared weather reading and the chosen
+    // pieces), so copy and pieces are one unit in the cache.
+    const byId = new Map(pieces.map((p) => [p.id, p]));
+    const chosen = result.pieceIds
+      .map((id) => byId.get(id))
+      .filter((p): p is WardrobePiece => !!p)
+      .map((p) => ({ name: p.name, category: p.category, slot: p.slot, material: materials[p.id] || null }));
+    const copy = composeTodayCopy({ weather: getSharedWeather(), pieces: chosen });
     const board: TodayBoard = {
       pieceIds: result.pieceIds,
       reasoning: result.reasoning,
       gapNote: result.gapNote ?? null,
+      headline: copy.headline,
+      body: copy.body,
       composedAt: Date.now(),
     };
     rememberTodayBoard(pieces, board);

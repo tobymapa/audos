@@ -484,7 +484,7 @@ export function containFit(
  *    ≤ Twenty-Four, and Pass Twenty-Five outputs. ALL of these are re-run
  *    through the pipeline by the one-time retroactive batch.
  */
-export const NORM_VERSION = 13;
+export const NORM_VERSION = 14;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -1031,6 +1031,89 @@ function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: n
 }
 
 /**
+ * HOLLOW-FRAME REMOVAL — the second half of the border-artifact cleanup
+ * (pipeline v5). The ~2px erosion above eats HAIRLINE frame strokes; a
+ * heavier baked-in border — the 3–6px rectangle a retailer or scraper drew
+ * around the source photograph, in a colour the background remover has no
+ * reason to touch — survives it and reads as a dark line around the item on
+ * BOTH grounds. Structurally such a frame is its own connected region of
+ * opaque pixels: it spans almost the whole frame in both directions yet
+ * fills almost none of its own bounding box. This pass labels the alpha
+ * channel's connected regions and clears every region that reads as a
+ * hollow rectangle — whatever its thickness — leaving the garment alone.
+ * Conservative by construction: a garment, a pair of shoes, a belt or a
+ * pair of sunglasses all fill far more of their own bounding box than a
+ * frame line ever can, and if EVERY region reads as a frame nothing is
+ * stripped (that is a judgement failure, not a cleanup).
+ */
+function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): void {
+  const total = w * h;
+  const labels = new Int32Array(total);
+  const queue = new Int32Array(total);
+  let label = 0;
+  const comps: Array<{ label: number; area: number; minX: number; minY: number; maxX: number; maxY: number }> = [];
+  for (let start = 0; start < total; start += 1) {
+    if (labels[start] !== 0 || data[start * 4 + 3] < 16) continue;
+    label += 1;
+    labels[start] = label;
+    queue[0] = start;
+    let head = 0;
+    let tail = 1;
+    let area = 0;
+    let minX = w;
+    let minY = h;
+    let maxX = -1;
+    let maxY = -1;
+    while (head < tail) {
+      const idx = queue[head];
+      head += 1;
+      area += 1;
+      const x = idx % w;
+      const y = (idx - x) / w;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (x > 0 && labels[idx - 1] === 0 && data[(idx - 1) * 4 + 3] >= 16) {
+        labels[idx - 1] = label;
+        queue[tail] = idx - 1;
+        tail += 1;
+      }
+      if (x < w - 1 && labels[idx + 1] === 0 && data[(idx + 1) * 4 + 3] >= 16) {
+        labels[idx + 1] = label;
+        queue[tail] = idx + 1;
+        tail += 1;
+      }
+      if (y > 0 && labels[idx - w] === 0 && data[(idx - w) * 4 + 3] >= 16) {
+        labels[idx - w] = label;
+        queue[tail] = idx - w;
+        tail += 1;
+      }
+      if (y < h - 1 && labels[idx + w] === 0 && data[(idx + w) * 4 + 3] >= 16) {
+        labels[idx + w] = label;
+        queue[tail] = idx + w;
+        tail += 1;
+      }
+    }
+    comps.push({ label, area, minX, minY, maxX, maxY });
+  }
+  if (comps.length < 2) return; // one region — nothing separable to strip
+  const drop = new Set<number>();
+  for (const c of comps) {
+    const bw = c.maxX - c.minX + 1;
+    const bh = c.maxY - c.minY + 1;
+    const fill = c.area / Math.max(1, bw * bh);
+    // A hollow rectangle: spans most of the frame in BOTH directions but
+    // fills a sliver of its own bounding box — no garment does that.
+    if (bw >= w * 0.6 && bh >= h * 0.6 && fill < 0.18) drop.add(c.label);
+  }
+  if (drop.size === 0 || drop.size === comps.length) return;
+  for (let i = 0; i < total; i += 1) {
+    if (drop.has(labels[i])) data[i * 4 + 3] = 0;
+  }
+}
+
+/**
  * THE NORMALIZATION STEP — run ONCE at ingestion, never at render time.
  * Three things happen here, in order:
  *
@@ -1071,9 +1154,12 @@ async function trimTransparent(
   wctx.drawImage(img, 0, 0, w, h);
   const frame = wctx.getImageData(0, 0, w, h);
   const { data } = frame;
-  // 1 — BORDER-ARTIFACT CLEANUP: erode the alpha edge, then write the
-  // cleaned frame back so the crop below ships the eroded pixels.
+  // 1 — BORDER-ARTIFACT CLEANUP: erode the alpha edge (hairline strokes and
+  // white fringe), then clear any surviving hollow-rectangle frame region
+  // outright — whatever its thickness — and write the cleaned frame back so
+  // the crop below ships the cleaned pixels.
   erodeAlpha(data, w, h, ALPHA_ERODE_PX);
+  stripFrameComponents(data, w, h);
   wctx.putImageData(frame, 0, 0);
   let minX = w;
   let minY = h;
@@ -1194,8 +1280,9 @@ export function isTransparentCutout(url: string): boolean {
 // v4: matches CUTOUT_PIPELINE_VERSION 4 (the vision-verification remediation
 // pass) — the prefix bump orphans the older mappings so a cut that was
 // flagged under v3 re-ingests once with the remediation instead of being
-// served forever from this legacy mapping.
-const CUTOUT_STORE_PREFIX = 'ethaion_board_cutout_v4_';
+// served forever from this legacy mapping. v5 bumps it again so every cut
+// re-ingests through the hollow-frame removal pass (border-artifact fix).
+const CUTOUT_STORE_PREFIX = 'ethaion_board_cutout_v5_';
 
 /** FNV-1a hex — a short stable key for a source URL. */
 function cutoutHash(source: string): string {
@@ -2032,7 +2119,9 @@ let migrationRunning = false;
 // Pass Forty-Nine: new flag key so every existing piece is re-cut into a
 // GENUINE alpha-channel transparent PNG exactly once (the universal
 // transparency rule); the Pass Forty-Six B paper-card flag is retired.
-const BATCH_FLAG_KEY = 'bgRemovalV49';
+// v50: bumped with pipeline v5 (hollow-frame removal) so every piece is
+// re-cut once more from its original — the universal border-artifact fix.
+const BATCH_FLAG_KEY = 'bgRemovalV50';
 
 function batchFlagSet(): boolean {
   try {
