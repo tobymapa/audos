@@ -721,7 +721,7 @@ const ItemCard = memo(function ItemCard({
           pieceId={piece.id}
           title={piece.name}
           showConfirmation
-          className="w-full aspect-square"
+          className="w-full aspect-[4/5]"
         />
         <div className="p-2.5">
           <div className="flex items-start justify-between gap-2">
@@ -1036,9 +1036,11 @@ export function CategoryPage({
           Your pieces
         </p>
         {catPieces.length > 0 ? (
-          /* Mockup grid (Pass Thirty-Five): owned pieces render 2 per row as
-             square cards with rounded corners. */
-          <div className="grid grid-cols-2 gap-3">
+          /* Sizing rule (founder): owned pieces render at the SAME tile
+             size as the Fitting shelf — three up on a phone, four on a
+             small panel, six on a wide one, 4:5 tiles — so "Your pieces"
+             and the shelf read as one system rather than two sizes. */
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4">
             {catPieces.map((piece) => (
               <ItemCard
                 key={piece.id}
@@ -1686,7 +1688,9 @@ export function WardrobeSearch({
           <p className={`${typography.size.xs} ${typography.color.muted} mb-2`}>
             {matches.length} piece{matches.length === 1 ? '' : 's'} match{matches.length === 1 ? 'es' : ''} “{query.trim()}”
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {/* Search results match the Fitting shelf's tile size too — the
+              same grid the category pages use (founder's sizing rule). */}
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4">
             {matches.map((piece) => (
               <ItemCard
                 key={piece.id}

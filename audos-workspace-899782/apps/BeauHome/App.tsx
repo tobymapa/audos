@@ -1120,14 +1120,14 @@ const TodayTraySkeleton = memo(function TodayTraySkeleton() {
       aria-label={'Beau is laying out today\u2019s outfit'}
       className="block sm:flex-1 min-w-0"
       // The canvas's own box — 480 wide at most, inset 16px from the slab's
-      // edge, right-aligned. The tray's real height is DYNAMIC now (computed
-      // from the items the board actually places — flat-lay-board), so the
-      // skeleton holds the design proportion as its best estimate plus the
-      // canvas's own 160px floor, rather than a fixed 520px slab.
+      // edge, right-aligned. The tray now renders the 480 × 600 stage capped
+      // at 240px wide (240 × 300 — the same height as the Fitting's Build a
+      // Look board, per the founder's sizing rule), so the skeleton holds
+      // that halved proportion as its estimate plus the canvas's 160px floor.
       style={{
         width: 'calc(100% - 32px)',
         maxWidth: '480px',
-        aspectRatio: '480 / 600',
+        aspectRatio: '480 / 300',
         minHeight: '160px',
         margin: '16px 16px 16px auto',
       }}
@@ -1931,11 +1931,13 @@ export default function BeauHome() {
     };
   }, [pieces]);
 
-  // Pass Twenty-Six (re-grounded Pass Forty-Six B): on first load, EVERY
-  // piece with a photo is processed through client-side background removal —
-  // the original uploaded photo (or the best surviving image) becomes the
-  // real garment on a canonical #fbf8f1 paper 3:4 card. Runs once
-  // (bgRemovalV46 flag); repeat calls are cheap no-ops.
+  // Pass Forty-Nine (the universal transparency rule): on first load, EVERY
+  // piece with a photo is re-run through THE ONE ingestion pipeline — the
+  // original uploaded photo (or the best surviving image) becomes a stored
+  // GENUINE alpha-channel transparent cutout (background removed, alpha edge
+  // eroded ~2px, tight-cropped to the silhouette + 4px, verified on both
+  // real grounds). Runs once (bgRemovalV49 flag); repeat calls are cheap
+  // no-ops, and pieces whose photo is already a stored cutout are skipped.
   useEffect(() => {
     if (pieces.length === 0) return;
     const sweepKey = pieces.map((p) => p.id).sort((a, b) => a - b).join(',');

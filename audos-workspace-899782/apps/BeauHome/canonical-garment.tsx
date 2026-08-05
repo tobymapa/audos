@@ -2,27 +2,28 @@
  * Ethaion garment visuals (Pass Nineteen) — ONE canonical renderer.
  *
  * Every wardrobe surface shows the piece's stored canonical image: the
- * founder's own photo of the garment with its background removed
- * (photo-enhance.ts — deterministic, client-side, no AI generation) and
- * normalised to a 3:4 portrait clean-paper (#fbf8f1, Pass Forty-Six B)
- * frame with identical padding. Because the
- * geometry is baked into the image itself, every card in the grid shares the
- * same crop, the same garment scale and the same white space by construction.
+ * founder's own photo of the garment run through THE ONE ingestion pipeline
+ * (photo-enhance.ts — background removed, alpha edge eroded ~2px, tight-
+ * cropped to the silhouette + 4px, verified) into a GENUINE alpha-channel
+ * transparent PNG (Pass Forty-Nine — the universal transparency rule). A
+ * genuine cutout renders BARE here — no plate, no border, no ground of its
+ * own — so no rectangular line can ever appear around an item; only a
+ * photograph that has no cutout yet is shown honestly plated.
  *
- * While a piece is being (re)generated the PREVIOUS image stays visible —
- * the pipeline pushes fresh URLs into a live registry keyed by piece id so
- * cards update the moment a new image lands, without a DB refetch.
+ * While a piece is being (re)generated its place is held by the quiet
+ * processing tile (never the raw source photograph); the pipeline pushes
+ * fresh URLs into a live registry keyed by piece id so cards update the
+ * moment a new image lands, without a DB refetch.
  *
  * ONE STORED CUTOUT, REUSED HERE TOO. When the ingestion pipeline has a clean
  * transparent PNG for this piece (image-pipeline's `image_cutouts` store) the
- * plate shows THAT file — the same one the Today tray and the Fitting board
+ * tile shows THAT file — the same one the Today tray and the Fitting board
  * lay out, at the same cost as any other image, so What You Own and the
  * compositions can never show two different pictures of one garment. It is a
- * synchronous lookup, never a pipeline run; a piece with no stored cutout
- * shows its canonical paper card exactly as before.
+ * synchronous lookup, never a pipeline run.
  */
 import { useEffect, useState } from 'react';
-import { peekCutoutRecord } from './image-pipeline';
+import { isStoredCutoutUrl, peekCutoutRecord } from './image-pipeline';
 
 export interface CanonicalGarmentFields {
   name?: string | null;
@@ -75,12 +76,12 @@ export function isGarmentRegenerating(pieceId?: number | null): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * The ONE garment visual, shared by every wardrobe surface: the canonical
- * paper-background 3:4 product image. When a piece is still being processed
- * (or briefly has no image at all) a quiet neutral tile holds its exact place
- * in the grid — never a blank box, never a "no photo" label, and never tinted
- * to the piece's own colour: pieces carry no colour treatment anywhere
- * (Recommendation Engine overhaul, Part 2).
+ * The ONE garment visual, shared by every wardrobe surface: the piece's
+ * stored GENUINE transparent cutout, drawn bare. When a piece is still being
+ * processed (or briefly has no image at all) a quiet neutral tile holds its
+ * exact place in the grid — never a blank box, never a "no photo" label, and
+ * never tinted to the piece's own colour: pieces carry no colour treatment
+ * anywhere (Recommendation Engine overhaul, Part 2).
  */
 export function CanonicalGarment({
   fields,
@@ -132,9 +133,63 @@ export function CanonicalGarment({
   ) : null;
 
   if (candidate && !broken) {
-    // Warm Editorial plate (Pass Thirty-One): every garment image sits in a
-    // tipped-in plate — warm sepia grade, 6px mat border, hairline outline,
-    // square corners (.hab-plate, defined in Desktop.tsx's global sheet).
+    // UNIVERSAL TRANSPARENCY (founder's rule): a GENUINE alpha-channel
+    // cutout renders BARE — no plate, no border, no mat and no ground of
+    // its own — so the item floats on whatever surface it lands on (paper,
+    // the beige canvas, the walnut slab) with no rectangular line around
+    // it. `cutout` is the stored record's PNG; `isStoredCutoutUrl` catches
+    // the case where the candidate URL itself IS the stored cutout (the
+    // piece's canonical image since Pass Forty-Nine).
+    const genuineCutout = (!!cutout && !cutoutBroken) || isStoredCutoutUrl(candidate);
+    if (genuineCutout) {
+      return (
+        <span
+          className={`relative inline-flex items-center justify-center overflow-hidden ${className}`}
+          role="img"
+          aria-label={label}
+          style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
+        >
+          <img
+            src={display}
+            alt={label}
+            className="absolute object-contain"
+            style={{ inset: 0, width: '100%', height: '100%', background: 'transparent' }}
+            loading="lazy"
+            onError={() => {
+              // A stored cutout that will not load is not a missing
+              // photograph: fall back to the piece's own image first.
+              if (display !== candidate) setCutoutBroken(true);
+              else setBroken(true);
+            }}
+          />
+          {regenBadge}
+        </span>
+      );
+    }
+    if (regenerating) {
+      // The pipeline is cutting this piece RIGHT NOW: hold its place with
+      // the quiet processing tile rather than showing the raw source
+      // photograph — an unprocessed image is never presented as the item's
+      // display image (founder's rule).
+      return (
+        <span
+          className={`hab-plate relative inline-flex items-center justify-center overflow-hidden bg-[#eadfcb] ${className}`}
+          role="img"
+          aria-label={`${label} — being prepared`}
+        >
+          <span
+            className="block w-1/3 opacity-70"
+            style={{ background: 'var(--space-neutral-300, #dccdb2)', aspectRatio: '1 / 1' }}
+            aria-hidden="true"
+          />
+          {regenBadge}
+        </span>
+      );
+    }
+    // A photograph with no cutout yet — legacy image, or a cut the pipeline
+    // could not make. Presented honestly as a framed photograph (the same
+    // rule the Fitting shelf and the product plates follow), which falls
+    // away the moment a genuine cutout lands.
     return (
       <span
         className={`hab-plate relative inline-flex items-center justify-center overflow-hidden bg-[#fbf8f1] ${className}`}

@@ -18,17 +18,21 @@
  *     SPEED CAP (Pass Forty-Six B): each remover is raced against a
  *     5-second timeout — past that the pipeline abandons it and continues
  *     with the original image, so nothing ever hangs on the model.
- *  2. CANONICAL NORMALIZATION — the cut-out is composited onto a clean
- *     #fbf8f1 PAPER canvas (Pass Forty-Six B — the design system's paper,
- *     so the garment floats on the page rather than in a white box) at
- *     exactly 1080×1440 (3:4 portrait): contain-fit (never crop, never
- *     stretch), centred, 12px padding on all four sides, lossless PNG.
- *     There is NO tolerance check and NO skip condition — every image
- *     goes through this step.
- *  3. FALLBACK — if background removal fails (or times out), the original
- *     uploaded photo is normalized onto the same paper 1080×1440 card
- *     as-is (no crash, no error screen); if even the canvas step fails,
- *     the original photo is kept untouched.
+ *  2. TRANSPARENT NORMALIZATION (Pass Forty-Nine — the universal
+ *     transparency rule): the cut-out goes through the SAME normalization
+ *     every online-sourced product gets (trimTransparent): the alpha edge
+ *     is ERODED ~2px (border-artifact cleanup — the thin rectangular
+ *     frame line a source photograph can bake in), the frame is
+ *     TIGHT-CROPPED to the item's bounding box plus a fixed 4px margin,
+ *     the cut is judged and vision-verified on BOTH real grounds, and the
+ *     finished GENUINE ALPHA-CHANNEL transparent PNG is stored as the
+ *     piece's canonical image — the ONE file every surface shows. The
+ *     opaque #fbf8f1 paper card is retired: a solid card was itself the
+ *     white/solid background box the founder's rule forbids.
+ *  3. FALLBACK — if no tier can produce a clean transparent cutout, the
+ *     piece KEEPS its previous image (no crash, no error screen); display
+ *     surfaces present that photograph honestly plated, and it is NEVER
+ *     laid inside a composition.
  *
  * The /api/generate/image-to-image and /api/generate/image endpoints are
  * NO LONGER CALLED anywhere in this pipeline. Pieces with no photo at all
@@ -39,7 +43,7 @@
  * removal + normalization, SEQUENTIALLY (one at a time, each awaited).
  * A failed piece is logged and skipped with its previous image unchanged —
  * never aborting the batch. The one-time sweep is guarded by the
- * bgRemovalV46 flag in localStorage: once the batch completes, it never
+ * bgRemovalV49 flag in localStorage: once the batch completes, it never
  * re-runs on reload.
  *
  * ANCHORS: the user's own uploaded photo is preserved forever in
@@ -419,10 +423,11 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical normalization — EVERY image that leaves the pipeline is redrawn
-// on a canvas into exactly the same geometry. There is NO tolerance check
-// and NO skip condition of any kind — an image already at the target size is
-// normalized like everything else:
+// Canonical normalization — RETIRED as the stored output (Pass Forty-Nine,
+// the universal transparency rule): the piece's canonical image is now the
+// GENUINE transparent cutout from trimTransparent, never an opaque paper
+// card. normalizeCanonical is kept only as reference for the legacy cards
+// still on old rows until the retroactive batch re-cuts them:
 //   · 3:4 portrait at a fixed output resolution (1080×1440)
 //   · clean #fbf8f1 PAPER background (Pass Forty-Six B) — paper fill FIRST;
 //     a background-removed cut-out composites its transparency straight onto
@@ -466,17 +471,20 @@ export function containFit(
 /**
  * Pipeline version stamps (stored per piece in piece_photo_norm).
  *
- *  · NORM_VERSION (12) — the stored image went through the Pass Forty-Six B
- *    pipeline: client-side background removal (5s-capped, or the original-
- *    photo fallback) plus unconditional 1080×1440 / 12px-padding / #fbf8f1
- *    PAPER contain-mode normalization. Settled.
- *  · 11 — the Pass Twenty-Six pure-white (#FFFFFF) cards — re-grounded on
- *    paper by the Pass Forty-Six B retroactive batch.
+ *  · NORM_VERSION (13) — the stored image is the piece's GENUINE
+ *    alpha-channel transparent cutout (Pass Forty-Nine, the universal
+ *    transparency rule): background removed, alpha edge eroded ~2px,
+ *    tight-cropped to the silhouette + 4px margin, verified on both real
+ *    grounds and stored on the CDN. Settled.
+ *  · 12 — the Pass Forty-Six B opaque #fbf8f1 paper cards. A solid card is
+ *    itself a background box, so these are re-cut into transparent PNGs by
+ *    the Pass Forty-Nine retroactive batch.
+ *  · 11 — the Pass Twenty-Six pure-white (#FFFFFF) cards.
  *  · 0–10 — legacy: raw uploads, every AI-generated image from passes
  *    ≤ Twenty-Four, and Pass Twenty-Five outputs. ALL of these are re-run
  *    through the pipeline by the one-time retroactive batch.
  */
-export const NORM_VERSION = 12;
+export const NORM_VERSION = 13;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -860,19 +868,23 @@ function isHttpImage(url?: string | null): boolean {
 }
 
 /**
- * Run one piece through the deterministic pipeline. Anchor priority:
- * explicit anchor → stored original upload → whatever image is on the row.
- * Pieces with NO photo at all are left alone (their placeholder tile stays
- * — nothing is AI-generated any more). On success the canonical URL is
- * persisted and returned; on failure the previous image is left untouched
- * and null is returned.
+ * Run one piece through THE ONE ingestion pipeline (Pass Forty-Nine — the
+ * universal transparency rule). Anchor priority: explicit anchor → stored
+ * original upload → whatever image is on the row. Pieces with NO photo at
+ * all are left alone (their placeholder tile stays — nothing is
+ * AI-generated any more). On success the piece's canonical image becomes
+ * the STORED GENUINE transparent cutout (background removed, alpha edge
+ * eroded ~2px, tight-cropped to the silhouette + 4px margin, verified on
+ * both real grounds) and its URL is returned; on failure the previous
+ * image is left untouched and null is returned.
  *
- * `fields` is accepted for caller compatibility but does not influence the
- * output — the pipeline reproduces the real photo, never a description.
+ * `fields` carries the piece's category and name into the stored cutout
+ * record — the image itself is always the real photo cut out, never a
+ * description.
  */
 export async function regeneratePieceImage(
   pieceId: number,
-  _fields: GarmentFields,
+  fields: GarmentFields,
   options: { anchorUrl?: string | null } = {},
 ): Promise<string | null> {
   if (regeneratingIds.has(pieceId)) return null;
@@ -893,32 +905,32 @@ export async function regeneratePieceImage(
     // AI generation of any kind (Pass Twenty-Five removes it entirely).
     if (!anchorUrl) return null;
 
-    // 1. BACKGROUND REMOVAL (client-side, deterministic). If it fails for
-    //    any reason the original photo continues through normalization
-    //    as-is — no crash, no error screen.
-    let cutout: CleanImage;
-    try {
-      cutout = await removeBackgroundFromUrl(anchorUrl);
-    } catch (removalError) {
-      console.warn('[Ethaion] background removal failed — using the original photo as-is:', removalError);
-      cutout = { url: anchorUrl };
-    }
-
-    // 2. CANONICAL NORMALIZATION — unconditional: 1080×1440, contain mode,
-    //    12px padding, clean #fbf8f1 paper. If the canvas step itself fails,
-    //    the previous image is kept untouched.
-    let finalUrl = '';
-    try {
-      const canonicalDataUrl = await normalizeCanonical(cutout);
-      // CACHE-BUSTING: the filename carries a timestamp so a re-generated
-      // image for the same piece can never resolve to a previously cached
-      // copy — a stable name is what makes a browser/CDN show the OLD image
-      // after an update.
-      finalUrl = await uploadImageData(canonicalDataUrl, `canonical-${pieceId}-${Date.now()}.png`);
-    } catch (canvasError) {
-      console.warn('[Ethaion] canonical normalization unavailable — previous image kept:', canvasError);
+    // THE ONE INGESTION PIPELINE (Pass Forty-Nine — the universal
+    // transparency rule). The user-upload path now runs the SAME four steps
+    // the online-sourcing path runs: background removal (Photoroom, then
+    // the client-side fallback), ~2px alpha-edge EROSION (border-artifact
+    // cleanup), TIGHT CROP to the silhouette + 4px, quality + vision
+    // verification on both real grounds, and durable storage as a GENUINE
+    // alpha-channel transparent PNG with an `image_cutouts` row pointing at
+    // it. That stored cutout IS the piece's canonical image — the one file
+    // every surface shows. No opaque paper card is produced any more: a
+    // solid card was itself the white/solid background box the founder's
+    // rule forbids, and it is what read as a faint rectangle around items.
+    const asset = await flatLayAssetFor({
+      candidates: anchorUrl,
+      category: fields.category ?? null,
+      name: fields.name ?? null,
+      pieceId,
+    });
+    // Every tier failed, or the finished cut never reached the CDN (a data
+    // URL must not be written into the row): the previous image is kept
+    // untouched — the display surfaces present it as an honestly plated
+    // photograph, never as fake transparency, and a later visit tries again.
+    if (!asset.ready || !/^https?:\/\//i.test(asset.url)) {
+      console.warn('[Ethaion] transparent ingestion produced no stored cutout — previous image kept.');
       return null;
     }
+    const finalUrl = asset.url;
 
     await db().from('wardrobe_pieces').update(pieceId, { photo_url: finalUrl });
     await setPhotoSource(pieceId, 'pipeline');
@@ -1881,22 +1893,24 @@ export interface PreparedProductPhoto {
   cleaned: boolean;
 }
 
-/** Run the search/URL image phase before Save: source image → Photoroom (with
- * client fallback) → canonical paper PNG. Failure returns the original as a
- * usable non-blocking fallback. */
+/** Run the search/URL image phase before Save: the source image through THE
+ * ONE transparent ingestion pipeline (Pass Forty-Nine) — removal, ~2px alpha
+ * erosion, 4px tight crop, verification on both real grounds, durable
+ * storage. `cleaned: true` means the returned URL is a stored GENUINE
+ * alpha-channel transparent PNG. Failure returns the original as a usable
+ * non-blocking fallback (`cleaned: false`) — it is then presented plated,
+ * never passed off as transparency. */
 export async function prepareProductPhoto(sourceUrl: string): Promise<PreparedProductPhoto> {
   if (!sourceUrl) return { originalUrl: '', cleanedUrl: '', cleaned: false };
   try {
-    let cutout: CleanImage;
-    try {
-      cutout = await removeBackgroundFromUrl(sourceUrl);
-    } catch (removalError) {
-      console.warn('[Ethaion] product background removal failed — original kept:', removalError);
-      cutout = { url: sourceUrl };
+    // scanForPeople: search-sourced photography is retail photography — the
+    // classification decides whether the framing has a model in it BEFORE
+    // anything is cut, the same rule every other sourced image follows.
+    const asset = await flatLayAssetFor({ candidates: sourceUrl, scanForPeople: true });
+    if (asset.ready && /^https?:\/\//i.test(asset.url)) {
+      return { originalUrl: sourceUrl, cleanedUrl: asset.url, cleaned: true };
     }
-    const canonicalDataUrl = await normalizeCanonical(cutout);
-    const cleanedUrl = await uploadImageData(canonicalDataUrl, `canonical-product-${Date.now()}.png`);
-    return { originalUrl: sourceUrl, cleanedUrl, cleaned: true };
+    return { originalUrl: sourceUrl, cleanedUrl: sourceUrl, cleaned: false };
   } catch (error) {
     console.warn('[Ethaion] product photo preparation failed — original kept:', error);
     return { originalUrl: sourceUrl, cleanedUrl: sourceUrl, cleaned: false };
@@ -1997,25 +2011,28 @@ export async function resolveNewestPieces(count: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Retroactive batch (Pass Twenty-Six) — on first app load, EVERY existing
-// wardrobe piece with a stored photo is re-run through background removal +
-// normalization: real photo in, real garment on a white 1080×1440 card out.
-// NO exemptions — every piece with a photoUrl goes through, so every card
-// ends up pure #FFFFFF at identical dimensions. Processing is SEQUENTIAL —
-// one piece at a time, each awaited. A failed piece is logged and skipped
-// with its previous image left unchanged, never aborting the batch. Raw
-// uploads found on rows are preserved as anchors first. The one-time sweep
-// is guarded by the bgRemovalV26 flag in localStorage: if the flag exists
-// the batch is skipped entirely, and it is set only after the batch
-// completes so it never re-runs on reload.
+// Retroactive batch (Pass Forty-Nine) — on first app load, EVERY existing
+// wardrobe piece with a stored photo is re-run through THE ONE ingestion
+// pipeline: real photo in, stored GENUINE alpha-channel transparent cutout
+// out (background removed, alpha edge eroded ~2px, tight-cropped to the
+// silhouette + 4px margin, verified on both real grounds). NO exemptions —
+// every piece with a photoUrl goes through, so no legacy paper card or raw
+// image survives as a display image. Processing is SEQUENTIAL — one piece
+// at a time, each awaited. A failed piece is logged and skipped with its
+// previous image left unchanged, never aborting the batch. Raw uploads
+// found on rows are preserved as anchors first. The one-time sweep is
+// guarded by the bgRemovalV49 flag in localStorage: if the flag exists the
+// batch is skipped entirely, and it is set only after the batch completes
+// so it never re-runs on reload.
 // ---------------------------------------------------------------------------
 
 export interface MigrationProgress { total: number; done: number; active: boolean }
 let migrationRunning = false;
 
-// Pass Forty-Six B: new flag key so every existing piece is re-grounded on
-// the #fbf8f1 paper card exactly once; the Pass Twenty-Six flag is retired.
-const BATCH_FLAG_KEY = 'bgRemovalV46';
+// Pass Forty-Nine: new flag key so every existing piece is re-cut into a
+// GENUINE alpha-channel transparent PNG exactly once (the universal
+// transparency rule); the Pass Forty-Six B paper-card flag is retired.
+const BATCH_FLAG_KEY = 'bgRemovalV49';
 
 function batchFlagSet(): boolean {
   try {
@@ -2070,11 +2087,12 @@ export async function runPhotoMigration(
       garmentFieldsFromPiece(piece, materials[piece.id], patterns[piece.id] || null);
 
     // Every piece WITH a photo (row image or stored original) that hasn't
-    // been through the Pass Twenty-Six pipeline yet. Pieces already stamped
-    // at NORM_VERSION are skipped so an interrupted batch resumes where it
-    // left off. Photo-less (text-only) pieces are skipped entirely — no AI
-    // generation any more. There is NO other exemption: user-chosen 'custom'
-    // photos are normalized too, so every card is white and identically sized.
+    // been through the transparent-cutout pipeline yet. Pieces already
+    // stamped at NORM_VERSION are skipped so an interrupted batch resumes
+    // where it left off. Photo-less (text-only) pieces are skipped entirely
+    // — no AI generation any more. There is NO other exemption: user-chosen
+    // 'custom' photos are cut too, so every display image ends up a genuine
+    // alpha-channel transparent PNG.
     const targets = pieces.filter((piece) => {
       if (!isHttpImage(piece.photo_url) && !originals[piece.id]) return false;
       return (normVersions[piece.id] || 0) < NORM_VERSION;

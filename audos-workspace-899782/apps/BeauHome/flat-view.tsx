@@ -465,7 +465,9 @@ export function StyledOutfitBoard({
   if (pieces.length === 0) {
     return (
       <div className="relative w-full" style={{ background: '#EDE7DA' }}>
-        <div className="relative w-full max-w-[480px] mx-auto" style={{ aspectRatio: '480 / 600' }}>
+        {/* The empty state keeps its readable width but the container is the
+            same HALVED height the populated board renders at. */}
+        <div className="relative w-full max-w-[480px] mx-auto" style={{ aspectRatio: '480 / 300' }}>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
             <span className="block w-12 h-[3px] bg-[var(--color-neutral-300,#dccdb2)]" aria-hidden="true" />
             <p
@@ -484,12 +486,17 @@ export function StyledOutfitBoard({
     );
   }
 
-  // THE ZONE SYSTEM'S CANVAS — one fixed portrait board, 480 × 600 at most,
-  // whatever the piece count. Every category has exactly one defined position
-  // on it (the vertical zone structure in flat-lay-board.tsx), so the board
-  // never grows or reflows as pieces are added.
+  // THE ZONE SYSTEM'S CANVAS — one fixed portrait board, whatever the piece
+  // count. Every category has exactly one defined position on it (the
+  // vertical zone structure in flat-lay-board.tsx), so the board never grows
+  // or reflows as pieces are added.
+  // SIZING (founder's rule): the Build a Look canvas renders at HALF its
+  // former height — the stage caps at 240px wide (was 480px), so the
+  // 480 × 600 design scales to 240 × 300 and every piece scales down
+  // proportionally with it. The zone geometry is untouched: the same
+  // percentages, on a smaller canvas.
   const aspect = 480 / 600;
-  const maxWidth = '480px';
+  const maxWidth = '240px';
 
   return (
     <div className="relative w-full" style={{ background: '#EDE7DA' }}>

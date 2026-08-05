@@ -156,8 +156,8 @@ function cmToBoardPct(cm: number): number {
 /** The design canvas's own proportion (portrait 480 × 600). Needed to convert
  * between %-of-height and %-of-width when deriving an item's render width
  * from its height and true aspect ratio: widthPct = heightPct × (imageW/imageH)
- * ÷ boardAspect. The tray's dynamic renormalization multiplies item heights
- * and the stage aspect by the same factor, so this relation survives it. */
+ * ÷ boardAspect. Both the stage and the tray render this exact design
+ * proportion, so the relation holds on either surface. */
 const DESIGN_BOARD_ASPECT = 480 / 600;
 
 /** The item's render width in board-% for a given render height — from the
@@ -428,21 +428,21 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
  *                   padding and NO ROTATION. The cutout lies straight on the
  *                   canvas, contained inside its zone box.
  *
- * 480 × 600 is the DESIGN canvas; the tray's real height is DYNAMIC — the
- * board measures the vertical band its items actually occupy and derives the
- * stage's `aspect-ratio` from it, so a three-piece outfit produces a visibly
- * shorter tray than a seven-piece one (tightly stacked, no dead space), and
- * the whole composition scales down in proportion on a narrow phone rather
- * than overflowing. The canvas's own floor is deliberately LOW (160px — just
- * enough for the inset frame to read): the height should come from the
- * outfit's content, never from the container.
+ * 480 × 600 is the DESIGN canvas; the tray renders it at the SAME size the
+ * Fitting's Build a Look board does (founder's sizing rule): the stage caps
+ * at 240px wide — 240 × 300 rendered — centred on the beige canvas, so the
+ * canvas height here equals the new (halved) Build a Look canvas height
+ * exactly, and the pieces inside are the same physical size on both
+ * surfaces. The canvas keeps its full width (480px max, inset 16px from the
+ * slab) so the walnut band's composition is unchanged; only its height and
+ * the piece scale follow the board.
  */
 const TRAY_CSS =
   '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:480px;' +
   'margin:16px 16px 16px auto;background:var(--today-canvas-ground,#FBF8F1);border-radius:0;min-height:160px;height:auto;' +
-  'transition:min-height 0.2s ease;display:flex;align-items:center}' +
+  'transition:min-height 0.2s ease;display:flex;align-items:center;justify-content:center}' +
   '.today-canvas::before{content:"";position:absolute;inset:10px;border:2px solid #D9CFBE;pointer-events:none;z-index:0}' +
-  '.today-stage{position:relative;width:100%;aspect-ratio:var(--aspect,480/600);background:transparent;border:none;box-shadow:none}' +
+  '.today-stage{position:relative;width:min(240px,100%);margin:0 auto;aspect-ratio:var(--aspect,480/600);background:transparent;border:none;box-shadow:none}' +
   '.today-piece{position:absolute;left:var(--x);top:var(--y);width:var(--w);height:var(--h);' +
   'z-index:var(--z);box-sizing:border-box;display:flex;align-items:center;' +
   'justify-content:center;padding:0;background:transparent!important;background-color:transparent!important;' +
@@ -501,25 +501,14 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   const heldOut = pieces.filter((piece) => !composes(piece));
   const placed = composeFlatLayBoard(composable, seed, aspect, { uniform: uniformItems });
   const tray = variant === 'tray';
-  // THE TRAY'S DYNAMIC HEIGHT (founder's spec): the tray is as tall as the
-  // OUTFIT, never a fixed slab. The vertical band the placed items actually
-  // occupy (min top → max bottom, in design %) is measured, the placements
-  // are renormalized to fill it, and the stage's aspect ratio is derived
-  // from that band — so a three-piece outfit produces a visibly shorter tray
-  // than a seven-piece one, tightly stacked, with no dead space above or
-  // below the composition.
-  let trayItems = placed;
-  let trayAspect = aspect;
-  if (tray && placed.length > 0) {
-    const minTop = Math.max(0, Math.min(...placed.map((item) => item.top)));
-    const maxBottom = Math.min(100, Math.max(...placed.map((item) => item.top + item.height)));
-    // Never tighter than a third of the design canvas — a lone accessory
-    // still gets a readable tray rather than a hairline strip.
-    const usedBand = Math.max(33, maxBottom - minTop);
-    const scale = 100 / usedBand;
-    trayItems = placed.map((item) => ({ ...item, top: (item.top - minTop) * scale, height: item.height * scale }));
-    trayAspect = aspect * scale;
-  }
+  // MATCHED SIZING (founder's rule): the tray renders the SAME stage the
+  // Fitting's Build a Look board uses — the 480 × 600 design capped at 240px
+  // wide (240 × 300 rendered), pieces at identical physical size, so the
+  // beige canvas here is exactly as tall as the Build a Look canvas. The old
+  // dynamic band renormalization is retired: it re-scaled pieces per outfit,
+  // which is what made the two surfaces disagree on piece size and height.
+  const trayItems = placed;
+  const trayAspect = aspect;
   // THE LIGHT GROUND, and there is only ever ONE of it. On the walnut panel it
   // is the tray's single canvas under the whole outfit (below); on paper the
   // stage already is one, so nothing is added there — and nowhere does a piece
