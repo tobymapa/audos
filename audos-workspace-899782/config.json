@@ -1,0 +1,348 @@
+{
+  "id": "workspace-899782",
+  "name": "Ethaion",
+  "description": "Workspace for Ethaion",
+  "version": "4.0.0",
+  "templateVersion": 4,
+  "publicEntry": {
+    "mode": "space-email-gate",
+    "path": "/site/:configId",
+    "component": "components/EmailGate.tsx"
+  },
+  "apps": [
+    {
+      "id": "home",
+      "name": "Ethaion",
+      "icon": "Shirt",
+      "component": "apps/BeauHome/App.tsx"
+    },
+    {
+      "id": "your-style",
+      "name": "The Dossier",
+      "icon": "Folder",
+      "component": "apps/YourStyle/App.tsx"
+    },
+    {
+      "id": "maker-scout",
+      "name": "Maker Scout",
+      "icon": "Search",
+      "dataFile": "data/maker-scout.json",
+      "component": "apps/MakerScout/App.tsx"
+    }
+  ],
+  "terminology": {
+    "reading": "loading",
+    "writing": "saving",
+    "creating": "adding",
+    "deleting": "removing",
+    "editing": "updating"
+  },
+  "desktop": {
+    "theme": {
+      "gradient": "from-[#efe7d9] via-[#efe7d9] to-[#efe7d9]",
+      "accentColor": "#a8712c",
+      "dockStyle": "glass"
+    },
+    "themeRecipe": "glass",
+    "themeTokens": {
+      "palette": {
+        "primary": "#a8712c",
+        "highlight": "#a8712c",
+        "contrast": "#7c4a17",
+        "secondary": "#a8712c",
+        "accent": "#7c4a17",
+        "primaryScale": {
+          "50": "#fbf1de",
+          "100": "#f3ddb6",
+          "200": "#e3c184",
+          "500": "#b07d31",
+          "600": "#a8712c",
+          "700": "#7c4a17",
+          "900": "#3d2210"
+        },
+        "highlightScale": {
+          "50": "#fbf1de",
+          "100": "#f3ddb6",
+          "200": "#e3c184",
+          "500": "#b07d31",
+          "600": "#a8712c",
+          "700": "#7c4a17",
+          "900": "#3d2210"
+        },
+        "surfaces": {
+          "page": "#efe7d9",
+          "pageAlt": "#eadfcb",
+          "gradientFrom": "#efe7d9",
+          "gradientVia": "#efe7d9",
+          "gradientTo": "#efe7d9",
+          "card": "#fbf8f1",
+          "cardHover": "#eadfcb",
+          "panel": "#fbf8f1",
+          "panelStrong": "#e4d8c3",
+          "muted": "#eadfcb",
+          "accentSoft": "#fbf1de",
+          "border": "rgba(59,43,29,0.18)",
+          "borderStrong": "rgba(59,43,29,0.34)"
+        },
+        "text": {
+          "primary": "#3b2b1d",
+          "secondary": "#634e38",
+          "brand": "#7c4a17",
+          "accent": "#7c4a17",
+          "muted": "#856c51",
+          "onPrimary": "#fbf1de",
+          "onHighlight": "#fbf1de",
+          "onContrast": "#efe7d9"
+        },
+        "semantic": {
+          "success": "#4e6a50",
+          "warning": "#96631f",
+          "danger": "#7d2a24"
+        },
+        "shell": {
+          "buttonText": "#fbf1de",
+          "accentButtonText": "#fbf1de",
+          "dockText": "#fbf1de",
+          "icon": "#a8712c",
+          "shadow": "#2b1e1426",
+          "shadowStrong": "#2b1e1440"
+        }
+      },
+      "typography": {
+        "headingFont": "Cormorant Garamond",
+        "bodyFont": "Lora",
+        "fontFamily": "\"Lora\", Georgia, \"Times New Roman\", serif"
+      },
+      "shell": {
+        "accentColor": "#a8712c",
+        "dockStyle": "glass",
+        "pageBackground": "#efe7d9",
+        "gateBackground": "#efe7d9",
+        "panelBackground": "#fbf8f1",
+        "panelStrongBackground": "#e4d8c3"
+      },
+      "cssVariables": {
+        "--space-brand-primary": "#a8712c",
+        "--space-brand-highlight": "#a8712c",
+        "--space-brand-contrast": "#7c4a17",
+        "--space-brand-primary-50": "#fbf1de",
+        "--space-brand-primary-100": "#f3ddb6",
+        "--space-brand-primary-200": "#e3c184",
+        "--space-brand-primary-500": "#b07d31",
+        "--space-brand-primary-600": "#a8712c",
+        "--space-brand-primary-700": "#7c4a17",
+        "--space-brand-primary-900": "#3d2210",
+        "--space-brand-highlight-50": "#fbf1de",
+        "--space-brand-highlight-100": "#f3ddb6",
+        "--space-brand-highlight-200": "#e3c184",
+        "--space-brand-highlight-500": "#b07d31",
+        "--space-brand-highlight-600": "#a8712c",
+        "--space-brand-highlight-700": "#7c4a17",
+        "--space-brand-highlight-900": "#3d2210",
+        "--space-surface-page": "#efe7d9",
+        "--space-surface-page-alt": "#eadfcb",
+        "--space-surface-gradient-from": "#efe7d9",
+        "--space-surface-gradient-via": "#efe7d9",
+        "--space-surface-gradient-to": "#efe7d9",
+        "--space-surface-card": "#fbf8f1",
+        "--space-surface-card-hover": "#eadfcb",
+        "--space-surface-panel": "#fbf8f1",
+        "--space-surface-panel-strong": "#e4d8c3",
+        "--space-surface-muted": "#eadfcb",
+        "--space-surface-accent-soft": "#fbf1de",
+        "--space-border-default": "rgba(59,43,29,0.18)",
+        "--space-border-strong": "rgba(59,43,29,0.34)",
+        "--space-text-primary": "#3b2b1d",
+        "--space-text-secondary": "#634e38",
+        "--space-text-brand": "#7c4a17",
+        "--space-text-accent": "#7c4a17",
+        "--space-text-muted": "#856c51",
+        "--space-text-on-primary": "#fbf1de",
+        "--space-text-on-highlight": "#fbf1de",
+        "--space-text-on-contrast": "#efe7d9",
+        "--space-semantic-success": "#4e6a50",
+        "--space-semantic-warning": "#96631f",
+        "--space-semantic-danger": "#7d2a24",
+        "--space-semantic-success-50": "#eef2ec",
+        "--space-semantic-success-100": "#dfe8dd",
+        "--space-semantic-success-500": "#4e6a50",
+        "--space-semantic-success-600": "#435c45",
+        "--space-semantic-success-700": "#37503c",
+        "--space-semantic-warning-100": "#f3ddb6",
+        "--space-semantic-warning-500": "#96631f",
+        "--space-semantic-warning-600": "#7c4a17",
+        "--space-semantic-warning-700": "#5c3413",
+        "--space-semantic-danger-100": "#f2c9c1",
+        "--space-semantic-danger-500": "#a34e40",
+        "--space-semantic-danger-600": "#8a3a2e",
+        "--space-semantic-danger-700": "#6f2a20",
+        "--space-neutral-800": "#453325",
+        "--space-neutral-100": "#fbf8f1",
+        "--space-font-heading": "\"Cormorant Garamond\", Georgia, \"Times New Roman\", serif",
+        "--space-shell-button-text": "#fbf1de",
+        "--space-shell-accent-button-text": "#fbf1de",
+        "--space-shell-dock-text": "#fbf1de",
+        "--space-shell-icon": "#a8712c",
+        "--space-shell-shadow": "#2b1e1426",
+        "--space-shell-shadow-strong": "#2b1e1440"
+      }
+    },
+    "layout": {
+      "agentPosition": "center",
+      "dockPosition": "left",
+      "appWindowSize": "medium",
+      "defaultLandingView": "app",
+      "defaultLandingAppId": "home",
+      "customerLandsOnAgent": false
+    },
+    "branding": {
+      "name": "Ethaion",
+      "tagline": "Your AI valet for timeless menswear.",
+      "logoUrl": "https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1785281369484-t6ystn.png",
+      "headingFont": "Cormorant Garamond",
+      "bodyFont": "Lora",
+      "colors": {
+        "primary": "#a8712c",
+        "highlight": "#a8712c",
+        "contrast": "#7c4a17",
+        "secondary": "#a8712c",
+        "accent": "#7c4a17",
+        "primaryScale": {
+          "50": "#fbf1de",
+          "100": "#f3ddb6",
+          "200": "#e3c184",
+          "500": "#b07d31",
+          "600": "#a8712c",
+          "700": "#7c4a17",
+          "900": "#3d2210"
+        },
+        "highlightScale": {
+          "50": "#fbf1de",
+          "100": "#f3ddb6",
+          "200": "#e3c184",
+          "500": "#b07d31",
+          "600": "#a8712c",
+          "700": "#7c4a17",
+          "900": "#3d2210"
+        },
+        "surfaces": {
+          "page": "#efe7d9",
+          "pageAlt": "#eadfcb",
+          "gradientFrom": "#efe7d9",
+          "gradientVia": "#efe7d9",
+          "gradientTo": "#efe7d9",
+          "card": "#fbf8f1",
+          "cardHover": "#eadfcb",
+          "panel": "#fbf8f1",
+          "panelStrong": "#e4d8c3",
+          "muted": "#eadfcb",
+          "accentSoft": "#fbf1de",
+          "border": "rgba(59,43,29,0.18)",
+          "borderStrong": "rgba(59,43,29,0.34)"
+        },
+        "text": {
+          "primary": "#3b2b1d",
+          "secondary": "#634e38",
+          "brand": "#7c4a17",
+          "accent": "#7c4a17",
+          "muted": "#856c51",
+          "onPrimary": "#fbf1de",
+          "onHighlight": "#fbf1de",
+          "onContrast": "#efe7d9"
+        },
+        "semantic": {
+          "success": "#4e6a50",
+          "warning": "#96631f",
+          "danger": "#7d2a24"
+        },
+        "shell": {
+          "buttonText": "#fbf1de",
+          "accentButtonText": "#fbf1de",
+          "dockText": "#fbf1de",
+          "icon": "#a8712c",
+          "shadow": "#2b1e1426",
+          "shadowStrong": "#2b1e1440"
+        }
+      },
+      "palette": {
+        "primary": "#a8712c",
+        "highlight": "#a8712c",
+        "contrast": "#7c4a17",
+        "secondary": "#a8712c",
+        "accent": "#7c4a17",
+        "primaryScale": {
+          "50": "#fbf1de",
+          "100": "#f3ddb6",
+          "200": "#e3c184",
+          "500": "#b07d31",
+          "600": "#a8712c",
+          "700": "#7c4a17",
+          "900": "#3d2210"
+        },
+        "highlightScale": {
+          "50": "#fbf1de",
+          "100": "#f3ddb6",
+          "200": "#e3c184",
+          "500": "#b07d31",
+          "600": "#a8712c",
+          "700": "#7c4a17",
+          "900": "#3d2210"
+        },
+        "surfaces": {
+          "page": "#efe7d9",
+          "pageAlt": "#eadfcb",
+          "gradientFrom": "#efe7d9",
+          "gradientVia": "#efe7d9",
+          "gradientTo": "#efe7d9",
+          "card": "#fbf8f1",
+          "cardHover": "#eadfcb",
+          "panel": "#fbf8f1",
+          "panelStrong": "#e4d8c3",
+          "muted": "#eadfcb",
+          "accentSoft": "#fbf1de",
+          "border": "rgba(59,43,29,0.18)",
+          "borderStrong": "rgba(59,43,29,0.34)"
+        },
+        "text": {
+          "primary": "#3b2b1d",
+          "secondary": "#634e38",
+          "brand": "#7c4a17",
+          "accent": "#7c4a17",
+          "muted": "#856c51",
+          "onPrimary": "#fbf1de",
+          "onHighlight": "#fbf1de",
+          "onContrast": "#efe7d9"
+        },
+        "semantic": {
+          "success": "#4e6a50",
+          "warning": "#96631f",
+          "danger": "#7d2a24"
+        },
+        "shell": {
+          "buttonText": "#fbf1de",
+          "accentButtonText": "#fbf1de",
+          "dockText": "#fbf1de",
+          "icon": "#a8712c",
+          "shadow": "#2b1e1426",
+          "shadowStrong": "#2b1e1440"
+        }
+      }
+    }
+  },
+  "cdnDependencies": {
+    "remark-gfm": {
+      "version": "4.0.0"
+    }
+  },
+  "agent": {
+    "welcomeMessage": "I'm Beau — and if you've done your style profile, I already know your direction, skin tone, materials and budgets, so you'll never have to repeat yourself. Describe a piece you're after or paste a product link and I'll give you a straight verdict against YOUR profile. I can also do the housekeeping from right here: tell me “log my new white OCBD”, “put the Bedale on my reserve in a 40”, or “hunt for a navy wax jacket under £200 and save it” — and I'll handle it and confirm. In the app, The Ledger is the clean record of what you own: search it, open “All pieces” for the full inventory with category and type filters, and log new pieces under “Log a piece” — photograph one or search for it; every piece gets a clean catalogue image on warm paper made from your own photo of it, and tapping any piece edits or removes it. The Edit is my live read of that wardrobe: I reason over every piece against your style directions in strict foundation order — tops, bottoms and shoes first, together, because you can't leave the house without all three — alongside your measurements, your complexion, your budget and how you actually live. Its coverage map shows every category across Casual, Smart-Casual and Formal — in the standard menswear order (tops, knitwear, outerwear, bottoms, formalwear, then shoes, then accessories) — a ticked sage box is covered, named in your own words; a broken box is a gap — and Complete the Look assembles an outfit for any occasion from what you own, naming exactly what's missing. There's a Re-assess button for a fresh pass any time (I also re-assess on my own when your wardrobe or profile changes). Under that list sits the Briefing — the season written up properly: not the gaps one by one, but what they add up to, what you've closed since the last one, and the order I'd close the rest in. Both it and the list above it are fold-out sections now — tap the Briefing open and I write it there and then (or show you the last one), and you can keep it as a PDF if it's worth keeping. Tap any gap and The Rail opens on my recommendations for that exact hole, ranked by priority — each one carries a proper spec sheet: maker, construction, cloth, origin, why the colourway suits your complexion, and where to buy it maker-direct or secondhand. Every product card opens that piece's OWN page on the maker's site — never a homepage — and carries a “Find it cheaper” button: tap it and I'll sweep eBay, Grailed, Vinted and Vestiaire for that exact piece and lay the real listings out under the card, prices and conditions and all. Save the picks you're considering (they land in Saved — the row at the top of The Rail), and if a recommendation isn't you, tap “Not for me” and I'll remember — the gap stays real and I'll find another way to close it. The Rail also carries a second sub-tab, World of Menswear — the whole map of classic menswear, every piece type famous and obscure, searchable and browseable, each entry with its story, its use, its pairings and where to find one — and my note on every entry tells you whether it's already covered in your wardrobe, a live gap, or simply worth knowing about. The Hunt is the brand and piece intelligence hub, with five tools inside: Find is one box for the whole hunt — ask me anything (a piece to find, a maker to assess, “is it worth the money?”, or a style brief in your own words) and I answer in the right form; name a specific piece with a size, a condition or a ceiling — “a Grenfell Golfer, size 36, secondhand, under €200” — and I won't hand you a list of shops, I'll go and search: the actual listings that exist right now, with their prices, their condition and a link straight to each one; Discover is the maker directory, a clean table with my one-word rating on every maker — filter by origin, price tier, construction, materials and your style directions, and if you don't see a maker, type the name at the top and I'll build its file myself; Compare lines up two or three makers side by side and I call the winner; Matrix plots makers by build quality against how long they last — and you can build your own plot straight from Discover; and Your Hunt History keeps every hunt with your tags and notes, each one re-runnable with a tap. A Profile toggle at the top decides whether I reason with your full profile or from general knowledge only. And when a trip's coming, tap “Plan for a trip” in The Ledger — The Fitting opens in Trip mode: give me the destination, dates and occasion mix and I'll build one board per day from your own wardrobe, a packing list underneath, and flag any gap. The Reserve watches price and stock on pieces you're serious about. And before you commit, step into The Fitting — tap a piece from my picks, your Reserve or your own wardrobe and it lands on the board, cut out of its background and laid alongside everything else in the look, the way a valet spreads clothes on a bed; every “Try this on” button across the app lands you there, and you'll see how a piece sits with what you already own before you spend a penny. The Dossier is everything I know about you — correct any of it and I use the change immediately. Your pipeline runs The Rail → Saved → The Reserve → The Ledger: bookmark while you decide, watch when you're serious, and mark it purchased to file it into your wardrobe. Prefer to talk? Hold the mic to dictate, or tap the waveform to speak with me live. Ask “what should I wear today?” and I'll style you from your own wardrobe for today's weather. And when a look catches your eye out in the world — a photo, a screenshot, a link, a voice note — share it with me: I'll read the signal underneath (the cut, the colours, the register, never just the label) and fold it into your taste profile. One more thing: you're here as a guest unless you choose otherwise — no email needed for any of it. If you want your profile and wardrobe waiting next time, tap “Save your profile” at the top of The Dossier. And since you might run several projects with me at once, our chats are separate conversations: “New chat” starts a clean thread, and I know your profile and wardrobe in every one of them; anything we said before lives under “Previous chats”.",
+    "name": "Beau",
+    "thinkingText": "Beau is weighing it up…",
+    "starterPrompts": [
+      "What's your verdict on my wardrobe so far?",
+      "Find me a navy Oxford shirt under £100",
+      "What should I wear today?",
+      "I've seen a look I love — can I show you?"
+    ]
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "businessPlan": "## Business Overview\nEthaion\n\n## Customer Profile\nTarget customers identified from business context\n\n### Pain Points\n- The user is trying to build a wardrobe of classic, traditional menswear pieces that strike the right balance across a complex web of criteria — price, material quality, brand reputation, consistency, investment-worthiness, and suitability for their lifestyle. They're solving the exhaustion of endless searching, keyword hunting, and navigating brand opacity, while aspiring to dress well with intention and confidence. Ultimately, they want a trusted advisor who understands their taste and values and can cut through the noise to find the right piece at the right value.\n\n## Key Problems\n- **The user is trying to build a wardrobe of classic,**: The user is trying to build a wardrobe of classic, traditional menswear pieces that strike the right balance across a complex web of criteria — price, material quality, brand reputation, consistency, investment-worthiness, and suitability for their lifestyle. They're solving the exhaustion of endless searching, keyword hunting, and navigating brand opacity, while aspiring to dress well with intention and confidence. Ultimately, they want a trusted advisor who understands their taste and values and can cut through the noise to find the right piece at the right value.\n\n## Customer Journey\n# Ethaion — Journey Guide\n\n---\n\n## 1. USER GOALS\n\nThe user is trying to build a wardrobe of classic, traditional menswear pieces that strike the right balance across a complex web of criteria — price, material quality, brand reputation, consistency, investment-worthiness, and suitability for their lifestyle. They're solving the exhaustion of endless searching, keyword hunting, and navigating brand opacity, while aspiring to dress well with intention and confidence. Ultimately, they want a trusted advisor who understands their taste and values and can cut through the noise to find the right piece at the right value.\n\n---\n\n## 2. QUALIFYING QUESTIONS\n\n**\"What are you looking for right now?\"**\n1. I have a specific item in mind (e.g., a sweater, a shoe, a jacket)\n2. I'm exploring — I want to build or refine my wardrobe direction\n3. I have a particular occasion or season coming up and need guidance\n\n**\"What matters most to you when choosing a piece?\"**\n1. Quality and materials — natural fibers, honest construction, long-term value\n2. Value for money — best bang for my buck, cost-per-wear thinking\n3. Brand reputation and consistency — I want makers with a proven track record\n\n---\n\n## 3. JOURNEY NARRATIVE\n\nThe journey begins with the user describing what they're after — sometimes a specific item, sometimes a vague feeling that they need a better heavyweight knit or a boot that'll last a decade. The agent listens for the unspoken criteria: the way they mention \"real leather\" tells you they've been burned by synthetics before; the way they reference a price range signals their value tier without them having to spell it out. From there, the agent surfaces a few targeted recommendations, explaining *why* each piece fits — not just style, but the deeper balance of material, maker history, consistency of production, and cost-per-wear logic. The agent is transparent about tradeoffs: \"This Irish maker doesn't have a slick website, but they've been spinning wool since 1956 and this sweater will outlive three fast-fashion versions.\" As interactions accumulate, the agent learns the user's fit preferences, their brand blind spots, their seasonal gaps, and their tolerance for discovering lesser-known makers. Over time, the agent shifts from reactive searching to proactive advising — flagging restocks from niche makers, warning when a brand quietly changes a material spec, or suggesting wardrobe gaps before the user even notices them. The relationship becomes less \"search engine\" and more \"trusted haberdashery assistant who remembers everything.\"\n\n---\n\n## 4. APP SUPPORT MAP\n\n**Creation tools** help when the agent generates a personalized wardrobe profile or builds a seasonal capsule recommendation from scratch — useful early in the journey or when the user is refining their direction. **Tracking tools** monitor price drops, restocks from obscure makers, and brand spec changes — essential for users who are waiting on a specific piece or monitoring a brand's consistency over time. **Automation tools** handle recurring alerts — seasonal needs, price thresholds, new arrivals from saved makers — and should be recommended once the agent has enough interaction history to know *what* to watch for and *when*.\n\n---\n\n## 5. COMMUNITY OPPORTUNITIES\n\nUsers would benefit enormously from shared brand intelligence — reviews of obscure makers, alerts when a brand drops in quality, crowd-sourced material breakdowns, and real-world cost-per-wear data from men who've owned a piece for years. The entrepreneur could harness this by creating a verified ownership system where users log what they bought, how it's holding up, and whether the brand stayed consistent — building a living, honest reputation database that no marketing copy could fake.\n\n---\n\n## 6. MONETIZATION HOOK\n\nThe first payment moment comes when the agent surfaces a recommendation the user genuinely couldn't have found themselves — an obscure maker that perfectly matches their criteria, with transparent material specs and a price that makes them think \"I would've spent three weekends searching and still not found this.\" The free experience should prove the agent *understands* them: a few smart recommendations, a wardrobe profile, maybe one full deep-dive on a piece. Behind the paywall sits the ongoing value: continuous monitoring of restocks, spec changes, and price drops across their saved makers; proactive wardrobe gap analysis; and access to the community's shared brand intelligence. The trigger for first payment is the \"I can't believe you found this\" moment. The reason they *stay* subscribed is different — it's the quiet, compounding feeling that someone is always watching the market for them, catching things they'd miss, and saving them from bad purchases before they happen. Design backward from the payment moment: right before they decide to pay, the agent has just delivered a recommendation so precisely matched to their criteria, from a maker so hard to find, that paying for ongoing access to that level of curation feels like an obvious investment in their own time and wardrobe.\n\n## AI Tool Suite\n### Maker Scout\n**Purpose**: Discover obscure, high-value menswear brands that perfectly match your complex criteria without endless searching.\n**User Story**: I want to log what I'm looking for and get a transparent, criteria-matched recommendation from an obscure maker I couldn't find myself.\n\n---\n*Generated on 7/8/2026*\n",
+  "workspaceId": "3460cb2c-8c4f-405c-83a2-057f8b58da27",
+  "configId": 899782,
+  "name": "Ethaion",
+  "tagline": "Your AI valet for timeless menswear.",
+  "logoUrl": "https://storage.googleapis.com/audos-images/brand-icons/4b3ae6c6-50ed-4b51-aa67-6e9dc3889f29.png",
+  "iconUrl": "https://storage.googleapis.com/audos-images/brand-icons/4b3ae6c6-50ed-4b51-aa67-6e9dc3889f29.png",
+  "logoOnDarkUrl": "https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1785281369484-t6ystn.png",
+  "colors": {
+    "primary": "#a8712c",
+    "highlight": "#a8712c",
+    "contrast": "#7c4a17",
+    "secondary": "#a8712c",
+    "accent": "#7c4a17",
+    "primaryScale": {
+      "50": "#f8f4ee",
+      "100": "#f1e8dd",
+      "200": "#e7d7c4",
+      "500": "#9b6828",
+      "600": "#a8712c",
+      "700": "#8d5f25",
+      "900": "#6f4b1d"
+    },
+    "highlightScale": {
+      "50": "#f8f4ee",
+      "100": "#f1e8dd",
+      "200": "#e7d7c4",
+      "500": "#9b6828",
+      "600": "#a8712c",
+      "700": "#8d5f25",
+      "900": "#6f4b1d"
+    },
+    "surfaces": {
+      "page": "#fbf8f4",
+      "pageAlt": "#f2ede8",
+      "gradientFrom": "#fbf8f4",
+      "gradientVia": "#f2ede8",
+      "gradientTo": "#f9f5f0",
+      "card": "#ffffff",
+      "cardHover": "#fcf9f7",
+      "panel": "#ffffff",
+      "panelStrong": "#ffffff",
+      "muted": "#fdfcfb",
+      "accentSoft": "#f6f1ea",
+      "border": "#ece0d1",
+      "borderStrong": "#e1cfb7"
+    },
+    "text": {
+      "primary": "#2f200c",
+      "secondary": "#5b3d18",
+      "brand": "#2f200c",
+      "accent": "#2f200c",
+      "muted": "#764f1f",
+      "onPrimary": "#000000",
+      "onHighlight": "#000000",
+      "onContrast": "#ffffff"
+    },
+    "semantic": {
+      "success": "#16a34a",
+      "warning": "#d97706",
+      "danger": "#dc2626"
+    },
+    "shell": {
+      "buttonText": "#000000",
+      "accentButtonText": "#000000",
+      "dockText": "#000000",
+      "icon": "#2f200c",
+      "shadow": "#e5d4c0",
+      "shadowStrong": "#d9c1a2"
+    }
+  },
+  "palette": {
+    "primary": "#a8712c",
+    "highlight": "#a8712c",
+    "contrast": "#7c4a17",
+    "secondary": "#a8712c",
+    "accent": "#7c4a17",
+    "primaryScale": {
+      "50": "#f8f4ee",
+      "100": "#f1e8dd",
+      "200": "#e7d7c4",
+      "500": "#9b6828",
+      "600": "#a8712c",
+      "700": "#8d5f25",
+      "900": "#6f4b1d"
+    },
+    "highlightScale": {
+      "50": "#f8f4ee",
+      "100": "#f1e8dd",
+      "200": "#e7d7c4",
+      "500": "#9b6828",
+      "600": "#a8712c",
+      "700": "#8d5f25",
+      "900": "#6f4b1d"
+    },
+    "surfaces": {
+      "page": "#fbf8f4",
+      "pageAlt": "#f2ede8",
+      "gradientFrom": "#fbf8f4",
+      "gradientVia": "#f2ede8",
+      "gradientTo": "#f9f5f0",
+      "card": "#ffffff",
+      "cardHover": "#fcf9f7",
+      "panel": "#ffffff",
+      "panelStrong": "#ffffff",
+      "muted": "#fdfcfb",
+      "accentSoft": "#f6f1ea",
+      "border": "#ece0d1",
+      "borderStrong": "#e1cfb7"
+    },
+    "text": {
+      "primary": "#2f200c",
+      "secondary": "#5b3d18",
+      "brand": "#2f200c",
+      "accent": "#2f200c",
+      "muted": "#764f1f",
+      "onPrimary": "#000000",
+      "onHighlight": "#000000",
+      "onContrast": "#ffffff"
+    },
+    "semantic": {
+      "success": "#16a34a",
+      "warning": "#d97706",
+      "danger": "#dc2626"
+    },
+    "shell": {
+      "buttonText": "#000000",
+      "accentButtonText": "#000000",
+      "dockText": "#000000",
+      "icon": "#2f200c",
+      "shadow": "#e5d4c0",
+      "shadowStrong": "#d9c1a2"
+    }
+  },
+  "pickedBrandColor": "#a8712c",
+  "typography": {
+    "font": "Cormorant Garamond",
+    "category": "serif",
+    "weights": [
+      400,
+      500,
+      600,
+      700
+    ],
+    "headingFont": "Cormorant Garamond",
+    "bodyFont": "Lora"
+  },
+  "heroVideoUrl": "https://storage.googleapis.com/audos-images/videos/scene_group_1783524404013_stitched.mp4"
+}

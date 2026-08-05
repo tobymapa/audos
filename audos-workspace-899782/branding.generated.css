@@ -1,0 +1,75 @@
+:root {
+  --space-brand-primary: #a8712c;
+  --space-brand-highlight: #a8712c;
+  --space-brand-contrast: #7c4a17;
+  --space-brand-primary-50: #fbf1de;
+  --space-brand-primary-100: #f3ddb6;
+  --space-brand-primary-200: #e3c184;
+  --space-brand-primary-500: #b07d31;
+  --space-brand-primary-600: #a8712c;
+  --space-brand-primary-700: #7c4a17;
+  --space-brand-primary-900: #3d2210;
+  --space-brand-highlight-50: #fbf1de;
+  --space-brand-highlight-100: #f3ddb6;
+  --space-brand-highlight-200: #e3c184;
+  --space-brand-highlight-500: #b07d31;
+  --space-brand-highlight-600: #a8712c;
+  --space-brand-highlight-700: #7c4a17;
+  --space-brand-highlight-900: #3d2210;
+  --space-surface-page: #efe7d9;
+  --space-surface-page-alt: #eadfcb;
+  --space-surface-gradient-from: #efe7d9;
+  --space-surface-gradient-via: #efe7d9;
+  --space-surface-gradient-to: #efe7d9;
+  --space-surface-card: #fbf8f1;
+  --space-surface-card-hover: #eadfcb;
+  --space-surface-panel: #fbf8f1;
+  --space-surface-panel-strong: #e4d8c3;
+  --space-surface-muted: #eadfcb;
+  --space-surface-accent-soft: #fbf1de;
+  --space-border-default: rgba(59,43,29,0.18);
+  --space-border-strong: rgba(59,43,29,0.34);
+  --space-text-primary: #3b2b1d;
+  --space-text-secondary: #634e38;
+  --space-text-brand: #7c4a17;
+  --space-text-accent: #7c4a17;
+  --space-text-muted: #856c51;
+  --space-text-on-primary: #fbf1de;
+  --space-text-on-highlight: #fbf1de;
+  --space-text-on-contrast: #efe7d9;
+  --space-semantic-success: #4e6a50;
+  --space-semantic-warning: #96631f;
+  --space-semantic-danger: #7d2a24;
+  --space-semantic-success-50: #eef2ec;
+  --space-semantic-success-100: #dfe8dd;
+  --space-semantic-success-500: #4e6a50;
+  --space-semantic-success-600: #435c45;
+  --space-semantic-success-700: #37503c;
+  --space-semantic-warning-100: #f3ddb6;
+  --space-semantic-warning-500: #96631f;
+  --space-semantic-warning-600: #7c4a17;
+  --space-semantic-warning-700: #5c3413;
+  --space-semantic-danger-100: #f2c9c1;
+  --space-semantic-danger-500: #a34e40;
+  --space-semantic-danger-600: #8a3a2e;
+  --space-semantic-danger-700: #6f2a20;
+  --space-neutral-800: #453325;
+  --space-neutral-100: #fbf8f1;
+  --space-font-heading: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --space-shell-button-text: #fbf1de;
+  --space-shell-accent-button-text: #fbf1de;
+  --space-shell-dock-text: #fbf1de;
+  --space-shell-icon: #a8712c;
+  --space-shell-shadow: #2b1e1426;
+  --space-shell-shadow-strong: #2b1e1440;
+}
+
+body {
+  color: var(--space-text-primary);
+  background: var(--space-surface-page);
+  font-family: "Lora", Georgia, "Times New Roman", serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--space-font-heading, inherit);
+}
