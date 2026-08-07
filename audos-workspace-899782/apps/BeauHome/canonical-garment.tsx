@@ -23,7 +23,7 @@
  * compositions can never show two different pictures of one garment. It is a
  * synchronous lookup, never a pipeline run.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isStoredCutoutUrl, peekCutoutRecord, whenIdle } from './image-pipeline';
 
 export interface CanonicalGarmentFields {
@@ -42,17 +42,124 @@ export interface CanonicalGarmentFields {
 // here so open views update instantly; the DB refresh follows behind.
 // ---------------------------------------------------------------------------
 
-const imageRegistry = new Map<number, string>();
+interface RegistryEntry {
+  url: string;
+  /** When the pipeline pushed this URL. */
+  at: number;
+}
+
+const imageRegistry = new Map<number, RegistryEntry>();
+
+/**
+ * How long a pushed URL is allowed to OUTRANK the value on the piece row.
+ *
+ * THE STALE-IMAGE BUG: this registry used to be a plain, permanent
+ * `Map<number, string>` that `liveGarmentImage()` returned ahead of the
+ * database value. It exists only to bridge the second or two between the
+ * pipeline finishing an image and the refreshed row arriving — but nothing
+ * ever removed an entry. So once a piece had been through the pipeline, its
+ * tile was pinned to that URL for the rest of the page's life: replacing the
+ * photo, editing the piece, or deleting it and adding another kept painting
+ * the superseded picture, and closing the app and reopening it from the dock
+ * brought the old image straight back because the module — and this Map —
+ * outlived the component tree.
+ *
+ * The registry is now advisory. Inside the grace window a pushed URL still
+ * wins, because it genuinely is newer than anything the DB can have returned
+ * yet. Outside it, the piece row is authoritative and the entry is dropped.
+ */
+const REGISTRY_GRACE_MS = 20000;
+
+/**
+ * Tell mounted tiles that a garment image changed.
+ *
+ * THE BROADCAST PROBLEM: this event used to carry no payload, and every
+ * mounted `CanonicalGarment` listened and bumped its own state. One cutout
+ * finishing therefore re-rendered EVERY tile on the screen — plus every tile
+ * in every previously-visited tab, since those stay mounted under
+ * `display:none`. During the migration sweep, which completes one cutout after
+ * another, that is hundreds of full-grid re-renders for work affecting a
+ * single item, and it magnifies the cost of everything else happening at
+ * startup.
+ *
+ * The event now identifies what changed, and tiles ignore anything that is not
+ * theirs. `source` is included as well as `pieceId` because two pieces can
+ * share one photograph (a duplicate mid-merge) and both tiles need waking when
+ * that shared image is cut.
+ *
+ * A call with neither identifier keeps the old broadcast-to-all behaviour, so
+ * any caller that genuinely means "everything changed" still works.
+ */
+export function notifyGarmentImage(pieceId?: number | null, source?: string | null): void {
+  window.dispatchEvent(
+    new CustomEvent('ethaion:garment-image-ready', {
+      detail: { pieceId: pieceId ?? null, source: (source || '').trim() || null },
+    }),
+  );
+}
 
 export function registerGarmentImage(pieceId: number, url?: string | null): void {
   const clean = (url || '').trim();
   if (!pieceId || !clean) return;
-  imageRegistry.set(pieceId, clean);
-  window.dispatchEvent(new CustomEvent('ethaion:garment-image-ready'));
+  ensureForgetListener();
+  imageRegistry.set(pieceId, { url: clean, at: Date.now() });
+  notifyGarmentImage(pieceId, clean);
 }
 
-export function liveGarmentImage(pieceId?: number | null): string {
-  return (pieceId != null && imageRegistry.get(pieceId)) || '';
+/** Drop a piece's pushed image. Called when the piece is deleted and when its
+ * photograph is replaced, so nothing can resurrect the old picture. */
+export function forgetGarmentImage(pieceId?: number | null): void {
+  if (pieceId == null) return;
+  if (imageRegistry.delete(pieceId)) {
+    notifyGarmentImage(pieceId);
+  }
+}
+
+// Eviction arrives as an event rather than a direct call: profile-data.ts owns
+// deletion, and importing this module from there would close an import cycle
+// (photo-enhance already depends on both).
+//
+// Attached lazily rather than at module-evaluation time. A module-level
+// `addEventListener` runs before anything has been registered and, in any
+// context where `window` is not yet defined, would fail silently and leave
+// eviction permanently dead. Hooking it on first use ties the listener's
+// lifetime to the registry actually being in play.
+let listenerAttached = false;
+
+function ensureForgetListener(): void {
+  if (listenerAttached) return;
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  listenerAttached = true;
+  window.addEventListener('ethaion:piece-forgotten', (event: Event) => {
+    const pieceId = Number((event as CustomEvent).detail?.pieceId);
+    if (pieceId) forgetGarmentImage(pieceId);
+  });
+}
+
+/**
+ * The pushed image for a piece, if it should still take precedence.
+ *
+ * @param dbUrl The value on the piece row. When it disagrees with a pushed
+ *              URL that is past its grace window, the row wins and the stale
+ *              entry is evicted.
+ */
+export function liveGarmentImage(pieceId?: number | null, dbUrl?: string | null): string {
+  if (pieceId == null) return '';
+  const entry = imageRegistry.get(pieceId);
+  if (!entry) return '';
+
+  const fresh = Date.now() - entry.at < REGISTRY_GRACE_MS;
+  if (fresh) return entry.url;
+
+  // Past the window the database is the source of truth. A row that now
+  // carries a different image means this entry describes a photograph the
+  // user has already moved on from.
+  const clean = (dbUrl || '').trim();
+  if (clean && clean !== entry.url) {
+    imageRegistry.delete(pieceId);
+    return '';
+  }
+  return entry.url;
 }
 
 // Regeneration state, pushed by the pipeline (photo-enhance.ts). Held here
@@ -65,7 +172,7 @@ export function setGarmentRegenerating(pieceId: number, active: boolean): void {
   if (!pieceId) return;
   if (active) regeneratingIds.add(pieceId);
   else regeneratingIds.delete(pieceId);
-  window.dispatchEvent(new CustomEvent('ethaion:garment-image-ready'));
+  notifyGarmentImage(pieceId);
 }
 
 export function isGarmentRegenerating(pieceId?: number | null): boolean {
@@ -99,15 +206,41 @@ export function CanonicalGarment({
   title?: string;
   showConfirmation?: boolean;
 }) {
+  const label = title || fields.name || 'Garment image';
+  // The row's own value is passed in so a pushed URL that the database has
+  // since superseded can be recognised as stale and stood down.
+  const rowUrl = photoUrl || fields.photoUrl || fields.photo_url || '';
+
   const [, setRegistryTick] = useState(0);
+  // Only wake for events about THIS tile. Previously every tile re-rendered on
+  // every image event anywhere in the app; a grid of 60 garments meant 60
+  // re-renders per completed cutout, and the migration sweep completes one
+  // after another. The `rowUrl` ref keeps this subscription from being torn
+  // down and re-attached on each render without making the effect depend on a
+  // value that changes every time the pipeline lands a new image.
+  const rowUrlRef = useRef(rowUrl);
+  rowUrlRef.current = rowUrl;
   useEffect(() => {
-    const refresh = () => setRegistryTick((tick) => tick + 1);
+    const refresh = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { pieceId?: number | null; source?: string | null }
+        | undefined;
+      // No payload means "something global changed" — honour the old
+      // broadcast semantics rather than silently dropping the update.
+      if (!detail || (detail.pieceId == null && !detail.source)) {
+        setRegistryTick((tick) => tick + 1);
+        return;
+      }
+      const mine =
+        (pieceId != null && detail.pieceId === pieceId) ||
+        (!!detail.source && detail.source === rowUrlRef.current);
+      if (mine) setRegistryTick((tick) => tick + 1);
+    };
     window.addEventListener('ethaion:garment-image-ready', refresh);
     return () => window.removeEventListener('ethaion:garment-image-ready', refresh);
-  }, []);
+  }, [pieceId]);
 
-  const label = title || fields.name || 'Garment image';
-  const candidate = liveGarmentImage(pieceId) || photoUrl || fields.photoUrl || fields.photo_url || '';
+  const candidate = liveGarmentImage(pieceId, rowUrl) || rowUrl;
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [candidate]);
   // The stored transparent PNG, when the pipeline made one for this
@@ -144,7 +277,10 @@ export function CanonicalGarment({
         )
         .then((asset) => {
           if (live && asset?.ready) {
-            window.dispatchEvent(new CustomEvent('ethaion:garment-image-ready'));
+            // Scoped to this piece AND its source photograph: the source is
+            // what wakes a second tile showing the same image (duplicates
+            // mid-merge), which a pieceId alone would miss.
+            notifyGarmentImage(pieceId, candidate);
           }
         })
         .catch(() => undefined);

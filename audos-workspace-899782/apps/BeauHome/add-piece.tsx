@@ -143,7 +143,9 @@ export function PhotoConfirmFlow({
     setAnalysing(true);
 
     // 3. Upload in the background — the URL becomes the piece's anchor.
-    const upload = uploadGarmentPhotoFast(compressed).then(({ url }) => {
+    // `compressed` already went through compressImage above — say so, or it
+    // gets decoded, redrawn and JPEG-encoded a second time for nothing.
+    const upload = uploadGarmentPhotoFast(compressed, true).then(({ url }) => {
       if (seq === pickSeqRef.current) photoUrlRef.current = url;
       return url;
     });

@@ -26,6 +26,235 @@ import { sortByCategoryOrder } from './category-order';
 import { recordWarmthInBackground, refreshPieceWarmth } from './warmth-model';
 
 // ---------------------------------------------------------------------------
+// READ LAYER — request coalescing + a short-lived result cache.
+//
+// (Previously apps/BeauHome/db-cache.ts; inlined here so the workspace needs
+// no new files. `profile-data.ts` was its only consumer.)
+//
+// WHY THIS EXISTS: cold start used to fire the SAME `wardrobe_pieces` query
+// five times in one tick — once for the live useWorkspaceDB hook, and once
+// each for the legacy migration, the season audit, the pattern-label audit
+// and the duplicate audit. `cachedGet` collapses identical concurrent reads
+// into one in-flight promise and holds the result briefly; every write goes
+// through `invalidatingDb()`, which expires the touched table automatically.
+//
+// `rawDb()` below is the UNWRAPPED SDK. It must stay unwrapped: the write
+// proxy is built from it, and wrapping it in itself would recurse.
+// ---------------------------------------------------------------------------
+
+function rawDb(): any {
+  return window.__workspaceDb;
+}
+
+/** Default freshness window. Long enough to absorb a boot-time burst and the
+ * re-render storm that follows a write, short enough that a user-visible read
+ * a moment later still reflects reality. */
+const DEFAULT_TTL_MS = 1500;
+
+interface Entry<T> {
+  /** Resolved value, present once the request settled. */
+  value?: T;
+  /** The in-flight request, present while it is still running. */
+  inflight?: Promise<T>;
+  /** When `value` was written. */
+  at: number;
+}
+
+const entries = new Map<string, Entry<unknown>>();
+
+/** Table names touched since the last read, used to expire dependent keys. */
+const dirtyTables = new Set<string>();
+
+/**
+ * Read through the cache.
+ *
+ * @param key    Stable identity for this query — include every parameter that
+ *               changes the result (table, filters, ordering, limit).
+ * @param table  The table this read depends on. Invalidating that table
+ *               expires this entry.
+ * @param run    Performs the actual read. Only ever called when there is no
+ *               fresh value and no in-flight request.
+ * @param ttlMs  Freshness window. Pass 0 to force a fresh read while still
+ *               getting in-flight deduplication.
+ */
+function cachedGet<T>(
+  key: string,
+  table: string,
+  run: () => Promise<T>,
+  ttlMs: number = DEFAULT_TTL_MS,
+): Promise<T> {
+  const cacheKey = `${table}::${key}`;
+  const existing = entries.get(cacheKey) as Entry<T> | undefined;
+
+  // An identical request is already in the air — join it rather than opening
+  // a second one. This is what kills the boot-time duplicate reads.
+  if (existing?.inflight) return existing.inflight;
+
+  const fresh =
+    existing &&
+    existing.value !== undefined &&
+    !dirtyTables.has(table) &&
+    Date.now() - existing.at < ttlMs;
+  if (fresh) return Promise.resolve(existing.value as T);
+
+  const inflight = run()
+    .then((value) => {
+      entries.set(cacheKey, { value, at: Date.now() });
+      dirtyTables.delete(table);
+      return value;
+    })
+    .catch((error) => {
+      // A failed read must not poison the cache — drop the entry so the next
+      // caller retries instead of inheriting the rejection.
+      entries.delete(cacheKey);
+      throw error;
+    });
+
+  entries.set(cacheKey, { ...(existing || { at: 0 }), inflight } as Entry<unknown>);
+  return inflight;
+}
+
+/**
+ * Mark a table as changed. The next `cachedGet` for any key on that table
+ * performs a real read. Call this from every insert / update / delete.
+ */
+function invalidate(...tables: string[]): void {
+  for (const table of tables) {
+    dirtyTables.add(table);
+    for (const key of Array.from(entries.keys())) {
+      if (key.startsWith(`${table}::`)) entries.delete(key);
+    }
+  }
+}
+
+/** Drop everything — used when the session identity changes. */
+function invalidateAll(): void {
+  entries.clear();
+  dirtyTables.clear();
+}
+
+/** Synchronously read a cached value without triggering a request. Returns
+ * `undefined` when nothing fresh is held. Useful for painting from a known
+ * value instead of a spinner. */
+function peekCached<T>(key: string, table: string): T | undefined {
+  const entry = entries.get(`${table}::${key}`) as Entry<T> | undefined;
+  if (!entry || entry.value === undefined || dirtyTables.has(table)) return undefined;
+  return entry.value;
+}
+
+/**
+ * Run async jobs with bounded concurrency instead of one-at-a-time.
+ *
+ * The audits and companion-row cleanups used to `await` inside a `for` loop,
+ * so N rows meant N sequential round-trips — a 20-piece wardrobe spent
+ * twenty times the latency of one request. A small pool keeps the platform
+ * happy while cutting wall-clock time by roughly the pool size.
+ */
+export async function pooled<T, R>(
+  items: readonly T[],
+  limit: number,
+  job: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = new Array(Math.min(limit, items.length)).fill(null).map(async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      results[index] = await job(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * The shared cold-start read of `wardrobe_pieces`.
+ *
+ * Every startup audit calls this instead of issuing its own query, so the
+ * four audits plus the legacy migration cost ONE request between them.
+ */
+function sharedPiecesRead(limit = 100): Promise<any[]> {
+  return cachedGet<any[]>(
+    `boot:${limit}`,
+    'wardrobe_pieces',
+    async () => {
+      const { data } = await rawDb().from('wardrobe_pieces').orderBy('created_at', 'asc').limit(limit).get();
+      return (data || []) as any[];
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Write-through invalidation
+// ---------------------------------------------------------------------------
+
+/** Terminal builder methods that change rows. Everything else is a read or a
+ * chainable filter and passes straight through. */
+const WRITE_METHODS = new Set(['insert', 'bulkInsert', 'update', 'delete', 'upsert']);
+
+/**
+ * Wrap the WorkspaceDB SDK so any write automatically expires the read cache
+ * for the table it touched.
+ *
+ * Doing it here rather than at each of the ~90 call sites means a future write
+ * cannot forget to invalidate — the class of bug where a save succeeds but the
+ * UI keeps showing the old value until a reload. The proxy is transparent:
+ * chainable filters (`eq`, `orderBy`, `limit`) return the wrapped builder, and
+ * `get` is untouched.
+ */
+function invalidatingDb(): any {
+  const raw = rawDb();
+  if (!raw) return raw;
+  return {
+    ...raw,
+    from(table: string, options?: unknown) {
+      const builder = options === undefined ? raw.from(table) : raw.from(table, options);
+      return wrapBuilder(builder, table);
+    },
+  };
+}
+
+function wrapBuilder(builder: any, table: string): any {
+  return new Proxy(builder, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== 'function' || typeof prop !== 'string') return value;
+      return (...args: unknown[]) => {
+        const result = value.apply(target, args);
+        if (WRITE_METHODS.has(prop)) {
+          // Expire on completion, not on call: invalidating before the write
+          // lands would let a concurrent read repopulate the cache with the
+          // pre-write value.
+          if (result && typeof result.then === 'function') {
+            return result.then(
+              (ok: unknown) => {
+                invalidate(table);
+                return ok;
+              },
+              (err: unknown) => {
+                invalidate(table);
+                throw err;
+              },
+            );
+          }
+          invalidate(table);
+          return result;
+        }
+        // Chainable filter — keep it wrapped so the eventual write is caught.
+        if (result === target) return receiver;
+        if (result && typeof result === 'object' && typeof (result as any).get === 'function') {
+          return wrapBuilder(result, table);
+        }
+        return result;
+      };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -816,9 +1045,34 @@ export function extractColors(text: string): string[] {
  * Match free text ("m43 field jacket") to a category + canonical slot using
  * longest-keyword-wins so specific phrases beat generic ones.
  */
+/**
+ * Memo for `categorizeItem`.
+ *
+ * The scan below compares the name against all 224 slot keywords across every
+ * category — and `normalizePiece` calls it for EVERY piece, on every recompute
+ * of the wardrobe list. A 100-piece wardrobe therefore performed ~22,000
+ * string comparisons each time an optimistic patch, an attribute refresh or a
+ * tab change caused the list to be rebuilt, all of it on the main thread and
+ * all of it re-deriving answers it had already computed. The function is pure,
+ * so the result is cached on the lowercased name.
+ */
+const categorizeCache = new Map<string, { category: string | null; slot: string | null }>();
+const CATEGORIZE_CACHE_MAX = 2000;
+
 export function categorizeItem(text: string): { category: string | null; slot: string | null } {
   const q = text.toLowerCase().trim();
   if (!q) return { category: null, slot: null };
+  const hit = categorizeCache.get(q);
+  if (hit) return hit;
+  const computed = categorizeItemUncached(q);
+  // Names are user-authored and bounded in practice; the cap is a safety net
+  // against an unbounded map in a very long session.
+  if (categorizeCache.size >= CATEGORIZE_CACHE_MAX) categorizeCache.clear();
+  categorizeCache.set(q, computed);
+  return computed;
+}
+
+function categorizeItemUncached(q: string): { category: string | null; slot: string | null } {
   if (/high[ -]?(?:rise|waist(?:ed)?)/.test(q) && /trouser|pant/.test(q) && !/jean|denim/.test(q)) {
     return { category: 'bottoms', slot: 'high-rise-trousers' };
   }
@@ -2909,7 +3163,11 @@ export function composeProportionBullets(profile: Partial<StyleProfile>): Propor
 // compiler auto-injects the WorkspaceDB SDK when it sees that token in
 // app source.
 function db(): any {
-  return window.__workspaceDb;
+  // `window.__workspaceDb` stays a literal reference here so the platform
+  // compiler still auto-injects the SDK. The wrapper adds nothing to reads and
+  // expires the matching cache entries after every write.
+  void window.__workspaceDb;
+  return invalidatingDb();
 }
 
 // Serialize writes per domain so rapid taps cannot race fetch-then-insert,
@@ -2955,7 +3213,29 @@ const SLOT_CATEGORY_MOVES: Record<string, string> = {
   'flat-cap': 'hats',
 };
 
+/**
+ * Memo for `normalizePiece`, keyed on the raw row OBJECT.
+ *
+ * `useWorkspaceDB` hands back the same row objects between renders, so a list
+ * rebuild triggered by something unrelated (an optimistic patch on one piece,
+ * a companion-table refresh) re-normalised every row from scratch — parsing
+ * three JSON columns and running the keyword scan per piece. A WeakMap keeps
+ * the derived value alongside the row and lets both be collected together.
+ */
+const normalizedPieces = new WeakMap<object, WardrobePiece>();
+
 export function normalizePiece(row: any): WardrobePiece {
+  if (row && typeof row === 'object') {
+    const cached = normalizedPieces.get(row as object);
+    if (cached) return cached;
+    const computed = normalizePieceUncached(row);
+    normalizedPieces.set(row as object, computed);
+    return computed;
+  }
+  return normalizePieceUncached(row);
+}
+
+function normalizePieceUncached(row: any): WardrobePiece {
   const slot = (row.slot ?? null) as string | null;
   const inferred = categorizeItem(row.name || '');
   const inferredEspadrilles = inferred.slot === 'espadrilles' && (!slot || row.category === 'other');
@@ -2989,14 +3269,30 @@ function parseRubricArchetypes(aesthetic: unknown, current: string[]): string[] 
  * save_rubric. This closes the former one-way sync where app edits reached
  * chat, but chat edits never came back to Your Style.
  */
-async function fetchStructuredProfile(): Promise<StyleProfile | null> {
-  const { data } = await db().from('style_profile').orderBy('created_at', 'asc').limit(1).get();
-  const row = (data && data[0]) || null;
-  return row ? normalizeProfile(row) : null;
+async function fetchStructuredProfile(force = false): Promise<StyleProfile | null> {
+  return cachedGet<StyleProfile | null>(
+    'single',
+    'style_profile',
+    async () => {
+      const { data } = await db().from('style_profile').orderBy('created_at', 'asc').limit(1).get();
+      const row = (data && data[0]) || null;
+      return row ? normalizeProfile(row) : null;
+    },
+    force ? 0 : undefined,
+  );
 }
 
 export async function fetchProfile(): Promise<StyleProfile | null> {
-  const profile = await fetchStructuredProfile();
+  // The rubric read used to run AFTER the profile resolved, adding a second
+  // serial round-trip to first paint. They are independent reads, so they go
+  // out together and the reconciliation happens once both have landed.
+  const [profile, rubricRows] = await Promise.all([
+    fetchStructuredProfile(),
+    cachedGet<any[]>('single', 'style_rubric', async () => {
+      const { data } = await db().from('style_rubric').orderBy('created_at', 'asc').limit(1).get();
+      return (data || []) as any[];
+    }).catch(() => [] as any[]),
+  ]);
   if (!profile) return null;
 
   // A local structured edit is authoritative until it has been mirrored into
@@ -3004,12 +3300,12 @@ export async function fetchProfile(): Promise<StyleProfile | null> {
   if (profileWritesPending > 0) return profile;
 
   try {
-    const { data: rubricRows } = await db().from('style_rubric').orderBy('created_at', 'asc').limit(1).get();
     const rubric = rubricRows?.[0];
     const current = Array.isArray(profile.archetypes) ? profile.archetypes : [];
     const reconciled = parseRubricArchetypes(rubric?.aesthetic, current);
     if (JSON.stringify(reconciled) !== JSON.stringify(current)) {
       await db().from('style_profile').update(profile.id, { archetypes: JSON.stringify(reconciled) });
+      invalidate('style_profile');
       profile.archetypes = reconciled;
     }
   } catch (e) {
@@ -3039,15 +3335,19 @@ export function saveProfile(patch: Record<string, unknown>): Promise<StyleProfil
     } else {
       await db().from('style_profile').insert(serialized);
     }
+    // The row just changed — every cached read of it must miss from here on.
+    invalidate('style_profile');
 
     // Read back only the row just written. WorkspaceDB can be briefly
     // read-after-write stale on a brand-new guest session, so retry before
     // handing onboarding a null profile (which would strand the user on the
     // final step instead of opening the Wardrobe).
-    let fresh = await fetchStructuredProfile();
+    // `force` bypasses the read cache: a read-back that could be served from
+    // cache would defeat the point of the retry.
+    let fresh = await fetchStructuredProfile(true);
     for (let attempt = 0; !fresh && attempt < 3; attempt += 1) {
       await new Promise((resolve) => window.setTimeout(resolve, 80 * (attempt + 1)));
-      fresh = await fetchStructuredProfile();
+      fresh = await fetchStructuredProfile(true);
     }
     if (fresh) {
       try {
@@ -3467,12 +3767,17 @@ export function defaultMaterial(slot: string | null): string {
 /** Fetch the visitor's piece-id → material map from the companion table. */
 export async function fetchMaterials(): Promise<Record<number, string>> {
   try {
-    const { data } = await db().from('piece_materials').orderBy('created_at', 'asc').limit(200).get();
-    const map: Record<number, string> = {};
-    for (const row of data || []) {
-      if (row.piece_id != null && typeof row.material === 'string') map[row.piece_id] = row.material;
-    }
-    return map;
+    // Coalesced: the duplicate audit used to call this once per duplicate
+    // GROUP, and three separate boot effects each wanted it. They now share
+    // one request.
+    return await cachedGet<Record<number, string>>('all', 'piece_materials', async () => {
+      const { data } = await db().from('piece_materials').orderBy('created_at', 'asc').limit(200).get();
+      const map: Record<number, string> = {};
+      for (const row of data || []) {
+        if (row.piece_id != null && typeof row.material === 'string') map[row.piece_id] = row.material;
+      }
+      return map;
+    });
   } catch (e) {
     console.warn('[Ethaion] materials fetch failed (non-fatal):', e);
     return {};
@@ -3558,10 +3863,12 @@ export interface PieceAttributes {
 
 export async function fetchPieceAttributes(): Promise<Record<number, PieceAttributes>> {
   try {
-    const { data } = await db().from('piece_attributes').orderBy('created_at', 'asc').limit(200).get();
-    const out: Record<number, PieceAttributes> = {};
-    for (const row of data || []) if (row.piece_id != null) out[Number(row.piece_id)] = row as PieceAttributes;
-    return out;
+    return await cachedGet<Record<number, PieceAttributes>>('all', 'piece_attributes', async () => {
+      const { data } = await db().from('piece_attributes').orderBy('created_at', 'asc').limit(200).get();
+      const out: Record<number, PieceAttributes> = {};
+      for (const row of data || []) if (row.piece_id != null) out[Number(row.piece_id)] = row as PieceAttributes;
+      return out;
+    });
   } catch (e) {
     console.warn('[Ethaion] piece attributes fetch failed (non-fatal):', e);
     return {};
@@ -3585,10 +3892,12 @@ export async function setPieceAttributes(
 
 export async function fetchPieceDetails(): Promise<Record<number, PieceDetails>> {
   try {
-    const { data } = await db().from('piece_details').orderBy('created_at', 'asc').limit(200).get();
-    const out: Record<number, PieceDetails> = {};
-    for (const row of data || []) if (row.piece_id != null) out[Number(row.piece_id)] = row as PieceDetails;
-    return out;
+    return await cachedGet<Record<number, PieceDetails>>('all', 'piece_details', async () => {
+      const { data } = await db().from('piece_details').orderBy('created_at', 'asc').limit(200).get();
+      const out: Record<number, PieceDetails> = {};
+      for (const row of data || []) if (row.piece_id != null) out[Number(row.piece_id)] = row as PieceDetails;
+      return out;
+    });
   } catch (e) {
     console.warn('[Ethaion] piece details fetch failed (non-fatal):', e);
     return {};
@@ -3809,14 +4118,70 @@ export function insertPieces(pieces: NewPiece[]): Promise<void> {
   });
 }
 
+const PIECE_COMPANION_TABLES = [
+  'piece_materials',
+  'piece_details',
+  'piece_attributes',
+  'care_reminders',
+  'piece_value',
+  'piece_photo_meta',
+  'piece_photo_originals',
+  'piece_sources',
+  'piece_semantics',
+  'piece_warmth',
+] as const;
+
+/**
+ * Delete a piece and its companion rows.
+ *
+ * The piece row itself is awaited — the caller needs to know it is gone before
+ * the list re-renders. The ten companion tables used to be cleaned SERIALLY
+ * (a read then N deletes each, so ~20+ sequential round-trips), which is why
+ * removing one item locked the wardrobe for seconds. They are now cleaned
+ * concurrently, and only the piece row blocks the caller.
+ */
 export async function deletePiece(id: number): Promise<void> {
   await db().from('wardrobe_pieces').delete(id);
-  for (const table of ['piece_materials', 'piece_details', 'piece_attributes', 'care_reminders', 'piece_value', 'piece_photo_meta', 'piece_photo_originals', 'piece_sources', 'piece_semantics', 'piece_warmth']) {
-    try {
-      const { data } = await db().from(table).eq('piece_id', id).limit(10).get();
-      for (const row of data || []) await db().from(table).delete(row.id);
-    } catch { /* non-fatal companion cleanup */ }
-  }
+
+  const cleanup = Promise.all(
+    PIECE_COMPANION_TABLES.map(async (table) => {
+      try {
+        const { data } = await db().from(table).eq('piece_id', id).limit(10).get();
+        await Promise.all((data || []).map((row: any) => db().from(table).delete(row.id)));
+      } catch { /* non-fatal companion cleanup */ }
+    }),
+  );
+
+  // Orphaned companion rows are harmless and invisible; the user should not
+  // wait on them. Errors are already swallowed per-table above.
+  void cleanup;
+
+  // Local image caches keyed on this piece must go too, or a deleted piece's
+  // photograph can still be painted from storage on the next cold start.
+  forgetPieceImageCaches(id);
+}
+
+/**
+ * Drop every localStorage entry scoped to a single piece.
+ *
+ * THE STALE-PHOTO BUG: caches were written per piece id and per source-URL
+ * hash but never cleared on delete or on photo replacement, so a cold start
+ * would synchronously paint the OLD image (that being the whole point of the
+ * synchronous peek) before the fresh row arrived to correct it.
+ */
+export function forgetPieceImageCaches(id: number): void {
+  try {
+    const suffix = `_${id}`;
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith('ethaion_') && !key.startsWith('brummell_')) continue;
+      if (key.endsWith(suffix) || key.includes(`_piece_${id}_`)) localStorage.removeItem(key);
+    }
+  } catch { /* storage unavailable */ }
+  // Evict the in-memory live-image registry too (canonical-garment.tsx
+  // listens). Sent as an event to avoid an import cycle.
+  try {
+    window.dispatchEvent(new CustomEvent('ethaion:piece-forgotten', { detail: { pieceId: id } }));
+  } catch { /* non-fatal */ }
 }
 
 /** Patch a logged piece — rename for specificity, recategorise, or retag. */
@@ -3839,23 +4204,28 @@ export async function updatePiece(
   if (patch.colors !== undefined) fields.colors = JSON.stringify(patch.colors.map(formatColorName));
   if (patch.seasons !== undefined) fields.seasons = JSON.stringify(patch.seasons);
   if (patch.occasions !== undefined) fields.occasions = JSON.stringify(patch.occasions);
+  // Three writes to three different tables, previously performed one after
+  // another — so saving an edit cost three full round-trips of latency before
+  // the sheet would close. They are independent, so they go out together.
+  const writes: Array<Promise<unknown>> = [];
   if (Object.keys(fields).length > 0) {
-    await db().from('wardrobe_pieces').update(id, fields);
+    writes.push(db().from('wardrobe_pieces').update(id, fields));
   }
   if (patch.material !== undefined) {
-    try {
-      await setPieceMaterial(id, patch.material);
-    } catch (e) {
-      console.warn('[Ethaion] material update failed (non-fatal):', e);
-    }
+    writes.push(
+      setPieceMaterial(id, patch.material).catch((e) => {
+        console.warn('[Ethaion] material update failed (non-fatal):', e);
+      }),
+    );
   }
   if (patch.pattern !== undefined || patch.name_is_custom !== undefined) {
-    try {
-      await setPieceAttributes(id, { pattern: patch.pattern, name_is_custom: patch.name_is_custom });
-    } catch (e) {
-      console.warn('[Ethaion] attributes update failed (non-fatal):', e);
-    }
+    writes.push(
+      setPieceAttributes(id, { pattern: patch.pattern, name_is_custom: patch.name_is_custom }).catch((e) => {
+        console.warn('[Ethaion] attributes update failed (non-fatal):', e);
+      }),
+    );
   }
+  await Promise.all(writes);
   // LAYER 1 re-tag: an edit that changes the piece's MEANING (name, category,
   // type, colours or material) refreshes its semantic tags in the background.
   if (
@@ -4008,8 +4378,8 @@ export async function mergePieces(
  */
 export async function auditDuplicatePieces(): Promise<boolean> {
   try {
-    const { data } = await db().from('wardrobe_pieces').limit(100).get();
-    const pieces = ((data || []) as any[]).map(normalizePiece);
+    const data = await sharedPiecesRead();
+    const pieces = data.map(normalizePiece);
     const byKey = new Map<string, WardrobePiece[]>();
     for (const p of pieces) {
       const key = `${p.slot || p.category}|${p.name.trim().toLowerCase()}`;
@@ -4017,19 +4387,30 @@ export async function auditDuplicatePieces(): Promise<boolean> {
       list.push(p);
       byKey.set(key, list);
     }
-    let changed = false;
+
+    // Collect the merges first so the common case — no duplicates at all —
+    // costs zero extra requests. `fetchMaterials()` used to be called once per
+    // duplicate GROUP from inside the loop; it is now read once, and only when
+    // there is actually something to merge.
+    const merges: Array<{ keep: WardrobePiece; extra: WardrobePiece }> = [];
     for (const list of byKey.values()) {
       if (list.length < 2) continue;
       const sorted = [...list].sort((x, y) => (x.created_at || '').localeCompare(y.created_at || ''));
       const keep = sorted.find((p) => p.brand) || sorted[0];
-      const materials = await fetchMaterials();
       for (const extra of sorted) {
         if (extra.id === keep.id) continue;
-        await mergePieces(keep, extra, materials);
-        changed = true;
+        merges.push({ keep, extra });
       }
     }
-    return changed;
+    if (merges.length === 0) return false;
+
+    const materials = await fetchMaterials();
+    // Merges stay serial: two merges into the same `keep` row would otherwise
+    // race and one set of companion data would be lost.
+    for (const { keep, extra } of merges) {
+      await mergePieces(keep, extra, materials);
+    }
+    return true;
   } catch (e) {
     console.warn('[Ethaion] duplicate audit failed (non-fatal):', e);
     return false;
@@ -4050,22 +4431,27 @@ const AW_OUTERWEAR_SLOTS = new Set(['field-jacket', 'waxed-jacket', 'overcoat', 
  */
 export async function auditSeasonTags(): Promise<boolean> {
   try {
-    const { data } = await db().from('wardrobe_pieces').limit(100).get();
-    let changed = false;
-    for (const row of data || []) {
-      const piece = normalizePiece(row);
-      if (!piece.slot || !AW_OUTERWEAR_SLOTS.has(piece.slot)) continue;
-      const seasons = piece.seasons || [];
-      if (seasons.length === 0 || seasons.includes('year-round')) {
-        await db().from('wardrobe_pieces').update(piece.id, { seasons: JSON.stringify(['aw']) });
-        // The warmth band reads the season tags, so re-derive it here too —
-        // otherwise a piece the audit has just called AW-only keeps the
-        // year-round temperature band the candidate filter judges it on.
-        void refreshPieceWarmth(piece.id);
-        changed = true;
-      }
-    }
-    return changed;
+    // Shared read: this used to be its own full-table query, one of four
+    // identical ones fired in the same tick at boot.
+    const data = await sharedPiecesRead();
+    const stale = data
+      .map(normalizePiece)
+      .filter((piece) => {
+        if (!piece.slot || !AW_OUTERWEAR_SLOTS.has(piece.slot)) return false;
+        const seasons = piece.seasons || [];
+        return seasons.length === 0 || seasons.includes('year-round');
+      });
+    if (stale.length === 0) return false;
+    // Bounded concurrency instead of a serial await-in-loop: correcting ten
+    // pieces used to cost ten round-trips end to end.
+    await pooled(stale, 4, async (piece) => {
+      await db().from('wardrobe_pieces').update(piece.id, { seasons: JSON.stringify(['aw']) });
+      // The warmth band reads the season tags, so re-derive it here too —
+      // otherwise a piece the audit has just called AW-only keeps the
+      // year-round temperature band the candidate filter judges it on.
+      void refreshPieceWarmth(piece.id);
+    });
+    return true;
   } catch (e) {
     console.warn('[Ethaion] season audit failed (non-fatal):', e);
     return false;
@@ -4086,21 +4472,19 @@ export async function auditSeasonTags(): Promise<boolean> {
  */
 export async function auditPatternLabels(): Promise<boolean> {
   try {
-    const attributes = await fetchPieceAttributes();
-    const { data } = await db().from('wardrobe_pieces').limit(100).get();
-    let changed = false;
-    for (const row of data || []) {
-      const piece = normalizePiece(row);
-      if (!/\bpatterned\b/i.test(piece.name)) continue;
-      const attr = attributes[piece.id];
-      if (attr?.name_is_custom === true) continue;
-      const next = reconcilePatternedName(piece.name, attr?.pattern || null);
-      if (next !== piece.name) {
-        await db().from('wardrobe_pieces').update(piece.id, { name: next });
-        changed = true;
-      }
-    }
-    return changed;
+    // Both reads are independent — issue them together rather than serially,
+    // and take pieces from the shared boot read.
+    const [attributes, data] = await Promise.all([fetchPieceAttributes(), sharedPiecesRead()]);
+    const renames = data
+      .map(normalizePiece)
+      .filter((piece) => /\bpatterned\b/i.test(piece.name) && attributes[piece.id]?.name_is_custom !== true)
+      .map((piece) => ({ piece, next: reconcilePatternedName(piece.name, attributes[piece.id]?.pattern || null) }))
+      .filter(({ piece, next }) => next !== piece.name);
+    if (renames.length === 0) return false;
+    await pooled(renames, 4, async ({ piece, next }) => {
+      await db().from('wardrobe_pieces').update(piece.id, { name: next });
+    });
+    return true;
   } catch (e) {
     console.warn('[Ethaion] pattern-label audit failed (non-fatal):', e);
     return false;
@@ -4476,14 +4860,17 @@ function migrateCategory(category: string, slot: string | null): { category: str
  */
 export async function migrateLegacyItems(): Promise<boolean> {
   try {
-    const { data: existing } = await db().from('wardrobe_pieces').limit(1).get();
-    if (existing && existing.length > 0) return false;
+    // Reuses the shared boot read instead of its own probe query. The
+    // overwhelmingly common case — an existing wardrobe — now short-circuits
+    // without touching the network at all.
+    const existing = await sharedPiecesRead();
+    if (existing.length > 0) return false;
     const { data: legacy } = await db().from('wardrobe_items').orderBy('created_at', 'asc').limit(100).get();
     if (!legacy || legacy.length === 0) return false;
 
-    for (const row of legacy) {
+    const rows = (legacy as any[]).map((row) => {
       const mapped = migrateCategory(row.category, row.slot ?? null);
-      await db().from('wardrobe_pieces').insert({
+      return {
         name: formatItemName(row.name || ''),
         category: mapped.category,
         slot: mapped.slot,
@@ -4492,15 +4879,25 @@ export async function migrateLegacyItems(): Promise<boolean> {
         seasons: JSON.stringify(defaultSeasons(mapped.slot)),
         occasions: JSON.stringify(defaultOccasions(mapped.slot)),
         photo_url: null,
-      });
+      };
+    });
+
+    // One bulk insert instead of N sequential ones. Falls back to the old
+    // row-at-a-time path if the SDK build in this workspace lacks bulkInsert.
+    const target = db().from('wardrobe_pieces');
+    if (typeof target.bulkInsert === 'function') {
+      await target.bulkInsert(rows);
+    } else {
+      await pooled(rows, 4, (row) => db().from('wardrobe_pieces').insert(row));
     }
-    for (const row of legacy) {
+
+    await pooled(legacy as any[], 4, async (row) => {
       try {
         await db().from('wardrobe_items').delete(row.id);
       } catch (e) {
         console.warn('[Ethaion] legacy row cleanup failed (non-fatal):', e);
       }
-    }
+    });
     return true;
   } catch (e) {
     console.warn('[Ethaion] legacy wardrobe migration failed (non-fatal):', e);

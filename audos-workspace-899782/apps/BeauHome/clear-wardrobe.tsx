@@ -20,21 +20,33 @@ export function ClearWardrobeCard({ pieces, onCleared }: { pieces: WardrobePiece
     if (busy) return;
     setBusy(true);
     try {
-      // Sequential deletes — deletePiece also cleans each piece's companion
-      // rows (materials, details, attributes, reminders, photo metadata).
-      for (const piece of pieces) {
-        try {
-          await deletePiece(piece.id);
-        } catch (error) {
-          console.warn('[Ethaion] clear wardrobe: could not remove one piece:', piece.name, error);
-        }
-      }
+      // Deletes run a few at a time rather than strictly one after another.
+      // Clearing a 40-piece wardrobe was 40 sequential round-trips (each of
+      // which then cleaned ten companion tables serially), which is why the
+      // button appeared to hang. The pool is kept small so a large wardrobe
+      // cannot flood the platform.
+      const queue = [...pieces];
+      await Promise.all(
+        new Array(Math.min(4, queue.length)).fill(null).map(async () => {
+          for (;;) {
+            const piece = queue.shift();
+            if (!piece) return;
+            try {
+              await deletePiece(piece.id);
+            } catch (error) {
+              console.warn('[Ethaion] clear wardrobe: could not remove one piece:', piece.name, error);
+            }
+          }
+        }),
+      );
       // The pipeline's normalization stamps are keyed by piece id but live
       // outside deletePiece's cleanup list — clear them so a rebuilt wardrobe
       // starts fresh.
       try {
         const { data } = await (window as any).__workspaceDb.from('piece_photo_norm').limit(200).get();
-        for (const row of data || []) await (window as any).__workspaceDb.from('piece_photo_norm').delete(row.id);
+        await Promise.all(
+          (data || []).map((row: any) => (window as any).__workspaceDb.from('piece_photo_norm').delete(row.id)),
+        );
       } catch { /* non-fatal companion cleanup */ }
       setConfirming(false);
       onCleared();

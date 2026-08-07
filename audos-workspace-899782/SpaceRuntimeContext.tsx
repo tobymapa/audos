@@ -264,7 +264,22 @@ export function SpaceRuntimeProvider({
     } catch {}
     return true;
   });
-  const [subscription, setSubscription] = useState<SubscriptionState | null>(null);
+  // Hydrated from the cache on the FIRST render, not in an effect.
+  //
+  // The cached verdict was already being read below, but only after mount — so
+  // the shell painted its full-screen spinner for at least one frame even for a
+  // returning customer whose entitlement was known all along, and kept painting
+  // it until the network answered (up to the 8s timeout in Desktop.tsx).
+  // Seeding the state synchronously means a returning customer never sees the
+  // gate at all; revalidation still runs and corrects this value below.
+  const [subscription, setSubscription] = useState<SubscriptionState | null>(() => {
+    try {
+      const cached = localStorage.getItem(`space_subscription_${spaceId}`);
+      return cached ? (JSON.parse(cached) as SubscriptionState) : null;
+    } catch {
+      return null;
+    }
+  });
   const [subscriptionReady, setSubscriptionReady] = useState(false);
   const subscriptionRef = useRef<SubscriptionState | null>(null);
   const [sessionMetadata, setSessionMetadata] = useState<Record<string, unknown>>(() => {

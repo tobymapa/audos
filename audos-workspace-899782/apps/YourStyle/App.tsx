@@ -846,6 +846,59 @@ function tasteSourceMeta(sourceType: string): { Icon: React.ComponentType<{ clas
   }
 }
 
+/**
+ * An interval that only does work while its element is actually on screen.
+ *
+ * WHY: the Dossier ran two 2.5-second polls. Both are legitimate — Beau's
+ * `save_rubric` runs server-side and cannot dispatch a browser event, so a
+ * poll is the only way a chat-authored edit appears without a reload — but
+ * neither stopped when the screen was no longer visible. Main tabs stay
+ * mounted under `display:none` once visited, so the taste-reference poll kept
+ * firing database reads and replacing state for a screen the customer had
+ * navigated away from, re-rendering a large tree each time.
+ *
+ * The interval still ticks (a boolean check every 2.5s costs nothing) but only
+ * calls the job when the document is visible AND the element is not inside a
+ * hidden subtree. Becoming visible again refreshes immediately, so nothing is
+ * ever stale on return.
+ *
+ * Attach the returned ref to the screen's root element.
+ */
+function useVisibleInterval(job: () => void, ms: number) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  // Held in a ref so a changing closure never re-arms the interval.
+  const jobRef = useRef(job);
+  jobRef.current = job;
+
+  useEffect(() => {
+    const onScreen = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return false;
+      const el = ref.current;
+      if (!el) return false;
+      // `checkVisibility` accounts for display:none, visibility:hidden and
+      // content-visibility; `offsetParent` is the fallback for older engines.
+      const check = (el as unknown as { checkVisibility?: () => boolean }).checkVisibility;
+      return typeof check === 'function' ? check.call(el) : el.offsetParent !== null;
+    };
+
+    const timer = window.setInterval(() => {
+      if (onScreen()) jobRef.current();
+    }, ms);
+
+    const onVisibilityChange = () => {
+      if (onScreen()) jobRef.current();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [ms]);
+
+  return ref;
+}
+
 function TasteReferencesScreen({ onBack }: { onBack: () => void }) {
   const [refs, setRefs] = useState<TasteReference[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -866,16 +919,25 @@ function TasteReferencesScreen({ onBack }: { onBack: () => void }) {
           if (!cancelled) setLoaded(true);
         });
     void refresh();
-    // Light poll: entries Beau logs mid-conversation appear without a reload,
-    // even in the side-by-side chat + app layout.
-    const timer = window.setInterval(refresh, 2500);
     window.addEventListener('focus', refresh);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
       window.removeEventListener('focus', refresh);
     };
   }, []);
+
+  // Light poll: entries Beau logs mid-conversation appear without a reload,
+  // even in the side-by-side chat + app layout. Suspended while this screen is
+  // off-screen — it used to keep reading the database after the customer had
+  // navigated to another tab.
+  const rootRef = useVisibleInterval(() => {
+    void fetchTasteReferences()
+      .then((r) => {
+        setRefs(r);
+        setLoaded(true);
+      })
+      .catch(() => undefined);
+  }, 2500);
 
   const remove = async (id: number) => {
     setRemovingId(id);
@@ -889,7 +951,7 @@ function TasteReferencesScreen({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="min-h-full bg-transparent">
+    <div ref={rootRef} className="min-h-full bg-transparent">
       <div className="px-5 py-5 space-y-5 max-w-4xl mx-auto w-full pb-24">
         <div>
           <button

@@ -435,24 +435,30 @@ export function PieceEditForm({
       // ONE combined write covers every wardrobe_pieces field (tags included)
       // plus the material/pattern/name-provenance companion rows — the fast
       // path the sheet-close depends on.
-      await updatePiece(piece.id, {
-        name: finalName,
-        brand: nextBrand,
-        category: categoryDraft,
-        slot: slotDraft || null,
-        colors: colorsDraft,
-        seasons: seasonsDraft,
-        occasions: occasionsDraft,
-        material: materialDraft.trim() || null,
-        pattern: patternDraft || null,
-        name_is_custom: nameIsCustom,
-      });
-      if (
+      const detailsChanged =
         detailsLoaded &&
-        (sizeDraft.trim() !== initialDetails.current.size.trim() || notesDraft.trim() !== initialDetails.current.notes.trim())
-      ) {
-        await setPieceDetails(piece.id, { size: sizeDraft.trim() || null, notes: notesDraft.trim() || null });
-      }
+        (sizeDraft.trim() !== initialDetails.current.size.trim() ||
+          notesDraft.trim() !== initialDetails.current.notes.trim());
+      // The details row is a separate table from everything updatePiece
+      // touches, so it need not queue behind it. Previously this was a fourth
+      // serial round-trip the user waited through before the sheet closed.
+      await Promise.all([
+        updatePiece(piece.id, {
+          name: finalName,
+          brand: nextBrand,
+          category: categoryDraft,
+          slot: slotDraft || null,
+          colors: colorsDraft,
+          seasons: seasonsDraft,
+          occasions: occasionsDraft,
+          material: materialDraft.trim() || null,
+          pattern: patternDraft || null,
+          name_is_custom: nameIsCustom,
+        }),
+        detailsChanged
+          ? setPieceDetails(piece.id, { size: sizeDraft.trim() || null, notes: notesDraft.trim() || null })
+          : Promise.resolve(),
+      ]);
       onSaved();
       // The write has landed — the only thing the user waited on. Beau's
       // re-read is queued as a separate background operation and is never

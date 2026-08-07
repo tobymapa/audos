@@ -1,0 +1,10 @@
+# macOS Finder metadata — created automatically in every folder you open.
+.DS_Store
+
+# Dependency folders. Nothing here should ever be committed; the Audos build
+# resolves React and friends from a CDN importmap rather than from disk.
+node_modules/
+
+# Local tooling scratch (typecheck configs, build output).
+tsconfig.check.json
+*.tsbuildinfo

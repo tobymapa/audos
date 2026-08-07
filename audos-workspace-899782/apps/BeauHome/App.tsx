@@ -93,6 +93,11 @@ const WardrobeStore = lazy(() => import('./store').then((m) => ({ default: memo(
 const StyleMeToday = lazy(() => import('./style-today').then((m) => ({ default: memo(m.StyleMeToday) })));
 const YourStyle = lazy(() => import('../YourStyle/App').then((m) => ({ default: memo(m.default) })));
 
+/** Module-scoped so the housekeeping audits run at most ONCE per page load.
+ * A StrictMode double-mount, or the app being closed and reopened from the
+ * dock, used to re-run all four from scratch. */
+let auditsKicked = false;
+
 /* ============================================================================
  * Ethaion — the home app (Milestones overhaul). A tap-only
  * onboarding runs before anything else; once complete the visitor lands in
@@ -1725,8 +1730,25 @@ export default function BeauHome() {
     refreshAttributes();
   }, [refreshPieces, refreshMaterials, refreshDetails, refreshAttributes]);
 
+  // ---------------------------------------------------------------------
+  // BOOT, IN TWO PHASES.
+  //
+  // Phase 1 — only what the first screen actually needs to draw: the
+  // profile, prefs, budgets and the piece companion tables. These go out in
+  // parallel and nothing else competes with them.
+  //
+  // Phase 2 — the four housekeeping audits (legacy migration, season tags,
+  // pattern labels, duplicates). None of them affect what the user sees on
+  // arrival, but they used to run in the same tick as phase 1, each issuing
+  // its own full `wardrobe_pieces` read and then a serial write per affected
+  // row. They now wait for the browser to go idle, share ONE cached read
+  // between them, and coalesce into a single refresh at the end instead of
+  // up to four.
+  // ---------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
+
+    // --- Phase 1: first-paint data ---
     fetchProfile()
       .then((p) => {
         if (!cancelled) setProfile(p);
@@ -1746,39 +1768,56 @@ export default function BeauHome() {
         if (!cancelled) setPrefs(p);
       })
       .catch((e) => console.error('[Ethaion] failed to load prefs:', e));
-    // One-time migration of the legacy wardrobe_items table into wardrobe_pieces.
-    migrateLegacyItems()
-      .then((migrated) => {
-        if (!cancelled && migrated) refreshPieces();
-      })
-      .catch(() => undefined);
-    // Seasonal-logic audit: fix AW outerwear mis-tagged year-round (the M-43 bug).
-    auditSeasonTags()
-      .then((changed) => {
-        if (!cancelled && changed) refreshPieces();
-      })
-      .catch(() => undefined);
-    // Pattern-label audit (Pass Twenty-One): strip "Patterned" from names
-    // whose structured pattern field is blank or 'solid' (the "patterned
-    // button down" bug) — user-typed names are never touched.
-    auditPatternLabels()
-      .then((changed) => {
-        if (!cancelled && changed) refreshPieces();
-      })
-      .catch(() => undefined);
-    // Duplicate audit: auto-merge exact-name copies (the double M-43 entry) —
-    // near-matches are surfaced in the wardrobe's duplicate review instead.
-    auditDuplicatePieces()
-      .then((changed) => {
-        if (!cancelled && changed) {
-          refreshPieces();
-          refreshMaterials();
-        }
-      })
-      .catch(() => undefined);
     refreshMaterials();
     refreshDetails();
     refreshAttributes();
+
+    // --- Phase 2: housekeeping, once the page is interactive ---
+    if (auditsKicked) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    auditsKicked = true;
+
+    whenIdle(() => {
+      if (cancelled) return;
+      void (async () => {
+        let piecesChanged = false;
+        let materialsChanged = false;
+
+        // Sequential BY DESIGN: each audit reads the shared cached snapshot,
+        // and running them in parallel would let two of them rewrite the same
+        // row from the same stale copy. Sequential is fine now that it costs
+        // one read total and happens off the critical path.
+        try {
+          if (await migrateLegacyItems()) piecesChanged = true;
+        } catch { /* non-fatal */ }
+        if (cancelled) return;
+        try {
+          if (await auditSeasonTags()) piecesChanged = true;
+        } catch { /* non-fatal */ }
+        if (cancelled) return;
+        try {
+          if (await auditPatternLabels()) piecesChanged = true;
+        } catch { /* non-fatal */ }
+        if (cancelled) return;
+        try {
+          if (await auditDuplicatePieces()) {
+            piecesChanged = true;
+            materialsChanged = true;
+          }
+        } catch { /* non-fatal */ }
+        if (cancelled) return;
+
+        // ONE refresh for the whole batch. Previously each audit that changed
+        // anything triggered its own, so a wardrobe needing all four fixes
+        // re-fetched and re-rendered the full list four times on arrival.
+        if (piecesChanged) refreshPieces();
+        if (materialsChanged) refreshMaterials();
+      })();
+    }, 4000);
+
     return () => {
       cancelled = true;
     };
@@ -1838,9 +1877,14 @@ export default function BeauHome() {
   // A completed first-save photo pipeline swaps the raw optimistic image for
   // its stored Photoroom/canonical result without a reload.
   useEffect(() => {
-    window.addEventListener('ethaion:piece-photo-settled', refreshAll);
-    return () => window.removeEventListener('ethaion:piece-photo-settled', refreshAll);
-  }, [refreshAll]);
+    // A settled photo changes exactly one column on one table (`photo_url` on
+    // wardrobe_pieces). This used to call refreshAll() — re-reading materials,
+    // details and attributes as well — so every photo that finished processing
+    // cost four round-trips and a full re-render of the wardrobe instead of
+    // one. That is the stutter you feel right after adding a photo.
+    window.addEventListener('ethaion:piece-photo-settled', refreshPieces);
+    return () => window.removeEventListener('ethaion:piece-photo-settled', refreshPieces);
+  }, [refreshPieces]);
 
   // A settled optimistic add is cleared as soon as the refreshed rows
   // contain a real piece newer than it — no flicker, no double row.
@@ -1976,21 +2020,64 @@ export default function BeauHome() {
   // eroded ~2px, tight-cropped to the silhouette + 4px, verified on both
   // real grounds). Runs once (bgRemovalV49 flag); repeat calls are cheap
   // no-ops, and pieces whose photo is already a stored cutout are skipped.
+  //
+  // THREE THINGS WERE WRONG HERE AND ALL THREE COST THE USER TIME.
+  //
+  // 1. It started 350ms after the pieces arrived — i.e. right on top of the
+  //    first paint, so the heaviest main-thread work in the app (canvas pixel
+  //    passes, one per photo) ran exactly while the user was trying to scroll.
+  //    It now waits for a genuinely idle browser.
+  // 2. It called `refreshAll()` on completion — four table re-reads and a full
+  //    list re-render — while `pieces` was in its own dependency array. A
+  //    sweep that changed anything therefore produced new `pieces`, which
+  //    re-armed the effect. Only the id-set guard stopped it looping, and any
+  //    add or delete re-armed it anyway. It now refreshes only the piece rows,
+  //    and the guard is keyed so a settled sweep cannot re-trigger itself.
+  // 3. `materials`, `pieceAttributes` and `refreshAll` were dependencies but
+  //    never read from the closure — the effect re-ran on every unrelated
+  //    metadata change and immediately bailed on the guard, but only after
+  //    React had already torn down and re-created the timer.
+  //
+  const photoSweepRan = useRef(false);
   useEffect(() => {
     if (pieces.length === 0) return;
-    const sweepKey = pieces.map((p) => p.id).sort((a, b) => a - b).join(',');
+    const withPhotos = pieces.filter((p) => p.id > 0 && (p.photo_url || '').trim());
+    if (withPhotos.length === 0) return;
+    const sweepKey = withPhotos.map((p) => p.id).sort((a, b) => a - b).join(',');
     if (photoSweepKicked.current === sweepKey) return;
     photoSweepKicked.current = sweepKey;
-    const timer = window.setTimeout(() => {
-      void Promise.all([fetchMaterials(), fetchPieceAttributes()]).then(([freshMaterials, freshAttributes]) => {
-        const patterns = Object.fromEntries(Object.entries(freshAttributes).map(([id, value]) => [Number(id), value.pattern || null]));
-        return runPhotoMigration(pieces, freshMaterials, setPhotoSweep, patterns);
-      }).then((changed) => {
-        if (changed > 0) refreshAll();
-      });
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [pieces, materials, pieceAttributes, refreshAll]);
+
+    let live = true;
+    // The first sweep of a session is the expensive one. Give the page a real
+    // chance to become interactive first; later incremental sweeps (a single
+    // newly added piece) are cheap and can start sooner.
+    whenIdle(() => {
+      if (!live) return;
+      void Promise.all([fetchMaterials(), fetchPieceAttributes()])
+        .then(([freshMaterials, freshAttributes]) => {
+          if (!live) return 0;
+          const patterns = Object.fromEntries(
+            Object.entries(freshAttributes).map(([id, value]) => [Number(id), value.pattern || null]),
+          );
+          return runPhotoMigration(withPhotos, freshMaterials, setPhotoSweep, patterns);
+        })
+        .then((changed) => {
+          photoSweepRan.current = true;
+          // Narrowed from refreshAll(): the sweep only ever rewrites
+          // `photo_url` on wardrobe_pieces, so re-reading materials, details
+          // and attributes was three wasted round-trips and a wasted render.
+          if (live && (changed || 0) > 0) refreshPieces();
+        })
+        .catch(() => undefined);
+    }, photoSweepRan.current ? 1200 : 8000);
+
+    return () => {
+      live = false;
+    };
+    // `pieces` only. The other three were read from fresh fetches inside the
+    // effect, never from the closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pieces, refreshPieces]);
 
   // LAYER 1 catch-up sweep (Beau intelligence overhaul): pieces logged
   // before the overhaul — or via chat tools that write straight to the

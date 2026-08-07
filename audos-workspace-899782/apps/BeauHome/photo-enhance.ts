@@ -195,8 +195,17 @@ export interface EnhancedUpload { url: string; enhanced: boolean }
  * Forty-Eight: max 1200px, JPEG 0.85 — sub-second instead of 5–8s for a
  * phone photo). The returned URL is the piece's permanent original anchor;
  * the pipeline cleans it in the background. */
-export async function uploadGarmentPhotoFast(file: File): Promise<FastUpload> {
-  const compressed = await compressImage(file);
+/**
+ * @param alreadyCompressed Pass `true` when the caller has already run
+ *   `compressImage`. `add-piece` compresses on pick so the preview appears
+ *   instantly, then handed that same File here — which compressed it a SECOND
+ *   time. That is a redundant full decode, canvas redraw and JPEG encode of
+ *   every photograph the customer adds, on the main thread, and it degrades
+ *   the image twice over: JPEG is lossy, so re-encoding an already-encoded
+ *   frame at 0.85 compounds the artefacts for no benefit.
+ */
+export async function uploadGarmentPhotoFast(file: File, alreadyCompressed = false): Promise<FastUpload> {
+  const compressed = alreadyCompressed ? file : await compressImage(file);
   const original = await fileToBase64(compressed);
   const url = await uploadImageData(`data:${original.mimeType};base64,${original.base64}`, compressed.name || 'garment.jpg');
   return { url, enhanced: Promise.resolve(null) };
@@ -286,9 +295,23 @@ function blobToDataUrl(blob: Blob): Promise<string> {
  * cold cache never eats the budget. */
 const REMOVAL_TIMEOUT_MS = 5000;
 
-function withTimeout<T>(job: Promise<T>, ms: number, label: string): Promise<T> {
+/**
+ * Reject after `ms`, and — via `onTimeout` — stop the underlying work.
+ *
+ * This used to stop WAITING without stopping the WORK. A timed-out Photoroom
+ * call kept its request open and kept consuming network while the fallback
+ * tier started an entirely separate removal for the same photograph, so the
+ * two competed for bandwidth and CPU at exactly the moment the pipeline was
+ * already behind. Callers now pass an aborter.
+ */
+function withTimeout<T>(job: Promise<T>, ms: number, label: string, onTimeout?: () => void): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    const timer = window.setTimeout(() => {
+      try {
+        onTimeout?.();
+      } catch { /* aborting is best-effort — never mask the timeout itself */ }
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
     job.then(
       (value) => {
         window.clearTimeout(timer);
@@ -343,13 +366,14 @@ async function imageToJpegBase64(url: string, maxEdge = 1200): Promise<string> {
 /** POST the image to Photoroom v1/segment (base64 JSON in, base64 PNG out)
  * through the workspace secrets proxy. Throws on any failure — the caller
  * falls back to client-side removal. */
-async function removeBackgroundViaPhotoroom(url: string): Promise<CleanImage> {
+async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): Promise<CleanImage> {
   if (photoroomUnavailable) throw new Error('Photoroom is unavailable this session');
   const ws = (window as any).__workspaceDb;
   if (!ws?.workspaceId || !ws?.token) throw new Error('workspace token unavailable for the secrets proxy');
   const imageB64 = await imageToJpegBase64(url);
   const res = await fetch(`/api/workspaces/${ws.workspaceId}/secrets/proxy`, {
     method: 'POST',
+    signal,
     headers: { 'Content-Type': 'application/json', 'X-Workspace-DB-Token': ws.token },
     body: JSON.stringify({
       method: 'POST',
@@ -395,8 +419,16 @@ async function removeBackgroundViaPhotoroom(url: string): Promise<CleanImage> {
  */
 async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
   // 1. Photoroom — the primary remover (Pass Forty-Seven).
+  const photoroomAbort = new AbortController();
   try {
-    return await withTimeout(removeBackgroundViaPhotoroom(url), REMOVAL_TIMEOUT_MS, 'Photoroom background removal');
+    return await withTimeout(
+      removeBackgroundViaPhotoroom(url, photoroomAbort.signal),
+      REMOVAL_TIMEOUT_MS,
+      'Photoroom background removal',
+      // Genuinely cancel the request. Without this the abandoned upload kept
+      // running alongside the fallback below, for the same photograph.
+      () => photoroomAbort.abort(),
+    );
   } catch (photoroomError) {
     console.warn('[Ethaion] Photoroom unavailable — falling back to client-side removal:', photoroomError);
   }
@@ -406,9 +438,10 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
   if (typeof removeBackground !== 'function') throw new Error('background-removal module unavailable');
   // Hand the library a Blob when we can fetch one (most robust input);
   // fall back to the URL string, which the library also accepts.
+  const sourceAbort = new AbortController();
   let input: Blob | string = url;
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: sourceAbort.signal });
     if (response.ok) input = await response.blob();
   } catch { /* URL input path below */ }
   const blob: Blob = await withTimeout(
@@ -418,6 +451,11 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
     }) as Promise<Blob>,
     REMOVAL_TIMEOUT_MS,
     'background removal',
+    // Only the source fetch is cancellable here. Once @imgly's WASM inference
+    // is under way it cannot be interrupted from the main thread — a further
+    // reason this tier is a poor fallback, and why it is worth considering a
+    // server-side retry instead of running the model in the browser at all.
+    () => sourceAbort.abort(),
   );
   return { url: await blobToDataUrl(blob) };
 }
@@ -2015,11 +2053,17 @@ export async function prepareProductPhoto(sourceUrl: string): Promise<PreparedPr
 export async function attachPreparedProductPhoto(pieceId: number, prepared: PreparedProductPhoto): Promise<string | null> {
   if (!pieceId || !prepared.cleanedUrl) return null;
   try {
-    await setPhotoOriginal(pieceId, prepared.originalUrl || prepared.cleanedUrl);
+    // The visible write first and on its own — everything else is bookkeeping
+    // on companion tables that no rendered surface reads synchronously.
+    // These four writes used to run one after another, so picking a product
+    // from a link cost four sequential round-trips before the image appeared.
     await db().from('wardrobe_pieces').update(pieceId, { photo_url: prepared.cleanedUrl });
-    await setPhotoSource(pieceId, prepared.cleaned ? 'pipeline' : 'product');
-    if (prepared.cleaned) await setNormVersion(pieceId, NORM_VERSION);
     registerGarmentImage(pieceId, prepared.cleanedUrl);
+    await Promise.all([
+      setPhotoOriginal(pieceId, prepared.originalUrl || prepared.cleanedUrl),
+      setPhotoSource(pieceId, prepared.cleaned ? 'pipeline' : 'product'),
+      prepared.cleaned ? setNormVersion(pieceId, NORM_VERSION) : Promise.resolve(),
+    ]);
     window.dispatchEvent(new CustomEvent('ethaion:piece-photo-settled', { detail: { pieceId, photoUrl: prepared.cleanedUrl } }));
     return prepared.cleanedUrl;
   } catch (error) {

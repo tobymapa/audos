@@ -279,7 +279,7 @@ export default function SpaceDesktop({
   LoadingSpinner,
   initialAppId
 }: SpaceDesktopProps) {
-  const { sessionId, email, isBootstrappingSession, trackEvent, subscriptionReady } = useSpaceRuntime();
+  const { sessionId, email, isBootstrappingSession, trackEvent, subscriptionReady, subscription } = useSpaceRuntime();
   const isMobile = useIsMobile(); // JS-based media query to prevent double-mounting AgentChat
 
   // The thread/apps sidebar is builder scaffolding (conversation list, app
@@ -946,7 +946,16 @@ export default function SpaceDesktop({
 
   // Block rendering until subscription status resolves to prevent
   // flashing protected content before the access check redirects.
-  if (mode === 'customer' && sessionId && !subscriptionReady && !subscriptionTimedOut) {
+  //
+  // A CACHED VERDICT COUNTS. This used to wait for the network every time,
+  // holding a returning customer behind a full-screen spinner for as long as
+  // the entitlement endpoint took — up to the 8s timeout below — even though
+  // their status was already known locally. Note that the timeout fallback
+  // unblocks with NO verdict at all, so proceeding on a cached one is strictly
+  // safer than the behaviour that already existed. Revalidation continues in
+  // the background and `checkAppAccess` redirects if the fresh answer differs.
+  const hasVerdict = subscriptionReady || subscription != null;
+  if (mode === 'customer' && sessionId && !hasVerdict && !subscriptionTimedOut) {
     return (
       <div
         style={{ background: 'var(--space-surface-page)' } as React.CSSProperties}
