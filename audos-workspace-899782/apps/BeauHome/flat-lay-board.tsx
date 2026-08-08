@@ -75,6 +75,7 @@
  */
 import { isTransparentCutout } from './photo-enhance';
 import { bodyOrderRank, sortByBodyOrder } from './body-order';
+import { GARMENT_HEIGHT_RATIOS, garmentHeightRatioFor } from './garment-proportions';
 
 /** The shape the board needs from a piece — structurally satisfied by
  * flat-view's BoardPiece, and cheap for any other surface to build. */
@@ -129,31 +130,19 @@ interface ZoneBox {
   z: number;
 }
 
-/** REAL-WORLD PROPORTIONAL SIZING (founder's spec). Every category carries a
- * fixed real-world reference height in CENTIMETRES, and every item's box is
- * scaled from THAT — independent of how its source photograph happened to be
- * framed. The board's full height stands for a ~180cm reference figure, so
- * pixels-per-cm falls out of the tray's own height and a 104cm pair of
- * trousers always draws taller than a 28cm shoe, whatever the photos did. */
-export const CATEGORY_REFERENCE_HEIGHT_CM: Record<string, number> = {
-  hat: 22,
-  outerwear: 72,
-  knitwear: 66,
-  top: 70,
-  belt: 4,
-  trousers: 104,
-  shorts: 52,
-  shoes: 28,
-  socks: 20,
-  accessory: 22,
-};
+/** CATEGORY-PROPORTIONAL SIZING (founder's spec — category-height ratios).
+ * Every category carries a fixed share of the total outfit column height
+ * (GARMENT_HEIGHT_RATIOS in garment-proportions.ts — the ONE constants
+ * object every outfit surface sizes from), and every item's box is scaled
+ * from THAT — independent of how its source photograph happened to be
+ * framed. Trousers at 0.42 of the column always draw taller than shoes at
+ * 0.12, and a shirt at 0.30 reads larger than either shoe, whatever the
+ * photos did. */
 
-/** The reference figure the board's full height stands for, in cm. */
-const REFERENCE_FIGURE_CM = 180;
-
-/** A real-world height in cm → % of the board's height. */
-function cmToBoardPct(cm: number): number {
-  return (cm / REFERENCE_FIGURE_CM) * 100;
+/** A category-height ratio (share of the outfit column) → % of the board's
+ * height. The board IS the column, so the share converts directly. */
+function ratioToBoardPct(ratio: number): number {
+  return ratio * 100;
 }
 
 /** The design canvas's own proportion (portrait 480 × 600). Needed to convert
@@ -176,9 +165,9 @@ function aspectWidthPct(piece: FlatLayPiece, heightPct: number): number | null {
 
 /** Single-position zones — top/left/width in board %, z toward the camera.
  * Heights are deliberately NOT fixed here: each item's height comes from its
- * category's real-world reference height (the table above). Multiple items
- * in one zone split the zone's width evenly, side by side — still
- * deterministic, still zero rotation. */
+ * category's height ratio (GARMENT_HEIGHT_RATIOS). Multiple items in one
+ * zone split the zone's width evenly, side by side — still deterministic,
+ * still zero rotation. */
 const ZONE_HEAD: ZoneBox = { top: 0, left: 32, width: 36, z: 7 };
 /** The belt — the FRONTMOST layer at the waist, over every torso layer. */
 const ZONE_WAIST: ZoneBox = { top: 38, left: 38, width: 24, z: 7 };
@@ -210,7 +199,6 @@ const TORSO_LAYER_SHIFT = 7.2;
 const ACCESSORY_COLUMN = { left: 80, width: 18, itemHeight: 12, gap: 3, z: 8 };
 
 const EYEWEAR_WORDS = /\b(sunglasses|glasses|eyewear|spectacles)\b/i;
-const SHORTS_WORDS = /\bshorts\b/i;
 const BELT_WORDS = /\bbelts?\b/i;
 const SOCK_WORDS = /\bsocks?\b/i;
 const WATCH_WORDS = /\b(watch|watches|bracelet|cufflinks?)\b/i;
@@ -237,22 +225,14 @@ function zoneFor(piece: FlatLayPiece): ZoneId {
   return 'accessories';
 }
 
-/** An item's render height in % of the board: its category's real-world
- * reference height against the ~180cm figure — never derived from the source
- * photo's framing, so a shoe can never draw coat-sized. */
+/** An item's render height in % of the board: its category's share of the
+ * outfit column (GARMENT_HEIGHT_RATIOS — case-insensitive, whitespace-
+ * trimmed, `default` for unmapped categories) — never derived from the
+ * source photo's framing, so a shoe can never draw coat-sized. */
 function referenceHeightPct(piece: FlatLayPiece): number {
-  const cm = CATEGORY_REFERENCE_HEIGHT_CM;
-  const text = pieceText(piece);
-  if (SOCK_WORDS.test(text)) return cmToBoardPct(cm.socks);
-  if (BELT_WORDS.test(text)) return cmToBoardPct(cm.belt);
-  const rank = bodyOrderRank({ category: piece.category, slot: piece.slot, name: piece.name });
-  if (rank === 0 || EYEWEAR_WORDS.test(text)) return cmToBoardPct(cm.hat);
-  if (rank === 1 || rank === 2) return cmToBoardPct(cm.outerwear);
-  if (rank === 3) return cmToBoardPct(cm.knitwear);
-  if (rank === 4) return cmToBoardPct(cm.top);
-  if (rank === 5) return cmToBoardPct(SHORTS_WORDS.test(text) ? cm.shorts : cm.trousers);
-  if (rank === 6) return cmToBoardPct(cm.shoes);
-  return cmToBoardPct(cm.accessory);
+  return ratioToBoardPct(
+    garmentHeightRatioFor({ category: piece.category, slot: piece.slot, name: piece.name }),
+  );
 }
 
 /** The column anchor for a side accessory — near the body zone it belongs
@@ -306,7 +286,7 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
 
   /** Place a single-position zone's items — one item fills the box; several
    * split its width evenly, side by side. Each item's HEIGHT is its
-   * category's real-world reference height, never a zone constant — and its
+   * category's share of the column, never a zone constant — and its
    * WIDTH is derived from that height and the cutout's true aspect ratio
    * when the piece carries one (tight-cropped pipeline v3), centred in its
    * slot, so the box hugs the item exactly. */
@@ -321,8 +301,8 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
       // when that makes it wider than its slot (the box is centred on the
       // slot and clamped to the board; the clipped tray absorbs any rare
       // spill). Capping the box at the slot width — the old behaviour — is
-      // what silently shrank a wide-cropped shirt well below its 70cm
-      // reference against the 104cm trousers. Only a dimension-less legacy
+      // what silently shrank a wide-cropped shirt well below its 0.30
+      // share against the 0.42 trousers. Only a dimension-less legacy
       // image still falls back to the slot's own width.
       const natural = aspectWidthPct(piece, height);
       const width = natural == null ? slotWidth : Math.min(natural, 96);
@@ -354,9 +334,9 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
   const torsoLayers = [...groups.torso].reverse();
   torsoLayers.forEach((piece, i) => {
     const height = referenceHeightPct(piece);
-    // Same proportions rule as placeRow: the reference height is never
-    // sacrificed to the zone's width — a top at 70cm renders at ~67% of the
-    // 104cm trousers whatever its crop's aspect ratio happens to be.
+    // Same proportions rule as placeRow: the category height is never
+    // sacrificed to the zone's width — a top at 0.30 renders at ~71% of the
+    // 0.42 trousers whatever its crop's aspect ratio happens to be.
     const natural = aspectWidthPct(piece, height);
     const width = natural == null ? ZONE_TORSO.width : Math.min(natural, 96);
     placed.push({
@@ -382,7 +362,7 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
   const shoeHeight =
     groups.feet.length > 0
       ? Math.max(...groups.feet.map((p) => referenceHeightPct(p)))
-      : cmToBoardPct(CATEGORY_REFERENCE_HEIGHT_CM.shoes);
+      : ratioToBoardPct(GARMENT_HEIGHT_RATIOS.shoes);
   const legsBottom =
     groups.legs.length > 0 ? ZONE_LEGS.top + Math.max(...groups.legs.map((p) => referenceHeightPct(p))) : null;
   const torsoBottom =
@@ -397,7 +377,7 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
     100 - shoeHeight,
   );
   // SOCKS — just above the shoes, slightly overlapping them, in front.
-  const sockHeight = cmToBoardPct(CATEGORY_REFERENCE_HEIGHT_CM.socks);
+  const sockHeight = ratioToBoardPct(GARMENT_HEIGHT_RATIOS.socks);
   const sockTop = clamp(feetTop - sockHeight * 0.8, 0, 100 - sockHeight);
   placeRow(groups.socks, { top: sockTop, left: ZONE_SOCKS.left, width: ZONE_SOCKS.width, z: ZONE_SOCKS.z });
   placeRow(groups.feet, { top: feetTop, left: ZONE_FEET.left, width: ZONE_FEET.width, z: ZONE_FEET.z });

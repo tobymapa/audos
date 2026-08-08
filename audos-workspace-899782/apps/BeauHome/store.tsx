@@ -46,6 +46,7 @@ import { analyzeGarmentPhoto, scanWardrobePhoto, type ScannedPiece } from './war
 import { BrandField, SizeSelector } from './input-fields';
 import { Illo } from './illustrations';
 import { BrandMark, CanonicalGarment } from './canonical-garment';
+import { garmentHeightRatioFor } from './garment-proportions';
 import { CarePanel, FabricLabel } from './care';
 import { PieceEditForm } from './piece-edit';
 import { garmentFieldsFromPiece, settleProductPhoto } from './photo-enhance';
@@ -677,6 +678,12 @@ function StoreItemDetail({
 // Outfit stack — selected pieces layered in anatomical order, live
 // ---------------------------------------------------------------------------
 
+/** The outfit column height (px) the category ratios scale against in the
+ * stack: trousers at 0.42 render ~118px tall, a shirt at 0.30 ~84px, shoes
+ * at 0.12 ~34px — real-life body coverage rather than one fixed plate size
+ * (GARMENT_HEIGHT_RATIOS, garment-proportions.ts). */
+const OUTFIT_STACK_COLUMN_PX = 280;
+
 export function OutfitStack({
   pieces,
   onSelect,
@@ -691,14 +698,23 @@ export function OutfitStack({
     <div className="w-full overflow-x-auto pb-1">
       <div className="flex min-w-max items-stretch justify-center gap-3 px-1">
         {ordered.map((piece) => {
+          // CATEGORY-PROPORTIONAL HEIGHT (garment-proportions.ts): the
+          // plate's height is its category's share of the outfit column, so
+          // a shirt draws larger than shoes and trousers tallest — the
+          // lookup is case-insensitive, trimmed, with a default for unmapped
+          // categories. The image scales proportionally inside the plate
+          // (object-contain — width follows the image's own aspect).
+          const plateHeightPx = Math.round(garmentHeightRatioFor(piece) * OUTFIT_STACK_COLUMN_PX);
           const inner = (
             <>
-              {/* Fixed width AND fixed height on the plate — no aspect-ratio
-                  dependence at all: an aspect-derived 3:4 box collapsed to
-                  zero height on some desktop engines, which left the What to
-                  Wear piece images visible on mobile but missing on desktop.
-                  85px ≈ 64px × 4/3, so the plate keeps its 3:4 proportions. */}
-              <PieceIllo piece={piece} className="w-16 h-[85px]" />
+              {/* Explicit pixel height on the plate — no aspect-ratio
+                  dependence at all: an aspect-derived box collapsed to zero
+                  height on some desktop engines, which left the What to
+                  Wear piece images visible on mobile but missing on
+                  desktop. */}
+              <span className="block w-full" style={{ height: `${plateHeightPx}px` }}>
+                <PieceIllo piece={piece} className="w-full h-full" />
+              </span>
               <span className="mt-2 line-clamp-2 min-h-8 w-full text-center text-[11px] font-medium leading-4 text-[var(--space-text-primary)]">
                 {piece.name}
               </span>
