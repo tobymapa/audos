@@ -286,6 +286,63 @@ the problem.
 
 ---
 
+## Pass 5 — the root cause (found in a DevTools trace)
+
+A full trace of a 295-second session, analysed by aggregating the CPU profile
+samples. This is the finding that matters; everything before it was treating
+symptoms.
+
+| | Self time | Share of non-idle CPU |
+| --- | --- | --- |
+| `wasm-function[2019]` | 56.6 s | 71% |
+| other WASM frames + `background-removal.mjs` | ~17 s | ~20% |
+| **WebAssembly total** | **~73 s** | **~91%** |
+| `erodeAlpha` — all canvas work in photo-enhance.ts | **0.31 s** | 0.4% |
+
+The canvas pixel work that the external audit flagged as HIGH severity, and
+that pass 4 planned to move into a Web Worker, is **314 milliseconds**. It was
+never the problem.
+
+**The cause.** Network events in the same trace:
+
+```
+/api/workspaces/<id>/secrets/proxy   →  HTTP 400   (×2)
+```
+
+That is the Photoroom call. It failed, and `removeBackgroundViaPhotoroom` then
+latched `photoroomUnavailable = true` for the session, routing every subsequent
+garment into the @imgly fallback — an ~84MB FP16 model plus the ONNX/WASM
+runtime, running inference on the main thread where it cannot be interrupted.
+
+One unconfigured secret produced an 11-second Interaction to Next Paint and a
+17-second frozen frame, with no error any user or developer would notice: the
+images still appeared, eventually.
+
+**The fix is configuration, not code** — `PHOTOROOM_API_KEY` needs to exist for
+this workspace, and `api.photoroom.com` needs to be an allow-listed proxy host.
+
+**The code guard.** `ALLOW_CLIENT_SIDE_REMOVAL` is now `false`. If Photoroom
+fails, the pipeline throws, the piece keeps its original photograph, nothing is
+marked settled, and the next visit retries. A degraded image beats an unusable
+app — and this stops a future expired key or outage silently recreating the
+same freeze.
+
+### Confirmation that passes 1–4 landed
+
+Same trace: `wardrobe_pieces` was read **4 times across five minutes** (it was
+~13 per load before pass 1), and only 4 cutouts were stored — the session
+budget from pass 4 holding. The earlier work is functioning; it simply could
+not compensate for an 84MB model on the main thread.
+
+### Also surfaced, not yet actioned
+
+- `/api/generate/vision` called **38 times** in one session — `classifyImage`
+  plus `verifyCutoutWithVision`. Worth reducing once Photoroom is healthy.
+- `/api/apify/run` returned **HTTP 502 twelve times**. Failing silently;
+  unrelated to performance but broken.
+
+---
+
 ## Outstanding
 
 From the audit, not yet done.

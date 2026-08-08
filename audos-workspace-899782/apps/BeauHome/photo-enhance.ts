@@ -296,6 +296,15 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 const REMOVAL_TIMEOUT_MS = 5000;
 
 /**
+ * Whether the ~84MB client-side @imgly model may run when Photoroom fails.
+ *
+ * Off. See the long note in `removeBackgroundFromUrl` — this path was measured
+ * consuming 91% of all non-idle CPU in a real session because a misconfigured
+ * Photoroom key routed every garment into it.
+ */
+const ALLOW_CLIENT_SIDE_REMOVAL = false;
+
+/**
  * Reject after `ms`, and — via `onTimeout` — stop the underlying work.
  *
  * This used to stop WAITING without stopping the WORK. A timed-out Photoroom
@@ -430,9 +439,36 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
       () => photoroomAbort.abort(),
     );
   } catch (photoroomError) {
-    console.warn('[Ethaion] Photoroom unavailable — falling back to client-side removal:', photoroomError);
+    console.warn('[Ethaion] Photoroom unavailable:', photoroomError);
   }
-  // 2. Fallback — client-side @imgly removal (no API key, ~2–5s, 5s-capped).
+
+  // 2. Fallback — client-side @imgly removal. DISABLED BY DEFAULT.
+  //
+  // WHY: a DevTools profile of ordinary use measured 73 SECONDS of WebAssembly
+  // inference out of a 295-second session — roughly 91% of all non-idle CPU,
+  // against 314ms for every canvas operation in this file combined. The cause
+  // was Photoroom's secrets proxy returning HTTP 400 (missing or unconfigured
+  // API key), which silently routed every single garment into this path.
+  //
+  // This tier is a trap. It downloads an ~84MB FP16 model plus the ONNX/WASM
+  // runtime, then runs inference on the main thread, where it cannot be
+  // interrupted. One misconfigured secret therefore turns into a frozen app
+  // for every customer, with no error anyone would notice — the images still
+  // appear, eventually.
+  //
+  // Leaving the photograph uncut is strictly better: the piece keeps its
+  // original image, the pipeline is not marked settled, and the next visit
+  // tries again. A degraded image beats an unusable app.
+  //
+  // To re-enable (e.g. deliberately, for an offline mode), set this to true.
+  // Prefer a server-side retry instead.
+  if (!ALLOW_CLIENT_SIDE_REMOVAL) {
+    throw new Error(
+      'background removal unavailable: Photoroom failed and the client-side ' +
+      'model is disabled (see ALLOW_CLIENT_SIDE_REMOVAL in photo-enhance.ts)',
+    );
+  }
+
   const mod = await loadBackgroundRemovalModule();
   const removeBackground = mod?.removeBackground || mod?.default;
   if (typeof removeBackground !== 'function') throw new Error('background-removal module unavailable');
