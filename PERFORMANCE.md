@@ -173,6 +173,49 @@ artefacts. Now compressed once.
 
 ---
 
+## Pass 3 — the load waterfall (found via PageSpeed Insights)
+
+PageSpeed on `www.ethaion.com`: mobile 61 (FCP 5.4s, LCP 7.7s), desktop 86
+(FCP 1.2s, LCP 1.6s). **Total Blocking Time 0ms on both** — so JavaScript was
+not jamming the main thread during load. The desktop/mobile gap and the
+0ms TBT together point at a network-bound problem, not a CPU one.
+
+The LCP breakdown named it: 480ms to first byte, then **2,330ms of "element
+render delay"** — and the element was `<p class="eg-body">`, a plain paragraph
+on the email gate.
+
+**Cause.** `Desktop.tsx` statically imported `AgentChat` → `AgentChatView` →
+`react-markdown` + `remark-gfm`. Those resolve through the CDN importmap as
+unbundled ES modules, so the transitive tree (`mdast-util-*`,
+`micromark-util-*`, `unist-util-*`, `zwitch`, `ccount`, `devlop`,
+`longest-streak` …) arrived as roughly **forty separate half-kilobyte
+requests, chained** — each ~2,000ms on a throttled connection. Maximum
+critical-path latency: 2,929ms.
+
+Nobody was looking at the chat during that time. `config.json` sets
+`defaultLandingView: "app"` and `customerLandsOnAgent: false`.
+
+**Fixed** by deferring four shell surfaces behind `React.lazy` +
+`Suspense`: `AgentChat`, `BeauConversations`, `FileBrowser`, `Settings`.
+`EmailGate` stays static — it is the first screen for a new visitor.
+
+Result: the eager module graph from `Desktop.tsx` drops to 6 modules whose only
+CDN dependencies are React and lucide-react. The first-paint bundle goes from
+**193 KB to 85 KB — 56% smaller** — and the entire markdown dependency chain
+leaves the critical path.
+
+### Still outstanding on load
+
+- **Render-blocking assets** — PageSpeed estimates 1,750ms available: the
+  cookie-consent script from jsDelivr (17.4 KiB, 1,620ms) and Google Fonts CSS
+  (750ms). These may live in platform-controlled HTML rather than the
+  workspace; needs checking before it can be actioned.
+- **lucide-react at 172.60 KiB** — `Desktop.tsx` imports roughly 200 icons in a
+  single statement, most of which no space uses. Worth trimming to the icons
+  actually referenced.
+
+---
+
 ## Outstanding
 
 From the audit, not yet done.

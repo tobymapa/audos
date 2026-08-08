@@ -1,12 +1,35 @@
-import { useState, Suspense, LazyExoticComponent, ComponentType, useEffect, useRef, useMemo, useCallback, Component, ErrorInfo, ReactNode } from 'react';
+import { useState, Suspense, lazy, LazyExoticComponent, ComponentType, useEffect, useRef, useMemo, useCallback, Component, ErrorInfo, ReactNode } from 'react';
 import { Bot, Folder, X, Plus, Menu, PanelLeftClose, PanelLeftOpen, ChevronLeft, Activity, Maximize2, Minimize2, Moon, Heart, Calendar, Users, FileText, BarChart, Settings as SettingsIcon, ArrowUp, MessageCircle, ChevronUp, Plane, TrendingUp, LineChart, Dumbbell, Brain, Target, Zap, Star, Clock, CheckCircle, List, BookOpen, Coffee, Music, Camera, MapPin, Wallet, ShoppingCart, Gift, Lightbulb, Sparkles, Rocket, Home, Building, Globe, Mail, Phone, Video, Mic, Image, Play, Pause, Volume2, Wifi, Cloud, Sun, Umbrella, Thermometer, Wind, Droplets, Leaf, Flower2, Mountain, Waves, Compass, Map, Navigation, Car, Bike, Ship, Award, Trophy, Medal, Crown, Diamond, Gem, Key, Lock, Unlock, Shield, Eye, Search, Filter, SortAsc, Download, Upload, Share2, Link, ExternalLink, Copy, Clipboard, Trash2, Edit, Pencil, PenTool, Scissors, Bookmark, Flag, Bell, AlertCircle, Info, HelpCircle, XCircle, CheckCircle2, Circle, Square, Triangle, Hexagon, Octagon, Hash, AtSign, DollarSign, Percent, Calculator, Code, Terminal, Database, Server, Cpu, Monitor, Smartphone, Tablet, Laptop, Watch, Headphones, Speaker, Radio, Tv, Printer, Scan, QrCode, Barcode, CreditCard, Receipt, Banknote, PiggyBank, TrendingDown, AreaChart, PieChart, Shirt, Palette } from 'lucide-react';
 import type { SpaceConfig, DesktopBranding, DesktopThemeTokens } from './types';
 import { useSpaceRuntime } from './SpaceRuntimeContext';
-import AgentChat from './components/AgentChat';
-import BeauConversations from './components/BeauConversations';
-import FileBrowser from './components/FileBrowser';
+// ---------------------------------------------------------------------------
+// DEFERRED SHELL SURFACES.
+//
+// These four used to be static imports, which put them — and everything they
+// depend on — on the critical path of the FIRST paint.
+//
+// The worst offender by far is the chat. `AgentChat` pulls in `AgentChatView`,
+// which imports `react-markdown` and `remark-gfm`. Those resolve through the
+// CDN importmap as unbundled ES modules, so their transitive dependency tree
+// (mdast-util-*, micromark-util-*, unist-util-*, zwitch, ccount, devlop,
+// longest-streak …) arrives as roughly FORTY separate half-kilobyte requests,
+// chained. On a throttled mobile connection that measured as a ~2.9s critical
+// path, and the Largest Contentful Paint element — a plain paragraph of text
+// on the email gate — spent 2,330ms waiting on it.
+//
+// Nobody is looking at the chat during that time. `config.json` sets
+// `defaultLandingView: "app"` and `customerLandsOnAgent: false`, so a customer
+// lands on the wardrobe; Settings, Files and the conversation list all sit
+// behind explicit navigation. Deferring them costs nothing visible and takes
+// the entire markdown stack off the first paint.
+//
+// EmailGate stays static on purpose: it IS the first screen for a new visitor.
+// ---------------------------------------------------------------------------
+const AgentChat = lazy(() => import('./components/AgentChat'));
+const BeauConversations = lazy(() => import('./components/BeauConversations'));
+const FileBrowser = lazy(() => import('./components/FileBrowser'));
+const Settings = lazy(() => import('./components/Settings'));
 import EmailGate from './components/EmailGate';
-import Settings from './components/Settings';
 import { isTenantDelegationCanvas } from './lib/tenant-delegation-canvas';
 import { beauDarkRoom } from './lib/colors';
 
@@ -1299,7 +1322,9 @@ export default function SpaceDesktop({
   const renderPanelBody = () => (
     <div className="flex-1 overflow-y-auto min-h-0 bg-[var(--space-surface-card)]">
       {activePanelId === 'files' && (
-        <FileBrowser fileAccessLogs={fileAccessLogs} />
+        <Suspense fallback={LoadingSpinner ? <LoadingSpinner /> : null}>
+          <FileBrowser fileAccessLogs={fileAccessLogs} />
+        </Suspense>
       )}
       {activePanelId === 'settings' && (
         <div>
@@ -1318,7 +1343,9 @@ export default function SpaceDesktop({
               </button>
             </div>
           )}
-          <Settings spaceId={spaceId} />
+          <Suspense fallback={LoadingSpinner ? <LoadingSpinner /> : null}>
+            <Settings spaceId={spaceId} />
+          </Suspense>
         </div>
       )}
       {isAppPanel && CurrentApp && currentAppConfig && (
@@ -1332,14 +1359,16 @@ export default function SpaceDesktop({
   );
 
   const agentChatElement = (
-    <AgentChat
-      key={activeThreadId}
-      spaceId={spaceId}
-      threadId={activeThreadId}
-      onFileAccess={handleFileAccess}
-      pendingMessage={pendingAgentMessage}
-      onPendingMessageConsumed={() => setPendingAgentMessage(null)}
-    />
+    <Suspense fallback={LoadingSpinner ? <LoadingSpinner /> : null}>
+      <AgentChat
+        key={activeThreadId}
+        spaceId={spaceId}
+        threadId={activeThreadId}
+        onFileAccess={handleFileAccess}
+        pendingMessage={pendingAgentMessage}
+        onPendingMessageConsumed={() => setPendingAgentMessage(null)}
+      />
+    </Suspense>
   );
 
   // Pass Twenty-Nine (multi-chat Beau): customers get the full conversation
@@ -1347,12 +1376,14 @@ export default function SpaceDesktop({
   // auto-named threads, folders, pin and delete — wrapped around the same
   // per-thread AgentChat. The builder view keeps its own thread sidebar.
   const customerChatElement = (
-    <BeauConversations
-      spaceId={spaceId}
-      onFileAccess={handleFileAccess}
-      pendingMessage={pendingAgentMessage}
-      onPendingMessageConsumed={() => setPendingAgentMessage(null)}
-    />
+    <Suspense fallback={LoadingSpinner ? <LoadingSpinner /> : null}>
+      <BeauConversations
+        spaceId={spaceId}
+        onFileAccess={handleFileAccess}
+        pendingMessage={pendingAgentMessage}
+        onPendingMessageConsumed={() => setPendingAgentMessage(null)}
+      />
+    </Suspense>
   );
 
   return (
@@ -1769,7 +1800,11 @@ export default function SpaceDesktop({
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto min-h-0">
-                {hasOpenedSettings && <Settings spaceId={spaceId} />}
+                {hasOpenedSettings && (
+                  <Suspense fallback={LoadingSpinner ? <LoadingSpinner /> : null}>
+                    <Settings spaceId={spaceId} />
+                  </Suspense>
+                )}
               </div>
             </aside>
           </>
