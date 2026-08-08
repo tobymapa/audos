@@ -1301,14 +1301,34 @@ export function consumeHuntSubTabHandoff(): string | null {
 // generation time.
 // ---------------------------------------------------------------------------
 
-export type BeauRating = 'Excellent' | 'Considered' | 'Proceed with caution';
+export type BeauRating = 'Excellent' | 'Reliable' | 'Inconsistent' | 'Avoid';
 
-export const BEAU_RATINGS: BeauRating[] = ['Excellent', 'Considered', 'Proceed with caution'];
+export const BEAU_RATINGS: BeauRating[] = ['Excellent', 'Reliable', 'Inconsistent', 'Avoid'];
 
-export function beauRatingFromQuality(quality: string | null | undefined): BeauRating {
+/**
+ * Map ANY stored or model-emitted rating label onto the current four tiers —
+ * including the legacy ones still sitting in older hunt_directory_brands
+ * rows ('Considered' → 'Reliable', 'Proceed with caution' → 'Inconsistent').
+ * Returns null for unrecognisable input so the caller can fall back to
+ * deriving the rating from the construction-quality read instead.
+ */
+export function normalizeBeauRating(value: unknown): BeauRating | null {
+  const v = String(value ?? '').trim().toLowerCase();
+  if (!v) return null;
+  if (v.includes('excellent')) return 'Excellent';
+  if (v.includes('reliable') || v.includes('consider')) return 'Reliable';
+  if (v.includes('inconsistent') || v.includes('caution')) return 'Inconsistent';
+  if (v.includes('avoid')) return 'Avoid';
+  return null;
+}
+
+export function beauRatingFromQuality(quality: string | null | undefined, qualityScore?: number | null): BeauRating {
   if (quality === 'Excellent') return 'Excellent';
-  if (quality === 'Good') return 'Considered';
-  return 'Proceed with caution';
+  if (quality === 'Good') return 'Reliable';
+  // The bottom of the scale: a construction score of 3 or under reads as
+  // Avoid — the quality signals actively argue against the money.
+  if (typeof qualityScore === 'number' && qualityScore > 0 && qualityScore <= 3) return 'Avoid';
+  return 'Inconsistent';
 }
 
 // ---------------------------------------------------------------------------
@@ -1349,10 +1369,11 @@ function ratingSignalPhrase(b: BrandProfile): string {
 
 /** The fallback lead when a profile carries no rationale of its own. */
 function ratingFallbackLead(b: BrandProfile): string {
-  const rating = beauRatingFromQuality(b.constructionQuality);
+  const rating = beauRatingFromQuality(b.constructionQuality, b.qualityScore);
   if (rating === 'Excellent') return `${b.brand} earns this on the make rather than the name`;
-  if (rating === 'Considered') return `${b.brand} is honestly made for what it costs, without pretending to be more`;
-  return `Beau can’t see the construction or material signals here that would justify the money`;
+  if (rating === 'Reliable') return `${b.brand} is honestly made for what it costs, without pretending to be more`;
+  if (rating === 'Avoid') return `The quality signals here argue against the money — the construction doesn’t hold up`;
+  return `Beau can’t see steady construction or material signals here — quality varies piece to piece`;
 }
 
 /**
@@ -1406,18 +1427,21 @@ export function beauRatingEvidence(b: BrandProfile): RatingEvidence[] {
  * the mark is never mistaken for a verdict on the whole brand. */
 export function beauRatingTierMeaning(rating: BeauRating): string {
   if (rating === 'Excellent') {
-    return 'Excellent is Beau’s top mark: the construction, the cloth or leather and the repairability all hold up, so the piece can be kept in service instead of replaced.';
+    return 'Excellent is Beau’s top mark: buy with confidence — the construction, the cloth or leather and the repairability all hold up, so he surfaces these makers actively.';
   }
-  if (rating === 'Considered') {
-    return 'Considered means honestly made and fairly priced for what it is — worth buying with your eyes open, but not the last one you will ever own.';
+  if (rating === 'Reliable') {
+    return 'Reliable means solid quality, worth the money — honestly made and fairly priced. Beau includes these makers, without pushing them ahead of the Excellent tier.';
   }
-  return 'Proceed with caution is not a ban. It means the quality signals are thin for the money — buy it for a season, not for a decade, and expect to replace it.';
+  if (rating === 'Inconsistent') {
+    return 'Inconsistent means hit or miss — some pieces hold up, others don’t, so Beau flags it: check the specific piece before you commit.';
+  }
+  return 'Avoid means the quality doesn’t hold up for the money — Beau filters these makers out of his recommendations.';
 }
 
 /** Beau's rating for a brand plus its brand-specific rationale. */
 export function beauRating(b: BrandProfile): { rating: BeauRating; note: string } {
   return {
-    rating: beauRatingFromQuality(b.constructionQuality),
+    rating: beauRatingFromQuality(b.constructionQuality, b.qualityScore),
     note: beauRatingSummary(b) || b.longevity.note || 'No rationale recorded.',
   };
 }
@@ -1599,9 +1623,10 @@ export function parseDirectoryRow(row: DirectoryBrandRow): DirectoryEntry | null
       generated: true,
     };
   }
-  const rating: BeauRating = BEAU_RATINGS.includes(row.rating as BeauRating)
-    ? (row.rating as BeauRating)
-    : beauRatingFromQuality(profile.constructionQuality);
+  // normalizeBeauRating also migrates rows stored under the old labels
+  // ('Considered', 'Proceed with caution') onto the current four tiers.
+  const rating: BeauRating =
+    normalizeBeauRating(row.rating) ?? beauRatingFromQuality(profile.constructionQuality, profile.qualityScore);
   return {
     profile,
     source: row.source === 'beau' ? 'beau' : 'user',

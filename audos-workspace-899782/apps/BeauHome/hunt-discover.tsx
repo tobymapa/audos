@@ -3,34 +3,53 @@
  * the shared BRAND DOSSIER page.
  *
  * Discover is the maker directory as a TABLE — one row per brand:
- * name (with its source tag: Catalog · You added this · Beau recommended),
- * country of origin, price tier (Budget / Mid / Premium / Luxury), primary
- * material signal, archetype-fit tags, Beau's colour-coded rating
- * (Excellent / Considered / Proceed with caution — the label stays one
- * word; the copy under it on tap/hover says why THIS maker earned it,
- * naming its construction, materials and lifespan)
- * and the "Add to Compare" / "Add to Matrix" actions. Tapping anywhere on
- * a row opens the Brand Dossier.
+ * name (with its source tag: Catalog · You added this · Beau recommended,
+ * plus the stored logo and "known for" line when the personal file has
+ * them), the user's own colour-coded STATUS tag (Trusted / Curious /
+ * Avoided — tap it to cycle; Trusted and Avoided feed Beau's brand signals
+ * through the shared brand_index ledger), country of origin, price tier
+ * (Budget / Mid / Premium / Luxury), primary material signal, archetype-fit
+ * tags, Beau's colour-coded rating (Excellent / Reliable / Inconsistent /
+ * Avoid — the label stays one word; the copy under it on tap/hover says
+ * why THIS maker earned it, naming its construction, materials and
+ * lifespan) and the "Add to Compare" / "Add to Matrix" actions. Tapping
+ * anywhere on a row opens the Brand Dossier.
  *
- * "Don't see a maker?" sits at the TOP — above the filter chips and the
- * table: the user types ONLY the brand name and Beau generates the full
- * dossier (claude-3-5-haiku, cached), persists it to the
- * `hunt_directory_brands` WorkspaceDB table and opens the file.
+ * "Add a maker" sits at the TOP — above the filter chips and the table —
+ * with THREE ways in on one toggle (brand fields & import overhaul):
+ *   · TYPE A NAME — Beau generates the full dossier (claude-3-5-haiku,
+ *     cached), persists it to `hunt_directory_brands` and opens the file.
+ *   · PASTE A URL — the brand's name and logo read off its own page
+ *     (OG image, favicon fallback — hunt-brand-import.ts) and pre-fill
+ *     the form for correction.
+ *   · UPLOAD A FILE — a .txt (one entry per line) or .xlsx (first column
+ *     of data rows) bulk-adds makers as stub rows, status defaulting to
+ *     Curious; Beau files each full dossier the first time it is opened.
+ * Every typed/pasted add carries the personal-file fields — status, known
+ * for, specialisations, signature pieces and a free-text note — stored on
+ * the shared brand_index ledger (the same rows the Reserve's Brand Index
+ * reads, so Trusted / Avoided steer Beau from either surface).
  *
  * FILTERS (two tiers per row — the category label in its own left column,
  * the chips indented in a second column, so wrapped chips align to the chip
  * column and never back to the label). EVERY row carries a label — nothing
- * floats alone. Two blocks parted by one hairline:
- *   Row 1 — "Materials": the individual material chips only (Leather, Wool,
+ * floats alone. The FIRST block mirrors the table's column order, left to
+ * right — every column has its filter, top to bottom in the same order:
+ *   Row 1 — "Maker": a name search box
+ *   Row 2 — "Status": Trusted / Curious / Avoided chips (multi)
+ *   Row 3 — "Origin": the country chips (multi)
+ *   Row 4 — "Price": the price tier chips
+ *   Row 5 — "Material": the individual material chips only (Leather, Wool,
  *           Merino, Cashmere, Cotton, Linen, Silk). There is NO "Natural
  *           materials only" umbrella toggle (Recommendation Engine
  *           overhaul, Part 8) — it was a parent concept standing as a peer
  *           of its own children, and Ethaion's positioning already implies
  *           natural fibres.
- *   Row 2 — "Price": the price tier chips
- *   Row 3 — "Origin": the country chips (multi)
- *   Row 4 — "Style": the archetype chips (multi)
- *   then — Category · Construction · Register
+ *   Row 6 — "Style": the archetype chips (multi)
+ *   Row 7 — "Rating": Beau's four tiers (Excellent / Reliable /
+ *           Inconsistent / Avoid, multi)
+ *   then, past one hairline — Category · Construction · Register (facets
+ *   without a column of their own)
  * Every chip is the same height and padding: active = walnut fill with paper
  * text, inactive = paper fill with a walnut hairline. No sustainability
  * filter, no colour surprises.
@@ -48,13 +67,22 @@
  * argument behind the mark: how it's made, what of, whether it lasts, what
  * that costs, and what the tier itself means), sizing note, archetype fit.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, Upload, X } from 'lucide-react';
 import { typography } from '../../lib/colors';
-import type { StyleProfile } from './profile-data';
+import {
+  BRAND_INDEX_CHANGED_EVENT,
+  addBrandIndexEntry,
+  fetchBrandIndex,
+  updateBrandIndexEntry,
+  type BrandIndexEntry,
+  type BrandIndexStatus,
+  type StyleProfile,
+} from './profile-data';
 import { TicketFrame } from './ticket-frame';
 import {
   ARCHETYPE_LABELS,
+  BEAU_RATINGS,
   BRAND_SOURCE_LABELS,
   CONSTRUCTION_METHODS,
   DISCOVER_CATEGORIES,
@@ -84,7 +112,14 @@ import {
   type PriceBand,
   type Register,
 } from './brands';
-import { DISCOVER_BRANDS_EVENT, addUserDirectoryBrand, getBrandProfile } from './hunt-ai';
+import { DISCOVER_BRANDS_EVENT, addDirectoryBrandStubs, addUserDirectoryBrand, getBrandProfile } from './hunt-ai';
+import {
+  faviconFor,
+  fetchSiteMeta,
+  normalizeSiteUrl,
+  parseBrandImportFile,
+  type BrandImportEntry,
+} from './hunt-brand-import';
 import { useProgressiveReveal } from './progressive-list';
 
 // ---------------------------------------------------------------------------
@@ -201,9 +236,11 @@ export function BeauRatingTag({ rating, note }: { rating: BeauRating; note?: str
   const cls =
     rating === 'Excellent'
       ? 'bg-[color-mix(in_srgb,var(--space-semantic-success)_14%,var(--space-surface-card))] text-[var(--space-semantic-success)] border-[var(--space-semantic-success)]'
-      : rating === 'Considered'
+      : rating === 'Reliable'
         ? 'bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)] border-[var(--color-accent,#a8712c)]'
-        : 'bg-[color-mix(in_srgb,var(--space-semantic-warning)_14%,var(--space-surface-card))] text-[var(--space-semantic-warning)] border-[var(--space-semantic-warning)]';
+        : rating === 'Inconsistent'
+          ? 'bg-[color-mix(in_srgb,var(--space-semantic-warning)_14%,var(--space-surface-card))] text-[var(--space-semantic-warning)] border-[var(--space-semantic-warning)]'
+          : 'bg-[#EDE8DF] text-[#8A857C] border-[#CCC7BD]';
   return (
     <span className="inline-block">
       <button
@@ -227,6 +264,107 @@ export function BeauRatingTag({ rating, note }: { rating: BeauRating; note?: str
           {note}
         </span>
       )}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BRAND STATUS — the user's own register on a maker (Trusted / Curious /
+// Avoided), colour-coded per the Ethaion palette: Trusted in oxblood,
+// Curious in muted walnut, Avoided in neutral grey. Stored in the shared
+// brand_index ledger (profile-data.ts), so Trusted and Avoided feed Beau's
+// trustedBrands / avoidedBrands signals; Curious is personal tracking only.
+// ---------------------------------------------------------------------------
+
+export const BRAND_STATUS_ORDER: BrandIndexStatus[] = ['trusted', 'curious', 'avoided'];
+
+export const BRAND_STATUS_META: Record<BrandIndexStatus, { label: string; color: string; border: string; bg: string; line: string }> = {
+  trusted: {
+    label: 'Trusted',
+    color: '#8B3A3A',
+    border: 'rgba(139,58,58,0.55)',
+    bg: 'rgba(139,58,58,0.08)',
+    line: 'Feeds Beau — he checks this maker first when hunting your gaps.',
+  },
+  curious: {
+    label: 'Curious',
+    color: '#8A7F70',
+    border: '#D9CFBE',
+    bg: 'transparent',
+    line: 'Your own tracking only — no influence on Beau’s recommendations.',
+  },
+  avoided: {
+    label: 'Avoided',
+    color: '#8A857C',
+    border: '#CCC7BD',
+    bg: '#EDE8DF',
+    line: 'Excluded — Beau never recommends this maker.',
+  },
+};
+
+const nextStatus = (status: BrandIndexStatus): BrandIndexStatus =>
+  status === 'curious' ? 'trusted' : status === 'trusted' ? 'avoided' : 'curious';
+
+/** The colour-coded status tag; with onCycle it becomes tappable and steps
+ * Curious → Trusted → Avoided → Curious. */
+export function BrandStatusChip({
+  status,
+  onCycle,
+  small = true,
+}: {
+  status: BrandIndexStatus;
+  onCycle?: () => void;
+  small?: boolean;
+}) {
+  const meta = BRAND_STATUS_META[status];
+  const style: React.CSSProperties = {
+    fontFamily: 'var(--space-font-heading)',
+    fontSize: small ? '10px' : '11px',
+    letterSpacing: '0.12em',
+    fontWeight: 500,
+    color: meta.color,
+    borderColor: meta.border,
+    background: meta.bg,
+    padding: small ? '3px 9px' : '5px 11px',
+  };
+  if (!onCycle) {
+    return (
+      <span className="uppercase inline-flex items-center rounded border flex-shrink-0" style={style}>
+        {meta.label}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onCycle();
+      }}
+      className="uppercase inline-flex items-center rounded border flex-shrink-0 transition-opacity hover:opacity-80"
+      style={style}
+      title={`${meta.line} Tap to mark as ${BRAND_STATUS_META[nextStatus(status)].label}.`}
+      aria-label={`Status: ${meta.label} — tap to mark as ${BRAND_STATUS_META[nextStatus(status)].label}`}
+    >
+      {meta.label}
+    </button>
+  );
+}
+
+/** The stored brand mark on a small paper plate; hides itself if the image
+ * fails so a dead logo URL never leaves a broken-image icon in the table. */
+function BrandMark({ name, logoUrl }: { name: string; logoUrl: string }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [logoUrl]);
+  if (broken) return null;
+  return (
+    <span
+      className="inline-flex items-center justify-center overflow-hidden flex-shrink-0 border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)]"
+      style={{ width: 34, height: 34 }}
+      aria-hidden="true"
+      title={name}
+    >
+      <img src={logoUrl} alt="" style={{ maxWidth: '82%', maxHeight: '82%', objectFit: 'contain' }} onError={() => setBroken(true)} loading="lazy" />
     </span>
   );
 }
@@ -348,7 +486,7 @@ export function BrandDetailContent({
   compareList: string[];
   onToggleCompare: (brand: string) => void;
 }) {
-  const ratingForBrand = beauRatingFromQuality(brand.constructionQuality);
+  const ratingForBrand = beauRatingFromQuality(brand.constructionQuality, brand.qualityScore);
   const ratingEvidence = beauRatingEvidence(brand);
   return (
     <div>
@@ -486,12 +624,181 @@ export function BrandDetailContent({
         </a>
       </div>
 
+      {/* YOUR FILE — the personal read on this maker: status (Trusted and
+          Avoided steer Beau), known for, specialisations, signature pieces
+          and a note — stored on the shared brand_index ledger. */}
+      <BrandPersonalFile brandName={brand.brand} />
+
       {brand.generated && (
         <p className={`${typography.size.xs} ${typography.color.muted} mt-4`} style={{ fontSize: '10px' }}>
           This brand is outside Beau&rsquo;s verified directory — the profile above is his best structured read, generated
           on demand. Treat specifics (founding year, exact prices) as approximate.
         </p>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// YOUR FILE — the personal read on a maker, editable from the dossier:
+// status (Trusted / Curious / Avoided), what they're known for,
+// specialisations, signature pieces and a free-text note. One row per brand
+// in the shared brand_index ledger — the same data the table's Status
+// column and the Reserve's Brand Index read.
+// ---------------------------------------------------------------------------
+
+export function BrandPersonalFile({ brandName }: { brandName: string }) {
+  const [entryId, setEntryId] = useState<number | null>(null);
+  const [status, setStatus] = useState<BrandIndexStatus>('curious');
+  const [knownFor, setKnownFor] = useState('');
+  const [specialisations, setSpecialisations] = useState('');
+  const [signaturePieces, setSignaturePieces] = useState('');
+  const [note, setNote] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    setSavedNote(null);
+    fetchBrandIndex()
+      .then((rows) => {
+        if (cancelled) return;
+        const hit = rows.find((r) => (r.name || '').trim().toLowerCase() === brandName.toLowerCase()) || null;
+        setEntryId(hit ? hit.id : null);
+        setStatus(hit?.status || 'curious');
+        setKnownFor(hit?.known_for || '');
+        setSpecialisations(hit?.specialisations || '');
+        setSignaturePieces(hit?.signature_pieces || '');
+        setNote(hit?.note || '');
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [brandName]);
+
+  const save = async () => {
+    if (saving || !loaded) return;
+    setSaving(true);
+    setSavedNote(null);
+    try {
+      const payload = {
+        name: brandName,
+        status,
+        note: note.trim() || null,
+        known_for: knownFor.trim() || null,
+        specialisations: specialisations.trim() || null,
+        signature_pieces: signaturePieces.trim() || null,
+      };
+      if (entryId != null) {
+        await updateBrandIndexEntry(entryId, payload);
+      } else {
+        const fresh = await addBrandIndexEntry({ ...payload, url: null, logo_url: null });
+        const hit = fresh.find((r) => (r.name || '').trim().toLowerCase() === brandName.toLowerCase());
+        if (hit) setEntryId(hit.id);
+      }
+      setSavedNote('Saved — Trusted and Avoided reach Beau immediately.');
+    } catch {
+      setSavedNote('That didn’t save — try again in a moment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (label: string, value: string, set: (v: string) => void, placeholder: string) => (
+    <label className="block">
+      <span className="block uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.12em', marginBottom: '4px' }}>
+        {label}
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => set(e.target.value)}
+        placeholder={placeholder}
+        className="hab-input w-full"
+        style={{ paddingTop: '8px', paddingBottom: '8px' }}
+        aria-label={label}
+      />
+    </label>
+  );
+
+  return (
+    <div className="mt-6 border-t border-[var(--color-divider,rgba(59,43,29,0.18))] pt-5">
+      <p className="uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', marginBottom: '4px' }}>
+        Your file
+      </p>
+      <p className="text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, maxWidth: '58ch' }}>
+        Trusted and Avoided steer Beau’s recommendations — Curious is your own tracking.
+      </p>
+      <div className="flex flex-wrap gap-1.5 mt-3" role="group" aria-label={`Your status for ${brandName}`}>
+        {BRAND_STATUS_ORDER.map((id) => {
+          const meta = BRAND_STATUS_META[id];
+          const active = status === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setStatus(id)}
+              aria-pressed={active}
+              className="uppercase min-h-[38px] px-3.5 rounded border transition-colors flex-shrink-0"
+              style={{
+                fontFamily: 'var(--space-font-heading)',
+                fontSize: '11.5px',
+                letterSpacing: '0.1em',
+                fontWeight: active ? 500 : 400,
+                color: active ? meta.color : 'var(--color-neutral-700,#634e38)',
+                borderColor: active ? meta.border : 'var(--color-divider,rgba(59,43,29,0.18))',
+                background: active ? meta.bg : 'transparent',
+              }}
+            >
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[var(--color-neutral-600,#856c51)] mt-1.5" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px' }}>
+        {BRAND_STATUS_META[status].line}
+      </p>
+      <div className="grid gap-3 mt-4 sm:grid-cols-2">
+        {field('Known for', knownFor, setKnownFor, 'e.g. Oxford shirts, knitwear')}
+        {field('Specialisations', specialisations, setSpecialisations, 'e.g. tailoring, casualwear')}
+        {field('Signature pieces', signaturePieces, setSignaturePieces, 'e.g. the unstructured blazer, the chambray OCBD')}
+        <label className="block">
+          <span className="block uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.12em', marginBottom: '4px' }}>
+            Your note
+          </span>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. sizing runs slim — order a size up in knitwear"
+            rows={2}
+            className="hab-input w-full resize-none"
+            style={{ paddingTop: '8px', paddingBottom: '8px' }}
+            aria-label="Your note"
+          />
+        </label>
+      </div>
+      <div className="flex items-center gap-3 mt-3 flex-wrap">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || !loaded}
+          className="px-4 min-h-[40px] rounded text-[13px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+        >
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {saving ? 'Saving…' : 'Save your file'}
+        </button>
+        {savedNote && (
+          <span className="text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}>
+            {savedNote}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -566,7 +873,7 @@ export function BrandDetailSheet({
 // Discover — the maker directory table
 // ---------------------------------------------------------------------------
 
-function toggleIn(list: string[], value: string, set: (v: string[]) => void) {
+function toggleIn<T extends string>(list: T[], value: T, set: (v: T[]) => void) {
   set(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
 }
 
@@ -583,6 +890,8 @@ function toggleIn(list: string[], value: string, set: (v: string[]) => void) {
  */
 function BrandTable({
   entries,
+  metaMap,
+  onCycleStatus,
   onOpenBrand,
   compareList,
   onToggleCompare,
@@ -590,6 +899,9 @@ function BrandTable({
   onToggleMatrix,
 }: {
   entries: DirectoryEntry[];
+  /** brand (lowercase) → the personal brand_index row (status, logo, notes). */
+  metaMap: Map<string, BrandIndexEntry>;
+  onCycleStatus: (brand: string) => void;
   onOpenBrand: (brandName: string) => void;
   compareList: string[];
   onToggleCompare: (brand: string) => void;
@@ -612,23 +924,25 @@ function BrandTable({
   };
   return (
     <div className="overflow-x-auto border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)]">
-      <table className="w-full border-collapse" style={{ minWidth: '940px' }}>
+      <table className="w-full border-collapse" style={{ minWidth: '1020px' }}>
         {/* Columns are sized by the CONTENT they hold, not in equal shares:
             Archetype fit carries several chips and takes the lion's share,
             while Price, Origin and the rating need only their few
             characters. */}
         <colgroup>
-          <col style={{ width: '18%' }} />
+          <col style={{ width: '17%' }} />
+          <col style={{ width: '8%' }} />
+          <col style={{ width: '10%' }} />
           <col style={{ width: '11%' }} />
           <col style={{ width: '12%' }} />
-          <col style={{ width: '13%' }} />
-          <col style={{ width: '32%' }} />
+          <col style={{ width: '28%' }} />
           <col style={{ width: '10%' }} />
           <col style={{ width: '4%' }} />
         </colgroup>
         <thead>
           <tr className="border-b border-[var(--color-text,#3b2b1d)]">
             <th className={head} style={headStyle}>Maker</th>
+            <th className={head} style={headStyle}>Status</th>
             <th className={head} style={headStyle}>Origin</th>
             <th className={head} style={headStyle}>Price tier</th>
             <th className={head} style={headStyle}>Material signal</th>
@@ -638,7 +952,9 @@ function BrandTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-divider,rgba(59,43,29,0.18))]">
-          {visible.map(({ profile: b, source, rating, ratingNote }) => (
+          {visible.map(({ profile: b, source, rating, ratingNote }) => {
+            const meta = metaMap.get(b.brand.toLowerCase()) || null;
+            return (
             <tr
               key={b.brand}
               onClick={() => onOpenBrand(b.brand)}
@@ -650,30 +966,50 @@ function BrandTable({
               aria-label={`${b.brand} — open the brand dossier`}
               className="cursor-pointer align-top hover:bg-[var(--color-accent-100,#fbf1de)] focus:outline-none focus:bg-[var(--color-accent-100,#fbf1de)] transition-colors"
             >
-              <td className="px-3 py-3 min-w-[170px]">
-                {/* The maker's NAME is a live link to their official site
-                    (Buy Links overhaul, Part 2.1) — the rest of the row
-                    still opens the dossier. */}
-                <a
-                  href={brandWebsiteUrl(b.brand)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className={`block ${typography.color.primary} hover:underline`}
-                  style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 500, fontSize: '17px', lineHeight: 1.2 }}
-                  title={`Visit the ${b.brand} official site`}
-                  aria-label={`${b.brand} — visit the official site`}
-                >
-                  {b.brand}
-                </a>
-                {/* Beau-initiated rows carry his voice colour — oxblood
-                    (Part 5); user-added rows stay on the structural gold. */}
-                <span
-                  className={`block mt-0.5 ${source === 'catalog' ? 'text-[var(--color-neutral-500,#a68e70)]' : source === 'beau' ? 'text-[var(--color-accent-2,#7d2a24)]' : 'text-[var(--color-accent-700,#7c4a17)]'}`}
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px', letterSpacing: '0.06em' }}
-                >
-                  {BRAND_SOURCE_LABELS[source]}
+              <td className="px-3 py-3 min-w-[180px]">
+                <span className="flex items-start gap-2.5">
+                  {/* The stored brand mark — URL-pasted and imported rows. */}
+                  {meta?.logo_url ? <BrandMark name={b.brand} logoUrl={meta.logo_url} /> : null}
+                  <span className="min-w-0">
+                    {/* The maker's NAME is a live link to their official site
+                        (Buy Links overhaul, Part 2.1) — the rest of the row
+                        still opens the dossier. */}
+                    <a
+                      href={brandWebsiteUrl(b.brand)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className={`block ${typography.color.primary} hover:underline`}
+                      style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 500, fontSize: '17px', lineHeight: 1.2 }}
+                      title={`Visit the ${b.brand} official site`}
+                      aria-label={`${b.brand} — visit the official site`}
+                    >
+                      {b.brand}
+                    </a>
+                    {/* Beau-initiated rows carry his voice colour — oxblood
+                        (Part 5); user-added rows stay on the structural gold. */}
+                    <span
+                      className={`block mt-0.5 ${source === 'catalog' ? 'text-[var(--color-neutral-500,#a68e70)]' : source === 'beau' ? 'text-[var(--color-accent-2,#7d2a24)]' : 'text-[var(--color-accent-700,#7c4a17)]'}`}
+                      style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px', letterSpacing: '0.06em' }}
+                    >
+                      {BRAND_SOURCE_LABELS[source]}
+                    </span>
+                    {/* "Known for" — the personal file's one-liner. */}
+                    {meta?.known_for && (
+                      <span
+                        className="block mt-0.5 text-[var(--color-neutral-600,#856c51)]"
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', lineHeight: 1.4 }}
+                      >
+                        {meta.known_for}
+                      </span>
+                    )}
+                  </span>
                 </span>
+              </td>
+              {/* The user's own STATUS — tap the chip to cycle Curious →
+                  Trusted → Avoided. Trusted and Avoided steer Beau. */}
+              <td className="px-3 py-3">
+                <BrandStatusChip status={meta?.status || 'curious'} onCycle={() => onCycleStatus(b.brand)} />
               </td>
               <td className="px-3 py-3 whitespace-nowrap" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-neutral-700,#634e38)' }}>
                 {b.country}
@@ -707,7 +1043,8 @@ function BrandTable({
                 </span>
               </td>
             </tr>
-          ))}
+            );
+          })}
           {/* The reveal sentinel — a hairline-thin row after the last rendered
               maker. Reaching within a viewport of it appends the next page,
               so nothing visible ever changes. */}
@@ -715,7 +1052,7 @@ function BrandTable({
             // `border: none` because the tbody's divide-y would otherwise
             // hang a stray hairline off a row that is not a maker.
             <tr aria-hidden="true" style={{ border: 'none' }}>
-              <td colSpan={7} style={{ padding: 0, border: 'none' }}>
+              <td colSpan={8} style={{ padding: 0, border: 'none' }}>
                 <span ref={sentinelRef} className="block" style={{ height: '1px' }} />
               </td>
             </tr>
@@ -743,10 +1080,10 @@ export function DiscoverSubTab({
   matrixList: string[];
   onToggleMatrix: (brand: string) => void;
 }) {
-  // Persisted directory additions (user-added / Beau-recommended).
+  // Persisted directory additions (user-added / Beau-recommended / imported).
   const { data: addedRows, refresh } = window.useWorkspaceDB<DirectoryBrandRow>('hunt_directory_brands', {
     orderBy: { column: 'created_at', direction: 'desc' },
-    limit: 100,
+    limit: 200,
   });
   useEffect(() => {
     const onChanged = () => refresh();
@@ -754,18 +1091,152 @@ export function DiscoverSubTab({
     return () => window.removeEventListener(DISCOVER_BRANDS_EVENT, onChanged);
   }, [refresh]);
 
-  // "Don't see a maker?" — the TOP element of Discover.
-  const [lookup, setLookup] = useState('');
+  // The personal per-brand files — status / logo / known for / notes — from
+  // the shared brand_index ledger (the Reserve's Brand Index reads the same
+  // rows; Trusted and Avoided feed Beau's brand signals from either side).
+  const { data: metaRows, refresh: refreshMeta } = window.useWorkspaceDB<BrandIndexEntry>('brand_index', {
+    orderBy: { column: 'created_at', direction: 'desc' },
+    limit: 200,
+  });
+  useEffect(() => {
+    const onChanged = () => refreshMeta();
+    window.addEventListener(BRAND_INDEX_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(BRAND_INDEX_CHANGED_EVENT, onChanged);
+  }, [refreshMeta]);
+
+  // Optimistic status overrides — a tapped chip recolours instantly while
+  // the ledger write settles.
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, BrandIndexStatus>>({});
+
+  const metaMap = useMemo(() => {
+    const map = new Map<string, BrandIndexEntry>();
+    // Rows arrive newest-first — keep the newest row per name.
+    for (const row of metaRows || []) {
+      const key = (row.name || '').trim().toLowerCase();
+      if (key && !map.has(key)) map.set(key, row);
+    }
+    for (const [key, status] of Object.entries(statusOverrides)) {
+      const existing = map.get(key);
+      map.set(
+        key,
+        existing
+          ? { ...existing, status }
+          : ({ id: -1, name: key, url: null, logo_url: null, status, note: null, known_for: null, specialisations: null, signature_pieces: null } as BrandIndexEntry),
+      );
+    }
+    return map;
+  }, [metaRows, statusOverrides]);
+
+  /** Persist a status; creates the brand's ledger row when none exists. */
+  const setBrandStatus = async (brand: string, status: BrandIndexStatus) => {
+    setStatusOverrides((cur) => ({ ...cur, [brand.toLowerCase()]: status }));
+    try {
+      const existing = (metaRows || []).find((r) => (r.name || '').trim().toLowerCase() === brand.toLowerCase());
+      if (existing) await updateBrandIndexEntry(existing.id, { status });
+      else await addBrandIndexEntry({ name: brand, url: null, logo_url: null, status, note: null, known_for: null, specialisations: null, signature_pieces: null });
+    } catch (e) {
+      console.warn('[Ethaion] brand status save failed:', e);
+    } finally {
+      refreshMeta();
+    }
+  };
+
+  const cycleStatus = (brand: string) => {
+    const current = metaMap.get(brand.toLowerCase())?.status || 'curious';
+    void setBrandStatus(brand, nextStatus(current));
+  };
+
+  // "Add a maker" — the TOP element of Discover: three ways in on one
+  // toggle (type a name / paste a URL / upload a file).
+  const [addMode, setAddMode] = useState<'name' | 'url' | 'file'>('name');
+  const [formName, setFormName] = useState('');
+  const [formUrl, setFormUrl] = useState('');
+  const [formLogo, setFormLogo] = useState<string | null>(null);
+  const [formStatus, setFormStatus] = useState<BrandIndexStatus>('curious');
+  const [formKnownFor, setFormKnownFor] = useState('');
+  const [formSpecialisations, setFormSpecialisations] = useState('');
+  const [formSignaturePieces, setFormSignaturePieces] = useState('');
+  const [formNote, setFormNote] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [urlBusy, setUrlBusy] = useState(false);
+  const [urlNote, setUrlNote] = useState<string | null>(null);
+
+  // File import state.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importEntries, setImportEntries] = useState<BrandImportEntry[] | null>(null);
+  const [importFileName, setImportFileName] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const [importReport, setImportReport] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setFormName('');
+    setFormUrl('');
+    setFormLogo(null);
+    setFormStatus('curious');
+    setFormKnownFor('');
+    setFormSpecialisations('');
+    setFormSignaturePieces('');
+    setFormNote('');
+    setUrlNote(null);
+  };
+
+  /** URL mode: read the brand's name + logo off its own page. */
+  const readSite = async () => {
+    const clean = normalizeSiteUrl(formUrl);
+    if (!clean || urlBusy) return;
+    setUrlBusy(true);
+    setUrlNote(null);
+    setAddError(null);
+    try {
+      const meta = await fetchSiteMeta(clean);
+      if (meta.name) setFormName(meta.name);
+      setFormLogo(meta.logoUrl);
+      setUrlNote(
+        meta.logoUrl
+          ? 'Name and logo read off the site — correct anything below before adding.'
+          : 'Name read off the site — no logo found, the entry works fine without one.',
+      );
+    } finally {
+      setUrlBusy(false);
+    }
+  };
+
   const submitAdd = async () => {
-    const name = lookup.trim();
+    const name = formName.trim();
     if (!name || addBusy) return;
     setAddBusy(true);
     setAddError(null);
     try {
       const added = await addUserDirectoryBrand(name);
-      setLookup('');
+      // The personal file: persist the status / fields / site / logo when
+      // any are set (Curious with nothing filled needs no ledger row).
+      const cleanUrl = normalizeSiteUrl(formUrl);
+      const logo = formLogo || (cleanUrl ? faviconFor(cleanUrl) : null);
+      const hasFile =
+        formStatus !== 'curious' ||
+        formKnownFor.trim() ||
+        formSpecialisations.trim() ||
+        formSignaturePieces.trim() ||
+        formNote.trim() ||
+        cleanUrl;
+      if (hasFile) {
+        const payload = {
+          name: added.brand,
+          url: cleanUrl,
+          logo_url: logo,
+          status: formStatus,
+          note: formNote.trim() || null,
+          known_for: formKnownFor.trim() || null,
+          specialisations: formSpecialisations.trim() || null,
+          signature_pieces: formSignaturePieces.trim() || null,
+        };
+        const existing = (metaRows || []).find((r) => (r.name || '').trim().toLowerCase() === added.brand.toLowerCase());
+        if (existing) await updateBrandIndexEntry(existing.id, payload);
+        else await addBrandIndexEntry(payload);
+        refreshMeta();
+      }
+      resetForm();
       refresh();
       onOpenBrand(added.brand);
     } catch (e) {
@@ -775,7 +1246,62 @@ export function DiscoverSubTab({
     }
   };
 
-  // Filters — the clean chip bar (multi-select where applicable).
+  /** File mode: parse the picked .txt / .xlsx into entries for review. */
+  const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = (e.target.files || [])[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!file) return;
+    setAddError(null);
+    setImportReport(null);
+    setImportEntries(null);
+    setImportFileName(file.name || '');
+    try {
+      const entries = await parseBrandImportFile(file);
+      if (entries.length === 0) {
+        setAddError('Nothing readable in that file — one brand name or URL per line (.txt) or in the first column (.xlsx).');
+        return;
+      }
+      setImportEntries(entries);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'That file couldn\u2019t be read.');
+    }
+  };
+
+  const runImport = async () => {
+    if (!importEntries || importBusy) return;
+    setImportBusy(true);
+    setAddError(null);
+    try {
+      const { added, skipped } = await addDirectoryBrandStubs(importEntries.map((entry) => entry.name));
+      // URL rows also get a ledger row (status Curious) carrying the site
+      // and its favicon logo, so the mark shows in the table immediately.
+      for (const entry of importEntries) {
+        if (!entry.url) continue;
+        const key = entry.name.toLowerCase();
+        if ((metaRows || []).some((r) => (r.name || '').trim().toLowerCase() === key)) continue;
+        try {
+          await addBrandIndexEntry({ name: entry.name, url: entry.url, logo_url: entry.logoUrl, status: 'curious', note: null, known_for: null, specialisations: null, signature_pieces: null });
+        } catch { /* one row never blocks the rest */ }
+      }
+      setImportReport(
+        `${added.length} maker${added.length === 1 ? '' : 's'} added as Curious${skipped.length > 0 ? ` · ${skipped.length} already listed` : ''}. Beau files each full dossier the first time you open it.`,
+      );
+      setImportEntries(null);
+      refresh();
+      refreshMeta();
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : 'The import failed — try again.');
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  // Filters — the labelled chip rows. The FIRST block mirrors the table's
+  // column order left→right (Maker · Status · Origin · Price · Material ·
+  // Style · Rating); Category / Construction / Register follow past the
+  // hairline as facets without a column of their own.
+  const [nameQuery, setNameQuery] = useState('');
+  const [statuses, setStatuses] = useState<BrandIndexStatus[]>([]);
   const [category, setCategory] = useState<string>('');
   const [priceBand, setPriceBand] = useState<PriceBand | ''>('');
   const [countries, setCountries] = useState<string[]>([]);
@@ -783,6 +1309,7 @@ export function DiscoverSubTab({
   const [materials, setMaterials] = useState<string[]>([]);
   const [registers, setRegisters] = useState<string[]>([]);
   const [archetypes, setArchetypes] = useState<string[]>([]);
+  const [ratings, setRatings] = useState<BeauRating[]>([]);
 
   const entries = useMemo(() => mergeDirectory(addedRows), [addedRows]);
 
@@ -796,17 +1323,26 @@ export function DiscoverSubTab({
 
   const filtered = useMemo(
     () =>
-      entries.filter(({ profile: b }) => {
-        if (category && brandCategory(b.brand) !== category) return false;
-        if (priceBand && b.priceBand !== priceBand) return false;
+      entries.filter((entry) => {
+        const b = entry.profile;
+        const meta = metaMap.get(b.brand.toLowerCase());
+        if (nameQuery.trim()) {
+          const q = nameQuery.trim().toLowerCase();
+          const knownFor = (meta?.known_for || '').toLowerCase();
+          if (!b.brand.toLowerCase().includes(q) && !knownFor.includes(q)) return false;
+        }
+        if (statuses.length > 0 && !statuses.includes(meta?.status || 'curious')) return false;
         if (countries.length > 0 && !countries.includes(b.country)) return false;
-        if (construction && constructionMethod(b) !== construction) return false;
+        if (priceBand && b.priceBand !== priceBand) return false;
         if (materials.length > 0 && !materials.some((m) => brandMatchesDiscoverMaterial(b, m))) return false;
-        if (registers.length > 0 && !registers.some((r) => b.registers.includes(r as Register))) return false;
         if (archetypes.length > 0 && !archetypes.some((a) => b.archetypes.includes(a))) return false;
+        if (ratings.length > 0 && !ratings.includes(entry.rating)) return false;
+        if (category && brandCategory(b.brand) !== category) return false;
+        if (construction && constructionMethod(b) !== construction) return false;
+        if (registers.length > 0 && !registers.some((r) => b.registers.includes(r as Register))) return false;
         return true;
       }),
-    [entries, category, priceBand, countries, construction, materials, registers, archetypes],
+    [entries, metaMap, nameQuery, statuses, category, priceBand, countries, construction, materials, registers, archetypes, ratings],
   );
 
   // PROFILE TOGGLE behaviour — the fix: ON actually filters and ranks.
@@ -843,9 +1379,20 @@ export function DiscoverSubTab({
   }, [filtered, userArchetypes]);
 
   const anyFilter =
-    category || priceBand || countries.length > 0 || construction || materials.length > 0 || registers.length > 0 || archetypes.length > 0;
+    nameQuery.trim() !== '' ||
+    statuses.length > 0 ||
+    ratings.length > 0 ||
+    category !== '' ||
+    priceBand !== '' ||
+    countries.length > 0 ||
+    construction !== '' ||
+    materials.length > 0 ||
+    registers.length > 0 ||
+    archetypes.length > 0;
 
   const clearFilters = () => {
+    setNameQuery('');
+    setStatuses([]);
     setCategory('');
     setPriceBand('');
     setCountries([]);
@@ -853,45 +1400,206 @@ export function DiscoverSubTab({
     setMaterials([]);
     setRegisters([]);
     setArchetypes([]);
+    setRatings([]);
   };
 
   return (
     <div className="space-y-5">
-      {/* —— DON'T SEE A MAKER? — at the very top, above filters and table. */}
+      {/* —— ADD A MAKER — at the very top, above filters and table. Three
+          ways in on one toggle: type a name, paste a URL, upload a file. */}
       <div className="bg-[var(--color-paper,#fbf8f1)] border-t border-t-[var(--color-text,#3b2b1d)] border-b border-b-[var(--color-divider,rgba(59,43,29,0.18))]" style={{ padding: '24px 26px 26px' }}>
         <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', marginBottom: '6px' }}>
-          Don&rsquo;t see a maker?
+          Add a maker
         </p>
         <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '58ch' }}>
-          Type the name — that&rsquo;s all Beau needs. He builds the full dossier himself and files the maker into this
-          directory under “You added this”.
+          Three ways in — type the name and Beau builds the full dossier himself, paste the brand&rsquo;s site and the
+          name and logo read themselves, or upload a whole list at once.
         </p>
-        <form
-          className="flex items-stretch gap-2 mt-3 flex-wrap"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submitAdd();
-          }}
-        >
-          <input
-            type="text"
-            value={lookup}
-            onChange={(e) => setLookup(e.target.value)}
-            placeholder="e.g. Orslow, Anglo-Italian, De Bonne Facture…"
-            className="hab-input flex-1 min-w-[200px]"
-            style={{ paddingTop: '10px', paddingBottom: '10px' }}
-            disabled={addBusy}
-            aria-label="Add a maker by name"
-          />
-          <button
-            type="submit"
-            disabled={addBusy || !lookup.trim()}
-            className="px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+
+        <div className="flex flex-wrap gap-1.5 mt-4" role="group" aria-label="How to add the brand">
+          {([
+            { id: 'name' as const, label: 'Type a name' },
+            { id: 'url' as const, label: 'Paste a URL' },
+            { id: 'file' as const, label: 'Upload a file' },
+          ]).map(({ id, label }) => (
+            <FilterChip
+              key={id}
+              active={addMode === id}
+              onClick={() => {
+                setAddMode(id);
+                setAddError(null);
+              }}
+            >
+              {label}
+            </FilterChip>
+          ))}
+        </div>
+
+        {addMode !== 'file' ? (
+          <form
+            className="mt-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitAdd();
+            }}
           >
-            {addBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-            {addBusy ? 'Building the file…' : 'Add the maker'}
-          </button>
-        </form>
+            {addMode === 'url' && (
+              <div className="flex items-stretch gap-2 flex-wrap">
+                <input
+                  type="url"
+                  value={formUrl}
+                  onChange={(e) => setFormUrl(e.target.value)}
+                  placeholder="https://… (a brand or product page)"
+                  className="hab-input flex-1 min-w-[200px]"
+                  style={{ paddingTop: '10px', paddingBottom: '10px' }}
+                  disabled={urlBusy || addBusy}
+                  aria-label="Brand or product page URL"
+                />
+                <button
+                  type="button"
+                  onClick={() => void readSite()}
+                  disabled={!normalizeSiteUrl(formUrl) || urlBusy || addBusy}
+                  className="px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+                >
+                  {urlBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {urlBusy ? 'Reading the site…' : 'Read the site'}
+                </button>
+              </div>
+            )}
+            {addMode === 'url' && (formLogo || urlNote) && (
+              <div className="flex items-center gap-2.5 mt-2.5">
+                {formLogo && <BrandMark name={formName || 'brand'} logoUrl={formLogo} />}
+                <span className={`${typography.size.xs} ${typography.color.muted}`}>{urlNote || 'The fetched logo — saved with the brand.'}</span>
+              </div>
+            )}
+
+            <div className={`flex items-stretch gap-2 flex-wrap ${addMode === 'url' ? 'mt-3' : ''}`}>
+              <input
+                type="text"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder={addMode === 'url' ? 'Brand name — pre-filled from the site' : 'e.g. Orslow, Anglo-Italian, De Bonne Facture…'}
+                className="hab-input flex-1 min-w-[200px]"
+                style={{ paddingTop: '10px', paddingBottom: '10px' }}
+                disabled={addBusy}
+                aria-label="Brand name"
+              />
+              <button
+                type="submit"
+                disabled={addBusy || !formName.trim()}
+                className="px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+              >
+                {addBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                {addBusy ? 'Building the file…' : 'Add the maker'}
+              </button>
+            </div>
+            {addMode === 'name' && (
+              <input
+                type="url"
+                value={formUrl}
+                onChange={(e) => setFormUrl(e.target.value)}
+                placeholder="Site URL (optional — the logo fetches from it)"
+                className="hab-input w-full mt-3"
+                style={{ paddingTop: '8px', paddingBottom: '8px' }}
+                disabled={addBusy}
+                aria-label="Brand site URL (optional)"
+              />
+            )}
+
+            {/* The personal-file fields — status, known for, specialisations,
+                signature pieces and a note. All optional. */}
+            <div className="mt-4">
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Brand status">
+                {BRAND_STATUS_ORDER.map((id) => {
+                  const meta = BRAND_STATUS_META[id];
+                  const active = formStatus === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setFormStatus(id)}
+                      aria-pressed={active}
+                      className="uppercase min-h-[36px] px-3.5 rounded border transition-colors flex-shrink-0"
+                      style={{
+                        fontFamily: 'var(--space-font-heading)',
+                        fontSize: '11px',
+                        letterSpacing: '0.1em',
+                        fontWeight: active ? 500 : 400,
+                        color: active ? meta.color : 'var(--color-neutral-700,#634e38)',
+                        borderColor: active ? meta.border : 'var(--color-divider,rgba(59,43,29,0.18))',
+                        background: active ? meta.bg : 'transparent',
+                      }}
+                    >
+                      {meta.label}
+                    </button>
+                  );
+                })}
+                <span className="text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px' }}>
+                  {BRAND_STATUS_META[formStatus].line}
+                </span>
+              </div>
+              <div className="grid gap-2 mt-3 sm:grid-cols-3">
+                <input type="text" value={formKnownFor} onChange={(e) => setFormKnownFor(e.target.value)} placeholder="Known for — e.g. Oxford shirts, knitwear" className="hab-input" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Known for" />
+                <input type="text" value={formSpecialisations} onChange={(e) => setFormSpecialisations(e.target.value)} placeholder="Specialisations — e.g. tailoring, casualwear" className="hab-input" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Specialisations" />
+                <input type="text" value={formSignaturePieces} onChange={(e) => setFormSignaturePieces(e.target.value)} placeholder="Signature pieces — e.g. the unstructured blazer" className="hab-input" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Signature pieces" />
+              </div>
+              <textarea value={formNote} onChange={(e) => setFormNote(e.target.value)} placeholder="Your note (optional) — e.g. sizing runs slim, order a size up" rows={2} className="hab-input w-full resize-none mt-2" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Your note" />
+            </div>
+          </form>
+        ) : (
+          /* FILE MODE — a .txt (one entry per line) or .xlsx (first column). */
+          <div className="mt-4">
+            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.6, maxWidth: '58ch' }}>
+              A <strong>.txt</strong> reads one brand per line; a <strong>.xlsx</strong> reads the first column. Names
+              add as they are; anything that reads as a URL gets its logo fetched. Everything lands as <em>Curious</em>
+              — Beau files each full dossier the first time you open it.
+            </p>
+            <div className="flex items-center gap-2.5 mt-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importBusy}
+                className="px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+              >
+                <Upload className="w-4 h-4" />
+                Choose a file
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.xlsx,.xls,text/plain"
+                onChange={(e) => void onFilePicked(e)}
+                className="hidden"
+                aria-label="Upload a brand list (.txt or .xlsx)"
+              />
+              {importFileName && !importEntries && !importReport && (
+                <span className={`${typography.size.xs} ${typography.color.muted}`}>{importFileName}</span>
+              )}
+            </div>
+            {importEntries && (
+              <div className="mt-3">
+                <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px' }}>
+                  {importEntries.length} entr{importEntries.length === 1 ? 'y' : 'ies'} read from {importFileName || 'the file'}
+                  {importEntries.some((row) => row.url) ? ` — ${importEntries.filter((row) => row.url).length} with a site URL` : ''}.
+                </p>
+                <p className={`${typography.size.xs} ${typography.color.muted} mt-1`} style={{ maxWidth: '62ch' }}>
+                  {importEntries.slice(0, 8).map((row) => row.name).join(' · ')}
+                  {importEntries.length > 8 ? ` · +${importEntries.length - 8} more` : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void runImport()}
+                  disabled={importBusy}
+                  className="mt-2.5 px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+                >
+                  {importBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {importBusy ? 'Filing the makers…' : `Add ${importEntries.length} maker${importEntries.length === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            )}
+            {importReport && <p className={`${typography.size.xs} text-[var(--color-accent-700,#7c4a17)] mt-2.5`}>{importReport}</p>}
+          </div>
+        )}
         {addError && <p className={`${typography.size.xs} text-[var(--space-semantic-warning)] mt-2`}>{addError}</p>}
       </div>
 
@@ -902,9 +1610,10 @@ export function DiscoverSubTab({
 
       {/* —— THE FILTERS — every chip row carries its category label in the
           left column, chips indented in the second column (wrapped chips
-          align to the chip column, never back to the label). The Materials
-          row is individual fibres only, no umbrella toggle. Two blocks
-          parted by one hairline. */}
+          align to the chip column, never back to the label). The first
+          block mirrors the table's column order, left to right — Maker ·
+          Status · Origin · Price · Material · Style · Rating — then one
+          hairline, then the column-less facets. */}
       <div>
         {anyFilter ? (
           <div className="flex justify-end" style={{ paddingTop: '4px' }}>
@@ -919,10 +1628,28 @@ export function DiscoverSubTab({
           </div>
         ) : null}
         <div>
-          <FilterRow label="Materials">
-            {DISCOVER_MATERIALS.map((m) => (
-              <FilterChip key={m} active={materials.includes(m)} onClick={() => toggleIn(materials, m, setMaterials)}>
-                {m}
+          <FilterRow label="Maker">
+            <input
+              type="search"
+              value={nameQuery}
+              onChange={(e) => setNameQuery(e.target.value)}
+              placeholder="Search by name…"
+              className="hab-input"
+              style={{ height: '32px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12.5px' }}
+              aria-label="Filter makers by name"
+            />
+          </FilterRow>
+          <FilterRow label="Status">
+            {BRAND_STATUS_ORDER.map((id) => (
+              <FilterChip key={id} active={statuses.includes(id)} onClick={() => toggleIn(statuses, id, setStatuses)} title={BRAND_STATUS_META[id].line}>
+                {BRAND_STATUS_META[id].label}
+              </FilterChip>
+            ))}
+          </FilterRow>
+          <FilterRow label="Origin">
+            {countryOptions.map((c) => (
+              <FilterChip key={c} active={countries.includes(c)} onClick={() => toggleIn(countries, c, setCountries)}>
+                {c}
               </FilterChip>
             ))}
           </FilterRow>
@@ -934,10 +1661,10 @@ export function DiscoverSubTab({
               </FilterChip>
             ))}
           </FilterRow>
-          <FilterRow label="Origin">
-            {countryOptions.map((c) => (
-              <FilterChip key={c} active={countries.includes(c)} onClick={() => toggleIn(countries, c, setCountries)}>
-                {c}
+          <FilterRow label="Material">
+            {DISCOVER_MATERIALS.map((m) => (
+              <FilterChip key={m} active={materials.includes(m)} onClick={() => toggleIn(materials, m, setMaterials)}>
+                {m}
               </FilterChip>
             ))}
           </FilterRow>
@@ -945,6 +1672,13 @@ export function DiscoverSubTab({
             {Object.keys(ARCHETYPE_LABELS).map((id) => (
               <FilterChip key={id} active={archetypes.includes(id)} onClick={() => toggleIn(archetypes, id, setArchetypes)}>
                 {ARCHETYPE_LABELS[id]}
+              </FilterChip>
+            ))}
+          </FilterRow>
+          <FilterRow label="Rating">
+            {BEAU_RATINGS.map((r) => (
+              <FilterChip key={r} active={ratings.includes(r)} onClick={() => toggleIn(ratings, r, setRatings)} title={`Beau's rating — ${r}`}>
+                {r}
               </FilterChip>
             ))}
           </FilterRow>
@@ -995,6 +1729,8 @@ export function DiscoverSubTab({
           {matched.length > 0 ? (
             <BrandTable
               entries={matched}
+              metaMap={metaMap}
+              onCycleStatus={cycleStatus}
               onOpenBrand={onOpenBrand}
               compareList={compareList}
               onToggleCompare={onToggleCompare}
@@ -1019,6 +1755,8 @@ export function DiscoverSubTab({
               </div>
               <BrandTable
                 entries={beyond}
+                metaMap={metaMap}
+                onCycleStatus={cycleStatus}
                 onOpenBrand={onOpenBrand}
                 compareList={compareList}
                 onToggleCompare={onToggleCompare}

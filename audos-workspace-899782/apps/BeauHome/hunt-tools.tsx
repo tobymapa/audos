@@ -176,7 +176,7 @@ export function CompareSubTab({
       render: (b) => (
         <>
           <span className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', letterSpacing: '0.04em' }}>
-            {beauRatingFromQuality(b.constructionQuality)}
+            {beauRatingFromQuality(b.constructionQuality, b.qualityScore)}
           </span>
           {beauRatingSummary(b) ? ` — ${beauRatingSummary(b)}` : ''}
         </>

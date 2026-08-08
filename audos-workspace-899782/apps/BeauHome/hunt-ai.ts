@@ -32,6 +32,7 @@ import { parseFindQuery, runListingSearch, type ListingSearchOutcome } from './l
 import {
   beauRatingFromQuality,
   findCatalogBrand,
+  normalizeBeauRating,
   type BeauRating,
   type BrandProfile,
   type PriceBand,
@@ -528,6 +529,7 @@ export async function getBrandProfile(brandName: string): Promise<BrandProfile> 
   if (catalog) return catalog;
   // Persisted directory additions (user-added / Beau-recommended) already
   // carry their generated dossier — reuse it before spending a new call.
+  let stubRowId: number | null = null;
   try {
     const db = (window as any).__workspaceDb;
     if (db) {
@@ -537,9 +539,24 @@ export async function getBrandProfile(brandName: string): Promise<BrandProfile> 
         const parsed = JSON.parse(row.profile_json);
         if (parsed && typeof parsed.brand === 'string') return parsed as BrandProfile;
       }
+      if (row) stubRowId = row.id;
     }
   } catch { /* fall through to generation */ }
-  return generateBrandProfile(brandName);
+  const generated = await generateBrandProfile(brandName);
+  // A STUB row (bulk file import, or an earlier generation that failed)
+  // gets the fresh dossier written back, so its table columns and rating
+  // fill in for good instead of regenerating on every open.
+  if (stubRowId != null) {
+    try {
+      await (window as any).__workspaceDb.from('hunt_directory_brands').update(stubRowId, {
+        profile_json: JSON.stringify(generated),
+        rating: beauRatingFromQuality(generated.constructionQuality, generated.qualityScore),
+        rating_note: generated.constructionNote || null,
+      });
+      window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
+    } catch { /* the cached profile still serves this session */ }
+  }
+  return generated;
 }
 
 // ---------------------------------------------------------------------------
@@ -622,7 +639,7 @@ For recommendations, return structured JSON:
 { "type": "recommendations", "results": [{ "brandName", "whatTheyMake", "whyItFits", "profileNote", "gapFilled": boolean, "priceRange", "archetypeFit": [] }] }
 
 For brand assessment:
-{ "type": "brandDossier", "brand": { "name", "overview", "heritage", "construction", "materials", "origin", "priceRange", "archetypeFit": [], "sizingNote", "colourwayTendency", "longevitySignal", "beausRating": "Excellent|Considered|Proceed with caution", "beausVerdict" } }
+{ "type": "brandDossier", "brand": { "name", "overview", "heritage", "construction", "materials", "origin", "priceRange", "archetypeFit": [], "sizingNote", "colourwayTendency", "longevitySignal", "beausRating": "Excellent|Reliable|Inconsistent|Avoid", "beausVerdict" } }
 
 For quality judgement:
 { "type": "qualityJudgement", "verdict": "Worth it|Consider alternatives|Pass", "rationale", "alternatives": [] }
@@ -639,7 +656,7 @@ Return the same JSON structure as profile-on but omit profileNote and gapFilled.
 
 The JSON structures:
 For recommendations: { "type": "recommendations", "results": [{ "brandName", "whatTheyMake", "whyItFits", "priceRange", "archetypeFit": [] }] }
-For brand assessment: { "type": "brandDossier", "brand": { "name", "overview", "heritage", "construction", "materials", "origin", "priceRange", "archetypeFit": [], "sizingNote", "colourwayTendency", "longevitySignal", "beausRating": "Excellent|Considered|Proceed with caution", "beausVerdict" } }
+For brand assessment: { "type": "brandDossier", "brand": { "name", "overview", "heritage", "construction", "materials", "origin", "priceRange", "archetypeFit": [], "sizingNote", "colourwayTendency", "longevitySignal", "beausRating": "Excellent|Reliable|Inconsistent|Avoid", "beausVerdict" } }
 For quality judgement: { "type": "qualityJudgement", "verdict": "Worth it|Consider alternatives|Pass", "rationale", "alternatives": [] }
 
 "beausVerdict" must say why THIS brand earned THAT rating, naming the specific quality signals — construction method, material grade, where it is made, whether it can be repaired or resoled. Never restate what the rating tier means in general.
@@ -717,9 +734,9 @@ export interface UnifiedFindInput {
 }
 
 function normaliseBeauRating(v: string): BeauRating {
-  if (/excellent/i.test(v)) return 'Excellent';
-  if (/consider/i.test(v)) return 'Considered';
-  return 'Proceed with caution';
+  // The shared normaliser also migrates the legacy labels ('Considered',
+  // 'Proceed with caution') onto the current four tiers.
+  return normalizeBeauRating(v) ?? 'Inconsistent';
 }
 
 function sanitizeUnified(raw: any, profileOn: boolean): UnifiedFindResult | null {
@@ -893,7 +910,7 @@ export async function addUserDirectoryBrand(brandName: string): Promise<BrandPro
         brand: profile.brand,
         source: 'user',
         profile_json: JSON.stringify(profile),
-        rating: beauRatingFromQuality(profile.constructionQuality),
+        rating: beauRatingFromQuality(profile.constructionQuality, profile.qualityScore),
         rating_note: profile.constructionNote || null,
         context: null,
       });
@@ -930,7 +947,7 @@ export async function recordBeauRecommendedBrands(brandNames: string[], context:
         brand: profile?.brand || name,
         source: 'beau',
         profile_json: profile ? JSON.stringify(profile) : null,
-        rating: profile ? beauRatingFromQuality(profile.constructionQuality) : null,
+        rating: profile ? beauRatingFromQuality(profile.constructionQuality, profile.qualityScore) : null,
         rating_note: profile?.constructionNote || null,
         context: context || null,
       });
@@ -938,4 +955,47 @@ export async function recordBeauRecommendedBrands(brandNames: string[], context:
     } catch { /* one failed maker never blocks the rest */ }
   }
   if (changed) window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
+}
+
+/**
+ * BULK IMPORT (Discover's “Upload a file” entry mode): file each name into
+ * the directory immediately as a STUB row — no model call per brand, so a
+ * forty-line list lands in one pass. Beau builds each full dossier the
+ * first time its brand file is opened (getBrandProfile writes it back onto
+ * the row). Catalog makers and existing rows are skipped, never duplicated.
+ */
+export async function addDirectoryBrandStubs(names: string[]): Promise<{ added: string[]; skipped: string[] }> {
+  const added: string[] = [];
+  const skipped: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of names) {
+    const name = (raw || '').trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    if (findCatalogBrand(name)) {
+      skipped.push(name);
+      continue;
+    }
+    try {
+      const { data: existing } = await db().from('hunt_directory_brands').eq('brand', name).limit(1).get();
+      if (existing && existing.length > 0) {
+        skipped.push(name);
+        continue;
+      }
+      await db().from('hunt_directory_brands').insert({
+        brand: name,
+        source: 'user',
+        profile_json: null,
+        rating: null,
+        rating_note: null,
+        context: 'Imported from a brand list file',
+      });
+      added.push(name);
+    } catch {
+      skipped.push(name);
+    }
+  }
+  if (added.length > 0) window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
+  return { added, skipped };
 }
