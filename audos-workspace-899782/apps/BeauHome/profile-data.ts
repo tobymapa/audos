@@ -3516,10 +3516,18 @@ const PREFS_NOTES_MARKER = '[From his profile]';
  */
 async function appendLoyaltyAndFeedbackBits(bits: string[]): Promise<void> {
   try {
-    const brands = await fetchTrustedBrands();
-    if (brands.length > 0) {
+    // Trusted merges the loyalty list with the Brand Index's Trusted entries;
+    // Avoided is the Brand Index's exclusion list. Curious entries are
+    // personal tracking only and deliberately never reach Beau.
+    const { trustedBrands, avoidedBrands } = await fetchBrandSignals();
+    if (trustedBrands.length > 0) {
       bits.push(
-        `Trusted brands he already knows and loves: ${brands.map((b) => b.brand).join(', ')} — check their range first when hunting his gaps, but still offer alternatives where they don't cover a category.`,
+        `Trusted brands he already knows and loves: ${trustedBrands.join(', ')} — check their range first when hunting his gaps, but still offer alternatives where they don't cover a category.`,
+      );
+    }
+    if (avoidedBrands.length > 0) {
+      bits.push(
+        `Brands he has deliberately ruled out: ${avoidedBrands.join(', ')} — NEVER recommend pieces from these makers, and never name them as an example.`,
       );
     }
   } catch { /* non-fatal */ }
@@ -4646,6 +4654,147 @@ export function removeTrustedBrand(id: number): Promise<TrustedBrand[]> {
     await resyncProfileNotes();
     return fresh;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Brand Index — The Reserve's brand ledger (brand_index table). One row per
+// brand the user tracks: name, site URL, auto-fetched logo, a status
+// (trusted / curious / avoided), a personal note, what the maker is known
+// for, specialisations and signature pieces. Trusted entries feed Beau's
+// recommendation logic as a preference signal (merged with the older
+// trusted_brands loyalty table); Avoided entries are an exclusion list;
+// Curious entries are personal tracking only and never reach Beau.
+// ---------------------------------------------------------------------------
+
+export type BrandIndexStatus = 'trusted' | 'curious' | 'avoided';
+
+export const BRAND_INDEX_STATUSES: BrandIndexStatus[] = ['trusted', 'curious', 'avoided'];
+
+export interface BrandIndexEntry {
+  id: number;
+  name: string;
+  /** The brand/site URL the user pasted. */
+  url: string | null;
+  /** Auto-fetched logo — the site's OG image, falling back to its favicon. */
+  logo_url: string | null;
+  status: BrandIndexStatus;
+  /** Personal free-text note. */
+  note: string | null;
+  /** e.g. 'Oxford shirts, knitwear'. */
+  known_for: string | null;
+  /** Comma-separated, e.g. 'tailoring, casualwear'. */
+  specialisations: string | null;
+  /** e.g. 'the unstructured blazer, the chambray OCBD'. */
+  signature_pieces: string | null;
+  created_at?: string;
+}
+
+export const BRAND_INDEX_CHANGED_EVENT = 'ethaion:brand-index-changed';
+
+function notifyBrandIndexChanged(): void {
+  try {
+    window.dispatchEvent(new CustomEvent(BRAND_INDEX_CHANGED_EVENT));
+  } catch { /* dispatch is best-effort */ }
+}
+
+function normalizeBrandStatus(value: unknown): BrandIndexStatus {
+  return value === 'trusted' || value === 'avoided' ? value : 'curious';
+}
+
+export async function fetchBrandIndex(): Promise<BrandIndexEntry[]> {
+  try {
+    const { data } = await db().from('brand_index').orderBy('created_at', 'desc').limit(200).get();
+    return ((data || []) as any[]).map((row) => ({ ...row, status: normalizeBrandStatus(row.status) })) as BrandIndexEntry[];
+  } catch (e) {
+    console.warn('[Ethaion] brand index fetch failed (non-fatal):', e);
+    return [];
+  }
+}
+
+/** File a brand in the Index; resyncs Beau's rubric so a Trusted or Avoided
+ * status takes effect in chat immediately. */
+export function addBrandIndexEntry(entry: Omit<BrandIndexEntry, 'id' | 'created_at'>): Promise<BrandIndexEntry[]> {
+  return enqueue(async () => {
+    const name = (entry.name || '').trim();
+    if (name.length >= 2) {
+      await db().from('brand_index').insert({
+        name,
+        url: entry.url || null,
+        logo_url: entry.logo_url || null,
+        status: normalizeBrandStatus(entry.status),
+        note: entry.note || null,
+        known_for: entry.known_for || null,
+        specialisations: entry.specialisations || null,
+        signature_pieces: entry.signature_pieces || null,
+      });
+      logBrand({ brand: name, source: 'brand-index', url: entry.url || null, context: `Filed in the Brand Index as ${normalizeBrandStatus(entry.status)}` });
+    }
+    const fresh = await fetchBrandIndex();
+    await resyncProfileNotes();
+    notifyBrandIndexChanged();
+    return fresh;
+  });
+}
+
+export function updateBrandIndexEntry(
+  id: number,
+  patch: Partial<Omit<BrandIndexEntry, 'id' | 'created_at'>>,
+): Promise<BrandIndexEntry[]> {
+  return enqueue(async () => {
+    const clean: Record<string, unknown> = { ...patch };
+    if ('name' in clean) clean.name = String(clean.name || '').trim();
+    if ('status' in clean) clean.status = normalizeBrandStatus(clean.status);
+    await db().from('brand_index').update(id, clean);
+    const fresh = await fetchBrandIndex();
+    await resyncProfileNotes();
+    notifyBrandIndexChanged();
+    return fresh;
+  });
+}
+
+export function deleteBrandIndexEntry(id: number): Promise<BrandIndexEntry[]> {
+  return enqueue(async () => {
+    await db().from('brand_index').delete(id);
+    const fresh = await fetchBrandIndex();
+    await resyncProfileNotes();
+    notifyBrandIndexChanged();
+    return fresh;
+  });
+}
+
+/**
+ * The profile's brand-preference arrays, for Beau's recommendation logic:
+ *  · trustedBrands — the Brand Index's Trusted entries merged with the older
+ *    trusted_brands loyalty table (deduped, case-insensitive) — a positive
+ *    preference signal.
+ *  · avoidedBrands — the Brand Index's Avoided entries — an exclusion list.
+ * Curious entries are personal tracking only and are deliberately absent.
+ */
+export async function fetchBrandSignals(): Promise<{ trustedBrands: string[]; avoidedBrands: string[] }> {
+  const [index, loyal] = await Promise.all([fetchBrandIndex(), fetchTrustedBrands()]);
+  const seen = new Set<string>();
+  const trustedBrands: string[] = [];
+  for (const raw of [
+    ...loyal.map((b) => b.brand),
+    ...index.filter((e) => e.status === 'trusted').map((e) => e.name),
+  ]) {
+    const brand = (raw || '').trim();
+    const key = brand.toLowerCase();
+    if (!brand || seen.has(key)) continue;
+    seen.add(key);
+    trustedBrands.push(brand);
+  }
+  const avoidedBrands: string[] = [];
+  const seenAvoided = new Set<string>();
+  for (const e of index) {
+    if (e.status !== 'avoided') continue;
+    const brand = (e.name || '').trim();
+    const key = brand.toLowerCase();
+    if (!brand || seenAvoided.has(key)) continue;
+    seenAvoided.add(key);
+    avoidedBrands.push(brand);
+  }
+  return { trustedBrands, avoidedBrands };
 }
 
 // ---------------------------------------------------------------------------

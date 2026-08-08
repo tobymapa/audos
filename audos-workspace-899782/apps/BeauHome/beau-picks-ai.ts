@@ -31,6 +31,7 @@
 
 import {
   categorizeItem,
+  fetchBrandSignals,
   fetchMaterials,
   fetchStyleMeasurements,
   homeCity,
@@ -227,6 +228,7 @@ function buildUserMessage(
   avatar: { heightCm: number | null; weightKg: number | null; bodyType: string | null },
   prefs: StylePrefs | null,
   semantics: Record<number, SemanticTags> = {},
+  brandSignals: { trustedBrands: string[]; avoidedBrands: string[] } = { trustedBrands: [], avoidedBrands: [] },
 ): string {
   const archetypeIds = (profile?.archetypes || []).filter(Boolean);
   const archetypeNames = archetypeIds.map(archetypePromptName);
@@ -283,14 +285,27 @@ function buildUserMessage(
         : null,
       secondhandOpenness: prefs?.secondhand || null,
       inHisOwnWords: prefs?.free_text || null,
+      // The Reserve's Brand Index: trusted makers are a positive preference
+      // signal; avoided makers are a hard exclusion list. (Curious entries
+      // are personal tracking only — they never reach this payload.)
+      trustedBrands: brandSignals.trustedBrands,
+      avoidedBrands: brandSignals.avoidedBrands,
     },
   };
 
-  return [
+  const parts = [
     'Here is my complete logged wardrobe, my selected style archetypes, the archetype essential lists, and my profile, as JSON:',
     JSON.stringify(payload, null, 2),
+  ];
+  if (brandSignals.trustedBrands.length > 0 || brandSignals.avoidedBrands.length > 0) {
+    parts.push(
+      'Brand preferences: profile.trustedBrands are makers I already know and love — prefer one of them as exampleBrand whenever they genuinely make the recommended piece well (never force a fit). profile.avoidedBrands are makers I have deliberately ruled out — NEVER name them as exampleBrand and never recommend their pieces.',
+    );
+  }
+  parts.push(
     'Respond with ONLY a strict JSON array of recommendation objects — no markdown fences, no prose before or after. Each object has exactly these keys: "pieceName" (string), "category" (string), "subType" (string), "whyNow" (string), "archetypesServed" (array of strings), "qualitySignals" (string), "exampleBrand" (string), "constructionMethod" (string), "material" (string), "origin" (string), "register" (string — one of "Casual", "Smart-Casual", "Formal"), "typicalPrice" (string), "colorwayNote" (string).',
-  ].join('\n\n');
+  );
+  return parts.join('\n\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +523,11 @@ function writeCache(entry: CacheEntry): void {
 export async function getBeauPicks(input: BeauPicksInput): Promise<BeauPicksResult> {
   const { profile, pieces, prefs = null, forceRefresh = false, onPhase } = input;
 
-  const fingerprint = beauPicksFingerprint(profile, pieces);
+  // Brand preferences (the Reserve's Brand Index + the loyalty list) join the
+  // cache fingerprint, so newly trusted or avoided brands refresh the picks
+  // instead of waiting out the 24h TTL.
+  const brandSignals = await fetchBrandSignals().catch(() => ({ trustedBrands: [] as string[], avoidedBrands: [] as string[] }));
+  const fingerprint = `${beauPicksFingerprint(profile, pieces)}\u241f${brandSignals.trustedBrands.join(',').toLowerCase()}\u241f${brandSignals.avoidedBrands.join(',').toLowerCase()}`;
   if (!forceRefresh) {
     const cached = readCache(fingerprint);
     if (cached) {
@@ -530,7 +549,7 @@ export async function getBeauPicks(input: BeauPicksInput): Promise<BeauPicksResu
       heightCm: avatarInputs?.heightCm ?? null,
       weightKg: avatarInputs?.weightKg ?? null,
       bodyType: avatarInputs?.bodyType ?? null,
-    }, prefs, semantics);
+    }, prefs, semantics, brandSignals);
 
     onPhase?.('Beau is weighing what you need next\u2026');
     let engine: 'claude' | 'gpt-fallback' = 'claude';
