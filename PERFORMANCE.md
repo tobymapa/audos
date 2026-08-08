@@ -343,6 +343,49 @@ not compensate for an 84MB model on the main thread.
 
 ---
 
+## Pass 6 — the white-on-white bug
+
+With the Photoroom key added, a white leather sneaker still came out with bites
+taken from it: brown sole and tan lining intact, white leather destroyed. The
+same photograph cut correctly on Photoroom's own site.
+
+**It was not Photoroom's output.** The damage came from `whiteToTransparent`,
+which only runs in tier 3 — the generative fallback. That function flood-fills
+inward from the frame edges through every pixel that reads as background:
+
+```js
+if (lumOf(r, g, b) < 0.82 || chromaOf(r, g, b) > 0.08) return false;
+```
+
+White leather sits near 0.9 luminance with almost no chroma, so it **passes as
+background**. The flood walked in from the edge, through the shoe, and stopped
+only where something darker blocked it. No threshold fixes this — a white
+garment on a white ground is not separable by colour, which is precisely the
+problem a segmentation service exists to solve.
+
+**Fixed** by handing tier 3's isolated image to Photoroom rather than
+flood-filling it. Photoroom separates by subject, not colour. One extra call on
+a tier that should now be rare, replacing a heuristic that could never be right.
+
+`whiteToTransparent` is left in place but unused, and is tree-shaken out of the
+bundle.
+
+**Re-cut triggered.** `CUTOUT_PIPELINE_VERSION` 5 → 6 and the localStorage
+mirror prefix bumped to match. Hydration skips rows below the current version,
+so every cutout made while Photoroom was unavailable re-ingests once. With the
+per-session budget in place the wardrobe converges over several visits rather
+than reprocessing at once.
+
+### Pre-existing type error, examined and left alone
+
+`photo-enhance.ts` passes `4` to a parameter typed `FlatLayTier = 0 | 1 | 2 | 3`
+in the on-body fallback. Checked: the only rule that reads it is
+`tier === 1 || tier === 3` (safe to compose), which excludes 2 and 4 equally.
+Behaviourally identical, so it is a type error with no runtime effect. Not
+changed — it predates this work.
+
+---
+
 ## Outstanding
 
 From the audit, not yet done.

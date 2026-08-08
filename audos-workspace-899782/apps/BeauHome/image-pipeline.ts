@@ -60,7 +60,22 @@ export const CLASSIFIER_VERSION = 1;
  * thickness (photo-enhance `stripFrameComponents`) — so older rows are
  * re-ingested once and no stored cut can carry a border artifact against
  * either the light or the dark ground. */
-export const CUTOUT_PIPELINE_VERSION = 5;
+/**
+ * v6 — the white-on-white remediation.
+ *
+ * Bumped so every cutout stored under v5 or earlier re-ingests once. Those
+ * were produced while the Photoroom key was missing, so they came from the
+ * generative tier and were then flood-filled by `whiteToTransparent`, which
+ * ate any part of a garment that was itself near-white. Tier 3 now hands its
+ * result to Photoroom instead (see photo-enhance.ts), so a re-cut is a real
+ * repair rather than a reshuffle.
+ *
+ * Hydration skips rows below this number (`pipeline_version < CURRENT`), which
+ * is what makes the bump act as a re-ingestion trigger. With the per-session
+ * budget in place the wardrobe converges over several visits rather than
+ * reprocessing everything at once.
+ */
+export const CUTOUT_PIPELINE_VERSION = 6;
 
 /** FNV-1a hex — a short stable key for a URL, since the URL itself is far too
  * long to index and can carry a query string that varies by delivery size. */

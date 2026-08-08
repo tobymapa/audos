@@ -1371,7 +1371,11 @@ export function isTransparentCutout(url: string): boolean {
 // flagged under v3 re-ingests once with the remediation instead of being
 // served forever from this legacy mapping. v5 bumps it again so every cut
 // re-ingests through the hollow-frame removal pass (border-artifact fix).
-const CUTOUT_STORE_PREFIX = 'ethaion_board_cutout_v5_';
+// v6: matches CUTOUT_PIPELINE_VERSION 6 — the white-on-white remediation. The
+// prefix bump orphans every v5 mapping so cuts made while Photoroom was
+// unavailable (and then damaged by the white flood fill) are re-ingested once
+// through Photoroom instead of being served from this mirror forever.
+const CUTOUT_STORE_PREFIX = 'ethaion_board_cutout_v6_';
 
 /** FNV-1a hex — a short stable key for a source URL. */
 function cutoutHash(source: string): string {
@@ -1979,7 +1983,23 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
       }
       try {
         const isolated = await isolateGarmentViaSegmentation(chosen, person);
-        const transparent = await whiteToTransparent(isolated);
+        // THE WHITE-ON-WHITE BUG. This used to call `whiteToTransparent`,
+        // which flood-fills inward from the frame edges through every pixel
+        // that reads as near-white (luminance >= 0.82, low chroma, within ~50
+        // RGB units of the estimated ground). White leather sits at roughly
+        // 0.9 luminance with almost no chroma, so it PASSES that test: on a
+        // white sneaker the flood walked in from the edge, straight through
+        // the shoe, and stopped only where something darker blocked it. The
+        // result was a garment with bites taken out of it — brown soles and
+        // tan linings intact, white leather destroyed. No threshold fixes
+        // this; a white garment on a white ground is not separable by colour.
+        //
+        // Photoroom separates by SUBJECT rather than by colour, so it handles
+        // exactly this case. It costs one extra call on a tier that should
+        // now be rare, and replaces a heuristic that could never be correct.
+        const isolatedSrc =
+          isolated.url || `data:${isolated.mimeType || 'image/png'};base64,${isolated.base64}`;
+        const transparent = await removeBackgroundFromUrl(isolatedSrc);
         return await finish(await trimTransparent(transparent), 3);
       } catch (isolationError) {
         console.warn('[Ethaion] garment isolation failed — keeping the on-body cut as a thumbnail:', isolationError);
