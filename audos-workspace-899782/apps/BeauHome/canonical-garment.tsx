@@ -197,6 +197,7 @@ export function CanonicalGarment({
   pieceId,
   className = '',
   title,
+  showOriginal = false,
 }: {
   fields: CanonicalGarmentFields;
   photoUrl?: string | null;
@@ -205,6 +206,12 @@ export function CanonicalGarment({
   className?: string;
   title?: string;
   showConfirmation?: boolean;
+  /** EDIT/UPLOAD SURFACES ONLY (founder's fix): while a photograph has no
+   * genuine cutout yet, show the ORIGINAL photo itself instead of the quiet
+   * processing tile — the user must be able to SEE the piece they are
+   * editing or confirming. Grid/display tiles keep the universal
+   * transparency rule and never set this. */
+  showOriginal?: boolean;
 }) {
   const label = title || fields.name || 'Garment image';
   // The row's own value is passed in so a pushed URL that the database has
@@ -352,14 +359,19 @@ export function CanonicalGarment({
     // it. `cutout` is the stored record's PNG; `isStoredCutoutUrl` catches
     // the case where the candidate URL itself IS the stored cutout (the
     // piece's canonical image since Pass Forty-Nine).
-    if (genuineCutout) {
+    //
+    // `showOriginal` (edit/upload surfaces) also takes this branch: the raw
+    // photograph renders object-contain on the paper ground while its
+    // cutout is still being cut — the user always sees the piece they are
+    // working on, and the genuine cutout swaps in when it lands.
+    if (genuineCutout || showOriginal) {
       return (
         <span
           ref={hostRef}
           className={`relative inline-flex items-center justify-center overflow-hidden ${className}`}
           role="img"
           aria-label={label}
-          style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
+          style={{ background: genuineCutout ? 'transparent' : 'var(--color-paper,#fbf8f1)', border: 'none', boxShadow: 'none' }}
         >
           <img
             src={display}

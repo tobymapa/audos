@@ -407,6 +407,7 @@ export function PhotoConfirmFlow({
                 photoUrl={localPreview}
                 title={draft.name || 'Garment preview'}
                 showConfirmation
+                showOriginal
                 className="w-20 aspect-[3/4] rounded-xl border border-[var(--space-border-default)] flex-shrink-0"
               />
               <div className="flex-1 min-w-0">

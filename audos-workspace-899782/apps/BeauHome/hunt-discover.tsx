@@ -3,53 +3,55 @@
  * the shared BRAND DOSSIER page.
  *
  * Discover is the maker directory as a TABLE — one row per brand:
- * name (with its source tag: Catalog · You added this · Beau recommended,
- * plus the stored logo and "known for" line when the personal file has
- * them), the user's own colour-coded STATUS tag (Trusted / Curious /
- * Avoided — tap it to cycle; Trusted and Avoided feed Beau's brand signals
- * through the shared brand_index ledger), country of origin, price tier
- * (Budget / Mid / Premium / Luxury), primary material signal, archetype-fit
+ * a FAVOURITE star (the ONE per-row user control — stored as 'trusted' on
+ * the shared brand_index ledger so favourites keep feeding Beau's
+ * trusted-brand signal), name (with its source tag: Catalog · You added
+ * this · Beau recommended, plus the stored logo), country of origin, price
+ * tier (Budget / Mid / Premium / Luxury), primary material signal, "Known
+ * for" (Beau's own line — never user-editable, marked with his tag),
+ * "Your note" (the one free-text field the user owns), archetype-fit
  * tags, Beau's colour-coded rating (Excellent / Reliable / Inconsistent /
  * Avoid — the label stays one word; the copy under it on tap/hover says
- * why THIS maker earned it, naming its construction, materials and
- * lifespan) and the "Add to Compare" / "Add to Matrix" actions. Tapping
- * anywhere on a row opens the Brand Dossier.
+ * why THIS maker earned it) and the "Add to Compare" / "Add to Matrix"
+ * actions. Tapping anywhere on a row opens the Brand Dossier. The old
+ * Trusted / Curious / Avoided status chips are RETIRED.
  *
  * "Add a maker" sits at the TOP — above the filter chips and the table —
- * with THREE ways in on one toggle (brand fields & import overhaul):
- *   · TYPE A NAME — Beau generates the full dossier (claude-3-5-haiku,
- *     cached), persists it to `hunt_directory_brands` and opens the file.
- *   · PASTE A URL — the brand's name and logo read off its own page
- *     (OG image, favicon fallback — hunt-brand-import.ts) and pre-fill
- *     the form for correction.
+ * with TWO ways in on one toggle (smart-input overhaul):
+ *   · ONE SMART INPUT — type a NAME and Beau generates the full dossier
+ *     (claude-3-5-haiku, cached), persists it to `hunt_directory_brands`
+ *     and opens the file; paste a URL into the SAME box and it is
+ *     auto-detected — the brand's name and logo read off its own page
+ *     (OG image, favicon fallback — hunt-brand-import.ts) before the
+ *     dossier is filed. One box, two behaviours.
  *   · UPLOAD A FILE — a .txt (one entry per line) or .xlsx (first column
- *     of data rows) bulk-adds makers as stub rows, status defaulting to
- *     Curious; Beau files each full dossier the first time it is opened.
- * Every typed/pasted add carries the personal-file fields — status, known
- * for, specialisations, signature pieces and a free-text note — stored on
- * the shared brand_index ledger (the same rows the Reserve's Brand Index
- * reads, so Trusted / Avoided steer Beau from either surface).
+ *     of data rows) bulk-adds makers as stub rows; Beau files each full
+ *     dossier the first time it is opened.
+ * An optional "Your note" rides along on the shared brand_index ledger.
  *
  * FILTERS (two tiers per row — the category label in its own left column,
  * the chips indented in a second column, so wrapped chips align to the chip
  * column and never back to the label). EVERY row carries a label — nothing
- * floats alone. The FIRST block mirrors the table's column order, left to
+ * floats alone. The block mirrors the table's column order, left to
  * right — every column has its filter, top to bottom in the same order:
- *   Row 1 — "Maker": a name search box
- *   Row 2 — "Status": Trusted / Curious / Avoided chips (multi)
- *   Row 3 — "Origin": the country chips (multi)
- *   Row 4 — "Price": the price tier chips
- *   Row 5 — "Material": the individual material chips only (Leather, Wool,
+ *   Row 1 — "Favourite": the favourites-only toggle chip
+ *   Row 2 — "Origin": the country chips (multi)
+ *   Row 3 — "Price": the price tier chips
+ *   Row 4 — "Material": the individual material chips only (Leather, Wool,
  *           Merino, Cashmere, Cotton, Linen, Silk). There is NO "Natural
  *           materials only" umbrella toggle (Recommendation Engine
  *           overhaul, Part 8) — it was a parent concept standing as a peer
  *           of its own children, and Ethaion's positioning already implies
  *           natural fibres.
- *   Row 6 — "Style": the archetype chips (multi)
- *   Row 7 — "Rating": Beau's four tiers (Excellent / Reliable /
+ *   Row 5 — "Known for": a text filter over Beau's known-for line
+ *   Row 6 — "Your note": a text filter over the user's own notes
+ *   Row 7 — "Style": the archetype chips (multi)
+ *   Row 8 — "Rating": Beau's four tiers (Excellent / Reliable /
  *           Inconsistent / Avoid, multi)
  *   then, past one hairline — Category · Construction · Register (facets
- *   without a column of their own)
+ *   without a column of their own).
+ * The MAKER NAME SEARCH sits on its own, DIRECTLY above the table, and a
+ * four-tier RATING LEGEND sits at the top of the view.
  * Every chip is the same height and padding: active = walnut fill with paper
  * text, inactive = paper fill with a walnut hairline. No sustainability
  * filter, no colour surprises.
@@ -68,7 +70,7 @@
  * that costs, and what the tier itself means), sizing note, archetype fit.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Upload, X } from 'lucide-react';
+import { Loader2, Star, Upload, X } from 'lucide-react';
 import { typography } from '../../lib/colors';
 import {
   BRAND_INDEX_CHANGED_EVENT,
@@ -116,6 +118,7 @@ import { DISCOVER_BRANDS_EVENT, addDirectoryBrandStubs, addUserDirectoryBrand, g
 import {
   faviconFor,
   fetchSiteMeta,
+  looksLikeUrl,
   normalizeSiteUrl,
   parseBrandImportFile,
   type BrandImportEntry,
@@ -269,85 +272,112 @@ export function BeauRatingTag({ rating, note }: { rating: BeauRating; note?: str
 }
 
 // ---------------------------------------------------------------------------
-// BRAND STATUS — the user's own register on a maker (Trusted / Curious /
-// Avoided), colour-coded per the Ethaion palette: Trusted in oxblood,
-// Curious in muted walnut, Avoided in neutral grey. Stored in the shared
-// brand_index ledger (profile-data.ts), so Trusted and Avoided feed Beau's
-// trustedBrands / avoidedBrands signals; Curious is personal tracking only.
+// FAVOURITE — the ONE per-row user control (the old Trusted / Curious /
+// Avoided status chips are retired). A favourite is stored as status
+// 'trusted' on the shared brand_index ledger (profile-data.ts), so
+// favourites keep feeding Beau's trustedBrands signal exactly as Trusted
+// entries used to; unfavouriting returns the row to the neutral 'curious'.
 // ---------------------------------------------------------------------------
 
-export const BRAND_STATUS_ORDER: BrandIndexStatus[] = ['trusted', 'curious', 'avoided'];
+export function isFavourite(meta: BrandIndexEntry | null | undefined): boolean {
+  return meta?.status === 'trusted';
+}
 
-export const BRAND_STATUS_META: Record<BrandIndexStatus, { label: string; color: string; border: string; bg: string; line: string }> = {
-  trusted: {
-    label: 'Trusted',
-    color: '#8B3A3A',
-    border: 'rgba(139,58,58,0.55)',
-    bg: 'rgba(139,58,58,0.08)',
-    line: 'Feeds Beau — he checks this maker first when hunting your gaps.',
-  },
-  curious: {
-    label: 'Curious',
-    color: '#8A7F70',
-    border: '#D9CFBE',
-    bg: 'transparent',
-    line: 'Your own tracking only — no influence on Beau’s recommendations.',
-  },
-  avoided: {
-    label: 'Avoided',
-    color: '#8A857C',
-    border: '#CCC7BD',
-    bg: '#EDE8DF',
-    line: 'Excluded — Beau never recommends this maker.',
-  },
-};
-
-const nextStatus = (status: BrandIndexStatus): BrandIndexStatus =>
-  status === 'curious' ? 'trusted' : status === 'trusted' ? 'avoided' : 'curious';
-
-/** The colour-coded status tag; with onCycle it becomes tappable and steps
- * Curious → Trusted → Avoided → Curious. */
-export function BrandStatusChip({
-  status,
-  onCycle,
-  small = true,
+/** The favourite star — oxblood and filled when set, muted outline when not. */
+export function FavouriteToggle({
+  active,
+  onToggle,
+  brand,
 }: {
-  status: BrandIndexStatus;
-  onCycle?: () => void;
-  small?: boolean;
+  active: boolean;
+  onToggle: () => void;
+  brand: string;
 }) {
-  const meta = BRAND_STATUS_META[status];
-  const style: React.CSSProperties = {
-    fontFamily: 'var(--space-font-heading)',
-    fontSize: small ? '10px' : '11px',
-    letterSpacing: '0.12em',
-    fontWeight: 500,
-    color: meta.color,
-    borderColor: meta.border,
-    background: meta.bg,
-    padding: small ? '3px 9px' : '5px 11px',
-  };
-  if (!onCycle) {
-    return (
-      <span className="uppercase inline-flex items-center rounded border flex-shrink-0" style={style}>
-        {meta.label}
-      </span>
-    );
-  }
   return (
     <button
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        onCycle();
+        onToggle();
       }}
-      className="uppercase inline-flex items-center rounded border flex-shrink-0 transition-opacity hover:opacity-80"
-      style={style}
-      title={`${meta.line} Tap to mark as ${BRAND_STATUS_META[nextStatus(status)].label}.`}
-      aria-label={`Status: ${meta.label} — tap to mark as ${BRAND_STATUS_META[nextStatus(status)].label}`}
+      aria-pressed={active}
+      className="inline-flex items-center justify-center min-w-[36px] min-h-[36px] transition-opacity hover:opacity-75"
+      title={
+        active
+          ? `${brand} is a favourite — tap to remove. Favourites feed Beau's recommendations.`
+          : `Mark ${brand} as a favourite — Beau checks favourites first when hunting your gaps.`
+      }
+      aria-label={active ? `Remove ${brand} from favourites` : `Mark ${brand} as a favourite`}
     >
-      {meta.label}
+      <Star
+        className="w-[18px] h-[18px]"
+        style={{ color: active ? '#8B3A3A' : '#8A7F70', fill: active ? '#8B3A3A' : 'transparent' }}
+        aria-hidden="true"
+      />
     </button>
+  );
+}
+
+/** The small "Beau" provenance tag — marks a field Beau writes himself
+ * (never the user): the Known for column and its dossier counterpart. */
+export function BeauTag() {
+  return (
+    <span
+      className="uppercase inline-flex items-center flex-shrink-0 align-middle"
+      title="Written by Beau — not editable"
+      style={{
+        fontFamily: 'var(--space-font-heading)',
+        fontSize: '9px',
+        letterSpacing: '0.14em',
+        color: '#8B3A3A',
+        border: '1px solid rgba(139,58,58,0.35)',
+        borderRadius: '2px',
+        padding: '1px 5px',
+      }}
+    >
+      Beau
+    </span>
+  );
+}
+
+/** Beau's "known for" line for a maker — HIS read (the signature pieces off
+ * the brand file), never a user field. Legacy user-typed known_for rows only
+ * backfill makers whose file carries nothing. */
+export function beauKnownFor(profile: BrandProfile, meta?: BrandIndexEntry | null): string {
+  return profile.signaturePieces.join(', ') || (meta?.known_for || '').trim();
+}
+
+// ---------------------------------------------------------------------------
+// RATING LEGEND — Beau's four tiers, spelled out once at the top of Discover.
+// ---------------------------------------------------------------------------
+
+const RATING_LEGEND: Array<{ tier: BeauRating; line: string }> = [
+  { tier: 'Excellent', line: 'Buy with confidence — Beau surfaces these actively.' },
+  { tier: 'Reliable', line: 'Solid quality, worth it — Beau includes but doesn\u2019t prioritise.' },
+  { tier: 'Inconsistent', line: 'Hit or miss — Beau flags this.' },
+  { tier: 'Avoid', line: 'Quality doesn\u2019t hold up — Beau filters these out.' },
+];
+
+function RatingLegend() {
+  return (
+    <div className="bg-[var(--color-paper,#FBF8F1)] border border-[var(--color-divider,#D9CFBE)]" style={{ padding: '14px 18px 16px' }}>
+      <p
+        className="uppercase text-[var(--color-neutral-600,#8A7F70)]"
+        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.14em', marginBottom: '10px' }}
+      >
+        Beau&rsquo;s rating — how to read the four tiers
+      </p>
+      <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+        {RATING_LEGEND.map(({ tier, line }) => (
+          <span key={tier} className="flex items-baseline gap-2.5 min-w-0">
+            <BeauRatingTag rating={tier} />
+            <span className="text-[var(--color-neutral-800,#453325)] min-w-0" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5 }}>
+              {line}
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -640,19 +670,16 @@ export function BrandDetailContent({
 }
 
 // ---------------------------------------------------------------------------
-// YOUR FILE — the personal read on a maker, editable from the dossier:
-// status (Trusted / Curious / Avoided), what they're known for,
-// specialisations, signature pieces and a free-text note. One row per brand
-// in the shared brand_index ledger — the same data the table's Status
-// column and the Reserve's Brand Index read.
+// YOUR FILE — the personal read on a maker, editable from the dossier. Two
+// things belong to the user now: the FAVOURITE star (stored as status
+// 'trusted' on the shared brand_index ledger, feeding Beau's positive
+// signal) and the free-text note. "Known for" is Beau's own line — shown
+// with his tag in the Discover table, never editable here.
 // ---------------------------------------------------------------------------
 
 export function BrandPersonalFile({ brandName }: { brandName: string }) {
   const [entryId, setEntryId] = useState<number | null>(null);
-  const [status, setStatus] = useState<BrandIndexStatus>('curious');
-  const [knownFor, setKnownFor] = useState('');
-  const [specialisations, setSpecialisations] = useState('');
-  const [signaturePieces, setSignaturePieces] = useState('');
+  const [favourite, setFavourite] = useState(false);
   const [note, setNote] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -667,10 +694,7 @@ export function BrandPersonalFile({ brandName }: { brandName: string }) {
         if (cancelled) return;
         const hit = rows.find((r) => (r.name || '').trim().toLowerCase() === brandName.toLowerCase()) || null;
         setEntryId(hit ? hit.id : null);
-        setStatus(hit?.status || 'curious');
-        setKnownFor(hit?.known_for || '');
-        setSpecialisations(hit?.specialisations || '');
-        setSignaturePieces(hit?.signature_pieces || '');
+        setFavourite(hit?.status === 'trusted');
         setNote(hit?.note || '');
       })
       .catch(() => undefined)
@@ -689,20 +713,17 @@ export function BrandPersonalFile({ brandName }: { brandName: string }) {
     try {
       const payload = {
         name: brandName,
-        status,
+        status: (favourite ? 'trusted' : 'curious') as BrandIndexStatus,
         note: note.trim() || null,
-        known_for: knownFor.trim() || null,
-        specialisations: specialisations.trim() || null,
-        signature_pieces: signaturePieces.trim() || null,
       };
       if (entryId != null) {
         await updateBrandIndexEntry(entryId, payload);
       } else {
-        const fresh = await addBrandIndexEntry({ ...payload, url: null, logo_url: null });
+        const fresh = await addBrandIndexEntry({ ...payload, url: null, logo_url: null, known_for: null, specialisations: null, signature_pieces: null });
         const hit = fresh.find((r) => (r.name || '').trim().toLowerCase() === brandName.toLowerCase());
         if (hit) setEntryId(hit.id);
       }
-      setSavedNote('Saved — Trusted and Avoided reach Beau immediately.');
+      setSavedNote('Saved — favourites reach Beau immediately.');
     } catch {
       setSavedNote('That didn’t save — try again in a moment.');
     } finally {
@@ -710,64 +731,35 @@ export function BrandPersonalFile({ brandName }: { brandName: string }) {
     }
   };
 
-  const field = (label: string, value: string, set: (v: string) => void, placeholder: string) => (
-    <label className="block">
-      <span className="block uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.12em', marginBottom: '4px' }}>
-        {label}
-      </span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => set(e.target.value)}
-        placeholder={placeholder}
-        className="hab-input w-full"
-        style={{ paddingTop: '8px', paddingBottom: '8px' }}
-        aria-label={label}
-      />
-    </label>
-  );
-
   return (
     <div className="mt-6 border-t border-[var(--color-divider,rgba(59,43,29,0.18))] pt-5">
       <p className="uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', marginBottom: '4px' }}>
         Your file
       </p>
       <p className="text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, maxWidth: '58ch' }}>
-        Trusted and Avoided steer Beau’s recommendations — Curious is your own tracking.
+        Star a favourite and Beau checks that maker first when hunting your gaps. The note is yours alone.
       </p>
-      <div className="flex flex-wrap gap-1.5 mt-3" role="group" aria-label={`Your status for ${brandName}`}>
-        {BRAND_STATUS_ORDER.map((id) => {
-          const meta = BRAND_STATUS_META[id];
-          const active = status === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setStatus(id)}
-              aria-pressed={active}
-              className="uppercase min-h-[38px] px-3.5 rounded border transition-colors flex-shrink-0"
-              style={{
-                fontFamily: 'var(--space-font-heading)',
-                fontSize: '11.5px',
-                letterSpacing: '0.1em',
-                fontWeight: active ? 500 : 400,
-                color: active ? meta.color : 'var(--color-neutral-700,#634e38)',
-                borderColor: active ? meta.border : 'var(--color-divider,rgba(59,43,29,0.18))',
-                background: active ? meta.bg : 'transparent',
-              }}
-            >
-              {meta.label}
-            </button>
-          );
-        })}
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => setFavourite((cur) => !cur)}
+          aria-pressed={favourite}
+          className="uppercase inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded border transition-colors"
+          style={{
+            fontFamily: 'var(--space-font-heading)',
+            fontSize: '11.5px',
+            letterSpacing: '0.1em',
+            fontWeight: favourite ? 500 : 400,
+            color: favourite ? '#8B3A3A' : 'var(--color-neutral-700,#634e38)',
+            borderColor: favourite ? 'rgba(139,58,58,0.55)' : 'var(--color-divider,rgba(59,43,29,0.18))',
+            background: favourite ? 'rgba(139,58,58,0.08)' : 'transparent',
+          }}
+        >
+          <Star className="w-4 h-4" style={{ fill: favourite ? '#8B3A3A' : 'transparent' }} aria-hidden="true" />
+          {favourite ? 'Favourite' : 'Mark as favourite'}
+        </button>
       </div>
-      <p className="text-[var(--color-neutral-600,#856c51)] mt-1.5" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px' }}>
-        {BRAND_STATUS_META[status].line}
-      </p>
-      <div className="grid gap-3 mt-4 sm:grid-cols-2">
-        {field('Known for', knownFor, setKnownFor, 'e.g. Oxford shirts, knitwear')}
-        {field('Specialisations', specialisations, setSpecialisations, 'e.g. tailoring, casualwear')}
-        {field('Signature pieces', signaturePieces, setSignaturePieces, 'e.g. the unstructured blazer, the chambray OCBD')}
+      <div className="grid gap-3 mt-4">
         <label className="block">
           <span className="block uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.12em', marginBottom: '4px' }}>
             Your note
@@ -891,7 +883,7 @@ function toggleIn<T extends string>(list: T[], value: T, set: (v: T[]) => void) 
 function BrandTable({
   entries,
   metaMap,
-  onCycleStatus,
+  onToggleFavourite,
   onOpenBrand,
   compareList,
   onToggleCompare,
@@ -899,9 +891,9 @@ function BrandTable({
   onToggleMatrix,
 }: {
   entries: DirectoryEntry[];
-  /** brand (lowercase) → the personal brand_index row (status, logo, notes). */
+  /** brand (lowercase) → the personal brand_index row (favourite, logo, note). */
   metaMap: Map<string, BrandIndexEntry>;
-  onCycleStatus: (brand: string) => void;
+  onToggleFavourite: (brand: string) => void;
   onOpenBrand: (brandName: string) => void;
   compareList: string[];
   onToggleCompare: (brand: string) => void;
@@ -924,28 +916,32 @@ function BrandTable({
   };
   return (
     <div className="overflow-x-auto border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)]">
-      <table className="w-full border-collapse" style={{ minWidth: '1020px' }}>
+      <table className="w-full border-collapse" style={{ minWidth: '1240px' }}>
         {/* Columns are sized by the CONTENT they hold, not in equal shares:
             Archetype fit carries several chips and takes the lion's share,
-            while Price, Origin and the rating need only their few
-            characters. */}
+            while Favourite, Price, Origin and the rating need only their
+            few characters. Column order matches the filter rows top→bottom. */}
         <colgroup>
-          <col style={{ width: '17%' }} />
-          <col style={{ width: '8%' }} />
+          <col style={{ width: '4%' }} />
+          <col style={{ width: '14%' }} />
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '9%' }} />
           <col style={{ width: '10%' }} />
-          <col style={{ width: '11%' }} />
+          <col style={{ width: '15%' }} />
           <col style={{ width: '12%' }} />
-          <col style={{ width: '28%' }} />
-          <col style={{ width: '10%' }} />
+          <col style={{ width: '18%' }} />
+          <col style={{ width: '7%' }} />
           <col style={{ width: '4%' }} />
         </colgroup>
         <thead>
           <tr className="border-b border-[var(--color-text,#3b2b1d)]">
+            <th className={head} style={headStyle} title="Favourite" aria-label="Favourite">★</th>
             <th className={head} style={headStyle}>Maker</th>
-            <th className={head} style={headStyle}>Status</th>
             <th className={head} style={headStyle}>Origin</th>
             <th className={head} style={headStyle}>Price tier</th>
             <th className={head} style={headStyle}>Material signal</th>
+            <th className={head} style={headStyle}>Known for</th>
+            <th className={head} style={headStyle}>Your note</th>
             <th className={head} style={headStyle}>Archetype fit</th>
             <th className={head} style={headStyle}>Beau&rsquo;s rating</th>
             <th className={`${head} text-right`} style={headStyle} aria-label="Actions" />
@@ -966,6 +962,10 @@ function BrandTable({
               aria-label={`${b.brand} — open the brand dossier`}
               className="cursor-pointer align-top hover:bg-[var(--color-accent-100,#fbf1de)] focus:outline-none focus:bg-[var(--color-accent-100,#fbf1de)] transition-colors"
             >
+              {/* FAVOURITE — the one per-row user control; feeds Beau. */}
+              <td className="px-2 py-3">
+                <FavouriteToggle active={isFavourite(meta)} onToggle={() => onToggleFavourite(b.brand)} brand={b.brand} />
+              </td>
               <td className="px-3 py-3 min-w-[180px]">
                 <span className="flex items-start gap-2.5">
                   {/* The stored brand mark — URL-pasted and imported rows. */}
@@ -994,22 +994,8 @@ function BrandTable({
                     >
                       {BRAND_SOURCE_LABELS[source]}
                     </span>
-                    {/* "Known for" — the personal file's one-liner. */}
-                    {meta?.known_for && (
-                      <span
-                        className="block mt-0.5 text-[var(--color-neutral-600,#856c51)]"
-                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', lineHeight: 1.4 }}
-                      >
-                        {meta.known_for}
-                      </span>
-                    )}
                   </span>
                 </span>
-              </td>
-              {/* The user's own STATUS — tap the chip to cycle Curious →
-                  Trusted → Avoided. Trusted and Avoided steer Beau. */}
-              <td className="px-3 py-3">
-                <BrandStatusChip status={meta?.status || 'curious'} onCycle={() => onCycleStatus(b.brand)} />
               </td>
               <td className="px-3 py-3 whitespace-nowrap" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-neutral-700,#634e38)' }}>
                 {b.country}
@@ -1022,6 +1008,26 @@ function BrandTable({
               </td>
               <td className="px-3 py-3 min-w-[140px]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-neutral-800,#453325)' }}>
                 {primaryMaterialSignal(b)}
+              </td>
+              {/* KNOWN FOR — Beau's own line, never user-editable. */}
+              <td className="px-3 py-3 min-w-[160px]">
+                {beauKnownFor(b, meta) ? (
+                  <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, color: 'var(--color-neutral-800,#453325)' }}>
+                    {beauKnownFor(b, meta)} <BeauTag />
+                  </span>
+                ) : (
+                  <span className={`${typography.size.xs} ${typography.color.muted}`}>—</span>
+                )}
+              </td>
+              {/* YOUR NOTE — the one free-text field the user owns. */}
+              <td className="px-3 py-3 min-w-[140px]">
+                {meta?.note ? (
+                  <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, color: 'var(--color-neutral-700,#634e38)' }}>
+                    {meta.note}
+                  </span>
+                ) : (
+                  <span className={`${typography.size.xs} ${typography.color.muted}`}>—</span>
+                )}
               </td>
               <td className="px-3 py-3">
                 {/* Every direction this maker serves, as wrapping chips — no
@@ -1052,7 +1058,7 @@ function BrandTable({
             // `border: none` because the tbody's divide-y would otherwise
             // hang a stray hairline off a row that is not a maker.
             <tr aria-hidden="true" style={{ border: 'none' }}>
-              <td colSpan={8} style={{ padding: 0, border: 'none' }}>
+              <td colSpan={10} style={{ padding: 0, border: 'none' }}>
                 <span ref={sentinelRef} className="block" style={{ height: '1px' }} />
               </td>
             </tr>
@@ -1091,9 +1097,10 @@ export function DiscoverSubTab({
     return () => window.removeEventListener(DISCOVER_BRANDS_EVENT, onChanged);
   }, [refresh]);
 
-  // The personal per-brand files — status / logo / known for / notes — from
-  // the shared brand_index ledger (the Reserve's Brand Index reads the same
-  // rows; Trusted and Avoided feed Beau's brand signals from either side).
+  // The personal per-brand files — favourite (status 'trusted') / logo /
+  // note — from the shared brand_index ledger. Favourites feed Beau's
+  // trusted-brands signal; the Reserve's old Brand Index sub-tab is retired
+  // and this table is now the one brand-tracking surface.
   const { data: metaRows, refresh: refreshMeta } = window.useWorkspaceDB<BrandIndexEntry>('brand_index', {
     orderBy: { column: 'created_at', direction: 'desc' },
     limit: 200,
@@ -1141,26 +1148,22 @@ export function DiscoverSubTab({
     }
   };
 
-  const cycleStatus = (brand: string) => {
-    const current = metaMap.get(brand.toLowerCase())?.status || 'curious';
-    void setBrandStatus(brand, nextStatus(current));
+  /** Favourite on/off — 'trusted' keeps feeding Beau's positive signal;
+   * unfavouriting returns the ledger row to the neutral 'curious'. */
+  const toggleFavourite = (brand: string) => {
+    const fav = isFavourite(metaMap.get(brand.toLowerCase()));
+    void setBrandStatus(brand, fav ? 'curious' : 'trusted');
   };
 
-  // "Add a maker" — the TOP element of Discover: three ways in on one
-  // toggle (type a name / paste a URL / upload a file).
-  const [addMode, setAddMode] = useState<'name' | 'url' | 'file'>('name');
-  const [formName, setFormName] = useState('');
-  const [formUrl, setFormUrl] = useState('');
-  const [formLogo, setFormLogo] = useState<string | null>(null);
-  const [formStatus, setFormStatus] = useState<BrandIndexStatus>('curious');
-  const [formKnownFor, setFormKnownFor] = useState('');
-  const [formSpecialisations, setFormSpecialisations] = useState('');
-  const [formSignaturePieces, setFormSignaturePieces] = useState('');
+  // "Add a maker" — the TOP element of Discover: ONE smart input (a name
+  // or a URL, auto-detected per keystroke) plus the file upload, on one
+  // toggle.
+  const [addMode, setAddMode] = useState<'entry' | 'file'>('entry');
+  const [formInput, setFormInput] = useState('');
   const [formNote, setFormNote] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
-  const [urlBusy, setUrlBusy] = useState(false);
-  const [urlNote, setUrlNote] = useState<string | null>(null);
+  const inputIsUrl = looksLikeUrl(formInput.trim());
 
   // File import state.
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1170,70 +1173,52 @@ export function DiscoverSubTab({
   const [importReport, setImportReport] = useState<string | null>(null);
 
   const resetForm = () => {
-    setFormName('');
-    setFormUrl('');
-    setFormLogo(null);
-    setFormStatus('curious');
-    setFormKnownFor('');
-    setFormSpecialisations('');
-    setFormSignaturePieces('');
+    setFormInput('');
     setFormNote('');
-    setUrlNote(null);
   };
 
-  /** URL mode: read the brand's name + logo off its own page. */
-  const readSite = async () => {
-    const clean = normalizeSiteUrl(formUrl);
-    if (!clean || urlBusy) return;
-    setUrlBusy(true);
-    setUrlNote(null);
-    setAddError(null);
-    try {
-      const meta = await fetchSiteMeta(clean);
-      if (meta.name) setFormName(meta.name);
-      setFormLogo(meta.logoUrl);
-      setUrlNote(
-        meta.logoUrl
-          ? 'Name and logo read off the site — correct anything below before adding.'
-          : 'Name read off the site — no logo found, the entry works fine without one.',
-      );
-    } finally {
-      setUrlBusy(false);
-    }
-  };
-
+  /** ONE SMART INPUT (founder's fix): a pasted URL is auto-detected and
+   * imported — the brand's name and logo read off its own page — while a
+   * plain name goes straight to Beau's dossier generation. One box, two
+   * behaviours. */
   const submitAdd = async () => {
-    const name = formName.trim();
-    if (!name || addBusy) return;
+    const raw = formInput.trim();
+    if (!raw || addBusy) return;
     setAddBusy(true);
     setAddError(null);
     try {
+      let name = raw;
+      let cleanUrl: string | null = null;
+      let logo: string | null = null;
+      if (looksLikeUrl(raw)) {
+        cleanUrl = normalizeSiteUrl(raw);
+        if (!cleanUrl) throw new Error('That URL couldn\u2019t be read — check it and try again.');
+        const meta = await fetchSiteMeta(cleanUrl);
+        name = meta.name || raw;
+        logo = meta.logoUrl || faviconFor(cleanUrl);
+      }
       const added = await addUserDirectoryBrand(name);
-      // The personal file: persist the status / fields / site / logo when
-      // any are set (Curious with nothing filled needs no ledger row).
-      const cleanUrl = normalizeSiteUrl(formUrl);
-      const logo = formLogo || (cleanUrl ? faviconFor(cleanUrl) : null);
-      const hasFile =
-        formStatus !== 'curious' ||
-        formKnownFor.trim() ||
-        formSpecialisations.trim() ||
-        formSignaturePieces.trim() ||
-        formNote.trim() ||
-        cleanUrl;
-      if (hasFile) {
-        const payload = {
-          name: added.brand,
-          url: cleanUrl,
-          logo_url: logo,
-          status: formStatus,
-          note: formNote.trim() || null,
-          known_for: formKnownFor.trim() || null,
-          specialisations: formSpecialisations.trim() || null,
-          signature_pieces: formSignaturePieces.trim() || null,
-        };
+      // The ledger row rides along when there is anything to keep — the
+      // site + its logo (URL adds) and/or the user's own note.
+      if (cleanUrl || formNote.trim()) {
         const existing = (metaRows || []).find((r) => (r.name || '').trim().toLowerCase() === added.brand.toLowerCase());
-        if (existing) await updateBrandIndexEntry(existing.id, payload);
-        else await addBrandIndexEntry(payload);
+        if (existing) {
+          await updateBrandIndexEntry(existing.id, {
+            ...(cleanUrl ? { url: cleanUrl, logo_url: logo } : {}),
+            ...(formNote.trim() ? { note: formNote.trim() } : {}),
+          });
+        } else {
+          await addBrandIndexEntry({
+            name: added.brand,
+            url: cleanUrl,
+            logo_url: logo,
+            status: 'curious',
+            note: formNote.trim() || null,
+            known_for: null,
+            specialisations: null,
+            signature_pieces: null,
+          });
+        }
         refreshMeta();
       }
       resetForm();
@@ -1301,7 +1286,9 @@ export function DiscoverSubTab({
   // Style · Rating); Category / Construction / Register follow past the
   // hairline as facets without a column of their own.
   const [nameQuery, setNameQuery] = useState('');
-  const [statuses, setStatuses] = useState<BrandIndexStatus[]>([]);
+  const [favesOnly, setFavesOnly] = useState(false);
+  const [knownForQuery, setKnownForQuery] = useState('');
+  const [noteQuery, setNoteQuery] = useState('');
   const [category, setCategory] = useState<string>('');
   const [priceBand, setPriceBand] = useState<PriceBand | ''>('');
   const [countries, setCountries] = useState<string[]>([]);
@@ -1328,10 +1315,11 @@ export function DiscoverSubTab({
         const meta = metaMap.get(b.brand.toLowerCase());
         if (nameQuery.trim()) {
           const q = nameQuery.trim().toLowerCase();
-          const knownFor = (meta?.known_for || '').toLowerCase();
-          if (!b.brand.toLowerCase().includes(q) && !knownFor.includes(q)) return false;
+          if (!b.brand.toLowerCase().includes(q)) return false;
         }
-        if (statuses.length > 0 && !statuses.includes(meta?.status || 'curious')) return false;
+        if (favesOnly && !isFavourite(meta)) return false;
+        if (knownForQuery.trim() && !beauKnownFor(b, meta).toLowerCase().includes(knownForQuery.trim().toLowerCase())) return false;
+        if (noteQuery.trim() && !(meta?.note || '').toLowerCase().includes(noteQuery.trim().toLowerCase())) return false;
         if (countries.length > 0 && !countries.includes(b.country)) return false;
         if (priceBand && b.priceBand !== priceBand) return false;
         if (materials.length > 0 && !materials.some((m) => brandMatchesDiscoverMaterial(b, m))) return false;
@@ -1342,7 +1330,7 @@ export function DiscoverSubTab({
         if (registers.length > 0 && !registers.some((r) => b.registers.includes(r as Register))) return false;
         return true;
       }),
-    [entries, metaMap, nameQuery, statuses, category, priceBand, countries, construction, materials, registers, archetypes, ratings],
+    [entries, metaMap, nameQuery, favesOnly, knownForQuery, noteQuery, category, priceBand, countries, construction, materials, registers, archetypes, ratings],
   );
 
   // PROFILE TOGGLE behaviour — the fix: ON actually filters and ranks.
@@ -1380,7 +1368,9 @@ export function DiscoverSubTab({
 
   const anyFilter =
     nameQuery.trim() !== '' ||
-    statuses.length > 0 ||
+    favesOnly ||
+    knownForQuery.trim() !== '' ||
+    noteQuery.trim() !== '' ||
     ratings.length > 0 ||
     category !== '' ||
     priceBand !== '' ||
@@ -1392,7 +1382,9 @@ export function DiscoverSubTab({
 
   const clearFilters = () => {
     setNameQuery('');
-    setStatuses([]);
+    setFavesOnly(false);
+    setKnownForQuery('');
+    setNoteQuery('');
     setCategory('');
     setPriceBand('');
     setCountries([]);
@@ -1405,21 +1397,24 @@ export function DiscoverSubTab({
 
   return (
     <div className="space-y-5">
-      {/* —— ADD A MAKER — at the very top, above filters and table. Three
-          ways in on one toggle: type a name, paste a URL, upload a file. */}
+      {/* —— RATING LEGEND — Beau's four tiers, spelled out at the top of
+          the view so every rating tag below reads itself. */}
+      <RatingLegend />
+
+      {/* —— ADD A MAKER — above filters and table. ONE smart input (name
+          or URL, auto-detected) plus the file upload. */}
       <div className="bg-[var(--color-paper,#fbf8f1)] border-t border-t-[var(--color-text,#3b2b1d)] border-b border-b-[var(--color-divider,rgba(59,43,29,0.18))]" style={{ padding: '24px 26px 26px' }}>
         <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', marginBottom: '6px' }}>
           Add a maker
         </p>
         <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '58ch' }}>
-          Three ways in — type the name and Beau builds the full dossier himself, paste the brand&rsquo;s site and the
-          name and logo read themselves, or upload a whole list at once.
+          One box, two behaviours — type a name and Beau builds the full dossier himself, or paste the brand&rsquo;s
+          site URL into the same box and the name and logo read themselves. Whole lists upload as a file.
         </p>
 
         <div className="flex flex-wrap gap-1.5 mt-4" role="group" aria-label="How to add the brand">
           {([
-            { id: 'name' as const, label: 'Type a name' },
-            { id: 'url' as const, label: 'Paste a URL' },
+            { id: 'entry' as const, label: 'Name or URL' },
             { id: 'file' as const, label: 'Upload a file' },
           ]).map(({ id, label }) => (
             <FilterChip
@@ -1443,108 +1438,42 @@ export function DiscoverSubTab({
               void submitAdd();
             }}
           >
-            {addMode === 'url' && (
-              <div className="flex items-stretch gap-2 flex-wrap">
-                <input
-                  type="url"
-                  value={formUrl}
-                  onChange={(e) => setFormUrl(e.target.value)}
-                  placeholder="https://… (a brand or product page)"
-                  className="hab-input flex-1 min-w-[200px]"
-                  style={{ paddingTop: '10px', paddingBottom: '10px' }}
-                  disabled={urlBusy || addBusy}
-                  aria-label="Brand or product page URL"
-                />
-                <button
-                  type="button"
-                  onClick={() => void readSite()}
-                  disabled={!normalizeSiteUrl(formUrl) || urlBusy || addBusy}
-                  className="px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
-                >
-                  {urlBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {urlBusy ? 'Reading the site…' : 'Read the site'}
-                </button>
-              </div>
-            )}
-            {addMode === 'url' && (formLogo || urlNote) && (
-              <div className="flex items-center gap-2.5 mt-2.5">
-                {formLogo && <BrandMark name={formName || 'brand'} logoUrl={formLogo} />}
-                <span className={`${typography.size.xs} ${typography.color.muted}`}>{urlNote || 'The fetched logo — saved with the brand.'}</span>
-              </div>
-            )}
-
-            <div className={`flex items-stretch gap-2 flex-wrap ${addMode === 'url' ? 'mt-3' : ''}`}>
+            {/* ONE SMART INPUT — a name or a URL, detected as you type. */}
+            <div className="flex items-stretch gap-2 flex-wrap">
               <input
                 type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder={addMode === 'url' ? 'Brand name — pre-filled from the site' : 'e.g. Orslow, Anglo-Italian, De Bonne Facture…'}
+                value={formInput}
+                onChange={(e) => setFormInput(e.target.value)}
+                placeholder="e.g. Orslow, Anglo-Italian… — or paste the brand's site URL"
                 className="hab-input flex-1 min-w-[200px]"
                 style={{ paddingTop: '10px', paddingBottom: '10px' }}
                 disabled={addBusy}
-                aria-label="Brand name"
+                aria-label="Brand name or site URL"
               />
               <button
                 type="submit"
-                disabled={addBusy || !formName.trim()}
+                disabled={addBusy || !formInput.trim()}
                 className="px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
               >
                 {addBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-                {addBusy ? 'Building the file…' : 'Add the maker'}
+                {addBusy ? (inputIsUrl ? 'Reading the site…' : 'Building the file…') : 'Add the maker'}
               </button>
             </div>
-            {addMode === 'name' && (
-              <input
-                type="url"
-                value={formUrl}
-                onChange={(e) => setFormUrl(e.target.value)}
-                placeholder="Site URL (optional — the logo fetches from it)"
-                className="hab-input w-full mt-3"
-                style={{ paddingTop: '8px', paddingBottom: '8px' }}
-                disabled={addBusy}
-                aria-label="Brand site URL (optional)"
-              />
-            )}
-
-            {/* The personal-file fields — status, known for, specialisations,
-                signature pieces and a note. All optional. */}
-            <div className="mt-4">
-              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Brand status">
-                {BRAND_STATUS_ORDER.map((id) => {
-                  const meta = BRAND_STATUS_META[id];
-                  const active = formStatus === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setFormStatus(id)}
-                      aria-pressed={active}
-                      className="uppercase min-h-[36px] px-3.5 rounded border transition-colors flex-shrink-0"
-                      style={{
-                        fontFamily: 'var(--space-font-heading)',
-                        fontSize: '11px',
-                        letterSpacing: '0.1em',
-                        fontWeight: active ? 500 : 400,
-                        color: active ? meta.color : 'var(--color-neutral-700,#634e38)',
-                        borderColor: active ? meta.border : 'var(--color-divider,rgba(59,43,29,0.18))',
-                        background: active ? meta.bg : 'transparent',
-                      }}
-                    >
-                      {meta.label}
-                    </button>
-                  );
-                })}
-                <span className="text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px' }}>
-                  {BRAND_STATUS_META[formStatus].line}
-                </span>
-              </div>
-              <div className="grid gap-2 mt-3 sm:grid-cols-3">
-                <input type="text" value={formKnownFor} onChange={(e) => setFormKnownFor(e.target.value)} placeholder="Known for — e.g. Oxford shirts, knitwear" className="hab-input" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Known for" />
-                <input type="text" value={formSpecialisations} onChange={(e) => setFormSpecialisations(e.target.value)} placeholder="Specialisations — e.g. tailoring, casualwear" className="hab-input" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Specialisations" />
-                <input type="text" value={formSignaturePieces} onChange={(e) => setFormSignaturePieces(e.target.value)} placeholder="Signature pieces — e.g. the unstructured blazer" className="hab-input" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Signature pieces" />
-              </div>
-              <textarea value={formNote} onChange={(e) => setFormNote(e.target.value)} placeholder="Your note (optional) — e.g. sizing runs slim, order a size up" rows={2} className="hab-input w-full resize-none mt-2" style={{ paddingTop: '8px', paddingBottom: '8px' }} aria-label="Your note" />
-            </div>
+            <p className={`${typography.size.xs} ${inputIsUrl ? 'text-[var(--color-accent-700,#7c4a17)]' : typography.color.muted} mt-1.5`}>
+              {inputIsUrl
+                ? 'URL detected — the brand’s name and logo will be read off its own page.'
+                : 'A name gets Beau’s full dossier; a pasted URL imports itself — name and logo off the site.'}
+            </p>
+            <textarea
+              value={formNote}
+              onChange={(e) => setFormNote(e.target.value)}
+              placeholder="Your note (optional) — e.g. sizing runs slim, order a size up"
+              rows={2}
+              className="hab-input w-full resize-none mt-3"
+              style={{ paddingTop: '8px', paddingBottom: '8px' }}
+              disabled={addBusy}
+              aria-label="Your note"
+            />
           </form>
         ) : (
           /* FILE MODE — a .txt (one entry per line) or .xlsx (first column). */
@@ -1628,23 +1557,14 @@ export function DiscoverSubTab({
           </div>
         ) : null}
         <div>
-          <FilterRow label="Maker">
-            <input
-              type="search"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-              placeholder="Search by name…"
-              className="hab-input"
-              style={{ height: '32px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12.5px' }}
-              aria-label="Filter makers by name"
-            />
-          </FilterRow>
-          <FilterRow label="Status">
-            {BRAND_STATUS_ORDER.map((id) => (
-              <FilterChip key={id} active={statuses.includes(id)} onClick={() => toggleIn(statuses, id, setStatuses)} title={BRAND_STATUS_META[id].line}>
-                {BRAND_STATUS_META[id].label}
-              </FilterChip>
-            ))}
+          <FilterRow label="Favourite">
+            <FilterChip
+              active={favesOnly}
+              onClick={() => setFavesOnly((cur) => !cur)}
+              title="Show only the makers you've starred — favourites feed Beau's recommendations"
+            >
+              ★ Favourites only
+            </FilterChip>
           </FilterRow>
           <FilterRow label="Origin">
             {countryOptions.map((c) => (
@@ -1667,6 +1587,28 @@ export function DiscoverSubTab({
                 {m}
               </FilterChip>
             ))}
+          </FilterRow>
+          <FilterRow label="Known for">
+            <input
+              type="search"
+              value={knownForQuery}
+              onChange={(e) => setKnownForQuery(e.target.value)}
+              placeholder="e.g. Oxford shirts, loafers…"
+              className="hab-input"
+              style={{ height: '32px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12.5px' }}
+              aria-label="Filter by what a maker is known for"
+            />
+          </FilterRow>
+          <FilterRow label="Your note">
+            <input
+              type="search"
+              value={noteQuery}
+              onChange={(e) => setNoteQuery(e.target.value)}
+              placeholder="Search your own notes…"
+              className="hab-input"
+              style={{ height: '32px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12.5px' }}
+              aria-label="Filter by your note"
+            />
           </FilterRow>
           <FilterRow label="Style">
             {Object.keys(ARCHETYPE_LABELS).map((id) => (
@@ -1714,6 +1656,20 @@ export function DiscoverSubTab({
         </div>
       </div>
 
+      {/* —— THE MAKER SEARCH — its own input, DIRECTLY above the table
+          (founder's fix): find a brand by name without touching filters. */}
+      <div>
+        <input
+          type="search"
+          value={nameQuery}
+          onChange={(e) => setNameQuery(e.target.value)}
+          placeholder="Search makers by name…"
+          className="hab-input w-full"
+          style={{ paddingTop: '10px', paddingBottom: '10px', maxWidth: '360px' }}
+          aria-label="Search makers by name"
+        />
+      </div>
+
       {/* —— THE TABLE(S). Profile ON: matched-to-you first, the rest below. */}
       {matched.length === 0 && beyond.length === 0 ? (
         <p className={`${typography.size.sm} ${typography.color.muted} py-6 text-center`}>
@@ -1730,7 +1686,7 @@ export function DiscoverSubTab({
             <BrandTable
               entries={matched}
               metaMap={metaMap}
-              onCycleStatus={cycleStatus}
+              onToggleFavourite={toggleFavourite}
               onOpenBrand={onOpenBrand}
               compareList={compareList}
               onToggleCompare={onToggleCompare}
@@ -1756,7 +1712,7 @@ export function DiscoverSubTab({
               <BrandTable
                 entries={beyond}
                 metaMap={metaMap}
-                onCycleStatus={cycleStatus}
+                onToggleFavourite={toggleFavourite}
                 onOpenBrand={onOpenBrand}
                 compareList={compareList}
                 onToggleCompare={onToggleCompare}

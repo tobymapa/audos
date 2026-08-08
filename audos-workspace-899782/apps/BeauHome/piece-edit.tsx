@@ -464,11 +464,11 @@ export function PieceEditForm({
       // re-read is queued as a separate background operation and is never
       // awaited here (reassess-queue.ts).
       queueWardrobeReassessment('piece edited');
-      // Successful persistence is the navigation boundary. Use the app's
-      // stateful navigation event (never location/reload), so the wardrobe
-      // and persistent masthead remain mounted and the updated row is visible.
+      // Saving NEVER navigates (founder's fix): the edit form simply closes
+      // in place and the user stays exactly where they were — same page,
+      // same category view. The optimistic events above already refreshed
+      // every mounted surface, so nothing needs a tab change.
       onClose?.();
-      window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab: 'wardrobe' } }));
       if (fieldsChanged || brandChanged || !isSettledPhotoSource(photoSource)) {
         // Colour, category, brand or item-type changes regenerate the image
         // from the stored original photo with the UPDATED field description.
@@ -556,6 +556,7 @@ export function PieceEditForm({
               pieceId={piece.id}
               title={nameDraft}
               showConfirmation
+              showOriginal
               className="absolute inset-0"
             />
             {/* Dark overlay only while a new photo uploads; pipeline regeneration

@@ -829,7 +829,26 @@ function RadarTableRow({
 }
 
 // ---------------------------------------------------------------------------
-// Radar tab root
+// The Reserve — ONE surface now: the watch table (price drops & restocks).
+// The old sub-tab bar is gone: "Brand Index" is retired (brand tracking
+// lives in The Hunt → Discover, with its favourite star and Beau's
+// known-for), and with only the watch list left, "The Watchlist" chip went
+// with it — no tab chrome for a single view.
+// ---------------------------------------------------------------------------
+
+export function RadarTab() {
+  return (
+    <div className="px-6 sm:px-10 pt-[52px] pb-24 max-w-[1180px] mx-auto w-full">
+      <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '20px' }}>
+        The Reserve
+      </h3>
+      <ReserveWatchlist />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The Watchlist sub-tab root (the original Radar tab, unchanged in logic)
 // ---------------------------------------------------------------------------
 
 // Pass Forty-Three columns (HTML reference): Piece · Beau's note · Fills ·
@@ -843,7 +862,7 @@ const TABLE_HEADERS: Array<{ label: string; align?: 'right' }> = [
   { label: '' },
 ];
 
-export function RadarTab() {
+function ReserveWatchlist() {
   const { data: rows, loading: rowsLoading, refresh } = window.useWorkspaceDB<RadarItem>('radar_items', {
     orderBy: { column: 'created_at', direction: 'desc' },
     limit: 100,
@@ -939,14 +958,11 @@ export function RadarTab() {
   }, [items]);
 
   return (
-    <div className="px-6 sm:px-10 pt-[52px] pb-24 max-w-[1180px] mx-auto w-full">
-      {/* Page heading row (HTML reference): heading + standfirst left, the
-          WATCHING stat block right. */}
+    <div>
+      {/* Heading row (HTML reference): standfirst left, the WATCHING stat
+          block right — the page title lives above the sub-tab bar. */}
       <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_320px] items-end gap-8 sm:gap-16">
         <div>
-          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>
-            The Reserve
-          </h3>
           <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '54ch' }}>
             Pieces you’ve saved and pieces Beau is keeping an eye on. He watches price, stock and size — and
             tells you when waiting stops being clever.

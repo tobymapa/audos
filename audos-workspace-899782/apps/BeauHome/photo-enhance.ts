@@ -295,6 +295,17 @@ function blobToDataUrl(blob: Blob): Promise<string> {
  * cold cache never eats the budget. */
 const REMOVAL_TIMEOUT_MS = 5000;
 
+/** Photoroom's own, LONGER cap (the PHOTOROOM_API_KEY fix): the primary
+ * remover uploads the photograph as base64 JSON through the workspace
+ * secrets proxy and waits on Photoroom's segmentation — a round-trip that
+ * routinely takes more than 5s. The old shared 5s cap silently abandoned
+ * perfectly healthy Photoroom calls, which read exactly like "the key
+ * isn't working": the piece kept its uncut original. Photoroom now gets a
+ * budget that matches its real round-trip, so it runs as the PRIMARY
+ * remover whenever the key is available; the fallback below still only
+ * engages on genuine Photoroom errors/unavailability. */
+const PHOTOROOM_TIMEOUT_MS = 20000;
+
 /**
  * Whether the ~84MB client-side @imgly model may run when Photoroom fails.
  *
@@ -421,10 +432,13 @@ async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): 
 }
 
 /**
- * Strip the background from the photo at `url`. Photoroom first (5s-capped
- * — purpose-built for clothing), then the client-side @imgly removal as the
- * no-key fallback. Returns a transparent-background PNG; any failure here
- * makes the caller keep the original image, so nothing ever blocks or breaks.
+ * Strip the background from the photo at `url`. Photoroom FIRST — always
+ * the primary remover while the PHOTOROOM_API_KEY secret is available
+ * (20s-capped — purpose-built for clothing; the call rides the workspace
+ * secrets proxy with `{{secrets.PHOTOROOM_API_KEY}}`), then the client-side
+ * @imgly removal as the fallback for GENUINE Photoroom errors only.
+ * Returns a transparent-background PNG; any failure here makes the caller
+ * keep the original image, so nothing ever blocks or breaks.
  */
 async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
   // 1. Photoroom — the primary remover (Pass Forty-Seven).
@@ -432,7 +446,7 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
   try {
     return await withTimeout(
       removeBackgroundViaPhotoroom(url, photoroomAbort.signal),
-      REMOVAL_TIMEOUT_MS,
+      PHOTOROOM_TIMEOUT_MS,
       'Photoroom background removal',
       // Genuinely cancel the request. Without this the abandoned upload kept
       // running alongside the fallback below, for the same photograph.

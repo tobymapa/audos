@@ -433,8 +433,8 @@ export function UnifiedResultView({
         </div>
         <p className={`${typography.size.xs} ${typography.color.muted} mt-3`} style={{ fontSize: '10px' }}>
           {profileOn
-            ? 'Personalised to your measurements, skin tone, budget, archetypes and logged wardrobe. Every hunt is kept in Your Hunt History.'
-            : 'From general menswear knowledge — no personalisation. Every hunt is kept in Your Hunt History.'}
+            ? 'Personalised to your measurements, skin tone, budget, archetypes and logged wardrobe. Every hunt is kept in Your Hunt History, below.'
+            : 'From general menswear knowledge — no personalisation. Every hunt is kept in Your Hunt History, below.'}
         </p>
         {result.search && (
           <div className="mt-9">

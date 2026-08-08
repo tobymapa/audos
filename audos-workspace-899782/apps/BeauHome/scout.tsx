@@ -1,21 +1,22 @@
 /**
  * THE HUNT (v7 — Recommendation Engine overhaul) — the brand and piece
- * intelligence hub. Exactly FIVE internal sub-tabs on a horizontal chip
+ * intelligence hub. Exactly FOUR internal sub-tabs on a horizontal chip
  * bar (see the root component at the bottom):
  *
- *   Find · Discover · Compare · Matrix · Your Hunt History
+ *   Find · Discover · Compare · Matrix
  *
  *  - Find: the UNIFIED search (./hunt-find) — the old Find, the AI
  *    Matchmaker and Judge merged into ONE input; Beau reads the intent and
  *    answers with recommendations, a brand dossier or a quality judgement.
- *    Every query is logged to Your Hunt History with its full result set.
+ *    Every query is logged to Your Hunt History with its full result set —
+ *    and the FULL history (filterable, tag/note-able, RE-RUNNABLE) lives
+ *    right beneath the input on this same sub-tab. The old separate
+ *    "Your Hunt History" sub-tab is RETIRED.
  *  - Discover: the maker directory as a TABLE (./hunt-discover) — filter
  *    chips, Beau ratings, source tags, Add to Compare / Add to Matrix,
  *    "Don't see a maker?" at the top.
  *  - Compare / Matrix: the brand-intelligence layer (./brands seed catalog,
  *    ./hunt-ai models, ./hunt-tools components, the shared Brand Dossier).
- *  - Your Hunt History: the full record of past hunts — filterable,
- *    tag/note-able, and RE-RUNNABLE (any row can fire its query again).
  *
  * "Plan a Trip" left this tab entirely — it lives on The Ledger now
  * (App.tsx renders ./travel there; a tapped gap hands back to Find here).
@@ -835,21 +836,22 @@ function SheetView({
 function ScoutHistory({
   rows,
   metaByHunt,
-  onBack,
   onOpen,
   onSaveMeta,
   onDelete,
   onRerun,
+  clearControl,
 }: {
   rows: ScoutHuntRow[];
   metaByHunt: Map<number, ScoutMetaRow>;
-  onBack: () => void;
   onOpen: (id: number) => void;
   onSaveMeta: (huntId: number, patch: { tag?: ScoutTag | null; note?: string }) => Promise<void>;
   /** Remove one hunt/review from the history (Pass Forty-Four). */
   onDelete: (id: number) => Promise<void>;
   /** Re-run a row's query through the unified Find. */
   onRerun: (row: ScoutHuntRow) => void;
+  /** The "Clear history" affordance, rendered in the header row. */
+  clearControl?: React.ReactNode;
 }) {
   const [layout, setLayout] = useState<'list' | 'sheet'>('list');
   const [catFilter, setCatFilter] = useState<string>('all');
@@ -875,14 +877,7 @@ function ScoutHistory({
   return (
     <div className="space-y-4">
       <div>
-        <button
-          type="button"
-          onClick={onBack}
-          className={`inline-flex items-center gap-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> The Hunt
-        </button>
-        <div className="flex items-end justify-between gap-3 mt-2 flex-wrap">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
             <h3 className={`hab-section-head ${typography.color.primary}`}>
               Your Hunt History
@@ -891,6 +886,8 @@ function ScoutHistory({
               Every hunt and verdict, kept with your tags and notes — research that builds over time.
             </p>
           </div>
+          <span className="inline-flex items-center gap-4 flex-wrap">
+          {clearControl}
           {rows.length > 0 && (
             <div className="inline-flex rounded-lg border border-[var(--space-border-default)] overflow-hidden">
               {([
@@ -914,6 +911,7 @@ function ScoutHistory({
               ))}
             </div>
           )}
+          </span>
         </div>
       </div>
 
@@ -984,15 +982,16 @@ function ScoutHistory({
 
 // ---------------------------------------------------------------------------
 // The Hunt root — the brand & piece intelligence hub (Recommendation
-// Engine overhaul): ONE profile toggle at the top, then exactly FIVE
+// Engine overhaul): ONE profile toggle at the top, then exactly FOUR
 // internal sub-tabs on a horizontal chip bar:
-//   Find · Discover · Compare · Matrix · Your Hunt History
+//   Find · Discover · Compare · Matrix
 //  - Find: the unified search (hunt-find) — Find + Match + Judge merged;
-//    Beau reads the intent and answers in the right form.
+//    Beau reads the intent and answers in the right form. The FULL Hunt
+//    History (filters, list/sheet, re-runnable) lives beneath the input —
+//    the old separate history sub-tab is retired.
 //  - Discover: the maker directory table with filter chips (hunt-discover).
 //  - Compare: 2–3 brands side by side + Beau's verdict (hunt-tools).
 //  - Matrix: the quality/longevity scatter, built from Discover (hunt-tools).
-//  - Your Hunt History: the full re-runnable record (filters, list/sheet).
 // "Plan a Trip" moved to The Ledger (App.tsx). The old Match and Judge
 // sub-tabs merged into Find — their deep links normalise to it.
 // The PROFILE TOGGLE persists for the session (brands.ts) and applies
@@ -1001,23 +1000,23 @@ function ScoutHistory({
 // knowledge only — nothing personal is read.
 // ---------------------------------------------------------------------------
 
-type HuntSubTab = 'find' | 'discover' | 'compare' | 'matrix' | 'history';
+type HuntSubTab = 'find' | 'discover' | 'compare' | 'matrix';
 
 const HUNT_SUB_TABS: Array<{ id: HuntSubTab; label: string }> = [
   { id: 'find', label: 'Find' },
   { id: 'discover', label: 'Discover' },
   { id: 'compare', label: 'Compare' },
   { id: 'matrix', label: 'Matrix' },
-  { id: 'history', label: 'Your Hunt History' },
 ];
 
 /** Normalise a requested sub-tab, mapping retired ids to their new homes:
  * 'match' and 'judge' merged into the unified Find; 'trip' moved to The
- * Ledger, so a stale deep link lands on Find rather than a dead end. */
+ * Ledger; 'history' now lives INSIDE Find — so a stale deep link lands on
+ * Find rather than a dead end. */
 function normalizeHuntSubTab(value: string | null | undefined): HuntSubTab | null {
   if (!value) return null;
   if (HUNT_SUB_TABS.some((t) => t.id === value)) return value as HuntSubTab;
-  if (value === 'match' || value === 'judge' || value === 'trip') return 'find';
+  if (value === 'match' || value === 'judge' || value === 'trip' || value === 'history') return 'find';
   return null;
 }
 
@@ -1247,6 +1246,43 @@ export function ScoutTab({
 
   const huntCount = (rows || []).length;
 
+  // The "Clear history" affordance — a plain accent text link with a plain
+  // inline confirm (Pass Forty-Four), rendered inside the embedded history's
+  // header row on Find.
+  const clearHistoryControl = huntCount > 0 ? (
+    !confirmClearHistory ? (
+      <button
+        type="button"
+        onClick={() => setConfirmClearHistory(true)}
+        className="hover:underline"
+        style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+      >
+        Clear history ›
+      </button>
+    ) : (
+      <span className="inline-flex items-baseline gap-3" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+        <span className="text-[var(--color-neutral-700,#634e38)]">Clear every hunt and review?</span>
+        <button
+          type="button"
+          onClick={() => void clearHistory()}
+          disabled={clearingHistory}
+          className="hover:underline disabled:opacity-50"
+          style={{ color: 'var(--color-accent,#a8712c)' }}
+        >
+          {clearingHistory ? 'Clearing…' : 'Yes, clear it'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirmClearHistory(false)}
+          disabled={clearingHistory}
+          className="text-[var(--color-neutral-600,#856c51)] hover:underline disabled:opacity-50"
+        >
+          Keep
+        </button>
+      </span>
+    )
+  ) : null;
+
   return (
     <div className="pb-24">
       {/* Page heading row: heading + standfirst left, the PROFILE TOGGLE
@@ -1333,132 +1369,23 @@ export function ScoutTab({
             onToggleCompare={toggleCompare}
           />
 
-          {/* Recent hunts — plain hairline rows; the full filterable record
-              lives on the Your Hunt History sub-tab. */}
-          <section aria-label="Recent hunts" className="mt-10">
-            <div className="flex items-baseline justify-between gap-3 pb-2.5 border-b border-[var(--color-text,#3b2b1d)]">
-              <h4 className={`hab-section-head ${typography.color.primary}`}>Recent hunts</h4>
-              <span className="inline-flex items-baseline gap-4 flex-wrap">
-                {huntCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSubTab('history')}
-                    className="hab-kicker text-[var(--color-accent-700,#7c4a17)] hover:underline"
-                    style={{ letterSpacing: '0.14em' }}
-                  >
-                    Your Hunt History →
-                  </button>
-                )}
-                {/* Clear history — plain accent text link with a plain inline
-                    confirm (Pass Forty-Four). */}
-                {huntCount > 0 && !confirmClearHistory && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmClearHistory(true)}
-                    className="hover:underline"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
-                  >
-                    Clear history ›
-                  </button>
-                )}
-                {confirmClearHistory && (
-                  <span className="inline-flex items-baseline gap-3" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
-                    <span className="text-[var(--color-neutral-700,#634e38)]">Clear every hunt and review?</span>
-                    <button
-                      type="button"
-                      onClick={() => void clearHistory()}
-                      disabled={clearingHistory}
-                      className="hover:underline disabled:opacity-50"
-                      style={{ color: 'var(--color-accent,#a8712c)' }}
-                    >
-                      {clearingHistory ? 'Clearing…' : 'Yes, clear it'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmClearHistory(false)}
-                      disabled={clearingHistory}
-                      className="text-[var(--color-neutral-600,#856c51)] hover:underline disabled:opacity-50"
-                    >
-                      Keep
-                    </button>
-                  </span>
-                )}
-              </span>
-            </div>
+          {/* YOUR HUNT HISTORY — the full filterable, RE-RUNNABLE record,
+              embedded right beneath the input: hunt history lives HERE,
+              inside Find (the separate history sub-tab is retired). */}
+          <section aria-label="Your Hunt History" className="mt-10">
             {rowsLoading && huntCount === 0 ? (
               /* History loading — shimmer hairline rows, never a blank area */
               <HairlineRowsSkeleton rows={4} />
-            ) : huntCount === 0 ? (
-              <p className="mt-3" style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, color: 'var(--color-neutral-600,#856c51)' }}>
-                Nothing hunted yet — every hunt and verdict is kept here with your tags and notes.
-              </p>
             ) : (
-              <div className="divide-y divide-[var(--color-divider,rgba(59,43,29,0.18))] border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-                {(rows || []).slice(0, 6).map((row) => {
-                  const meta = huntRowMeta(row);
-                  return (
-                    <div
-                      key={row.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSelectedId(row.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') setSelectedId(row.id);
-                      }}
-                      /* Mobile no-clipping rule (global truncation fix): at
-                         phone widths the fixed status/control columns were
-                         crushing the two text columns to nothing — here the
-                         detail line drops to its own full-width row and the
-                         title keeps the whole first line. ≥sm restores the
-                         original five-column ledger layout. */
-                      className="w-full grid items-center text-left group cursor-pointer gap-x-3 gap-y-1 grid-cols-[minmax(0,1fr)_auto_20px_18px] sm:gap-6 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_130px_20px_18px]"
-                      style={{ padding: '18px 4px' }}
-                    >
-                      <span
-                        className={`min-w-0 truncate ${typography.color.primary}`}
-                        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '19px', fontWeight: 400, lineHeight: 1.2 }}
-                      >
-                        {row.title || row.query || 'Hunt request'}
-                      </span>
-                      <span className="min-w-0 truncate text-[var(--color-neutral-700,#634e38)] order-last col-span-full sm:order-none sm:col-span-1" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
-                        {meta.detail || formatDate(row.created_at)}
-                      </span>
-                      <span
-                        className="text-right uppercase"
-                        style={{
-                          fontFamily: 'var(--space-font-heading)',
-                          fontSize: '12px',
-                          letterSpacing: '0.1em',
-                          color: meta.status === 'Reviewed' ? 'var(--color-accent-700,#7c4a17)' : 'var(--color-neutral-600,#856c51)',
-                        }}
-                      >
-                        {meta.status}
-                      </span>
-                      {/* Subtle × remove control, trailing the row before the › */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void deleteHunt(row.id);
-                        }}
-                        className="justify-self-end text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-accent-700,#7c4a17)] transition-colors"
-                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1 }}
-                        aria-label={`Remove “${row.title || row.query || 'Hunt request'}” from history`}
-                        title="Remove from history"
-                      >
-                        ×
-                      </button>
-                      <span
-                        className="justify-self-end text-[var(--color-neutral-500,#a68e70)] group-hover:translate-x-0.5 transition-transform"
-                        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1 }}
-                        aria-hidden="true"
-                      >
-                        ›
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <ScoutHistory
+                rows={rows || []}
+                metaByHunt={metaByHunt}
+                onOpen={setSelectedId}
+                onSaveMeta={saveMeta}
+                onDelete={deleteHunt}
+                onRerun={rerunHunt}
+                clearControl={clearHistoryControl}
+              />
             )}
           </section>
 
@@ -1524,21 +1451,6 @@ export function ScoutTab({
               setMatrixList([]);
             }}
             onGoDiscover={() => setSubTab('discover')}
-          />
-        </div>
-      )}
-
-      {/* YOUR HUNT HISTORY — the full filterable, RE-RUNNABLE record. */}
-      {subTab === 'history' && (
-        <div className="px-6 sm:px-10 py-8 max-w-4xl mx-auto w-full">
-          <ScoutHistory
-            rows={rows || []}
-            metaByHunt={metaByHunt}
-            onBack={() => setSubTab('find')}
-            onOpen={setSelectedId}
-            onSaveMeta={saveMeta}
-            onDelete={deleteHunt}
-            onRerun={rerunHunt}
           />
         </div>
       )}

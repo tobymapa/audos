@@ -76,6 +76,7 @@ import { CarePanel, FabricLabel } from './care';
 import { pieceBrandType, pieceMetaType, pieceNameType } from './piece-typography';
 import { FeedbackNote, PurchaseFeedbackPrompt } from './feedback';
 import { PieceEditForm, PieceEditSheet } from './piece-edit';
+import { AddPieceHub } from './add-piece';
 import { fetchSemanticTags, type SemanticTags } from './semantic-tags';
 
 // ---------------------------------------------------------------------------
@@ -528,6 +529,9 @@ export function SeeAllPieces({
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const editingPiece = editingId != null ? pieces.find((p) => p.id === editingId) || null : null;
+  // Per-category add (founder's fix): "+ Add piece" inside each category
+  // section opens the same Photograph | Search pills, scoped to it.
+  const [addFor, setAddFor] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -627,10 +631,28 @@ export function SeeAllPieces({
           <section key={cat.id} aria-label={cat.label}>
             <div className="flex items-baseline justify-between gap-3 pb-2.5 border-b border-[var(--color-text,#3b2b1d)] mb-4">
               <h4 className={`hab-section-head ${typography.color.primary}`}>{cat.label}</h4>
-              <span className="hab-kicker text-[var(--color-neutral-600,#856c51)] tabular-nums" style={{ letterSpacing: '0.14em' }}>
-                {catPieces.length} piece{catPieces.length === 1 ? '' : 's'}
+              <span className="inline-flex items-baseline gap-4">
+                <span className="hab-kicker text-[var(--color-neutral-600,#856c51)] tabular-nums" style={{ letterSpacing: '0.14em' }}>
+                  {catPieces.length} piece{catPieces.length === 1 ? '' : 's'}
+                </span>
+                {/* Add a piece INTO this category, right from its section
+                    (founder's fix) — no trip back to the top-level log. */}
+                <button
+                  type="button"
+                  onClick={() => setAddFor((cur) => (cur === cat.id ? null : cat.id))}
+                  aria-expanded={addFor === cat.id}
+                  className="hover:underline"
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+                >
+                  {addFor === cat.id ? 'Close ×' : '+ Add piece'}
+                </button>
               </span>
             </div>
+            {addFor === cat.id && (
+              <div className="mb-5">
+                <AddPieceHub pieces={pieces} onAdded={onChanged} categoryId={cat.id} />
+              </div>
+            )}
             {/* Horizontal ROW of tiles — scrolls sideways, never a vertical list. */}
             <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {catPieces.map((piece) => (
@@ -803,6 +825,7 @@ const ItemCard = memo(function ItemCard({
                 pieceId={piece.id}
                 title={piece.name}
                 showConfirmation
+                showOriginal
                 className="w-full aspect-[4/5] max-h-[44vh]"
               />
               <button
