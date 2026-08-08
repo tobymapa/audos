@@ -684,13 +684,17 @@ const ItemCard = memo(function ItemCard({
   onChanged: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const colors = piece.colors || [];
   const seasons = piece.seasons || [];
   const occasions = piece.occasions || [];
+
+  const closeOverlay = () => {
+    setExpanded(false);
+    setConfirming(false);
+  };
 
   const doDelete = async () => {
     setDeleting(true);
@@ -703,14 +707,14 @@ const ItemCard = memo(function ItemCard({
   };
 
   return (
-    <div
-      className={`${tw.card.default} rounded-2xl overflow-hidden group transition-all ${expanded ? 'ring-2 ring-[var(--space-brand-primary-200)]' : ''}`}
-    >
+    <div className={`${tw.card.default} rounded-2xl overflow-hidden group transition-all`}>
+      {/* The grid tile itself never changes size — tapping it opens the
+          centred edit overlay below. */}
       <button
         type="button"
-        onClick={() => setExpanded((e) => !e)}
+        onClick={() => setExpanded(true)}
         className="w-full text-left"
-        title={expanded ? 'Close item details' : 'View and edit item details'}
+        title="View and edit item details"
       >
         {/* Mockup-matching tile (Pass Thirty-Three): the photo leads — the
             canonical white-card image full-width on top, caption below, so a
@@ -761,83 +765,111 @@ const ItemCard = memo(function ItemCard({
         </div>
       </button>
 
+      {/* THE EDIT OVERLAY (founder's fix): tapping a piece no longer
+          stretches a thin panel under the tile — the screen dims
+          (rgba(0,0,0,0.5)) and the piece card zooms to the CENTRE, enlarged
+          to roughly 2–3× its grid size, with the garment photo clearly at
+          the top and the full edit form at comfortable width below it.
+          Clicking the dimmed background closes it; the grid tiles themselves
+          never change size — only this, the active piece, expands. */}
       {expanded && (
-        <div className="px-3 pb-3 pt-3 border-t border-[var(--space-border-default)] bg-[var(--space-surface-muted)] space-y-3">
-          {!editing ? (
-            <>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${piece.name} — view and edit`}
+          onClick={closeOverlay}
+        >
+          <style>{`
+            @keyframes ethaion-piece-dim { from { opacity: 0 } to { opacity: 1 } }
+            @keyframes ethaion-piece-zoom { from { opacity: 0; transform: scale(0.7) } to { opacity: 1; transform: scale(1) } }
+          `}</style>
+          <span
+            className="absolute inset-0"
+            style={{ background: 'rgba(0,0,0,0.5)', animation: 'ethaion-piece-dim 0.18s ease-out' }}
+            aria-hidden="true"
+          />
+          <div
+            className="relative w-full max-w-lg max-h-[88vh] overflow-y-auto bg-[var(--space-surface-card)] rounded-2xl shadow-2xl"
+            style={{ animation: 'ethaion-piece-zoom 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* The garment photo, clearly visible at the top of the expanded
+                card — the same canonical cutout the grid tile shows, larger. */}
+            <div className="relative">
+              <CanonicalGarment
+                fields={{ name: piece.name, category: piece.category, slot: piece.slot, colors: piece.colors, pattern: (piece as WardrobePiece & { pattern?: string | null }).pattern, brand: piece.brand }}
+                photoUrl={piece.photo_url || null}
+                pieceId={piece.id}
+                title={piece.name}
+                showConfirmation
+                className="w-full aspect-[4/5] max-h-[44vh]"
+              />
+              <button
+                type="button"
+                onClick={closeOverlay}
+                aria-label="Close"
+                title="Close"
+                className="absolute top-2.5 right-2.5 w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-paper,#fbf8f1)] border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-4 sm:px-5 pb-5 pt-3 space-y-3">
               <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="space-y-1.5">
-                  {/* The logged colourways, NAMED — a piece is never given a
-                      colour swatch or fill anywhere it is displayed; the
-                      coloured chips belong to the colour PICKER, where the
-                      user is choosing one (Recommendation Engine overhaul,
-                      Part 2). */}
-                  {colors.length > 0 ? (
-                    <p className={`${typography.size.xs} ${typography.color.primary} capitalize`}>
-                      {colors.join(' · ')}
-                    </p>
-                  ) : <p className={`${typography.size.xs} ${typography.color.muted}`}>No colour logged yet.</p>}
-                  {(details?.size || details?.notes) && (
-                    <p className={`${typography.size.xs} ${typography.color.secondary}`}>
-                      {details?.size ? `Size ${details.size}` : ''}{details?.size && details?.notes ? ' · ' : ''}{details?.notes || ''}
-                    </p>
+                <div className="min-w-0 space-y-1">
+                  <p className="leading-snug" style={pieceNameType}>{piece.name}</p>
+                  {piece.brand && <p className="truncate" style={pieceBrandType}>{piece.brand}</p>}
+                  {/* The logged colourways, NAMED — never swatched. */}
+                  {colors.length > 0 && (
+                    <p className={`${typography.size.xs} ${typography.color.secondary} capitalize`}>{colors.join(' · ')}</p>
                   )}
                   <FeedbackNote feedback={feedback} />
                 </div>
-                <div className="flex flex-col items-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(true)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${typography.size.xs} ${tw.button.secondary}`}
-                  >
-                    Edit every detail
-                  </button>
-                  {/* See it on YOU — opens the Fitting Room with this piece. */}
-                  {(piece.photo_url || '').trim() && (
-                    <TryOnButton
-                      piece={{
-                        name: piece.name,
-                        brand: piece.brand,
-                        category: piece.category,
-                        garmentImageUrl: piece.photo_url,
-                      }}
-                    />
-                  )}
-                </div>
+                {/* See it on YOU — opens the Fitting Room with this piece. */}
+                {(piece.photo_url || '').trim() && (
+                  <TryOnButton
+                    piece={{
+                      name: piece.name,
+                      brand: piece.brand,
+                      category: piece.category,
+                      garmentImageUrl: piece.photo_url,
+                    }}
+                  />
+                )}
               </div>
-              <CarePanel piece={piece} material={material} />
-            </>
-          ) : (
-            <div className="rounded-xl border border-[var(--space-border-default)] bg-[var(--space-surface-card)] p-3">
-              {/* The ONE shared editor (Pass Fourteen): structured colour /
-                  pattern / material / size selectors, progressive disclosure,
-                  auto-generated name, photo thumbnail with replace. */}
+
+              {/* The ONE shared editor (Pass Fourteen), at full width — name,
+                  category, colours, notes and the rest. The big photo above
+                  stands in for the form's own thumbnail row. */}
               <PieceEditForm
                 piece={piece}
                 material={material}
                 onSaved={onChanged}
-                onClose={() => setEditing(false)}
+                onClose={closeOverlay}
                 allowDelete={false}
+                showPhotoTools={false}
               />
-              <button type="button" onClick={() => setEditing(false)} className={`mt-2 px-3 py-1.5 rounded-lg ${typography.size.xs} ${tw.button.ghost}`}>
-                Cancel
-              </button>
+
+              <CarePanel piece={piece} material={material} />
+
+              <div className="flex justify-end">
+                {!confirming ? (
+                  <button type="button" onClick={() => setConfirming(true)} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}>
+                    <Trash2 className="w-3 h-3" /> Remove
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    <span className={`${typography.size.xs} ${typography.color.primary}`}>Remove “{piece.name}”?</span>
+                    <button type="button" onClick={doDelete} disabled={deleting} className={`px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.danger} inline-flex items-center gap-1 disabled:opacity-50`}>
+                      {deleting && <Loader2 className="w-3 h-3 animate-spin" />} Yes, remove
+                    </button>
+                    <button type="button" onClick={() => setConfirming(false)} className={`px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}>Keep</button>
+                  </span>
+                )}
+              </div>
             </div>
-          )}
-          <div className="flex justify-end">
-            {!confirming ? (
-              <button type="button" onClick={() => setConfirming(true)} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}>
-                <Trash2 className="w-3 h-3" /> Remove
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-2">
-                <span className={`${typography.size.xs} ${typography.color.primary}`}>Remove “{piece.name}”?</span>
-                <button type="button" onClick={doDelete} disabled={deleting} className={`px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.danger} inline-flex items-center gap-1 disabled:opacity-50`}>
-                  {deleting && <Loader2 className="w-3 h-3 animate-spin" />} Yes, remove
-                </button>
-                <button type="button" onClick={() => setConfirming(false)} className={`px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}>Keep</button>
-              </span>
-            )}
           </div>
         </div>
       )}

@@ -64,6 +64,7 @@ import {
 import { fetchTryOnPhoto } from '../../lib/tryon/index';
 import {
   RESERVE_CHANGED_EVENT,
+  WARDROBE_CATEGORIES,
   buildCuratedFeed,
   categoryLabel,
   fetchMaterials,
@@ -107,7 +108,9 @@ import {
   isTransparentCutout,
   peekBoardCutout,
   peekFlatLayAsset,
+  prepareProductPhoto,
 } from './photo-enhance';
+import { extractFromUrl } from './discovery-ai';
 import { flatLayAssetForProduct, ingestProductInBackground } from './flat-lay-sourcing';
 import {
   cappedImageUrl,
@@ -552,6 +555,300 @@ function ShelfCard({
         </button>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TRY SOMETHING NEW (founder's feature) — paste a product page URL and the
+// piece appears in the Fitting as a temporary preview: the page is read
+// server-side (Open Graph tags + structured data via the shared
+// discovery-ai extraction), the primary product image goes through THE ONE
+// background-removal pipeline, and the resulting cutout renders as a shelf
+// card — tap it to slot it into the outfit for comparison alongside owned
+// pieces. NOTHING is kept unless the user taps "Save to Reserve", which
+// opens an editable mini-form (name · brand · category · price, prefilled
+// from the page) before writing the radar_items row.
+// ---------------------------------------------------------------------------
+
+function TryFromUrlSection({
+  mode,
+  selectedKeys,
+  onTap,
+  onPin,
+}: {
+  mode: FitMode;
+  selectedKeys: Set<string>;
+  onTap: (piece: FittingPiece) => void;
+  onPin: (piece: FittingPiece) => void;
+}) {
+  const [urlDraft, setUrlDraft] = useState('');
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ piece: FittingPiece; url: string } | null>(null);
+  // The edit-before-save mini-form — prefilled from the page, editable.
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveBrand, setSaveBrand] = useState('');
+  const [saveCategory, setSaveCategory] = useState('');
+  const [savePrice, setSavePrice] = useState('');
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
+
+  const fetchFromUrl = async () => {
+    let url = urlDraft.trim();
+    if (!url || fetching) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    setFetching(true);
+    setError(null);
+    setSavedFlash(null);
+    try {
+      const { draft, pageBlocked } = await extractFromUrl(url, null);
+      if (!draft) {
+        setError(
+          pageBlocked
+            ? 'Couldn\u2019t reach that page \u2014 it may be down or blocking readers. Try another link.'
+            : 'Couldn\u2019t read a product off that page \u2014 try the product page itself rather than a listing or search page.',
+        );
+        return;
+      }
+      const piece: FittingPiece = {
+        key: `url-${url}`,
+        name: draft.name,
+        brand: draft.brand,
+        category: draft.category,
+        productUrl: url,
+        garmentImageUrl: draft.image_url || '',
+        note: 'Pasted from a link',
+        ctaLabel: 'View the listing',
+        ctaUrl: url,
+      };
+      setPreview({ piece, url });
+      setSaveOpen(false);
+      setSaveName(draft.name || '');
+      setSaveBrand(draft.brand || '');
+      setSaveCategory(draft.category || '');
+      setSavePrice(draft.price || '');
+      // The product image through the SAME ingestion pipeline an uploaded
+      // photo takes — the stored cutout is keyed by the source URL, so the
+      // shelf card and the board pick it up the moment it lands.
+      if (draft.image_url) void prepareProductPhoto(draft.image_url).catch(() => undefined);
+    } catch (e) {
+      console.warn('[Ethaion] Try-something-new URL read failed:', e);
+      setError('Couldn\u2019t read that page \u2014 try again, or another link.');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const saveToReserve = async () => {
+    if (!preview || saveBusy || !saveName.trim()) return;
+    setSaveBusy(true);
+    try {
+      await insertRadarItem({
+        name: saveName.trim(),
+        brand: saveBrand.trim() || null,
+        color: null,
+        size: null,
+        notes: 'Saved from a link in The Fitting',
+        price_seen: savePrice.trim() || null,
+        product_url: preview.url,
+        category: saveCategory || null,
+        watch_price: true,
+        source: 'fitting',
+      });
+      setSaveOpen(false);
+      setSavedFlash('Saved to your Reserve \u2014 it\u2019s on the \u201cIn your Reserve\u201d shelf below.');
+    } catch (e) {
+      console.warn('[Ethaion] saving the previewed piece to the Reserve failed:', e);
+      setError('Couldn\u2019t save that to the Reserve \u2014 try again.');
+    } finally {
+      setSaveBusy(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    fontFamily: 'var(--space-font-family)',
+    fontSize: '14px',
+    border: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
+    borderRadius: 0,
+    background: 'var(--color-paper,#fbf8f1)',
+    padding: '8px 10px',
+  };
+
+  return (
+    <section aria-label="Try something new" className="pt-5">
+      <p
+        className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
+        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
+      >
+        Try something new
+      </p>
+      <p className="pt-2 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, maxWidth: '58ch' }}>
+        Paste a product page link — Beau pulls the piece off it, cuts the background away, and you can tap it
+        onto the board to see it against what you own. Nothing is kept unless you save it to your Reserve.
+      </p>
+      <div className="flex items-center gap-2 flex-wrap pt-2.5">
+        <input
+          type="url"
+          value={urlDraft}
+          onChange={(e) => setUrlDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void fetchFromUrl();
+            }
+          }}
+          placeholder="https://… (the product page)"
+          aria-label="Product page URL to preview"
+          className="flex-1 min-w-[14rem] min-h-[44px] focus:outline-none focus:border-[var(--color-accent,#a8712c)] text-[var(--color-text,#241a12)] placeholder:text-[var(--color-neutral-500,#a68e70)]"
+          style={inputStyle}
+        />
+        <button
+          type="button"
+          onClick={() => void fetchFromUrl()}
+          disabled={!urlDraft.trim() || fetching}
+          className="px-4 min-h-[44px] inline-flex items-center gap-1.5 border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', borderRadius: 0 }}
+        >
+          {fetching && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {fetching ? 'Reading the page…' : 'Preview it'}
+        </button>
+      </div>
+      {error && (
+        <p className="pt-2" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', color: OXBLOOD }}>
+          {error}
+        </p>
+      )}
+
+      {preview && (
+        <div className="flex items-start gap-4 sm:gap-6 flex-wrap pt-4">
+          {/* The previewed piece — the same shelf card as everything else:
+              tap to slot it into the outfit, tap again to take it off. */}
+          <div className="w-[31%] min-w-[110px] max-w-[170px] flex-shrink-0">
+            <ShelfCard
+              piece={preview.piece}
+              isPick={false}
+              mode={mode}
+              selected={selectedKeys.has(preview.piece.key)}
+              onTap={() => onTap(preview.piece)}
+              onPin={() => onPin(preview.piece)}
+            />
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <p className="text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.55 }}>
+              Tap the piece to slot it into the outfit for comparison — tap it again to take it off. It’s a
+              preview only until you save it.
+            </p>
+            {savedFlash ? (
+              <p className="pt-2" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent-700,#7c4a17)' }}>
+                {savedFlash}
+              </p>
+            ) : !saveOpen ? (
+              <div className="flex items-center gap-3 flex-wrap pt-3">
+                <button
+                  type="button"
+                  onClick={() => setSaveOpen(true)}
+                  className="px-4 min-h-[42px] inline-flex items-center gap-1.5 border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors"
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', borderRadius: 0 }}
+                  title="Keep this piece — check the details, then it goes to your Reserve"
+                >
+                  Save to Reserve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreview(null);
+                    setUrlDraft('');
+                    setError(null);
+                  }}
+                  className="min-h-[42px] px-1.5 hover:underline text-[var(--color-neutral-600,#856c51)]"
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
+                  title="Drop the preview — nothing is kept"
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : (
+              <div className="pt-3 space-y-2.5" style={{ maxWidth: '30rem' }}>
+                <p className="text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px' }}>
+                  Check the details before it goes on the Reserve — correct anything Beau misread.
+                </p>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="Piece name"
+                  aria-label="Piece name"
+                  className="w-full focus:outline-none focus:border-[var(--color-accent,#a8712c)] text-[var(--color-text,#241a12)]"
+                  style={inputStyle}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <input
+                    type="text"
+                    value={saveBrand}
+                    onChange={(e) => setSaveBrand(e.target.value)}
+                    placeholder="Brand (optional)"
+                    aria-label="Brand"
+                    className="w-full focus:outline-none focus:border-[var(--color-accent,#a8712c)] text-[var(--color-text,#241a12)]"
+                    style={inputStyle}
+                  />
+                  <input
+                    type="text"
+                    value={savePrice}
+                    onChange={(e) => setSavePrice(e.target.value)}
+                    placeholder="Price seen, e.g. £149 (optional)"
+                    aria-label="Price seen"
+                    className="w-full focus:outline-none focus:border-[var(--color-accent,#a8712c)] text-[var(--color-text,#241a12)]"
+                    style={inputStyle}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {WARDROBE_CATEGORIES.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSaveCategory(saveCategory === c.id ? '' : c.id)}
+                      className="px-2 py-0.5 border transition-colors"
+                      style={{
+                        fontFamily: 'var(--space-font-family)',
+                        fontSize: '10.5px',
+                        borderRadius: '4px',
+                        ...(saveCategory === c.id
+                          ? { background: 'var(--color-accent-100,#fbf1de)', color: 'var(--color-accent-700,#7c4a17)', borderColor: 'var(--color-accent,#a8712c)' }
+                          : { background: 'transparent', color: 'var(--color-neutral-600,#856c51)', borderColor: 'var(--color-divider,rgba(59,43,29,0.18))' }),
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => void saveToReserve()}
+                    disabled={saveBusy || !saveName.trim()}
+                    className="px-4 min-h-[42px] inline-flex items-center gap-1.5 border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', borderRadius: 0 }}
+                  >
+                    {saveBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save to Reserve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSaveOpen(false)}
+                    disabled={saveBusy}
+                    className="min-h-[42px] px-1.5 hover:underline text-[var(--color-neutral-600,#856c51)] disabled:opacity-50"
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -2080,6 +2377,16 @@ export function FittingRoomTab({
             {aiOriginated && !composing && (
               <AdjustChips busy={adjustBusy} onAdjust={(adj) => void runAdjustment(adj)} />
             )}
+
+            {/* 4 · TRY SOMETHING NEW — paste a product URL, preview the piece
+                on the board, and (only on an explicit tap) save it to the
+                Reserve. */}
+            <TryFromUrlSection
+              mode={mode}
+              selectedKeys={selectedKeys}
+              onTap={onShelfTap}
+              onPin={pinPiece}
+            />
 
             {/* 5 · SOURCE toggles (Part 3.2) — show or hide whole shelf
                 SECTIONS. Deliberately distinct from the category chips

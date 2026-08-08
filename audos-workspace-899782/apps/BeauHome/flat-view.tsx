@@ -465,9 +465,10 @@ export function StyledOutfitBoard({
   if (pieces.length === 0) {
     return (
       <div className="relative w-full" style={{ background: '#EDE7DA' }}>
-        {/* The empty state keeps its readable width but the container is the
-            same HALVED height the populated board renders at. */}
-        <div className="relative w-full max-w-[480px] mx-auto" style={{ aspectRatio: '480 / 300' }}>
+        {/* The empty state holds the same SQUARE footprint the populated
+            framed canvas renders at (founder's frame fix), so nothing jumps
+            when the first piece lands. */}
+        <div className="relative w-full max-w-[420px] mx-auto" style={{ aspectRatio: '1 / 1' }}>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
             <span className="block w-12 h-[3px] bg-[var(--color-neutral-300,#dccdb2)]" aria-hidden="true" />
             <p
@@ -490,18 +491,28 @@ export function StyledOutfitBoard({
   // count. Every category has exactly one defined position on it (the
   // vertical zone structure in flat-lay-board.tsx), so the board never grows
   // or reflows as pieces are added.
-  // SIZING (founder's rule): the Build a Look canvas renders at HALF its
-  // former height — the stage caps at 240px wide (was 480px), so the
-  // 480 × 600 design scales to 240 × 300 and every piece scales down
-  // proportionally with it. The zone geometry is untouched: the same
-  // percentages, on a smaller canvas.
+  // THE FRAME (founder's frame fix): the Build a Look stage renders the SAME
+  // square framed canvas the "Beau · Today" card uses — the #EDE8DF field
+  // with the 2px dark-walnut inset line, equal width and height (420px max),
+  // the portrait stage scaled to fit inside it — centred on the paper panel
+  // (`.today-canvas--center`). Held-out pieces are still named beneath it
+  // (`showHeldOut`).
   const aspect = 480 / 600;
-  const maxWidth = '240px';
 
   return (
     <div className="relative w-full" style={{ background: '#EDE7DA' }}>
       <div className="px-4 sm:px-8 py-6 sm:py-8">
-        <FlatLayBoard pieces={pieces} seed={seed} aspect={aspect} maxWidth={maxWidth} panel="paper" onRemove={onRemove} />
+        <FlatLayBoard
+          pieces={pieces}
+          seed={seed}
+          aspect={aspect}
+          maxWidth="420px"
+          panel="paper"
+          variant="tray"
+          showHeldOut
+          onRemove={onRemove}
+          className="today-canvas--center"
+        />
       </div>
     </div>
   );

@@ -6,8 +6,8 @@
  * real-life body coverage: a shirt covers more of the visible body than the
  * legs of trousers do, so tops must render larger than a naive
  * equal-height (or image-aspect-derived) layout would draw them. For a
- * typical cap + top + trousers + shoes outfit the shares sum to ~0.94
- * (0.10 + 0.30 + 0.42 + 0.12) — intentionally short of 1.0, leaving a
+ * typical cap + top + trousers + shoes outfit the shares sum to ~0.92
+ * (0.10 + 0.30 + 0.42 + 0.10) — intentionally short of 1.0, leaving a
  * little breathing room between pieces.
  *
  * Consumers:
@@ -48,10 +48,11 @@ export const GARMENT_HEIGHT_RATIOS: Record<string, number> = {
   shorts: 0.22, // shorts cover less leg
   bottoms: 0.42, // wardrobe category id
 
-  // Shoes
-  shoes: 0.12,
-  boots: 0.16, // boots are taller
-  sneakers: 0.12,
+  // Shoes — kept visibly SMALLER than the shirt (founder's proportions
+  // fix: at 0.12/0.16 footwear read oversized against the 0.30 tops).
+  shoes: 0.10,
+  boots: 0.13, // boots are taller, but still well under the tops tier
+  sneakers: 0.10,
 
   // Small pieces the outfit surfaces also lay out
   belt: 0.03,

@@ -1125,15 +1125,14 @@ const TodayTraySkeleton = memo(function TodayTraySkeleton() {
       role="status"
       aria-label={'Beau is laying out today\u2019s outfit'}
       className="block sm:flex-1 min-w-0"
-      // The canvas's own box — 480 wide at most, inset 16px from the slab's
-      // edge, right-aligned. The tray now renders the 480 × 600 stage capped
-      // at 240px wide (240 × 300 — the same height as the Fitting's Build a
-      // Look board, per the founder's sizing rule), so the skeleton holds
-      // that halved proportion as its estimate plus the canvas's 160px floor.
+      // The canvas's own box — the SQUARE framed canvas (founder's frame
+      // fix): equal width and height, 420px at most, inset 16px from the
+      // slab's edge, right-aligned — so the skeleton holds exactly the
+      // footprint the finished tray takes.
       style={{
         width: 'calc(100% - 32px)',
-        maxWidth: '480px',
-        aspectRatio: '480 / 300',
+        maxWidth: '420px',
+        aspectRatio: '1 / 1',
         minHeight: '160px',
         margin: '16px 16px 16px auto',
       }}

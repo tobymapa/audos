@@ -40,6 +40,7 @@ import {
   type WardrobePiece,
 } from './profile-data';
 import { extractFromUrl } from './discovery-ai';
+import { isTransparentCutout, prepareProductPhoto } from './photo-enhance';
 import { BrandField, ColorSelector, SizeSelector } from './input-fields';
 import { PurchaseFeedbackPrompt } from './feedback';
 import { TryOnButton } from './tryon';
@@ -137,6 +138,64 @@ function AddRadarForm({ onAdded, onClose }: { onAdded: () => void; onClose: () =
   const [category, setCategory] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
+  // URL AUTO-FILL (founder's feature): paste a product page link and Beau
+  // reads it — Open Graph tags, structured data and the page text, via the
+  // shared server-side extraction (discovery-ai extractFromUrl) — and
+  // pre-fills the form. Every field stays editable before saving, and the
+  // product image is run through THE ONE background-removal pipeline
+  // (prepareProductPhoto) exactly like a manually uploaded photo, so the
+  // piece lands in the Reserve with a clean cutout already stored.
+  const [urlDraft, setUrlDraft] = useState('');
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchNote, setFetchNote] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState('');
+  const [imageCleaning, setImageCleaning] = useState(false);
+
+  const fetchFromUrl = async () => {
+    let url = urlDraft.trim();
+    if (!url || fetching) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    setFetching(true);
+    setFetchError(null);
+    setFetchNote(null);
+    try {
+      const { draft, pageBlocked } = await extractFromUrl(url, null);
+      setProductUrl(url);
+      if (!draft) {
+        setFetchError(
+          pageBlocked
+            ? 'Couldn\u2019t reach that page \u2014 it may be down or blocking readers. The link is kept; fill the details in yourself below.'
+            : 'Couldn\u2019t read a product off that page. The link is kept; fill the details in yourself below.',
+        );
+        return;
+      }
+      if (draft.name) setName(draft.name);
+      if (draft.brand) setBrand(draft.brand);
+      if (draft.category) setCategory(draft.category);
+      if (draft.price) setPriceSeen(draft.price);
+      setFetchNote('Here\u2019s what Beau read off the page \u2014 correct anything before saving.');
+      if (draft.image_url) {
+        // The listing's product image, through the SAME ingestion pipeline a
+        // manually uploaded photo takes — the stored cutout is keyed by this
+        // URL, so the Reserve shelf and the Fitting board reuse it.
+        setPreviewImage(draft.image_url);
+        setImageCleaning(true);
+        void prepareProductPhoto(draft.image_url)
+          .then((prepared) => {
+            if (prepared.cleaned && prepared.cleanedUrl) setPreviewImage(prepared.cleanedUrl);
+          })
+          .catch(() => undefined)
+          .finally(() => setImageCleaning(false));
+      }
+    } catch (e) {
+      console.warn('[Ethaion] Reserve URL read failed:', e);
+      setFetchError('Couldn\u2019t read that page \u2014 fill the details in yourself below.');
+    } finally {
+      setFetching(false);
+    }
+  };
+
   const save = async () => {
     if (!name.trim() || saving) return;
     setSaving(true);
@@ -193,6 +252,71 @@ function AddRadarForm({ onAdded, onClose }: { onAdded: () => void; onClose: () =
       <p className={`${typography.size.xs} ${typography.color.muted} mt-0.5`}>
         Be specific — the exact model, the exact colour, YOUR size. That’s what makes the Reserve useful.
       </p>
+
+      {/* Paste a product URL — Beau reads the page and pre-fills the form. */}
+      <div className="mt-3 pb-3 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+        <p className={`${typography.size.xs} uppercase tracking-wide ${typography.color.muted} mb-1`}>
+          Paste a product URL — Beau fills the form in
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="url"
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void fetchFromUrl();
+              }
+            }}
+            placeholder="https://… (the product page)"
+            className={`flex-1 min-w-[14rem] ${tw.input.base} ${tw.input.default} ${typography.size.sm}`}
+            aria-label="Product page URL"
+          />
+          <button
+            type="button"
+            onClick={() => void fetchFromUrl()}
+            disabled={!urlDraft.trim() || fetching}
+            className="px-3.5 min-h-[40px] rounded text-[13px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+          >
+            {fetching && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {fetching ? 'Reading the page…' : 'Fetch the details'}
+          </button>
+        </div>
+        {fetchError && (
+          <p className={`${typography.size.xs} mt-1.5`} style={{ color: 'var(--space-semantic-danger,#7d2a24)' }}>
+            {fetchError}
+          </p>
+        )}
+        {fetchNote && !fetchError && (
+          <p className={`${typography.size.xs} ${typography.color.secondary} mt-1.5`}>{fetchNote}</p>
+        )}
+        {(previewImage || imageCleaning) && (
+          <div className="flex items-center gap-2.5 mt-2">
+            {/* Universal transparency rule: only the GENUINE cutout renders
+                bare; while the pipeline works, the quiet tile holds its place
+                — never the raw retail photograph. */}
+            <span
+              className="relative inline-flex w-16 h-20 items-center justify-center overflow-hidden flex-shrink-0"
+              style={{ background: previewImage && isTransparentCutout(previewImage) ? 'transparent' : '#eadfcb' }}
+              role="img"
+              aria-label={name ? `${name} — product image` : 'Product image'}
+            >
+              {previewImage && isTransparentCutout(previewImage) && (
+                <img src={previewImage} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              )}
+            </span>
+            <span className={`${typography.size.xs} ${typography.color.muted}`}>
+              {imageCleaning
+                ? 'Cleaning up the product image — it\u2019ll be ready by the time you save.'
+                : previewImage && isTransparentCutout(previewImage)
+                  ? 'Image cleaned — saved with the piece.'
+                  : 'The image stays with the listing — Beau shows it from the link.'}
+            </span>
+          </div>
+        )}
+      </div>
+
       <div className="grid sm:grid-cols-2 gap-3 mt-3">
         {field('Model name', name, setName, 'e.g. Bedale Waxed Jacket', true)}
         <div>

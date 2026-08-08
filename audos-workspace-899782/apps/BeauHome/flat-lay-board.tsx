@@ -187,9 +187,14 @@ const ZONE_SOCKS = { left: 40, width: 20, z: 3 };
  * the outerwear ends up leftmost and FRONTMOST (highest z), physically on
  * top, overlapping the base top behind it. z rises toward the camera. */
 const ZONE_TORSO = { top: 6, left: 18, width: 60, zBase: 3 };
-/** The clear air between the hat and the torso stack — the invisible head.
- * The hat never overlaps the torso zone. */
+/** The clear air between the hat slot and the torso stack — the invisible
+ * head. The hat never overlaps the torso zone. */
 const HEAD_TORSO_GAP = 2;
+/** TIGHT SHIRT→TROUSERS SPACING (founder's fix): the trousers' top edge
+ * tucks this far UNDER the torso stack's hem — legs render BEHIND the
+ * torso (z 1 vs 3+), so the waistband slips under the shirt the way
+ * clothes sit on a body instead of floating apart with a gap. */
+const TORSO_LEGS_OVERLAP = 1.5;
 /** -12% of the torso zone's 60% width, in board % per front layer. */
 const TORSO_LAYER_SHIFT = 7.2;
 
@@ -320,11 +325,19 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
 
   placeRow(groups.head, ZONE_HEAD);
 
-  // The hat floats with a small clear gap above the torso stack — the
-  // invisible head — never overlapping the torso zone.
+  // RESERVED CAP SLOT (founder's fix): the headwear slot at the top of the
+  // column is ALWAYS held, hat or no hat — when empty nothing renders there
+  // (no placeholder, no border), but the torso anchors below the reserved
+  // space either way, so adding or removing a cap never shifts the rest of
+  // the outfit. The reserved height is the `hat: 0.10` share; a taller
+  // headwear piece simply extends it.
   const headBottom =
     groups.head.length > 0 ? ZONE_HEAD.top + Math.max(...groups.head.map((p) => referenceHeightPct(p))) : null;
-  const torsoTop = headBottom != null ? Math.max(ZONE_TORSO.top, headBottom + HEAD_TORSO_GAP) : ZONE_TORSO.top;
+  const reservedHeadBottom = Math.max(
+    headBottom ?? 0,
+    ZONE_HEAD.top + ratioToBoardPct(GARMENT_HEIGHT_RATIOS.hat),
+  );
+  const torsoTop = reservedHeadBottom + HEAD_TORSO_GAP;
 
   // TORSO — layered as WORN. Back-to-front is REVERSED body order (base top
   // first): the base top sits rightmost at the back, and each layer worn
@@ -350,8 +363,18 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
     });
   });
 
-  placeRow(groups.waist, ZONE_WAIST);
-  placeRow(groups.legs, ZONE_LEGS);
+  const torsoBottom =
+    torsoLayers.length > 0 ? torsoTop + Math.max(...torsoLayers.map((p) => referenceHeightPct(p))) : null;
+
+  // TIGHT VERTICAL SPACING (founder's fix): the trousers anchor to the torso
+  // stack's hem rather than a fixed board position — the waistband tucks
+  // slightly under the shirt (TORSO_LEGS_OVERLAP; legs render behind the
+  // torso), so shirt and trousers sit close together like they do on a body.
+  // Without a torso the legs keep their fixed fallback position.
+  const legsTop = torsoBottom != null ? torsoBottom - TORSO_LEGS_OVERLAP : ZONE_LEGS.top;
+  // The belt strip straddles the shirt/trouser junction, in front of both.
+  placeRow(groups.waist, { ...ZONE_WAIST, top: legsTop - 1.5 });
+  placeRow(groups.legs, { ...ZONE_LEGS, top: legsTop });
 
   // FEET — at the very bottom, IN FRONT of the trouser hem (z above legs).
   // With trousers present the shoes anchor to the hem and overlap it. WITHOUT
@@ -364,9 +387,7 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
       ? Math.max(...groups.feet.map((p) => referenceHeightPct(p)))
       : ratioToBoardPct(GARMENT_HEIGHT_RATIOS.shoes);
   const legsBottom =
-    groups.legs.length > 0 ? ZONE_LEGS.top + Math.max(...groups.legs.map((p) => referenceHeightPct(p))) : null;
-  const torsoBottom =
-    torsoLayers.length > 0 ? torsoTop + Math.max(...torsoLayers.map((p) => referenceHeightPct(p))) : null;
+    groups.legs.length > 0 ? legsTop + Math.max(...groups.legs.map((p) => referenceHeightPct(p))) : null;
   const feetTop = clamp(
     legsBottom != null
       ? legsBottom - shoeHeight * 0.35
@@ -428,22 +449,23 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
  *                   padding and NO ROTATION. The cutout lies straight on the
  *                   canvas, contained inside its zone box.
  *
- * 480 × 600 is the DESIGN canvas; the tray renders it at the SAME size the
- * Fitting's Build a Look board does (founder's sizing rule): the stage caps
- * at 240px wide — 240 × 300 rendered — centred on the beige canvas, so the
- * canvas height here equals the new (halved) Build a Look canvas height
- * exactly, and the pieces inside are the same physical size on both
- * surfaces. The canvas keeps its full width (480px max, inset 16px from the
- * slab) so the walnut band's composition is unchanged; only its height and
- * the piece scale follow the board.
+ * 480 × 600 is the DESIGN canvas; the FRAME it sits in is a SQUARE
+ * (founder's frame fix): the canvas has equal width and height, slightly
+ * smaller than the old 480px rectangle (420px max, inset 16px from the
+ * slab), and the portrait stage scales to fill the square's height — the
+ * stacked garments fit inside the frame whatever its rendered size. The
+ * same square canvas now fronts BOTH surfaces: the Today card on the
+ * walnut slab and the Fitting's Build a Look stage (flat-view passes
+ * `.today-canvas--center` to centre it on the paper panel).
  */
 const TRAY_CSS =
-  '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:480px;' +
-  'margin:16px 16px 16px auto;background:var(--today-canvas-ground,#EDE8DF);border-radius:0;min-height:160px;height:auto;' +
-  'padding:12px;transition:min-height 0.2s ease;display:flex;align-items:center;justify-content:center}' +
+  '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:420px;aspect-ratio:1/1;' +
+  'margin:16px 16px 16px auto;background:var(--today-canvas-ground,#EDE8DF);border-radius:0;min-height:160px;' +
+  'padding:12px;display:flex;align-items:center;justify-content:center}' +
+  '.today-canvas--center{margin:16px auto}' +
   '.today-canvas::before{content:"";position:absolute;inset:10px;border:2px solid #241a12;pointer-events:none;z-index:20}' +
-  '.today-clip{position:relative;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
-  '.today-stage{position:relative;width:min(240px,100%);margin:0 auto;aspect-ratio:var(--aspect,480/600);background:transparent;border:none;box-shadow:none}' +
+  '.today-clip{position:relative;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
+  '.today-stage{position:relative;height:100%;max-width:100%;margin:0 auto;aspect-ratio:var(--aspect,480/600);background:transparent;border:none;box-shadow:none}' +
   '.today-piece{position:absolute;left:var(--x);top:var(--y);width:var(--w);height:var(--h);' +
   'z-index:var(--z);box-sizing:border-box;display:flex;align-items:center;' +
   'justify-content:center;padding:0;background:transparent!important;background-color:transparent!important;' +
@@ -458,6 +480,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   panel = 'paper',
   uniformItems = false,
   variant = 'stage',
+  showHeldOut = false,
   onRemove,
   className = '',
   ariaLabel,
@@ -484,6 +507,9 @@ export function FlatLayBoard<T extends FlatLayPiece>({
    * `.today-piece` per garment — the same zone composition, expressed through
    * the tray's own CSS. */
   variant?: 'stage' | 'tray';
+  /** Tray only: also name the held-out pieces beneath the canvas (the
+   * Fitting's stage wants that; the Today card has no room and skips it). */
+  showHeldOut?: boolean;
   onRemove?: (key: string) => void;
   className?: string;
   ariaLabel?: string;
@@ -502,20 +528,20 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   const heldOut = pieces.filter((piece) => !composes(piece));
   const placed = composeFlatLayBoard(composable, seed, aspect, { uniform: uniformItems });
   const tray = variant === 'tray';
-  // MATCHED SIZING (founder's rule): the tray renders the SAME stage the
-  // Fitting's Build a Look board uses — the 480 × 600 design capped at 240px
-  // wide (240 × 300 rendered), pieces at identical physical size, so the
-  // beige canvas here is exactly as tall as the Build a Look canvas. The old
-  // dynamic band renormalization is retired: it re-scaled pieces per outfit,
-  // which is what made the two surfaces disagree on piece size and height.
+  // MATCHED SIZING (founder's rule): the tray IS the framed canvas both
+  // surfaces render — the Today card and the Fitting's Build a Look stage —
+  // so pieces read at the same scale everywhere. The portrait stage scales
+  // to fill the square frame's height (TRAY_CSS); nothing is re-scaled per
+  // outfit.
   const trayItems = placed;
   const trayAspect = aspect;
-  // THE LIGHT GROUND, and there is only ever ONE of it. On the walnut panel it
-  // is the tray's single canvas under the whole outfit (below) — the slightly
-  // darker beige #EDE8DF (founder's fix pass); on paper the stage already is
-  // one, so nothing is added there — and nowhere does a piece get a ground of
-  // its own.
-  const canvasGround = panel === 'walnut' ? '#EDE8DF' : 'transparent';
+  // THE LIGHT GROUND, and there is only ever ONE of it: the tray's single
+  // square canvas under the whole outfit — the slightly darker beige #EDE8DF
+  // (founder's fix pass) on EVERY panel it fronts (the walnut slab and the
+  // Fitting's paper stage alike) — and nowhere does a piece get a ground of
+  // its own. `panel` is kept for API compatibility.
+  void panel;
+  const canvasGround = '#EDE8DF';
   // The board itself is transparent. On the tray it is the positioning box
   // INSIDE the canvas; every piece is an absolutely-positioned child of it.
   const board = (
@@ -615,36 +641,13 @@ export function FlatLayBoard<T extends FlatLayPiece>({
     </div>
   );
 
-  // THE CANVAS — the tray's one light field, and the ONLY background surface
-  // in the Today card. The pieces lie directly on it with nothing of their own
-  // behind them, and a single 2px frame sits 10px inside its edge like a
-  // picture frame within the canvas boundary. Nothing is appended below it: the
-  // card has no room to name what it left out, so a held-out piece is simply
-  // EXCLUDED from the preview — the honest option of the two the verification
-  // step allows, and the tap-through to The Fitting names it in full.
-  if (tray) {
-    return (
-      <div
-        className={`today-canvas ${className}`.replace(/\s+/g, ' ').trim()}
-        style={{
-          ['--aspect' as string]: String(trayAspect),
-          ['--today-canvas-ground' as string]: canvasGround,
-        } as React.CSSProperties}
-        aria-label={ariaLabel}
-      >
-        <style>{TRAY_CSS}</style>
-        {/* The clip — its edge sits exactly on the inset frame's inner edge
-            (canvas padding 12px = 10px inset + 2px stroke), and overflow is
-            hidden, so no piece can render across the frame line. */}
-        <div className="today-clip">{board}</div>
-      </div>
-    );
-  }
-  if (heldOut.length === 0) return board;
-
-  return (
-    <>
-      {board}
+  // The held-out list — pieces the verification step keeps off the canvas,
+  // NAMED beneath the board instead. Shared by the plain stage and (when
+  // `showHeldOut` asks for it) the tray; the Today card skips it — a held-out
+  // piece is simply EXCLUDED from the preview, and the tap-through to The
+  // Fitting names it in full.
+  const heldOutBlock =
+    heldOut.length === 0 ? null : (
       <div
         className="mx-auto"
         style={{ maxWidth, marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #D9CFBE' }}
@@ -704,6 +707,44 @@ export function FlatLayBoard<T extends FlatLayPiece>({
           ))}
         </div>
       </div>
+    );
+
+  // THE CANVAS — the tray's one light field, and the ONLY background surface
+  // wherever it fronts. The pieces lie directly on it with nothing of their
+  // own behind them, and a single 2px frame sits 10px inside its edge like a
+  // picture frame within the canvas boundary.
+  if (tray) {
+    const canvas = (
+      <div
+        className={`today-canvas ${className}`.replace(/\s+/g, ' ').trim()}
+        style={{
+          ['--aspect' as string]: String(trayAspect),
+          ['--today-canvas-ground' as string]: canvasGround,
+        } as React.CSSProperties}
+        aria-label={ariaLabel}
+      >
+        <style>{TRAY_CSS}</style>
+        {/* The clip — its edge sits exactly on the inset frame's inner edge
+            (canvas padding 12px = 10px inset + 2px stroke), and overflow is
+            hidden, so no piece can render across the frame line. */}
+        <div className="today-clip">{board}</div>
+      </div>
+    );
+    return showHeldOut && heldOutBlock ? (
+      <>
+        {canvas}
+        {heldOutBlock}
+      </>
+    ) : (
+      canvas
+    );
+  }
+  if (!heldOutBlock) return board;
+
+  return (
+    <>
+      {board}
+      {heldOutBlock}
     </>
   );
 }
