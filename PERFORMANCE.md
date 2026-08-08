@@ -216,6 +216,76 @@ leaves the critical path.
 
 ---
 
+## Pass 4 — the interaction stall (found via a DevTools profile)
+
+A Performance recording of ordinary use, which is the only thing that could see
+this — PageSpeed reports Total Blocking Time of 0ms because it measures load,
+not interaction.
+
+| Metric | Value | Good |
+| --- | --- | --- |
+| INP (Interaction to Next Paint) | **11,845 ms** | < 200 ms |
+| Longest frame | **16,932 ms** | 16 ms |
+
+The network track showed `image-to-image` requests repeating throughout.
+
+**Cause.** Every garment tile that rendered — not every *visible* tile, every
+*mounted* one, including off-screen rows and tiles in tabs the customer had
+already left — scheduled a full ingestion run. Each run can involve, in
+sequence: `classifyImage` (vision AI), `removeBackgroundFromUrl` (Photoroom, or
+the 84 MB WASM fallback), `isolateGarmentViaSegmentation` (**generative
+image-to-image**), and `verifyCutoutWithVision` (vision AI again) — with canvas
+pixel work on the main thread between each. Two at a time, through the whole
+wardrobe.
+
+### `whenIdle` was discarding its timeout
+
+The scheduler everything defers through:
+
+```js
+else window.setTimeout(job, 120);   // the caller's timeout, ignored
+```
+
+`requestIdleCallback` does not exist in Safari, and every iOS browser is WebKit
+underneath. So on WebKit all six deferral points ran 120 ms after mount
+regardless of what was asked for — including the deliberate 8-second delay on
+the photo sweep added in pass 1, which was landing directly on first paint.
+Every deferral in the codebase was 66× more aggressive than written.
+
+Now yields past the current frame, then honours the caller's timeout.
+
+### Containment
+
+- **On-screen gate** — `CanonicalGarment` now uses an `IntersectionObserver`
+  (200px `rootMargin`) so a tile earns its ingestion by being looked at.
+  Off-screen rows and hidden tabs schedule nothing.
+- **Per-session budget** — at most 8 new pieces ingest per visit
+  (`SESSION_INGEST_BUDGET`). Concurrency was already capped at 2, but that
+  limited the *rate*, not the *total*: sixty uncut pieces still ground through
+  all sixty, which is why the app stayed unresponsive long after load. The
+  store is durable, so the wardrobe converges over a few visits instead of
+  holding one visit hostage.
+
+### Tier 3 kept, deliberately
+
+`isolateGarmentViaSegmentation` (the generative image-to-image call) was
+considered for removal. It was kept: it is what lifts a garment off a model for
+pieces whose only photography is on-body, and without it those tiles show the
+garment on a body rather than isolated. Containment limits it to at most 8
+on-screen pieces per session, which moves it from a performance problem to an
+acceptable cost.
+
+### The architectural point
+
+Background removal, garment isolation and vision verification are server work.
+Doing them in the browser means the customer's device and main thread pay for
+every garment, every session, forever. The containment above buys relief; it
+does not change where the cost lives. Moving ingestion server-side — process on
+upload, store the cutout, client displays it — is the fix that actually removes
+the problem.
+
+---
+
 ## Outstanding
 
 From the audit, not yet done.

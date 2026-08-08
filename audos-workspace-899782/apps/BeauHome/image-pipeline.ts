@@ -84,8 +84,30 @@ function isHttp(value: unknown): value is string {
  */
 export function whenIdle(job: () => void, timeout = 2000): void {
   const idle = (window as any).requestIdleCallback;
-  if (typeof idle === 'function') idle(() => job(), { timeout });
-  else window.setTimeout(job, 120);
+  if (typeof idle === 'function') {
+    idle(() => job(), { timeout });
+    return;
+  }
+  // NO requestIdleCallback (Safari, and every iOS browser — they all use
+  // WebKit). The old fallback was `setTimeout(job, 120)`, which THREW THE
+  // CALLER'S TIMEOUT AWAY: `whenIdle(sweep, 8000)` — the deliberate 8-second
+  // delay on the photo-migration sweep — actually ran 120ms after mount, on
+  // top of first paint, which is precisely the behaviour that delay exists to
+  // prevent. Every deferral in this codebase was silently 66x more aggressive
+  // than written on WebKit.
+  //
+  // Idleness cannot be detected without the API, so approximate the contract:
+  // yield past the current frame so nothing runs inside a paint, then honour
+  // the caller's timeout as a plain delay. Later than requestIdleCallback
+  // would fire on a quiet thread — but the callers here are all background
+  // housekeeping, and being late costs nothing while being early costs the
+  // user a stutter.
+  const raf = typeof window.requestAnimationFrame === 'function'
+    ? window.requestAnimationFrame.bind(window)
+    : (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16);
+  raf(() => {
+    window.setTimeout(job, timeout);
+  });
 }
 
 // ---------------------------------------------------------------------------

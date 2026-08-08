@@ -1986,6 +1986,36 @@ const SHELF_CUTOUT_CONCURRENCY = 2;
 let shelfCutoutActive = 0;
 const shelfCutoutQueue: Array<() => void> = [];
 
+/**
+ * PER-SESSION INGESTION BUDGET.
+ *
+ * Concurrency was already capped at 2, which stops the removers being
+ * stampeded — but it does not stop the TOTAL amount of work. A wardrobe with
+ * sixty uncut pieces still ground through all sixty, two at a time, each one
+ * potentially costing a vision classification, a background-removal call, a
+ * generative image-to-image call and a verification pass, with canvas pixel
+ * work on the main thread between them. The queue simply spread that across
+ * the whole visit, which is why the app stayed unresponsive long after load
+ * rather than stalling once and recovering.
+ *
+ * A visit now ingests at most this many NEW pieces. The rest keep their
+ * existing image and are picked up on later visits — the store is durable
+ * (`image_cutouts` plus the localStorage mirror), so nothing is redone and the
+ * wardrobe converges over a few sessions instead of holding one session
+ * hostage.
+ *
+ * Pieces already ingested never touch this budget: they short-circuit on
+ * `peekFlatLayAsset` above and cost nothing.
+ */
+const SESSION_INGEST_BUDGET = 8;
+let sessionIngested = 0;
+
+/** Remaining ingestion allowance for this page load. Exposed for diagnostics
+ * and for callers that want to show a "still preparing" affordance. */
+export function remainingIngestBudget(): number {
+  return Math.max(0, SESSION_INGEST_BUDGET - sessionIngested);
+}
+
 /** flatLayAssetFor, queued — the shelf ingests dozens of pieces and must not
  * stampede the removers. Anything already ingested answers immediately. */
 export function flatLayAssetForShelf(request: FlatLayRequest): Promise<FlatLayAsset> {
@@ -1996,6 +2026,16 @@ export function flatLayAssetForShelf(request: FlatLayRequest): Promise<FlatLayAs
   if (!source) return Promise.resolve(uncutAsset('', request.category ?? null, false));
   const settled = peekFlatLayAsset(source);
   if (settled) return Promise.resolve(settled);
+
+  // Budget exhausted for this visit: hand back the piece's existing image
+  // rather than queueing more work. `needsReview: false` keeps this out of the
+  // failure reporting — nothing went wrong, the work was simply deferred, and
+  // the next visit will pick it up.
+  if (sessionIngested >= SESSION_INGEST_BUDGET) {
+    return Promise.resolve(uncutAsset(source, request.category ?? null, false));
+  }
+  sessionIngested += 1;
+
   return new Promise((resolve) => {
     const run = () => {
       shelfCutoutActive += 1;

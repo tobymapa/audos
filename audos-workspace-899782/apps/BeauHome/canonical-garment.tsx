@@ -259,8 +259,49 @@ export function CanonicalGarment({
   // and the quiet processing tile below holds its place until the genuine
   // transparent cutout lands and the registry event repaints the tile.
   const genuineCutout = (!!cutout && !cutoutBroken) || isStoredCutoutUrl(candidate);
+  // ON-SCREEN GATE.
+  //
+  // This effect schedules a full ingestion run — which can mean a vision
+  // classification, a background-removal API call, a GENERATIVE image-to-image
+  // call and a second vision verification, plus canvas pixel work on the main
+  // thread — and it used to do so for EVERY tile that rendered. Not every
+  // visible tile: every mounted one. A wardrobe grid scrolled past the fold,
+  // and every tile in every tab the customer had already visited (those stay
+  // mounted under `display:none`), all queued work for garments nobody was
+  // looking at. That is what a profile showed as an 11.8s interaction delay
+  // and a 16.9s frozen frame.
+  //
+  // A tile now earns its ingestion by being on screen. `rootMargin` starts the
+  // work slightly before the tile scrolls into view so the image is usually
+  // ready by the time it is looked at.
+  const hostRef = useRef<HTMLSpanElement | null>(null);
+  const [onScreen, setOnScreen] = useState(false);
+  useEffect(() => {
+    if (onScreen) return; // Latch: once seen, stay eligible.
+    const el = hostRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver !== 'function') {
+      // No observer (very old engine) — fall back to the previous behaviour
+      // rather than never ingesting anything.
+      setOnScreen(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setOnScreen(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onScreen]);
+
   useEffect(() => {
     if (!candidate || genuineCutout) return;
+    if (!onScreen) return;
     let live = true;
     whenIdle(() => {
       if (!live) return;
@@ -288,7 +329,7 @@ export function CanonicalGarment({
     return () => {
       live = false;
     };
-  }, [candidate, genuineCutout, fields.category, fields.name, pieceId]);
+  }, [candidate, genuineCutout, onScreen, fields.category, fields.name, pieceId]);
 
   // Subtle in-progress indicator while the pipeline (re)generates this
   // piece's image; the PREVIOUS image stays fully visible underneath.
@@ -314,6 +355,7 @@ export function CanonicalGarment({
     if (genuineCutout) {
       return (
         <span
+          ref={hostRef}
           className={`relative inline-flex items-center justify-center overflow-hidden ${className}`}
           role="img"
           aria-label={label}
@@ -344,6 +386,7 @@ export function CanonicalGarment({
     // the genuine cutout swaps in the moment it lands.
     return (
       <span
+        ref={hostRef}
         className={`hab-plate relative inline-flex items-center justify-center overflow-hidden bg-[#eadfcb] ${className}`}
         role="img"
         aria-label={`${label} — being prepared`}
@@ -365,6 +408,7 @@ export function CanonicalGarment({
   // plate — never a grey clipart garment, never a white icon panel.
   return (
     <span
+      ref={hostRef}
       className={`hab-plate relative inline-flex items-center justify-center overflow-hidden bg-[#eadfcb] ${className}`}
       role="img"
       aria-label={label}
