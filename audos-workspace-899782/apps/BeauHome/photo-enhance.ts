@@ -1,3 +1,17 @@
+// ---------------------------------------------------------------------------
+// PASS FIFTY — PHOTOROOM-ONLY BACKGROUND REMOVAL (override).
+// The background-removal pipeline below is reduced to a single, direct
+// Photoroom API call. The @imgly client-side fallback, all alpha-erosion
+// passes, the tight-crop / hollow-frame post-processing, the tier-1/2/3
+// fallback pipeline, the dual-ground vision verification, the erosion-
+// remediation batch and the per-session ingest budget are DISABLED and kept
+// as commented-out / block-commented code so they can be restored later.
+// Photoroom's returned image is used AS-IS; a Photoroom failure is logged and
+// the piece keeps its previous photo (no silent fallback to any other
+// remover). Caching (FNV-1a versioned uploads + image_cutouts) and
+// piece_photo_originals are unchanged; first-load batch reprocessing now
+// calls Photoroom only.
+// ---------------------------------------------------------------------------
 /**
  * Ethaion garment image pipeline (Pass Twenty-Six) — DETERMINISTIC
  * BACKGROUND REMOVAL. No AI image generation, ever.
@@ -257,6 +271,7 @@ export function garmentFieldsFromPiece(
 // assets come from IMG.LY's public CDN (pinned to the same version).
 // ---------------------------------------------------------------------------
 
+/* PHOTOROOM-ONLY: @imgly module loader disabled, preserved for restoration.
 const IMGLY_VERSION = '1.7.0';
 const IMGLY_MODULE_URL = `https://esm.sh/@imgly/background-removal@${IMGLY_VERSION}`;
 const IMGLY_PUBLIC_PATH = `https://staticimgly.com/@imgly/background-removal-data/${IMGLY_VERSION}/dist/`;
@@ -276,6 +291,7 @@ function loadBackgroundRemovalModule(): Promise<any> {
   }
   return imglyModulePromise;
 }
+*/
 
 /** A cleaned image, as either a URL (https or data:) or inline base64.
  * `provider` records which remover produced the cutout so normalization can
@@ -498,20 +514,27 @@ async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): 
  * keep the original image, so nothing ever blocks or breaks.
  */
 async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
-  // 1. Photoroom — the primary remover (Pass Forty-Seven).
+  // PHOTOROOM-ONLY (Pass Fifty — direct call). Photoroom is now the SOLE
+  // background remover: no client-side @imgly fallback and no two-tier logic.
+  // A Photoroom failure is SURFACED (logged and rethrown), never silently
+  // worked around, so the caller keeps the original photo and a later visit
+  // retries. The timeout only guards the single call.
   const photoroomAbort = new AbortController();
   try {
     return await withTimeout(
       removeBackgroundViaPhotoroom(url, photoroomAbort.signal),
       PHOTOROOM_TIMEOUT_MS,
       'Photoroom background removal',
-      // Genuinely cancel the request. Without this the abandoned upload kept
-      // running alongside the fallback below, for the same photograph.
       () => photoroomAbort.abort(),
     );
   } catch (photoroomError) {
-    console.warn('[Ethaion] Photoroom unavailable:', photoroomError);
+    console.error('[Ethaion] Photoroom background removal failed:', photoroomError);
+    throw photoroomError instanceof Error ? photoroomError : new Error(String(photoroomError));
   }
+
+  // ===== LEGACY CLIENT-SIDE @imgly FALLBACK — disabled, preserved for
+  // restoration (re-enable with the @imgly module loader near the top). =====
+  /*
 
   // 2. Fallback — client-side @imgly removal. DISABLED BY DEFAULT.
   //
@@ -550,7 +573,7 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
   try {
     const response = await fetch(url, { signal: sourceAbort.signal });
     if (response.ok) input = await response.blob();
-  } catch { /* URL input path below */ }
+  } catch {} // URL input path below
   const blob: Blob = await withTimeout(
     removeBackground(input, {
       publicPath: IMGLY_PUBLIC_PATH,
@@ -565,6 +588,7 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
     () => sourceAbort.abort(),
   );
   return { url: await blobToDataUrl(blob), provider: 'imgly' };
+  */
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,11 +1166,11 @@ const TIGHT_CROP_PAD_PX = 4;
  * fringes. Photoroom's segmentation is already clean — running 4px of
  * erosion on it visibly ate into white and near-white garments — so a
  * Photoroom cut gets only the minimal pass below. */
-const ALPHA_ERODE_PX = 4;
+// const ALPHA_ERODE_PX = 4;
 
 /** Erosion applied when Photoroom produced the mask — a single pixel, just
  * enough to soften any residual fringe without eating the garment. */
-const PHOTOROOM_ERODE_PX = 1;
+// const PHOTOROOM_ERODE_PX = 1;
 
 /**
  * GRAYSCALE EROSION of the alpha channel — each pass replaces every pixel's
@@ -1157,6 +1181,7 @@ const PHOTOROOM_ERODE_PX = 1;
  * Separable (horizontal pass then vertical pass), so it is O(pixels) per
  * iteration rather than O(pixels × kernel).
  */
+/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: number): void {
   const current = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i += 1) current[i] = data[i * 4 + 3];
@@ -1185,6 +1210,7 @@ function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: n
   }
   for (let i = 0; i < w * h; i += 1) data[i * 4 + 3] = current[i];
 }
+*/
 
 /**
  * HOLLOW-FRAME REMOVAL — the second half of the border-artifact cleanup
@@ -1202,6 +1228,7 @@ function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: n
  * frame line ever can, and if EVERY region reads as a frame nothing is
  * stripped (that is a judgement failure, not a cleanup).
  */
+/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): void {
   const total = w * h;
   const labels = new Int32Array(total);
@@ -1268,6 +1295,7 @@ function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): vo
     if (drop.has(labels[i])) data[i * 4 + 3] = 0;
   }
 }
+*/
 
 /**
  * THE NORMALIZATION STEP — run ONCE at ingestion, never at render time.
@@ -1293,6 +1321,7 @@ function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): vo
  * the PNG so the caller can flag it for review instead of auto-publishing it
  * into a composition.
  */
+/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 async function trimTransparent(
   image: CleanImage,
 ): Promise<{ dataUrl: string; quality: CutoutQuality; croppedWidth: number; croppedHeight: number }> {
@@ -1364,6 +1393,7 @@ async function trimTransparent(
   octx.drawImage(work, left, top, cw, ch, 0, 0, cw, ch);
   return { dataUrl: out.toDataURL('image/png'), quality, croppedWidth: out.width, croppedHeight: out.height };
 }
+*/
 
 /** URLs known to be OUR transparent cutouts (uploaded PNGs with real alpha).
  * Populated when a cutout is persisted and when one is read back from the
@@ -1501,6 +1531,7 @@ async function persistCutout(source: string, dataUrl: string): Promise<string> {
  * image-to-image transform that extracts JUST the garment onto a clean
  * white ground (the platform's image transform endpoint, base64 in/out).
  */
+/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 async function isolateGarmentViaSegmentation(url: string, hasPerson: boolean | null): Promise<CleanImage> {
   const base64 = await imageToJpegBase64(url);
   const prompt =
@@ -1525,12 +1556,14 @@ async function isolateGarmentViaSegmentation(url: string, hasPerson: boolean | n
   }
   return { base64: data.imageBase64, mimeType: data.mimeType || 'image/png' };
 }
+*/
 
 /**
  * TIER-3 STEP 3 — white ground → transparency: flood the border-connected
  * near-white background transparent (the same flood mask the canonical
  * pipeline trusts), so the isolated garment lands as a true cutout.
  */
+/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 async function whiteToTransparent(image: CleanImage): Promise<CleanImage> {
   const src = image.url || `data:${image.mimeType || 'image/png'};base64,${image.base64}`;
   const img = await loadImage(src);
@@ -1553,6 +1586,7 @@ async function whiteToTransparent(image: CleanImage): Promise<CleanImage> {
   ctx.putImageData(frame, 0, 0);
   return { url: canvas.toDataURL('image/png') };
 }
+*/
 
 // ---------------------------------------------------------------------------
 // STEP 1 — SOURCE SELECTION. The rule itself lives in image-pipeline.ts
@@ -1900,6 +1934,69 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
   if (running) return running;
 
   const job = (async (): Promise<FlatLayAsset> => {
+    // PHOTOROOM-ONLY DIRECT PATH (Pass Fifty). The tiered pipeline (source
+    // selection, @imgly fallback, alpha erosion, tight crop, hollow-frame
+    // removal, dual-ground vision verification, tier-3 garment isolation) is
+    // DISABLED and preserved as a commented block below. Photoroom is called
+    // ONCE and its returned cutout is used AS-IS — no erosion, no crop
+    // modification, no post-processing — then stored (unchanged FNV-1a
+    // cache-busting upload + image_cutouts row) so the piece never
+    // re-processes. A Photoroom failure keeps the original image (no crash).
+    try {
+      const cutout = await removeBackgroundFromUrl(source);
+      const dataUrl = cutout.url
+        || (cutout.base64 ? `data:${cutout.mimeType || 'image/png'};base64,${cutout.base64}` : '');
+      if (!dataUrl) throw new Error('Photoroom returned no usable image');
+      const durable = await persistCutout(source, dataUrl);
+      storeMeta(source, 1, category);
+      settledBoardCutouts.set(source, durable);
+      const asset: FlatLayAsset = {
+        url: durable,
+        tier: 1,
+        ready: true,
+        flatLayReady: true,
+        confidence: 'high',
+        sourceQuality: 'unknown',
+        cutoutQuality: 'clean',
+        needsReview: false,
+        reviewReasons: [],
+        category,
+        source,
+        croppedWidth: null,
+        croppedHeight: null,
+      };
+      settledAssets.set(source, asset);
+      void saveCutoutRecord({
+        sourceUrl: source,
+        selectedSourceUrl: source,
+        transparentImageUrl: durable,
+        tier: 1,
+        sourceQuality: asset.sourceQuality,
+        cutoutQuality: asset.cutoutQuality,
+        reviewReasons: asset.reviewReasons,
+        needsReview: asset.needsReview,
+        flatLayReady: asset.flatLayReady,
+        confidence: asset.confidence,
+        category,
+        pieceId: request.pieceId ?? null,
+        croppedWidth: null,
+        croppedHeight: null,
+      });
+      return asset;
+    } catch (error) {
+      console.warn('[Ethaion] Photoroom background removal failed — original image kept:', error);
+      settledBoardCutouts.set(source, source);
+      const asset = uncutAsset(source, category, true);
+      settledAssets.set(source, asset);
+      return asset;
+    } finally {
+      boardCutouts.delete(source);
+    }
+  })();
+
+  // ===== LEGACY TIERED INGESTION PIPELINE — disabled, preserved for restoration.
+  /*
+  const job = (async (): Promise<FlatLayAsset> => {
     // Step 1's answer, filled in below so both the success and the failure
     // paths can record WHICH framing was cut and how good it was.
     let selection: SourceSelection = {
@@ -1950,7 +2047,7 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
                 remediated = true;
               }
             }
-          } catch { /* the original cut stands, flagged below */ }
+          } catch {} // the original cut stands, flagged below
           if (!remediated) {
             cutVerdict = 'imperfect';
             reviewReasons.push('vision-artifacts');
@@ -2100,6 +2197,7 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
       boardCutouts.delete(source);
     }
   })();
+  */
   boardCutouts.set(source, job);
   return job;
 }
@@ -2173,10 +2271,11 @@ export function flatLayAssetForShelf(request: FlatLayRequest): Promise<FlatLayAs
   // rather than queueing more work. `needsReview: false` keeps this out of the
   // failure reporting — nothing went wrong, the work was simply deferred, and
   // the next visit will pick it up.
-  if (sessionIngested >= SESSION_INGEST_BUDGET) {
-    return Promise.resolve(uncutAsset(source, request.category ?? null, false));
-  }
-  sessionIngested += 1;
+  // PHOTOROOM-ONLY: per-session ingest budget disabled, preserved.
+  // if (sessionIngested >= SESSION_INGEST_BUDGET) {
+  //   return Promise.resolve(uncutAsset(source, request.category ?? null, false));
+  // }
+  // sessionIngested += 1;
 
   return new Promise((resolve) => {
     const run = () => {
@@ -2465,7 +2564,10 @@ export async function runPhotoMigration(
   onProgress?: (progress: MigrationProgress) => void,
   patterns: Record<number, string | null | undefined> = {},
 ): Promise<number> {
-  let changed = await runErosionRemediationBatch(pieces, materials, onProgress, patterns);
+  // PHOTOROOM-ONLY: erosion-remediation batch disabled (verification/erosion
+  // pass removed). The main Photoroom re-cut below still runs.
+  let changed = 0;
+  // let changed = await runErosionRemediationBatch(pieces, materials, onProgress, patterns);
   // One-time flag: once the Pass Twenty-Six batch has completed on this
   // device, it never re-runs on reload. (New uploads are settled at add
   // time by settleProductPhoto, so nothing is missed.)
