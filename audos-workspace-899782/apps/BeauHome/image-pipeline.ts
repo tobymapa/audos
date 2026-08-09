@@ -602,6 +602,15 @@ const MAX_GHOSTING = 0.22;
 /** When most of that outline band is near-white, the remover left the studio
  * ground clinging to the garment. */
 const MAX_FRINGING = 0.6;
+
+/** Absolute floor for "bright enough to be a halo" — the original fixed
+ * threshold, still applied to dark garments. */
+const FRINGE_ABS_LUM = 0.88;
+
+/** How much brighter than the garment's own body an edge pixel must be before
+ * it counts as halo rather than as the garment. Keeps the test meaningful on
+ * pale pieces without a hard cutoff. */
+const FRINGE_LUM_MARGIN = 0.1;
 const MIN_FRINGE_BAND = 0.02;
 
 /**
@@ -614,6 +623,9 @@ export function assessCutout(data: Uint8ClampedArray, w: number, h: number): Cut
   let clear = 0;
   let semi = 0;
   let brightSemi = 0;
+  // PASS 1 — tally the alpha bands and measure the garment's OWN brightness
+  // from its solid interior. The fringe test below needs it.
+  let opaqueLumSum = 0;
   for (let i = 0; i < total; i += 1) {
     const o = i * 4;
     const a = data[o + 3];
@@ -623,10 +635,37 @@ export function assessCutout(data: Uint8ClampedArray, w: number, h: number): Cut
     }
     if (a > 240) {
       opaque += 1;
+      opaqueLumSum += lumOf(data[o], data[o + 1], data[o + 2]);
       continue;
     }
     semi += 1;
-    if (lumOf(data[o], data[o + 1], data[o + 2]) > 0.88) brightSemi += 1;
+  }
+  const bodyLum = opaque > 0 ? opaqueLumSum / opaque : 0;
+
+  // PASS 2 — count the soft-edge pixels that are bright ENOUGH TO BE A HALO,
+  // which depends on the garment.
+  //
+  // A halo is background colour surviving along the edge, so it only reads as
+  // one when it is brighter than the garment it surrounds. Scoring it against
+  // a fixed 0.88 meant a white garment failed its own test: every edge pixel
+  // on a white sneaker is bright BECAUSE THE SNEAKER IS WHITE. It scored ~1.0
+  // against a 0.6 threshold, was flagged `imperfect`, and `imperfect` sets
+  // `needsReview`, which `isComposable` excludes from the board — so a clean
+  // Photoroom cut was discarded as "the cut came back imperfect". Brown suede,
+  // navy leather and stone nylon passed the same test the same day, which is
+  // what identified the pattern.
+  //
+  // The threshold now floats with the garment: still 0.88 for anything dark,
+  // rising above it as the garment approaches white, at which point no edge
+  // pixel can qualify and the test correctly stops firing. No cliff — a cream
+  // or oatmeal piece is judged proportionally rather than falling either side
+  // of an arbitrary line.
+  const fringeLumThreshold = Math.max(FRINGE_ABS_LUM, bodyLum + FRINGE_LUM_MARGIN);
+  for (let i = 0; i < total; i += 1) {
+    const o = i * 4;
+    const a = data[o + 3];
+    if (a < 16 || a > 240) continue;
+    if (lumOf(data[o], data[o + 1], data[o + 2]) > fringeLumThreshold) brightSemi += 1;
   }
   // The frame border: a finished cutout has clear space all round it.
   let edgePixels = 0;
@@ -661,6 +700,25 @@ export function assessCutout(data: Uint8ClampedArray, w: number, h: number): Cut
   }
   if (edgeClipped > MAX_EDGE_CLIPPED) reasons.push('edge-clipped');
   if (ghosting > MAX_GHOSTING) reasons.push('ghosting');
+  // FRINGING IS RELATIVE TO THE GARMENT, NOT ABSOLUTE.
+  //
+  // Fringing means a pale halo of the old background surviving along the
+  // edge. It used to be scored as "what fraction of the soft edge pixels are
+  // brighter than 0.88 luminance" — which is a sound test only while the
+  // garment itself is darker than that halo.
+  //
+  // On a WHITE garment every edge pixel is bright because the GARMENT is
+  // bright. White leather sneakers scored ~1.0 against a 0.6 threshold, were
+  // flagged `imperfect`, and `imperfect` means `needsReview`, which
+  // `isComposable` excludes from the board — so a perfectly good Photoroom
+  // cut was thrown out with the message "the cut came back imperfect".
+  // Darker pieces (brown suede, navy leather, stone nylon) passed the same
+  // test on the same day, which is what gave the pattern away.
+  //
+  // A halo is only a halo if it is brighter than the thing it surrounds. When
+  // the garment body is itself pale there is no contrast to judge by, so the
+  // test is skipped rather than guessed at — ghosting and edge-clipping still
+  // catch genuinely bad cuts on light garments.
   if (ghosting > MIN_FRINGE_BAND && fringing > MAX_FRINGING) reasons.push('fringing');
   return {
     verdict: reasons.length === 0 ? 'clean' : 'imperfect',

@@ -386,6 +386,53 @@ changed — it predates this work.
 
 ---
 
+## Pass 7 — the quality gate was rejecting white garments
+
+After the Photoroom key was added, one garment still failed: white leather
+sneakers showed the "being prepared" placeholder and The Fitting reported *"the
+cut came back imperfect."* Brown suede loafers, navy deck shoes and stone nylon
+sneakers all cut cleanly on the same day.
+
+Photoroom was working. `assessCutout` was throwing its output away.
+
+**The bug.** Fringing — a pale halo of old background surviving along the edge —
+was scored as the fraction of soft-edge pixels brighter than a fixed 0.88
+luminance:
+
+```js
+if (lumOf(r, g, b) > 0.88) brightSemi += 1;
+if (ghosting > MIN_FRINGE_BAND && fringing > MAX_FRINGING) reasons.push('fringing');
+```
+
+On a white sneaker **every edge pixel is bright because the sneaker is white**.
+It scored ~1.0 against a 0.6 threshold, was flagged `imperfect`, and `imperfect`
+sets `needsReview`, which `isComposable` excludes from the board.
+
+Same blind spot as the tier-3 flood fill in pass 6: code that treats "white" as
+"background."
+
+**Fixed** by making the threshold float with the garment:
+
+```js
+const fringeLumThreshold = Math.max(FRINGE_ABS_LUM, bodyLum + FRINGE_LUM_MARGIN);
+```
+
+`bodyLum` is the mean luminance of the garment's opaque interior. Dark pieces
+keep the original 0.88; as a garment approaches white the bar rises past what
+any pixel can reach and the test correctly stops firing. Continuous, so there is
+no arbitrary cutoff for cream and oatmeal pieces to fall either side of.
+
+**Verified** across the tonal range — a white halo is still caught on everything
+from near-black through oatmeal, and correctly ignored only on cream and white
+where it is genuinely indistinguishable from the garment. Every shade with an
+own-colour edge passes. 10 assertions.
+
+No extra version bump needed: the pass-6 bump to `CUTOUT_PIPELINE_VERSION = 6`
+already re-ingests everything, so the sneakers get re-judged under the fixed
+rule.
+
+---
+
 ## Outstanding
 
 From the audit, not yet done.
