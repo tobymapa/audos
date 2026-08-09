@@ -48,6 +48,7 @@ import {
 import AgentChat from './AgentChat';
 import { useSpaceRuntime } from '../SpaceRuntimeContext';
 import { beauDarkRoom } from '../lib/colors';
+import { looksLikePlaceholderName, smartTitle } from '../lib/smart-title';
 
 // Literal `window.__workspaceDb` references below matter: the platform
 // compiler auto-injects the WorkspaceDB SDK when it sees that token in
@@ -372,7 +373,10 @@ export default function BeauConversations({
       const title = await generateTitle(firstMessage);
       const current = conversationsRef.current.find((c) => c.id === convoId);
       if (current && current.name_source === 'user') return; // renamed meanwhile — theirs wins
-      const finalName = title || placeholder || `Chat ${dateLabel()}`;
+      // When the model call fails, the LOCAL summariser (lib/smart-title.ts)
+      // still produces a real title from the message's own words — the
+      // "Chat [date]" fallback is now the last resort of the last resort.
+      const finalName = title || smartTitle(firstMessage) || placeholder || `Chat ${dateLabel()}`;
       applyLocal(convoId, { name: finalName, name_source: 'auto' });
       try {
         await db().from('chat_conversations').update(convoId, { name: finalName, name_source: 'auto' });
@@ -382,6 +386,35 @@ export default function BeauConversations({
     },
     [applyLocal],
   );
+
+  // SMART-TITLE BACKFILL (one-time per mount, local, no model calls):
+  // conversations still wearing a placeholder — raw first-message text
+  // (name_source null) or a "Chat 8 Aug" date stamp — get a short descriptive
+  // title regenerated from their stored content (the placeholder name itself,
+  // or the last message preview for date-stamped rows). User renames
+  // (name_source 'user') are never touched.
+  const smartBackfillRan = useRef(false);
+  useEffect(() => {
+    if (!loaded || smartBackfillRan.current) return;
+    smartBackfillRan.current = true;
+    const candidates = conversationsRef.current.filter(
+      (c) => c.name_source !== 'user' && (c.name_source === null || looksLikePlaceholderName(c.name)),
+    );
+    if (candidates.length === 0) return;
+    void (async () => {
+      for (const convo of candidates) {
+        const source = looksLikePlaceholderName(convo.name) ? convo.last_preview || '' : convo.name;
+        const title = smartTitle(source);
+        if (!title || title === convo.name) continue;
+        applyLocal(convo.id, { name: title, name_source: 'auto' });
+        try {
+          await db().from('chat_conversations').update(convo.id, { name: title, name_source: 'auto' });
+        } catch (e) {
+          console.warn('[BeauChats] smart-title backfill failed (non-fatal):', e);
+        }
+      }
+    })();
+  }, [loaded, applyLocal]);
 
   const recordUserMessage = useCallback(
     async (threadId: string, content: string) => {

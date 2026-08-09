@@ -217,6 +217,7 @@ const OTHER_ROW_LABELS: Record<string, string> = {
   shoes: 'Shoes',
   outerwear: 'Outerwear',
   knitwear: 'Knitwear',
+  sweatshirts: 'Sweatshirts',
   formalwear: 'Formalwear',
   'base-layers': 'Base Layers',
   accessories: 'Accessories',

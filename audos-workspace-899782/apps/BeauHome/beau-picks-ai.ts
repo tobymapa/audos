@@ -66,7 +66,7 @@ STEP 2 — OUTERWEAR
 At least one weather-appropriate outerwear piece. If missing, recommend before proceeding.
 
 STEP 3 — MID-LAYERS / KNITWEAR
-At least one knitwear or sweater piece. If missing, recommend before proceeding.
+At least one knitwear, sweater or sweatshirt piece. If missing, recommend before proceeding.
 
 STEP 4 — FORMALWEAR
 At least one blazer or suit jacket. If missing, recommend before proceeding.

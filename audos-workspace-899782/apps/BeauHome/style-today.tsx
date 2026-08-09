@@ -605,7 +605,15 @@ function OutfitPanel({
       {ordered.length > 0 ? (
         <>
           <div className="mt-3 flex justify-center">
-            <OutfitStack pieces={ordered} onSelect={onSelectPiece} />
+            {/* DRAGGABLE PIECES on the Beau Today canvas — keyed to this
+                exact look (title + piece ids), so "Different look" starts
+                from the default layout while a remembered look keeps the
+                user's arrangement across sessions. */}
+            <OutfitStack
+              pieces={ordered}
+              onSelect={onSelectPiece}
+              dragKey={`today-look-${title.toLowerCase().replace(/\s+/g, '-')}-${ordered.map((p) => p.id).join('-')}`}
+            />
           </div>
           <p className={`${typography.size.xs} ${typography.color.secondary} mt-3 leading-relaxed`}>
             <Sparkles className="w-3 h-3 inline mr-1 -mt-0.5 text-[var(--space-text-brand)]" />

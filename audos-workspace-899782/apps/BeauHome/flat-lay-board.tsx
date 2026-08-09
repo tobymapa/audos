@@ -73,9 +73,43 @@
  * cutout-recognition helper, so The Ledger can show a flat-lay without
  * pulling the Fitting Room's engine into the initial payload.
  */
+import { useEffect, useRef, useState } from 'react';
 import { isTransparentCutout } from './photo-enhance';
 import { bodyOrderRank, sortByBodyOrder } from './body-order';
 import { GARMENT_HEIGHT_RATIOS, garmentHeightRatioFor } from './garment-proportions';
+
+// ---------------------------------------------------------------------------
+// DRAGGABLE PIECES — a positional override the user applies ON TOP of the
+// deterministic zone layout. The composer's output is always the STARTING
+// state; a drag stores a per-piece {dx, dy} delta (in % of the board, so it
+// scales with the surface) in localStorage keyed by the outfit's identity
+// (`dragKey`), and the piece re-renders at zone position + delta — clamped
+// so nothing can leave the canvas. Clearing the stored key restores the
+// default layout exactly.
+// ---------------------------------------------------------------------------
+
+interface DragOffset {
+  dx: number;
+  dy: number;
+}
+
+const DRAG_STORE_PREFIX = 'ethaion_layout_';
+
+function loadDragOffsets(key: string): Record<string, DragOffset> {
+  try {
+    const raw = localStorage.getItem(DRAG_STORE_PREFIX + key);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDragOffsets(key: string, offsets: Record<string, DragOffset>): void {
+  try {
+    localStorage.setItem(DRAG_STORE_PREFIX + key, JSON.stringify(offsets));
+  } catch { /* storage full/unavailable — the drag still works this session */ }
+}
 
 /** The shape the board needs from a piece — structurally satisfied by
  * flat-view's BoardPiece, and cheap for any other surface to build. */
@@ -482,6 +516,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   variant = 'stage',
   showHeldOut = false,
   onRemove,
+  dragKey,
   className = '',
   ariaLabel,
 }: {
@@ -511,6 +546,12 @@ export function FlatLayBoard<T extends FlatLayPiece>({
    * Fitting's stage wants that; the Today card has no room and skips it). */
   showHeldOut?: boolean;
   onRemove?: (key: string) => void;
+  /** When set, every composed piece becomes DRAGGABLE (pointer events —
+   * mouse and touch alike): the user can reposition it on the canvas, the
+   * delta persists in localStorage under this key (the outfit/session
+   * identity), and pieces can never be dragged outside the canvas boundary.
+   * Absent → the board behaves exactly as before. */
+  dragKey?: string;
   className?: string;
   ariaLabel?: string;
 }) {
@@ -525,6 +566,90 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   // composes as its quiet transparent name placeholder.
   const composes = (piece: T) => piece.flatLayReady !== false && (!piece.image || isTransparentCutout(piece.image));
   const composable = pieces.filter(composes);
+
+  // --- Drag state (only live when `dragKey` names an outfit) ---------------
+  const [dragOffsets, setDragOffsets] = useState<Record<string, DragOffset>>(() =>
+    dragKey ? loadDragOffsets(dragKey) : {},
+  );
+  const dragOffsetsRef = useRef(dragOffsets);
+  useEffect(() => {
+    dragOffsetsRef.current = dragOffsets;
+  }, [dragOffsets]);
+  // A different outfit → its own remembered layout.
+  useEffect(() => {
+    setDragOffsets(dragKey ? loadDragOffsets(dragKey) : {});
+  }, [dragKey]);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{
+    key: string;
+    startX: number;
+    startY: number;
+    baseDx: number;
+    baseDy: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  /** The rendered position: zone layout + the user's stored delta, clamped
+   * to the canvas so a restored offset can never strand a piece outside. */
+  const positionOf = (item: FlatLayPlacedItem<T>): { left: number; top: number } => {
+    const off = dragKey ? dragOffsets[item.piece.key] : undefined;
+    if (!off) return { left: item.left, top: item.top };
+    return {
+      left: clamp(item.left + off.dx, 0, Math.max(0, 100 - item.width)),
+      top: clamp(item.top + off.dy, 0, Math.max(0, 100 - item.height)),
+    };
+  };
+
+  const handlePointerDown = (item: FlatLayPlacedItem<T>) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragKey) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const cur = dragOffsetsRef.current[item.piece.key] || { dx: 0, dy: 0 };
+    dragRef.current = { key: item.piece.key, startX: e.clientX, startY: e.clientY, baseDx: cur.dx, baseDy: cur.dy, moved: false };
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch { /* capture is best-effort */ }
+  };
+
+  const handlePointerMove = (item: FlatLayPlacedItem<T>) => (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.key !== item.piece.key || !dragKey) return;
+    const board = boardRef.current;
+    if (!board) return;
+    const rect = board.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    if (!drag.moved && Math.abs(e.clientX - drag.startX) < 4 && Math.abs(e.clientY - drag.startY) < 4) return;
+    drag.moved = true;
+    e.preventDefault();
+    const rawDx = drag.baseDx + ((e.clientX - drag.startX) / rect.width) * 100;
+    const rawDy = drag.baseDy + ((e.clientY - drag.startY) / rect.height) * 100;
+    // The piece's BOX stays inside the canvas — the boundary rule.
+    const dx = clamp(rawDx, -item.left, Math.max(0, 100 - item.width - item.left));
+    const dy = clamp(rawDy, -item.top, Math.max(0, 100 - item.height - item.top));
+    setDragOffsets((cur) => ({ ...cur, [item.piece.key]: { dx, dy } }));
+  };
+
+  const handlePointerEnd = (item: FlatLayPlacedItem<T>) => () => {
+    const drag = dragRef.current;
+    if (!drag || drag.key !== item.piece.key) return;
+    dragRef.current = null;
+    if (drag.moved && dragKey) {
+      saveDragOffsets(dragKey, dragOffsetsRef.current);
+      // The drag's tail end must not read as a tap on the piece (or on
+      // whatever card the board sits in).
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+  };
+
+  const handleClickCapture = (e: React.MouseEvent) => {
+    if (suppressClickRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
   const heldOut = pieces.filter((piece) => !composes(piece));
   const placed = composeFlatLayBoard(composable, seed, aspect, { uniform: uniformItems });
   const tray = variant === 'tray';
@@ -546,25 +671,45 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   // INSIDE the canvas; every piece is an absolutely-positioned child of it.
   const board = (
     <div
+      ref={boardRef}
       className={tray ? 'today-stage' : `flat-lay-board relative w-full mx-auto ${className}`}
       style={tray ? undefined : { maxWidth, aspectRatio: `${aspect}`, position: 'relative' }}
       aria-label={tray ? undefined : ariaLabel}
     >
-      {(tray ? trayItems : placed).map((item) => (
+      {(tray ? trayItems : placed).map((item) => {
+        // Zone position + the user's dragged delta (when `dragKey` is live),
+        // clamped to the canvas.
+        const pos = positionOf(item);
+        const beingDragged = dragRef.current?.key === item.piece.key;
+        const dragStyle: React.CSSProperties = dragKey
+          ? { touchAction: 'none', cursor: beingDragged ? 'grabbing' : 'grab', userSelect: 'none' }
+          : {};
+        const dragHandlers = dragKey
+          ? {
+              onPointerDown: handlePointerDown(item),
+              onPointerMove: handlePointerMove(item),
+              onPointerUp: handlePointerEnd(item),
+              onPointerCancel: handlePointerEnd(item),
+              onClickCapture: handleClickCapture,
+            }
+          : {};
+        return (
         <div
           key={item.piece.key}
           className={tray ? 'today-piece' : 'flat-lay-item absolute'}
+          {...dragHandlers}
           style={tray ? ({
             // The placement facts, handed to the tray's CSS as custom
-            // properties — the zone box, verbatim. No rotation.
-            ['--x' as string]: `${item.left.toFixed(2)}%`,
-            ['--y' as string]: `${item.top.toFixed(2)}%`,
+            // properties — the zone box (plus any dragged delta). No rotation.
+            ['--x' as string]: `${pos.left.toFixed(2)}%`,
+            ['--y' as string]: `${pos.top.toFixed(2)}%`,
             ['--w' as string]: `${item.width.toFixed(2)}%`,
             ['--h' as string]: `${item.height.toFixed(2)}%`,
             ['--z' as string]: String(item.z),
+            ...dragStyle,
           } as React.CSSProperties) : {
-            left: `${item.left}%`,
-            top: `${item.top}%`,
+            left: `${pos.left}%`,
+            top: `${pos.top}%`,
             width: `${item.width}%`,
             height: `${item.height}%`,
             zIndex: item.z,
@@ -579,6 +724,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            ...dragStyle,
           }}
           title={item.piece.name}
         >
@@ -637,7 +783,8 @@ export function FlatLayBoard<T extends FlatLayPiece>({
             </button>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 

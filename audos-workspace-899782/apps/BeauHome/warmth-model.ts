@@ -203,7 +203,7 @@ export function inferWarmth(piece: WarmthPieceLike, material?: string | null): P
   if (INSULATION_SIGNAL.test(signal)) level = 'heavy';
   else if (summer) level = 'light';
   else if (HEAVY_TYPE_SIGNAL.test(signal)) level = 'heavy';
-  else if (category === 'knitwear') level = 'medium';
+  else if (category === 'knitwear' || category === 'sweatshirts') level = 'medium';
   else if (LAYER_CATEGORIES.has(category)) level = MID_OUTER_SIGNAL.test(signal) ? 'medium' : 'heavy';
   else if (category === 'base-layers') level = /undershirt|\bvest\b/i.test(signal) ? 'light' : 'heavy';
   else if (HOT_LEANING_SIGNAL.test(signal)) level = 'light';
@@ -214,7 +214,7 @@ export function inferWarmth(piece: WarmthPieceLike, material?: string | null): P
   // 3. Band adjustments where the level alone is too blunt.
   if (level === 'medium' && COOL_LEANING_SIGNAL.test(signal)) max -= 6; // cord trousers, flannel shirts
   if (level === 'medium' && HOT_LEANING_SIGNAL.test(signal)) max += 6; // a piqué polo, a poplin shirt
-  if (level === 'heavy' && category === 'knitwear') max = 14;
+  if (level === 'heavy' && (category === 'knitwear' || category === 'sweatshirts')) max = 14;
   if (level === 'light' && /\bshorts?\b|swim|trunks|sandal|flip|espadrille/i.test(signal)) min += 2;
   // An unlined blazer, an overshirt or a rain shell is an extra layer, so it
   // does not inherit a hot-weather ceiling — but a breathable natural one is

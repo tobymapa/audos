@@ -67,7 +67,7 @@ export const TAG_VERSION = 1;
 export const SEMANTIC_TAGGING_SYSTEM_PROMPT = `You are classifying a wardrobe piece for a menswear app. The user may use casual, abbreviated, or informal names. Infer the correct canonical meaning from context — "M43", "m-43", and "m-1943" are all the same WW2-era field jacket; "OCBD", "Oxford shirt", and "Oxford button-down" are the same sub-type; "pink chino pants" is a chino in pink. Do not correct the user's label — classify only.
 
 Return JSON only:
-- canonicalCategory: one of [Tops, Bottoms, Shoes, Outerwear, Knitwear, Formalwear, Accessories, Base layers, Bags, Hats/Headwear, Others]
+- canonicalCategory: one of [Tops, Bottoms, Shoes, Outerwear, Knitwear, Sweatshirts, Formalwear, Accessories, Base layers, Bags, Hats/Headwear, Others] (Sweatshirts covers hoodies, crewneck sweatshirts and fleece pullovers; a fleece jacket worn as an outer layer is Outerwear, not Sweatshirts)
 - subType: specific functional sub-type (e.g. "Field Jacket", "Wax Jacket", "Oxford Button-Down", "Chino", "Chelsea Boot", "Crew-Neck Knitwear", "Chore Coat")
 - archetypesServed: array from [Classic Ivy, British Country, Continental, American Outdoors, Workwear, Smart Casual, Military/Utility, Coastal/Nautical, Mediterranean/Riviera]
 - formalityLevel: one of [formal, smart-casual, casual, rugged]

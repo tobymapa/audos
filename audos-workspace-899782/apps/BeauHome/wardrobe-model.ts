@@ -158,7 +158,7 @@ export const WARDROBE_TIERS: WardrobeTier[] = [
     gateNoun: 'mid-layers',
     target: 3,
     rationale: '3 knits across weights and shapes — a fine knit, a heavy knit, and a cardigan or sweatshirt.',
-    categories: ['knitwear'],
+    categories: ['knitwear', 'sweatshirts'],
     subtypes: [
       { id: 'fine-knit', label: 'fine knit', test: /merino|fine.?knit|rollneck|roll neck|turtleneck|sea island|smedley|lightweight/ },
       { id: 'heavy-knit', label: 'heavy knit', test: /aran|shetland|guernsey|cable|chunky|heavy|lambswool|fisherman/ },

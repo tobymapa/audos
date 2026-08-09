@@ -234,6 +234,58 @@ export const WORLD_ENTRIES_KNIT_FORMAL_BASE: WorldEntry[] = [
   },
 
   // =========================================================================
+  // SWEATSHIRTS
+  // =========================================================================
+  {
+    id: 'crewneck-sweatshirt',
+    name: 'Crewneck Sweatshirt',
+    categoryId: 'sweatshirts',
+    what: 'The round-necked cotton fleece pullover — loopback (French terry) or brushed-back jersey, a V-stitch insert at the throat on the classic pattern, ribbed hem and cuffs. Weight decides the register: loopwheeled 12oz cloth reads considered; thin mall fleece reads disposable.',
+    history: 'Born on American athletic fields in the 1920s — Benjamin Russell Jr.’s cotton practice jersey replaced itchy wool — and codified by Champion’s reverse weave. Japanese loopwheel mills kept the original machines running when everyone else modernised, which is why the best sweatshirt in the world is now made in Wakayama.',
+    useCase: 'The off-duty mid-layer: over a tee or OCBD, under a field jacket or overcoat. Grey marl first, then navy; a plain, unbranded chest is what keeps it adult.',
+    pairings: ['A white tee and ecru jeans', 'An OCBD with the collar out', 'Under a waxed jacket', 'Grey sweat over grey flannel for the high-low read'],
+    essential: false,
+    find: [
+      { retailer: 'Merz b. Schwanen', url: 'https://www.merz-schwanen.com/search?q=sweatshirt' },
+      { retailer: 'Camber USA', url: 'https://camberusa.com/collections/fleece' },
+      { retailer: 'eBay', url: 'https://www.ebay.co.uk/sch/i.html?_nkw=loopwheel+sweatshirt' },
+    ],
+    keywords: ['sweatshirt', 'crewneck sweatshirt', 'loopback', 'french terry', 'reverse weave', 'loopwheel'],
+  },
+  {
+    id: 'hoodie',
+    name: 'Hoodie',
+    categoryId: 'sweatshirts',
+    what: 'The hooded sweatshirt — a crewneck with a two-panel hood, drawcord and (on the pullover) a kangaroo pocket. Pullover is the classic; the full zip is the layering version. Cloth weight and an empty chest decide whether it reads considered or gym-bound.',
+    history: 'Champion added the hood for warehouse workers and sideline athletes in the 1930s; it passed through Rocky, hip-hop and skateboarding to become the most worn garment of the century — and, done properly, one of the most useful.',
+    useCase: 'Casual layering: under an overcoat, topcoat or leather jacket — the high-low pairing that modernises tailored outerwear. Alone with jeans it wants heft and a hood that stands.',
+    pairings: ['Under a wool overcoat (the high-low classic)', 'Raw denim and clean sneakers', 'A harrington over the top', 'Fatigues and service boots'],
+    essential: false,
+    find: [
+      { retailer: 'Camber USA', url: 'https://camberusa.com/collections/fleece' },
+      { retailer: 'Lady White Co.', url: 'https://www.ladywhiteco.com/collections/fleece' },
+      { retailer: 'eBay', url: 'https://www.ebay.co.uk/sch/i.html?_nkw=heavyweight+pullover+hoodie' },
+    ],
+    keywords: ['hoodie', 'hooded sweatshirt', 'pullover hoodie', 'zip hoodie'],
+  },
+  {
+    id: 'fleece-pullover',
+    name: 'Fleece Pullover',
+    categoryId: 'sweatshirts',
+    what: 'The synthetic-pile mid-layer — a quarter-snap or half-zip pullover in polyester fleece, warm for its weight and quick to dry. The Snap-T silhouette is the reference: boxy, colour-blocked, a single chest pocket. Worn as an outer layer it crosses into outerwear; as a pullover it lives here.',
+    history: 'Malden Mills (now Polartec) and Patagonia developed synthetic fleece in the late 1970s as wool’s lighter successor; the 1985 Snap-T made it a design object. Gorpcore returned it to town wardrobes forty years on.',
+    useCase: 'Cold-weather casual: over a tee or flannel shirt, under a shell when the weather turns. It brings honest outdoors provenance — keep everything around it simple.',
+    pairings: ['A flannel shirt and jeans', 'Fatigues and trail shoes', 'Under a waxed jacket in the wet', 'A watch cap and wool socks'],
+    essential: false,
+    find: [
+      { retailer: 'Patagonia', url: 'https://eu.patagonia.com/gb/en/search/?q=snap-t' },
+      { retailer: 'Mr Porter', url: 'https://www.mrporter.com/en-gb/mens/search?keywords=fleece+pullover' },
+      { retailer: 'eBay', url: 'https://www.ebay.co.uk/sch/i.html?_nkw=patagonia+snap-t+fleece' },
+    ],
+    keywords: ['fleece pullover', 'snap-t', 'polar fleece', 'pile fleece', 'quarter zip fleece'],
+  },
+
+  // =========================================================================
   // FORMALWEAR
   // =========================================================================
   {

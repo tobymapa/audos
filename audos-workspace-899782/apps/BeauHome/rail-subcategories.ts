@@ -73,6 +73,11 @@ export const RAIL_SUBCATEGORIES: Record<string, RailSubcategory[]> = {
     { id: 'zip-neck', label: 'Zip Neck', categoryId: 'knitwear', slotId: 'crewneck', keywords: ['zip neck', 'zip-neck', 'quarter zip', 'half zip'] },
     { id: 'cardigan', label: 'Cardigan', categoryId: 'knitwear', slotId: 'cardigan', keywords: ['cardigan', 'shawl collar'] },
   ],
+  sweatshirts: [
+    { id: 'crewneck-sweatshirt', label: 'Crewneck Sweatshirt', categoryId: 'sweatshirts', slotId: 'sweatshirt', keywords: ['sweatshirt', 'crewneck sweatshirt', 'crew neck sweatshirt', 'loopwheel', 'reverse weave'] },
+    { id: 'hoodie', label: 'Hoodie', categoryId: 'sweatshirts', slotId: 'sweatshirt', keywords: ['hoodie', 'hooded sweatshirt', 'zip hoodie', 'pullover hoodie'] },
+    { id: 'fleece-pullover', label: 'Fleece Pullover', categoryId: 'sweatshirts', slotId: 'sweatshirt', keywords: ['fleece pullover', 'fleece jumper', 'snap-t', 'snap t', 'polar fleece'] },
+  ],
   formalwear: [
     { id: 'suit', label: 'Suit', categoryId: 'formalwear', slotId: 'suit', keywords: ['suit', 'two-piece'] },
     { id: 'sport-coat', label: 'Sport Coat', categoryId: 'formalwear', slotId: 'blazer', keywords: ['sport coat', 'sports jacket', 'sport jacket', 'hopsack'] },
@@ -429,6 +434,21 @@ export const SUBCATEGORY_SEEDS: Record<string, SubSeedPick[]> = {
     { name: 'Merino Zip Neck', brand: 'Sunspel', price: '£175', note: 'The quiet workhorse: opens for warmth, closes for a collar, and never creases in a bag.', imageQuery: 'grey merino zip neck sweater product' },
     { name: 'Tapton Zip Neck', brand: 'John Smedley', price: '£190', note: 'Fine-gauge enough to sit under a blazer — the travel knit.', imageQuery: 'navy zip neck merino sweater menswear' },
     { name: 'Lambswool Half-Zip', brand: "Colhay's", price: '£225', note: 'The heavier Scottish take — a collar that stands properly when zipped.', imageQuery: 'brown lambswool half zip sweater' },
+  ],
+  'crewneck-sweatshirt': [
+    { name: '346 Loopwheel Sweatshirt', brand: 'Merz b. Schwanen', price: '£130', note: 'Loopwheeled on original machines — dense, shape-holding cotton that outlasts five fast-fashion versions.', imageQuery: 'grey loopwheel cotton crewneck sweatshirt product' },
+    { name: 'Cross-Knit Crewneck', brand: 'Camber USA', price: '£95', note: 'Twelve-ounce US-made fleece — the heavyweight standard the streetwear crowd rediscovered.', imageQuery: 'heavyweight grey crewneck sweatshirt menswear product' },
+    { name: 'Athletic Sweatshirt', brand: 'Sunspel', price: '£145', note: 'The dressed-up cut — trimmer through the body, so it works under an overcoat.', imageQuery: 'navy cotton sweatshirt menswear product' },
+  ],
+  hoodie: [
+    { name: 'Heavyweight Pullover Hoodie', brand: 'Camber USA', price: '£110', note: 'The hoodie that reads considered rather than gym-bound — dense fleece, a hood that actually stands.', imageQuery: 'heavyweight grey pullover hoodie menswear product' },
+    { name: '3S48 Hooded Sweatshirt', brand: 'Merz b. Schwanen', price: '£165', note: 'Loopwheeled organic cotton — the quiet, unbranded hoodie for the high-low read.', imageQuery: 'plain grey hooded sweatshirt menswear product' },
+    { name: 'Zip Hoodie', brand: 'Lady White Co.', price: '£150', note: 'LA-made fleece with a proper zip — the layering version that opens over a tee.', imageQuery: 'grey zip up hoodie menswear product' },
+  ],
+  'fleece-pullover': [
+    { name: 'Synchilla Snap-T Pullover', brand: 'Patagonia', price: '£120', note: 'The original fleece pullover — forty years of provenance and it still looks right.', imageQuery: 'fleece snap t pullover menswear product' },
+    { name: 'Retro Pile Fleece', brand: 'Patagonia', price: '£180', note: 'The deep-pile version — warmer than it weighs, honest outdoors heritage.', imageQuery: 'cream pile fleece pullover jacket menswear' },
+    { name: 'Boa Fleece Pullover', brand: 'Snow Peak', price: '£190', note: 'The Japanese take — technical fleece cut clean enough for town.', imageQuery: 'fleece pullover menswear japanese product' },
   ],
   cardigan: [
     { name: 'Shawl Collar Cardigan', brand: 'William Lockie', price: '£195', note: 'Does the work of a light jacket indoors — the layer that makes an outfit look considered rather than thrown on.', imageQuery: 'navy shawl collar cardigan menswear product' },

@@ -17,6 +17,7 @@ export type WorldCategoryId =
   | 'shoes'
   | 'outerwear'
   | 'knitwear'
+  | 'sweatshirts'
   | 'formalwear'
   | 'accessories'
   | 'bags'
@@ -38,6 +39,7 @@ const WORLD_CATEGORIES_UNORDERED: WorldCategory[] = [
   { id: 'shoes', label: 'Shoes', blurb: 'The foundation — welted, stitched and moulded, formal to weekend.' },
   { id: 'outerwear', label: 'Outerwear', blurb: 'The biggest family in menswear — a century of coats and jackets.' },
   { id: 'knitwear', label: 'Knitwear', blurb: 'Wool worked into shape — gauge, stitch and collar decide the register.' },
+  { id: 'sweatshirts', label: 'Sweatshirts', blurb: 'Loopback cotton and fleece — the off-duty mid-layer with athletic roots.' },
   { id: 'formalwear', label: 'Formalwear', blurb: 'Tailoring proper: suits, coats and the dress codes around them.' },
   { id: 'accessories', label: 'Accessories', blurb: 'The small decisions that finish an outfit — or quietly carry it.' },
   { id: 'bags', label: 'Bags', blurb: 'What you carry it all in — canvas, bridle leather and brass.' },

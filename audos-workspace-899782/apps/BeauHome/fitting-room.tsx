@@ -274,6 +274,7 @@ const SHELF_CATEGORIES: Array<{ id: string; label: string; match: string[] }> = 
     { id: 'shoes', label: 'Shoes', match: ['shoes'] },
     { id: 'outerwear', label: 'Outerwear', match: ['outerwear'] },
     { id: 'knitwear', label: 'Knitwear', match: ['knitwear'] },
+    { id: 'sweatshirts', label: 'Sweatshirts', match: ['sweatshirts'] },
     { id: 'formalwear', label: 'Formalwear', match: ['formalwear'] },
     { id: 'accessories', label: 'Accessories', match: ['accessories', 'bags', 'hats'] },
   ],

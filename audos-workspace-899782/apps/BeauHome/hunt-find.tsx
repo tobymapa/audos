@@ -30,6 +30,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { typography } from '../../lib/colors';
+import { smartTitle } from '../../lib/smart-title';
 import { LiveTalkButton, VoiceButton } from '../../lib/voice';
 import { logBrand, type CategoryBudget, type StylePrefs, type StyleProfile, type WardrobePiece } from './profile-data';
 import type { ScoutHuntRow } from './scout-ai';
@@ -631,7 +632,10 @@ export function FindSubTab({
         query: q,
         link_url: null,
         photo_url: null,
-        title: q.length > 90 ? `${q.slice(0, 87)}\u2026` : q,
+        // SMART TITLE (local, no model call): the row is named like Claude /
+        // ChatGPT name conversations — short, descriptive, from the query's
+        // own words — with the raw query kept in `query` for search & re-run.
+        title: smartTitle(q) || (q.length > 90 ? `${q.slice(0, 87)}\u2026` : q),
         category: null,
         status: 'pending',
       });

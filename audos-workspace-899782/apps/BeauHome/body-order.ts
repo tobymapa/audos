@@ -62,7 +62,7 @@ export function bodyOrderRank(piece: BodyOrderPiece): number {
   if (cat === 'hats' || HAT_WORDS.test(text)) return 0;
   if (cat === 'outerwear') return isHeavyCoat(piece) ? 1 : 2;
   if (cat === 'formalwear') return 2; // suits/blazers read at the jacket slot
-  if (cat === 'knitwear') return 3;
+  if (cat === 'knitwear' || cat === 'sweatshirts') return 3;
   if (cat === 'tops' || cat === 'base-layers') return 4;
   if (cat === 'bottoms') return 5;
   if (cat === 'shoes') return 6;
@@ -91,6 +91,7 @@ export function sizeMultiplierFor(piece: BodyOrderPiece): number {
   if (cat === 'outerwear') return isHeavyCoat(piece) ? 1.0 : 0.9;
   if (cat === 'formalwear') return 0.9;
   if (cat === 'knitwear') return 0.8;
+  if (cat === 'sweatshirts') return 0.75; // same chest/torso zone as tops
   if (cat === 'tops' || cat === 'base-layers') return 0.75;
   if (cat === 'bottoms') return 0.85;
   if (cat === 'shoes') return 0.55;

@@ -89,7 +89,7 @@ export function boardSlotFor(category?: string | null, name?: string | null): Bo
   const n = (name || '').toLowerCase();
   if (/\b(tie|belt|scarf|watch|glove|cap|hat|bag|briefcase|backpack)\b/.test(n)) return 'accessory';
   if (cat === 'outerwear' || cat === 'formalwear') return 'outerwear';
-  if (cat === 'tops' || cat === 'knitwear' || cat === 'base-layers') return 'top';
+  if (cat === 'tops' || cat === 'knitwear' || cat === 'sweatshirts' || cat === 'base-layers') return 'top';
   if (cat === 'bottoms') return 'bottom';
   if (cat === 'shoes') return 'shoes';
   return 'accessory';
@@ -505,6 +505,11 @@ export function StyledOutfitBoard({
         <FlatLayBoard
           pieces={pieces}
           seed={seed}
+          // DRAGGABLE PIECES: on the Fitting's stage every composed piece can
+          // be repositioned by hand; the delta persists per outfit (the same
+          // stable seed that keys the layout) and the zone system remains the
+          // default starting state.
+          dragKey={seed}
           aspect={aspect}
           maxWidth="420px"
           panel="paper"

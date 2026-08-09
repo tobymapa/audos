@@ -721,7 +721,20 @@ const WARDROBE_CATEGORIES_UNORDERED: WardrobeCategory[] = [
     slots: [
       { id: 'crewneck', label: 'Crewneck knit', illo: 'crewneck', keywords: ['crewneck', 'crew neck', 'jumper', 'sweater', 'knit', 'merino', 'lambswool', 'shetland', 'cashmere', 'rollneck', 'roll neck', 'turtleneck'] },
       { id: 'cardigan', label: 'Cardigan', illo: 'cardigan', keywords: ['cardigan', 'shawl collar'] },
-      { id: 'sweatshirt', label: 'Sweatshirt', illo: 'sweatshirt', keywords: ['sweatshirt', 'hoodie', 'loopwheel'] },
+    ],
+  },
+  {
+    id: 'sweatshirts',
+    label: 'Sweatshirts',
+    coverIllo: 'sweatshirt',
+    fullCount: 2,
+    slots: [
+      // The 'sweatshirt' slot moved here from Knitwear when Sweatshirts
+      // became a distinct category — the slot id is unchanged so existing
+      // pieces keep resolving their slot label and illustration.
+      { id: 'sweatshirt', label: 'Crewneck sweatshirt', illo: 'sweatshirt', keywords: ['sweatshirt', 'crewneck sweatshirt', 'crew neck sweatshirt', 'loopwheel', 'reverse weave'] },
+      { id: 'hoodie', label: 'Hoodie', illo: 'sweatshirt', keywords: ['hoodie', 'hooded sweatshirt', 'zip hoodie', 'pullover hoodie'] },
+      { id: 'fleece-pullover', label: 'Fleece pullover', illo: 'sweatshirt', keywords: ['fleece pullover', 'fleece jumper', 'snap-t', 'snap t', 'polar fleece'] },
     ],
   },
   {
@@ -790,9 +803,9 @@ const WARDROBE_CATEGORIES_UNORDERED: WardrobeCategory[] = [
 
 /**
  * The categories in the canonical menswear order used EVERYWHERE (Ledger,
- * Rail, Coverage Map, World of Menswear): Tops · Knitwear · Outerwear ·
- * Bottoms · Formalwear · Base Layers · Shoes · Accessories · Bags ·
- * Hats/Headwear · Other. Change the order in category-order.ts, never here.
+ * Rail, Coverage Map, World of Menswear): Tops · Knitwear · Sweatshirts ·
+ * Outerwear · Bottoms · Formalwear · Base Layers · Shoes · Accessories ·
+ * Bags · Hats/Headwear · Other. Change the order in category-order.ts, never here.
  */
 export const WARDROBE_CATEGORIES: WardrobeCategory[] = sortByCategoryOrder(
   WARDROBE_CATEGORIES_UNORDERED,
@@ -1094,6 +1107,7 @@ function categorizeItemUncached(q: string): { category: string | null; slot: str
   if (/(pant|trouser|bottom|jean|chino|short)/.test(q)) return { category: 'bottoms', slot: null };
   if (/(shoe|boot|loafer|sneaker|footwear)/.test(q)) return { category: 'shoes', slot: null };
   if (/(jacket|coat|outerwear|parka)/.test(q)) return { category: 'outerwear', slot: null };
+  if (/(sweatshirt|hoodie|crewneck sweat)/.test(q)) return { category: 'sweatshirts', slot: null };
   if (/(knit|sweater|jumper|fleece)/.test(q)) return { category: 'knitwear', slot: null };
   if (/(thermal|long john|base ?layer|undershirt)/.test(q)) return { category: 'base-layers', slot: null };
   if (/(backpack|rucksack|holdall|weekender|luggage|briefcase|tote|bag)/.test(q)) return { category: 'bags', slot: null };
@@ -1105,7 +1119,7 @@ function categorizeItemUncached(q: string): { category: string | null; slot: str
 /** Default season tags per slot (fallback when the AI parser isn't used). */
 const SLOT_SEASONS: Record<string, string[]> = {
   shorts: ['ss'], polo: ['ss'], tee: ['year-round'], espadrilles: ['ss'], 'deck-shoes': ['ss'],
-  crewneck: ['aw'], cardigan: ['aw'], sweatshirt: ['year-round'],
+  crewneck: ['aw'], cardigan: ['aw'], sweatshirt: ['year-round'], hoodie: ['year-round'], 'fleece-pullover': ['aw'],
   // Seasonal logic (v6): AW-specific outerwear is tagged AW, never year-round.
   // An M-43 field jacket, a waxed jacket, an overcoat, a leather jacket — these
   // are autumn/winter pieces. Only true all-season shells stay year-round.
@@ -4972,6 +4986,7 @@ export function outfitLayer(piece: { category: string; slot?: string | null }): 
     case 'outerwear': return 1;
     case 'formalwear': return piece.slot === 'tie' ? 3 : 1;
     case 'knitwear': return 2;
+    case 'sweatshirts': return 2; // worn like a mid-layer, over the shirt/tee tier
     case 'tops': return 3;
     case 'base-layers': return 3.5;
     case 'bottoms': return 4;

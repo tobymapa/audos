@@ -90,6 +90,15 @@ const RAIL_CATEGORIES_UNORDERED: RailCategory[] = [
     typicalPrice: '£115–£395',
   },
   {
+    id: 'sweatshirts',
+    label: 'Sweatshirts',
+    blurb: 'Hoodies, crewneck sweatshirts and fleece pullovers — the off-duty mid-layer, done properly.',
+    categoryIds: ['sweatshirts'],
+    coverageRows: ['Sweatshirts'],
+    keywords: ['sweatshirt', 'hoodie', 'hooded sweatshirt', 'crewneck sweatshirt', 'loopwheel', 'reverse weave', 'fleece pullover', 'snap-t'],
+    typicalPrice: '£75–£195',
+  },
+  {
     id: 'formalwear',
     label: 'Formalwear',
     blurb: 'Blazer and suit — the register you cannot improvise on the day.',
@@ -137,10 +146,10 @@ const RAIL_CATEGORIES_UNORDERED: RailCategory[] = [
 ];
 
 /**
- * The ten sections in the canonical menswear order shared with The Ledger,
- * the Coverage Map and World of Menswear: Tops · Knitwear · Outerwear ·
- * Bottoms · Formalwear · Base Layers · Shoes · Accessories · Bags ·
- * Hats & Headwear.
+ * The sections in the canonical menswear order shared with The Ledger,
+ * the Coverage Map and World of Menswear: Tops · Knitwear · Sweatshirts ·
+ * Outerwear · Bottoms · Formalwear · Base Layers · Shoes · Accessories ·
+ * Bags · Hats & Headwear.
  */
 export const RAIL_CATEGORIES: RailCategory[] = sortByCategoryOrder(
   RAIL_CATEGORIES_UNORDERED,
@@ -358,6 +367,32 @@ export const SEEDED_RAIL_PICKS: Record<string, SeedPick[]> = {
       note: 'Covers the awkward months when a coat is too much and knitwear is not enough.',
       slotId: 'harrington',
       imageQuery: 'beige harrington jacket menswear',
+    },
+  ],
+  sweatshirts: [
+    {
+      name: '346 Loopwheel sweatshirt',
+      brand: 'Merz b. Schwanen',
+      price: '£130',
+      note: 'Loopwheeled on original machines — the crewneck sweatshirt that holds its shape for a decade.',
+      slotId: 'sweatshirt',
+      imageQuery: 'grey loopwheel cotton crewneck sweatshirt product',
+    },
+    {
+      name: 'Heavyweight pullover hoodie',
+      brand: 'Camber USA',
+      price: '£110',
+      note: 'Twelve-ounce US-made fleece — the hoodie that reads considered rather than gym-bound.',
+      slotId: 'sweatshirt',
+      imageQuery: 'heavyweight grey pullover hoodie menswear product',
+    },
+    {
+      name: 'Synchilla Snap-T fleece pullover',
+      brand: 'Patagonia',
+      price: '£120',
+      note: 'The original fleece pullover — an honest mid-layer with forty years of provenance.',
+      slotId: 'sweatshirt',
+      imageQuery: 'fleece snap t pullover menswear product',
     },
   ],
   knitwear: [

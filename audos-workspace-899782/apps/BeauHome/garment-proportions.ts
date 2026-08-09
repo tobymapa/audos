@@ -38,6 +38,10 @@ export const GARMENT_HEIGHT_RATIOS: Record<string, number> = {
   knitwear: 0.30,
   outerwear: 0.30,
   tops: 0.30, // wardrobe category id
+  // Sweatshirts — same body zone (chest/torso) and SAME height ratio as Tops.
+  sweatshirts: 0.30, // wardrobe category id
+  sweatshirt: 0.30,
+  hoodie: 0.30,
   'base-layers': 0.30, // wardrobe category id
   formalwear: 0.30, // wardrobe category id — suits/blazers read at the jacket size
 

@@ -90,7 +90,7 @@ If ANY of the three is missing, recommend ONLY the missing category(ies) before 
 
 STEP 2 — OUTERWEAR: at least one weather-appropriate outerwear piece.
 
-STEP 3 — KNITWEAR / MID-LAYERS: at least one knitwear or mid-layer piece.
+STEP 3 — KNITWEAR / MID-LAYERS: at least one knitwear, sweatshirt or mid-layer piece.
 
 STEP 4 — FORMALWEAR: at least one blazer or suit jacket.
 

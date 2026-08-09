@@ -39,6 +39,7 @@ import {
   X,
 } from 'lucide-react';
 import { tw, typography } from '../../lib/colors';
+import { smartTitle } from '../../lib/smart-title';
 import {
   WARDROBE_CATEGORIES,
   categoryLabel,
@@ -485,7 +486,7 @@ function HuntDetail({
           <span className={`${typography.size.xs} ${typography.color.muted}`}>{formatDate(row.created_at)}</span>
         </div>
         <h3 className={`${typography.size.xl} ${typography.weight.semibold} ${typography.color.primary} mt-1.5`}>
-          {row.title || row.query || 'Scout result'}
+          {huntRowTitle(row, 'Scout result')}
         </h3>
         {(row.query || row.link_url) && (
           <p className={`${typography.size.xs} ${typography.color.muted} mt-1`}>
@@ -575,6 +576,16 @@ function huntRowMeta(row: ScoutHuntRow): { detail: string; status: string } {
     return { detail: `Verdict: ${label.toLowerCase()}`, status: 'Verdict' };
   }
   return { detail: '', status: row.status === 'complete' ? 'Closed' : '' };
+}
+
+/** Display title for a history row — smart, descriptive, Claude-style.
+ * Older rows stored the RAW query as their title, so the smart title is
+ * derived at render time from the stored content (which retroactively
+ * upgrades existing entries with no migration); rows the summariser cannot
+ * improve keep their stored text. Search and "Run again" still use the raw
+ * `query`/`title` fields — only the display name changes. */
+function huntRowTitle(row: ScoutHuntRow, fallback: string = 'Scout request'): string {
+  return smartTitle(row.title || row.query || '') || row.title || row.query || fallback;
 }
 
 /** Best-effort brand for the sheet view: first recommendation's brand on hunts. */
@@ -674,7 +685,7 @@ function HistoryList({
                       </span>
                       <span className="flex-1 min-w-0">
                         <span className={`block ${typography.size.sm} ${typography.weight.medium} ${typography.color.primary} truncate`}>
-                          {row.title || row.query || 'Scout request'}
+                          {huntRowTitle(row)}
                         </span>
                         <span className={`block ${typography.size.xs} ${typography.color.muted} truncate`}>
                           {formatDate(row.created_at)}
@@ -776,7 +787,7 @@ function SheetView({
                         className={`${typography.size.sm} ${typography.weight.medium} ${typography.color.primary} hover:underline text-left leading-snug`}
                         title="Open this hunt"
                       >
-                        {row.title || row.query || 'Scout request'}
+                        {huntRowTitle(row)}
                       </button>
                       <span className={`block ${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
                         {row.mode === 'find' ? 'Hunt' : 'Review'}

@@ -15,7 +15,7 @@
  *    pieces as a real outfit in anatomical order (hat → jacket → knit →
  *    shirt → trousers → shoes), live as you tap.
  */
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -684,19 +684,143 @@ function StoreItemDetail({
  * (GARMENT_HEIGHT_RATIOS, garment-proportions.ts). */
 const OUTFIT_STACK_COLUMN_PX = 280;
 
+// ---------------------------------------------------------------------------
+// DRAGGABLE STACK TILES — a positional override on top of the default
+// side-by-side layout. When `dragKey` names the outfit, each tile can be
+// dragged to a new spot (pointer events — mouse and touch); the {dx, dy}
+// delta persists in localStorage keyed to the outfit, is clamped so the tile
+// never leaves the stack's canvas, and the anatomical order stays the
+// starting state a fresh outfit always renders in.
+// ---------------------------------------------------------------------------
+
+interface StackDragOffset {
+  dx: number;
+  dy: number;
+}
+
+const STACK_DRAG_PREFIX = 'ethaion_layout_stack_';
+
+function loadStackOffsets(key: string): Record<string, StackDragOffset> {
+  try {
+    const raw = localStorage.getItem(STACK_DRAG_PREFIX + key);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStackOffsets(key: string, offsets: Record<string, StackDragOffset>): void {
+  try {
+    localStorage.setItem(STACK_DRAG_PREFIX + key, JSON.stringify(offsets));
+  } catch { /* storage unavailable — the drag still works this session */ }
+}
+
 export function OutfitStack({
   pieces,
   onSelect,
+  dragKey,
 }: {
   pieces: WardrobePiece[];
   /** When provided, each tile becomes a tap target (opens the piece's detail view). */
   onSelect?: (piece: WardrobePiece) => void;
+  /** When provided, tiles become DRAGGABLE and the dragged layout is
+   * remembered across sessions under this outfit identifier. */
+  dragKey?: string;
 }) {
   const ordered = useMemo(() => [...pieces].sort((a, b) => outfitLayer(a) - outfitLayer(b)), [pieces]);
 
+  const [offsets, setOffsets] = useState<Record<string, StackDragOffset>>(() =>
+    dragKey ? loadStackOffsets(dragKey) : {},
+  );
+  const offsetsRef = useRef(offsets);
+  useEffect(() => {
+    offsetsRef.current = offsets;
+  }, [offsets]);
+  useEffect(() => {
+    setOffsets(dragKey ? loadStackOffsets(dragKey) : {});
+  }, [dragKey]);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    baseDx: number;
+    baseDy: number;
+    /** Allowed dx/dy ranges, captured at drag start — the tile's box may
+     * never leave the stack canvas. */
+    minDx: number;
+    maxDx: number;
+    minDy: number;
+    maxDy: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  const startDrag = (id: string) => (e: React.PointerEvent<HTMLElement>) => {
+    if (!dragKey) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const tileRect = e.currentTarget.getBoundingClientRect();
+    const cur = offsetsRef.current[id] || { dx: 0, dy: 0 };
+    // The tile's NATURAL (undragged) box — its current box minus the
+    // already-applied transform — anchors the clamping range.
+    const natLeft = tileRect.left - cur.dx;
+    const natTop = tileRect.top - cur.dy;
+    dragRef.current = {
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseDx: cur.dx,
+      baseDy: cur.dy,
+      minDx: canvasRect.left - natLeft,
+      maxDx: canvasRect.right - natLeft - tileRect.width,
+      minDy: canvasRect.top - natTop,
+      maxDy: canvasRect.bottom - natTop - tileRect.height,
+      moved: false,
+    };
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch { /* best-effort */ }
+  };
+
+  const moveDrag = (id: string) => (e: React.PointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== id || !dragKey) return;
+    if (!drag.moved && Math.abs(e.clientX - drag.startX) < 4 && Math.abs(e.clientY - drag.startY) < 4) return;
+    drag.moved = true;
+    e.preventDefault();
+    const clampVal = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    const dx = clampVal(drag.baseDx + (e.clientX - drag.startX), Math.min(drag.minDx, 0), Math.max(drag.maxDx, 0));
+    const dy = clampVal(drag.baseDy + (e.clientY - drag.startY), Math.min(drag.minDy, 0), Math.max(drag.maxDy, 0));
+    setOffsets((cur) => ({ ...cur, [id]: { dx, dy } }));
+  };
+
+  const endDrag = (id: string) => () => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== id) return;
+    dragRef.current = null;
+    if (drag.moved && dragKey) {
+      saveStackOffsets(dragKey, offsetsRef.current);
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+  };
+
+  const suppressDragClick = (e: React.MouseEvent) => {
+    if (suppressClickRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
   return (
     <div className="w-full overflow-x-auto pb-1">
-      <div className="flex min-w-max items-stretch justify-center gap-3 px-1">
+      <div ref={canvasRef} className="flex min-w-max items-stretch justify-center gap-3 px-1">
         {ordered.map((piece) => {
           // CATEGORY-PROPORTIONAL HEIGHT (garment-proportions.ts): the
           // plate's height is its category's share of the outfit column, so
@@ -721,11 +845,38 @@ export function OutfitStack({
             </>
           );
           const tileCls = 'flex w-28 flex-shrink-0 flex-col items-center rounded-2xl border border-[var(--space-border-default)] bg-[var(--space-surface-card)] p-3';
+          // The dragged delta rides on the tile as an inline transform — the
+          // flex layout (the default anatomical order) is untouched, so
+          // clearing the stored offsets restores the starting state exactly.
+          const tileId = String(piece.id);
+          const off = dragKey ? offsets[tileId] : undefined;
+          const dragStyle: React.CSSProperties = dragKey
+            ? {
+                transform: off ? `translate(${off.dx}px, ${off.dy}px)` : undefined,
+                transition: 'none',
+                touchAction: 'none',
+                cursor: 'grab',
+                userSelect: 'none',
+                position: 'relative',
+                zIndex: off ? 5 : undefined,
+              }
+            : {};
+          const dragHandlers = dragKey
+            ? {
+                onPointerDown: startDrag(tileId),
+                onPointerMove: moveDrag(tileId),
+                onPointerUp: endDrag(tileId),
+                onPointerCancel: endDrag(tileId),
+                onClickCapture: suppressDragClick,
+              }
+            : {};
           return onSelect ? (
             <button
               key={piece.id}
               type="button"
               onClick={() => onSelect(piece)}
+              {...dragHandlers}
+              style={dragStyle}
               className={`${tileCls} transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--space-brand-primary)]`}
               title={`Open ${piece.name}`}
               aria-label={`Open ${piece.name} — details, price paid and wear count`}
@@ -733,7 +884,7 @@ export function OutfitStack({
               {inner}
             </button>
           ) : (
-            <div key={piece.id} className={tileCls}>
+            <div key={piece.id} className={tileCls} {...dragHandlers} style={dragStyle}>
               {inner}
             </div>
           );
@@ -943,7 +1094,12 @@ export function WardrobeStore({
                     Clear
                   </button>
                 </div>
-                <OutfitStack pieces={mixPieces} />
+                {/* THE LEDGER'S OUTFIT COLUMN — draggable: reposition any
+                    piece; the layout is remembered per selection. */}
+                <OutfitStack
+                  pieces={mixPieces}
+                  dragKey={`ledger-mix-${mixPieces.map((p) => p.id).sort((a, b) => a - b).join('-')}`}
+                />
                 <p className={`${typography.size.xs} ${typography.color.muted} mt-2 text-center`}>
                   {mixPieces
                     .slice()

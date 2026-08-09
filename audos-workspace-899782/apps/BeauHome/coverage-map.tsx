@@ -46,6 +46,7 @@ const COVERAGE_ROWS: Array<{ canonical: string; label: string; categoryIds: stri
     { canonical: 'Shoes', label: 'Shoes', categoryIds: ['shoes'] },
     { canonical: 'Outerwear', label: 'Outerwear', categoryIds: ['outerwear'] },
     { canonical: 'Knitwear', label: 'Knitwear', categoryIds: ['knitwear'] },
+    { canonical: 'Sweatshirts', label: 'Sweatshirts', categoryIds: ['sweatshirts'] },
     { canonical: 'Formalwear', label: 'Formalwear', categoryIds: ['formalwear'] },
     { canonical: 'Accessories', label: 'Accessories', categoryIds: ['accessories', 'bags', 'hats'] },
   ],

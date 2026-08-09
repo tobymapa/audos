@@ -125,6 +125,10 @@ import {
 } from './hunt-brand-import';
 import { useProgressiveReveal } from './progressive-list';
 
+/** One-shot guard for the retroactive logo backfill — module-level so tab
+ * remounts within a session never restart a sweep already under way. */
+let logoBackfillStarted = false;
+
 // ---------------------------------------------------------------------------
 // Small shared atoms
 // ---------------------------------------------------------------------------
@@ -1110,6 +1114,34 @@ export function DiscoverSubTab({
     window.addEventListener(BRAND_INDEX_CHANGED_EVENT, onChanged);
     return () => window.removeEventListener(BRAND_INDEX_CHANGED_EVENT, onChanged);
   }, [refreshMeta]);
+
+  // RETROACTIVE LOGO BACKFILL — one-time sweep on mount: every ledger row
+  // filed with a site `url` but NO stored `logo_url` gets its mark fetched
+  // (OG image first, favicon fallback — the same read a fresh URL paste
+  // gets) and written back, so older entries show in the table exactly like
+  // newly-added ones. Rows that already carry a logo are NEVER re-fetched —
+  // and since every successful fetch stores at least the favicon, the sweep
+  // finds nothing to do on later visits. Sequential, one row at a time, and
+  // every write fires BRAND_INDEX_CHANGED_EVENT so the table updates live.
+  useEffect(() => {
+    if (logoBackfillStarted) return;
+    const missing = (metaRows || []).filter(
+      (row) => (row.url || '').trim() && !(row.logo_url || '').trim(),
+    );
+    if (missing.length === 0) return;
+    logoBackfillStarted = true;
+    void (async () => {
+      for (const row of missing) {
+        try {
+          const meta = await fetchSiteMeta(row.url as string);
+          const logo = meta.logoUrl || faviconFor(row.url as string);
+          if (logo) await updateBrandIndexEntry(row.id, { logo_url: logo });
+        } catch (e) {
+          console.warn('[Ethaion] brand logo backfill failed (non-fatal):', row.name, e);
+        }
+      }
+    })();
+  }, [metaRows]);
 
   // Optimistic status overrides — a tapped chip recolours instantly while
   // the ledger write settles.

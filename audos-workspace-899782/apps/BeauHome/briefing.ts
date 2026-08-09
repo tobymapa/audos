@@ -290,7 +290,7 @@ heading — a single short sentence, 2 to 6 words, ending in a full stop. The do
 opening — 60 to 110 words. The synthesis. State the throughline in the first sentence, show how this season's gaps sit inside it, then say what closing it properly asks of him. Prose only.
 sinceLastTime — 2 to 3 sentences, ONLY when you were given a previous briefing. What closed (naming the piece he added, in his words), and whether this season's gaps are new or carried over. If you were given no previous briefing, return null — do not invent a history and do not write a placeholder.
 pathForward — 80 to 140 words of SEQUENCED reasoning, not a list. Say what to start with and why that piece unlocks the most; say what follows it and what it depends on; say plainly what can wait and why nothing is blocked without it. The order, and the reason FOR the order, are the whole point. Prose only.
-referencedPieces — the pieces you named in pathForward that he does not yet own, in the order you sequenced them, each with the wardrobe category it sits in (Tops, Bottoms, Shoes, Outerwear, Knitwear, Formalwear, Accessories). Between 0 and 4 entries. These become links through to his product picks, so name each one exactly as it appears in your prose.
+referencedPieces — the pieces you named in pathForward that he does not yet own, in the order you sequenced them, each with the wardrobe category it sits in (Tops, Bottoms, Shoes, Outerwear, Knitwear, Sweatshirts, Formalwear, Accessories). Between 0 and 4 entries. These become links through to his product picks, so name each one exactly as it appears in your prose.
 
 OUTPUT — return ONLY valid JSON, no markdown fences, no prose before or after:
 {

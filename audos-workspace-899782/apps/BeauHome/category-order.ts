@@ -7,8 +7,8 @@
  * Selfridges): every WORN garment first, then shoes, then accessories,
  * then the carried / added pieces.
  *
- *   Tops · Knitwear · Outerwear · Bottoms · Formalwear · Base Layers ·
- *   Shoes · Accessories · Bags · Hats/Headwear · Others
+ *   Tops · Knitwear · Sweatshirts · Outerwear · Bottoms · Formalwear ·
+ *   Base Layers · Shoes · Accessories · Bags · Hats/Headwear · Others
  *
  * Surfaces must never hand-order their own category lists again — import
  * `categoryRank` / `sortByCategoryOrder` and the order stays in step
@@ -18,6 +18,7 @@
 export const CATEGORY_ORDER: string[] = [
   'tops',
   'knitwear',
+  'sweatshirts',
   'outerwear',
   'bottoms',
   'formalwear',
@@ -38,6 +39,10 @@ const ALIASES: Record<string, string> = {
   top: 'tops',
   knit: 'knitwear',
   knits: 'knitwear',
+  sweatshirt: 'sweatshirts',
+  sweats: 'sweatshirts',
+  hoodie: 'sweatshirts',
+  hoodies: 'sweatshirts',
   outer: 'outerwear',
   bottom: 'bottoms',
   trousers: 'bottoms',

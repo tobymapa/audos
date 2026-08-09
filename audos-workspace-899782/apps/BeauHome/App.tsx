@@ -57,6 +57,7 @@ import {
 } from './photo-enhance';
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { FlatLayBoard, type FlatLayPiece } from './flat-lay-board';
+import { OnboardingTour } from './onboarding-tour';
 import { HairlineRowsSkeleton, HomeSkeleton, ShimmerDefs } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { CategoryGrid, CategoryPage, SeeAllPieces, WardrobeSearch } from './wardrobe';
@@ -1042,10 +1043,18 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
       >
         {TABS.map(({ id, label: tabLabel, icon }) => {
           const active = tab === id;
+          // The first-run tour's anchors — the coach marks ring these buttons.
+          const tourAnchor =
+            id === 'wardrobe' ? 'tour-ledger'
+            : id === 'radar' ? 'tour-reserve'
+            : id === 'scout' ? 'tour-hunt'
+            : id === 'fitting-room' ? 'tour-fitting'
+            : undefined;
           return (
             <button
               key={id}
               type="button"
+              data-tour={tourAnchor}
               onClick={() => onChange(id)}
               className={`flex items-center flex-shrink-0 px-3.5 sm:px-5 h-[47px] border-b-2 -mb-px whitespace-nowrap uppercase transition-colors ${
                 active
@@ -1340,6 +1349,11 @@ const TodayOutfitPreview = memo(function TodayOutfitPreview({ pieces, profile }:
     <FlatLayBoard
       pieces={boardPieces}
       seed={`today-${(today?.pieceIds || []).join('-') || 'ethaion'}`}
+      // DRAGGABLE PIECES: the customer can reposition any piece on the Today
+      // canvas; the layout is remembered per outfit (localStorage, keyed by
+      // the board's piece identity) and the zone composition stays the
+      // default starting state.
+      dragKey={`today-${(today?.pieceIds || []).join('-') || 'ethaion'}`}
       aspect={TODAY_BOARD_ASPECT}
       panel="walnut"
       uniformItems
@@ -1474,6 +1488,7 @@ const WhatToWearToday = memo(function WhatToWearToday({
   return (
     <section
       aria-label="Beau · today — the day's outfit"
+      data-tour="tour-beau-today"
       className="px-6 sm:px-10 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
       style={{ background: '#241a12', paddingTop: '48px', paddingBottom: '52px' }}
     >
@@ -2470,6 +2485,11 @@ export default function BeauHome() {
       </div>
       {/* Single chat entry point: the Beau button in the shell header — no
           floating duplicates. */}
+
+      {/* First-run coach-mark tour + the quiet "?" re-trigger in the corner.
+          Auto-shows once (localStorage-gated), never over the intake wizard
+          — this branch only renders after onboarding completes. */}
+      <OnboardingTour />
     </div>
     </BeauAssessmentProvider>
   );
