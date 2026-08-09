@@ -105,6 +105,7 @@ import {
   beauRatingTierMeaning,
   brandCategory,
   brandWebsiteUrl,
+  verifiedBrandWebsiteUrl,
   brandMatchesDiscoverMaterial,
   constructionMethod,
   longevitySignal,
@@ -404,7 +405,10 @@ export function BeauRatingTag({ rating, note }: { rating: BeauRating; note?: str
           ? 'bg-[color-mix(in_srgb,var(--space-semantic-warning)_14%,var(--space-surface-card))] text-[var(--space-semantic-warning)] border-[var(--space-semantic-warning)]'
           : 'bg-[#EDE8DF] text-[#8A857C] border-[#CCC7BD]';
   return (
-    <span className="inline-block">
+    /* max-w-full keeps the tag + its opened rationale inside the table
+       cell (fixed column widths) — the note wraps instead of spilling
+       over the neighbouring column. */
+    <span className="inline-block max-w-full align-top">
       <button
         type="button"
         onClick={(e) => {
@@ -421,7 +425,7 @@ export function BeauRatingTag({ rating, note }: { rating: BeauRating; note?: str
       {open && note && (
         <span
           className="block text-[var(--color-neutral-700,#634e38)] mt-1 normal-case"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', lineHeight: 1.5, maxWidth: '30ch', whiteSpace: 'normal', textAlign: 'left' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', lineHeight: 1.5, maxWidth: 'min(30ch, 100%)', whiteSpace: 'normal', textAlign: 'left' }}
         >
           {note}
         </span>
@@ -531,7 +535,12 @@ function RatingLegend() {
       <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
         {RATING_LEGEND.map(({ tier, line }) => (
           <span key={tier} className="flex items-baseline gap-2.5 min-w-0">
-            <BeauRatingTag rating={tier} />
+            {/* Fixed-width tag holder — the four pills differ in length, so
+                without it each explainer line starts at a different x and
+                the legend reads unevenly. */}
+            <span className="flex-shrink-0 w-[88px]">
+              <BeauRatingTag rating={tier} />
+            </span>
             <span className="text-[var(--color-neutral-800,#453325)] min-w-0" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5 }}>
               {line}
             </span>
@@ -542,12 +551,21 @@ function RatingLegend() {
   );
 }
 
-/** The stored brand mark on a small paper plate; hides itself if the image
- * fails so a dead logo URL never leaves a broken-image icon in the table. */
-function BrandMark({ name, logoUrl }: { name: string; logoUrl: string }) {
+/** Initials for the placeholder plate — "Crockett & Jones" → "CJ". */
+function brandInitials(name: string): string {
+  const words = (name || '').trim().split(/\s+/).filter((w) => /[a-z0-9]/i.test(w));
+  const letters = words.map((w) => (w.match(/[a-z0-9]/i) || [''])[0]).filter(Boolean);
+  return (letters.length >= 2 ? letters[0] + letters[letters.length - 1] : letters[0] || '·').toUpperCase();
+}
+
+/** The brand mark on a small paper plate. Shows the stored / derived logo
+ * when one resolves, and falls back to a clean initials plate when there is
+ * no logo URL or the image fails to load — never a broken-image icon and
+ * never an empty gap, so pre-seeded catalog makers read like added ones. */
+function BrandMark({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [logoUrl]);
-  if (broken) return null;
+  const showImage = Boolean(logoUrl) && !broken;
   return (
     <span
       className="inline-flex items-center justify-center overflow-hidden flex-shrink-0 border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)]"
@@ -555,7 +573,16 @@ function BrandMark({ name, logoUrl }: { name: string; logoUrl: string }) {
       aria-hidden="true"
       title={name}
     >
-      <img src={logoUrl} alt="" style={{ maxWidth: '82%', maxHeight: '82%', objectFit: 'contain' }} onError={() => setBroken(true)} loading="lazy" />
+      {showImage ? (
+        <img src={logoUrl as string} alt="" style={{ maxWidth: '82%', maxHeight: '82%', objectFit: 'contain' }} onError={() => setBroken(true)} loading="lazy" />
+      ) : (
+        <span
+          className="text-[var(--color-neutral-600,#856c51)]"
+          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.06em', fontWeight: 500 }}
+        >
+          {brandInitials(name)}
+        </span>
+      )}
     </span>
   );
 }
@@ -1083,17 +1110,20 @@ function BrandTable({
       <table className="w-full border-collapse" style={{ minWidth: '1240px' }}>
         {/* Columns are sized by the CONTENT they hold, not in equal shares:
             Archetype fit carries several chips and takes the lion's share,
-            while Favourite, Price, Origin and the rating need only their
-            few characters. Column order matches the filter rows top→bottom. */}
+            while Favourite, Price and Origin need only their few characters.
+            Beau's rating gets 9% — at the table's 1240px minimum that is the
+            room the widest nowrap pill ("Inconsistent") needs to sit inside
+            its own cell instead of running over "Your note". Column order
+            matches the filter rows top→bottom. */}
         <colgroup>
           <col style={{ width: '4%' }} />
           <col style={{ width: '14%' }} />
           <col style={{ width: '7%' }} />
           <col style={{ width: '9%' }} />
           <col style={{ width: '10%' }} />
-          <col style={{ width: '15%' }} />
-          <col style={{ width: '17%' }} />
-          <col style={{ width: '7%' }} />
+          <col style={{ width: '14%' }} />
+          <col style={{ width: '16%' }} />
+          <col style={{ width: '9%' }} />
           <col style={{ width: '12%' }} />
           <col style={{ width: '5%' }} />
         </colgroup>
@@ -1134,8 +1164,17 @@ function BrandTable({
               </td>
               <td className="px-3 py-3 min-w-[180px]">
                 <span className="flex items-start gap-2.5">
-                  {/* The stored brand mark — URL-pasted and imported rows. */}
-                  {meta?.logo_url ? <BrandMark name={b.brand} logoUrl={meta.logo_url} /> : null}
+                  {/* The brand mark — the stored logo when the ledger holds
+                      one (URL-pasted / imported / backfilled rows), else the
+                      favicon off the maker's VERIFIED official site (the
+                      same favicon-service read a file import uses — this is
+                      what gives every pre-seeded catalog maker its mark),
+                      else a clean initials plate. Never a broken image,
+                      never a blank cell. */}
+                  <BrandMark
+                    name={b.brand}
+                    logoUrl={meta?.logo_url || faviconFor(verifiedBrandWebsiteUrl(b.brand) || meta?.url || '')}
+                  />
                   <span className="min-w-0">
                     {/* The maker's NAME is a live link to their official site
                         (Buy Links overhaul, Part 2.1) — the rest of the row

@@ -220,6 +220,22 @@ const BRAND_WEBSITES: Record<string, string> = {
 export function brandWebsiteUrl(brandName: string): string {
   const key = (brandName || '').trim().toLowerCase();
   if (BRAND_WEBSITES[key]) return BRAND_WEBSITES[key];
+  return searchRedirectFor(brandName);
+}
+
+/**
+ * The VERIFIED official site for a maker — the catalog URL when we hold
+ * one, null otherwise. Unlike brandWebsiteUrl this NEVER falls back to the
+ * search redirect, so callers can safely derive a favicon / logo from it
+ * (a favicon of the search engine would be worse than no logo at all).
+ */
+export function verifiedBrandWebsiteUrl(brandName: string): string | null {
+  const key = (brandName || '').trim().toLowerCase();
+  return BRAND_WEBSITES[key] || null;
+}
+
+/** First-result redirect — lands on the official site for any real maker. */
+function searchRedirectFor(brandName: string): string {
   return `https://duckduckgo.com/?q=${encodeURIComponent(`\\${brandName} official site`)}`;
 }
 
