@@ -391,12 +391,33 @@ async function imageToJpegBase64(url: string, maxEdge = 1200): Promise<string> {
 /** POST the image to Photoroom v1/segment (base64 JSON in, base64 PNG out)
  * through the workspace secrets proxy. Throws on any failure — the caller
  * falls back to client-side removal. */
-async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): Promise<CleanImage> {
-  if (photoroomUnavailable) throw new Error('Photoroom is unavailable this session');
-  const ws = (window as any).__workspaceDb;
-  if (!ws?.workspaceId || !ws?.token) throw new Error('workspace token unavailable for the secrets proxy');
-  const imageB64 = await imageToJpegBase64(url);
-  const res = await fetch(`/api/workspaces/${ws.workspaceId}/secrets/proxy`, {
+/**
+ * THE CORS TRAP — why Photoroom appeared to be broken.
+ *
+ * Sending base64 means first drawing the photograph into a canvas, and
+ * `loadImage` sets `crossOrigin = 'anonymous'` because a canvas that has been
+ * painted with a cross-origin image cannot be read back. Retailer product
+ * photography is HOTLINKED — `photo_url` keeps the shop's own URL — and most
+ * shops send no `Access-Control-Allow-Origin` header. With `crossOrigin` set,
+ * such an image does not merely taint the canvas: it FAILS TO LOAD AT ALL.
+ *
+ * So `imageToJpegBase64` rejected, `removeBackgroundViaPhotoroom` threw before
+ * it ever reached the network, and the piece fell through every tier to "no
+ * clean cutout". Photoroom was never called. The garment still appeared in the
+ * detail sheet because a plain `<img>` needs no CORS — which is exactly why
+ * this looked like a cutout-quality problem rather than a fetch problem.
+ *
+ * Sending the URL instead moves the fetch server-side, where CORS does not
+ * apply, and skips the canvas work altogether. Base64 stays as the fallback
+ * for images that are already local (data: and blob: URLs), and for the case
+ * where Photoroom cannot reach the URL itself.
+ */
+async function photoroomRequest(
+  json: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  ws: any,
+): Promise<Response> {
+  return fetch(`/api/workspaces/${ws.workspaceId}/secrets/proxy`, {
     method: 'POST',
     signal,
     headers: { 'Content-Type': 'application/json', 'X-Workspace-DB-Token': ws.token },
@@ -408,9 +429,40 @@ async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): 
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      json: { image_file_b64: imageB64, format: 'png' },
+      json,
     }),
   });
+}
+
+async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): Promise<CleanImage> {
+  if (photoroomUnavailable) throw new Error('Photoroom is unavailable this session');
+  const ws = (window as any).__workspaceDb;
+  if (!ws?.workspaceId || !ws?.token) throw new Error('workspace token unavailable for the secrets proxy');
+
+  // Remote URL first — no canvas, no CORS, no main-thread pixel work.
+  const isRemote = /^https?:\/\//i.test(url.trim());
+  let res: Response | null = null;
+  if (isRemote) {
+    try {
+      const attempt = await photoroomRequest({ image_url: url.trim(), format: 'png' }, signal, ws);
+      // Only keep this attempt if Photoroom itself accepted the URL form.
+      // A 4xx from Photoroom (rather than the proxy) means it did not like
+      // the parameter or could not fetch the image — retry as base64 below.
+      const peek = attempt.clone();
+      const peeked = await peek.json().catch(() => null);
+      const upstream = Number(peeked?.status || 0);
+      if (attempt.ok && upstream < 300) res = attempt;
+    } catch {
+      /* fall through to the base64 path */
+    }
+  }
+
+  if (!res) {
+    // Local image, or Photoroom would not take the URL. This path needs the
+    // canvas, so it only works for same-origin / CORS-enabled / data: sources.
+    const imageB64 = await imageToJpegBase64(url);
+    res = await photoroomRequest({ image_file_b64: imageB64, format: 'png' }, signal, ws);
+  }
   const payload = await res.json().catch(() => null);
   if (!res.ok) {
     // Proxy-level refusal (key missing/disabled, host not allow-listed) is

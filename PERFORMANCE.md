@@ -433,6 +433,55 @@ rule.
 
 ---
 
+## Pass 8 — the actual reason Photoroom never ran
+
+Passes 6 and 7 fixed two real bugs but did not fix the symptom, because the
+diagnosis was wrong. Photoroom was not producing bad cutouts and was not being
+rejected by the quality gate. **It was never being called.**
+
+```js
+// loadImage
+img.crossOrigin = 'anonymous';
+// imageToJpegBase64
+const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+```
+
+Sending base64 to Photoroom means first drawing the photograph into a canvas,
+and reading a canvas back requires `crossOrigin`. Retailer product photography
+is **hotlinked** — `attachAndSettleProductPhoto` stores the shop's own URL as
+`photo_url` — and most shops send no `Access-Control-Allow-Origin` header. With
+`crossOrigin` set, such an image does not merely taint the canvas: **it fails to
+load at all.**
+
+So `imageToJpegBase64` rejected, `removeBackgroundViaPhotoroom` threw before
+reaching the network, every tier failed, and the piece ended as "no clean
+cutout". The garment still appeared in the detail sheet because a plain `<img>`
+needs no CORS — which is precisely why this read as a cutout-quality problem
+rather than a fetch problem.
+
+It also explains why the evidence looked confusing: the garments that cut
+cleanly were ones whose imagery was reachable, and they had looked correct
+*before* Photoroom existed too. There was never any evidence Photoroom worked.
+
+**Fixed** by sending `image_url` to Photoroom, which fetches it server-side
+where CORS does not apply — no canvas, no main-thread pixel work, fewer bytes.
+Base64 remains the fallback for `data:` / `blob:` sources and for the case where
+Photoroom cannot fetch the URL itself, so behaviour degrades rather than breaks
+if the parameter is not supported.
+
+**Verified** against a mock proxy: Photoroom is reached when canvas conversion
+is impossible; a URL refusal falls back to base64; local images skip the URL
+attempt; a missing secret still surfaces. 7 assertions.
+
+### Lesson
+
+Three passes were spent on colour heuristics because the failing garment
+happened to be white. The pattern was real but incidental — the actual variable
+was where the image was hosted. Confirm the request is being made before
+theorising about the response.
+
+---
+
 ## Outstanding
 
 From the audit, not yet done.
