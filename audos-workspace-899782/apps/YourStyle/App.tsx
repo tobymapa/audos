@@ -72,6 +72,7 @@ import {
   CLIMATE_OPTIONS,
   EMPTY_DOSSIER_DETAILS,
   HAIR_COLOURS,
+  cachedDisplayName,
   climateLabel,
   fetchDossierDetails,
   hairColourLabel,
@@ -225,11 +226,15 @@ function DossierNameTape({
   name,
   createdAt,
   saved,
+  nameLoaded = true,
   onSave,
 }: {
   name: string;
   createdAt: string | null | undefined;
   saved: boolean;
+  /** False while the saved name is still being fetched — the "Your name"
+   * placeholder is held back so it can never flash over a real name. */
+  nameLoaded?: boolean;
   onSave: (next: string) => void;
 }) {
   useNameTapeFonts();
@@ -243,8 +248,10 @@ function DossierNameTape({
     setFocused(false);
     if (draft.trim() !== (name || '').trim()) onSave(draft);
   };
+  // Explicit English locale — the rest of the site is English, so the date
+  // must never follow the browser's system language (e.g. "agosto").
   const dated = createdAt
-    ? new Date(createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   return (
     <div style={{ paddingTop: '26px' }}>
@@ -285,7 +292,7 @@ function DossierNameTape({
                 (e.target as HTMLInputElement).blur();
               }
             }}
-            placeholder="Your name"
+            placeholder={nameLoaded && !name ? 'Your name' : ''}
             aria-label="The name Beau addresses you by — tap to edit"
             style={{
               display: 'block',
@@ -996,7 +1003,7 @@ function TasteReferencesScreen({ onBack }: { onBack: () => void }) {
               const meta = tasteSourceMeta(ref.source_type);
               const Icon = meta.Icon;
               const when = ref.created_at
-                ? new Date(ref.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                ? new Date(ref.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                 : '';
               return (
                 <div key={ref.id} className={`${tw.card.default} rounded-2xl p-3.5 flex items-start gap-3`}>
@@ -1305,7 +1312,15 @@ export default function YourStyle() {
 
   // The facts style_profile has no column for — name, hair colour, palette
   // notes, named style references, climate (dossier-details.ts).
-  const [details, setDetails] = useState<DossierDetails>(EMPTY_DOSSIER_DETAILS);
+  // Seeded SYNCHRONOUSLY from the cached display name (dossier-details.ts):
+  // a returning user's name paints on the very first render — the "Made For"
+  // tape never falls back to its placeholder while the DB fetch is out.
+  const [details, setDetails] = useState<DossierDetails>(() => ({
+    ...EMPTY_DOSSIER_DETAILS,
+    displayName: cachedDisplayName(),
+  }));
+  /** True once the saved dossier details have actually arrived (cache or DB). */
+  const [detailsLoaded, setDetailsLoaded] = useState(false);
   const [paletteDraft, setPaletteDraft] = useState('');
   const [referenceDraft, setReferenceDraft] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
@@ -1393,6 +1408,7 @@ export default function YourStyle() {
       seedWeightDraft(cache.weightKg, cache.weightUnit);
       setTasteCount(cache.tasteCount);
       setDetails(cache.details);
+      setDetailsLoaded(true);
       setPaletteDraft(cache.details.paletteNotes ?? '');
       setLoaded(true);
     };
@@ -1460,6 +1476,7 @@ export default function YourStyle() {
         }
         setTasteCount(refs.length);
         setDetails(det);
+        setDetailsLoaded(true);
         setPaletteDraft(det.paletteNotes ?? '');
         dossierCache = {
           at: Date.now(),
@@ -1838,6 +1855,7 @@ export default function YourStyle() {
           name={details.displayName ?? ''}
           createdAt={p.created_at}
           saved={flash === 'name'}
+          nameLoaded={detailsLoaded || !!details.displayName}
           onSave={(next) => void patchDetails({ displayName: next }).then(() => flashSaved('name'))}
         />
 

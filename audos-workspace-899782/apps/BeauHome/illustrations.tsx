@@ -1746,12 +1746,20 @@ function IllustrationFrame({
       role="img"
       aria-label={label}
       className={`relative block overflow-hidden ${className}`}
-      style={{ aspectRatio, ...(tintColor ? ({ '--illo-primary': tintColor } as React.CSSProperties) : null) }}
+      // Explicitly transparent from the very first paint — the frame itself
+      // must never contribute a white box behind a loading plate; whatever
+      // brand surface sits behind it shows through instead.
+      style={{ aspectRatio, background: 'transparent', ...(tintColor ? ({ '--illo-primary': tintColor } as React.CSSProperties) : null) }}
     >
-      {/* The plate is confirmed coming — a quiet shimmer holds the space so
-          the customer never sees the coded drawing swap to the plate. */}
-      {waitingForPlate && (
-        <span aria-hidden="true" className="absolute inset-0 block">
+      {/* The plate is confirmed coming — a quiet brand-beige shimmer holds
+          the space, staying mounted through the swap and FADING OUT as the
+          plate fades in, so the load never pops or flashes white. */}
+      {expectPlate && !failed && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 block"
+          style={{ opacity: loaded ? 0 : 1, transition: 'opacity 300ms ease', pointerEvents: 'none' }}
+        >
           <style>{'@keyframes illo-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }'}</style>
           <span
             className="absolute block"
@@ -1818,6 +1826,11 @@ function IllustrationFrame({
         className="absolute inset-0 w-full h-full object-contain"
         style={{
           opacity: loaded ? (muted ? 0.45 : partial ? 0.35 : 1) : 0,
+          // Fade the plate in rather than snapping it on: the white-ground
+          // file composites with `multiply` a frame or two AFTER first paint
+          // on mobile browsers, and an instant swap showed that unblended
+          // white ground as a brief white box behind the illustration.
+          transition: 'opacity 300ms ease',
           filter: muted || partial ? 'grayscale(1) contrast(0.92)' : undefined,
           mixBlendMode: blendWithGround ? 'multiply' : undefined,
         }}

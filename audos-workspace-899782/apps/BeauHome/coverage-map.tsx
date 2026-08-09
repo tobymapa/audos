@@ -246,7 +246,22 @@ export function CoverageMap({
 
       <TicketFrame className="mt-6" padding="18px">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse" style={{ minWidth: columns.length > 2 ? '620px' : undefined }}>
+          {/* FIXED, PROPORTIONAL COLUMNS — the same recipe in Register and
+              Archetype view: the category column takes 22%, every data
+              column an equal share of the rest, so no column is squeezed by
+              its content. The minWidth guarantees each column a readable
+              floor on mobile; the wrapper above scrolls horizontally when
+              the map is wider than the phone. */}
+          <table
+            className="w-full border-collapse"
+            style={{ tableLayout: 'fixed', minWidth: `${150 + columns.length * 140}px` }}
+          >
+            <colgroup>
+              <col style={{ width: '22%' }} />
+              {columns.map((col) => (
+                <col key={col.id} style={{ width: `${(78 / Math.max(columns.length, 1)).toFixed(3)}%` }} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
                 <th
@@ -261,7 +276,7 @@ export function CoverageMap({
                     key={col.id}
                     scope="col"
                     className="text-left uppercase text-[var(--color-neutral-600,#856c51)]"
-                    style={{ ...cellHead, whiteSpace: 'nowrap', border: '1px solid var(--color-divider,rgba(59,43,29,0.18))', borderTop: 'none' }}
+                    style={{ ...cellHead, border: '1px solid var(--color-divider,rgba(59,43,29,0.18))', borderTop: 'none' }}
                   >
                     {col.label}
                   </th>

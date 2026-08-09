@@ -1448,7 +1448,13 @@ export default function SpaceDesktop({
         a:hover{color:var(--color-accent)}
         h1,h2,h3,h4{font-family:var(--space-font-heading, var(--space-font-family, inherit));font-weight:400;letter-spacing:-0.015em;}
         button{font-family:var(--space-font-heading, inherit);}
-        input,textarea,select{font-family:var(--space-font-family, inherit);}
+        /* ONE input voice everywhere: every text box shares the body serif,
+           the 14px size, walnut ink for typed text and the house light-brown
+           (neutral-500) for placeholders — element-level so any surface that
+           deliberately styles its own field (the Dossier name tape, the dark
+           chat room via --space-text-primary) still wins. */
+        input,textarea,select{font-family:var(--space-font-family, inherit);font-size:14px;color:var(--space-text-primary,#3b2b1d);}
+        input::placeholder,textarea::placeholder{color:var(--color-neutral-500,#a68e70);opacity:1;}
         /* Pass Forty-One shape rules: radius 0 everywhere; 4px ONLY on
            buttons, text inputs, tag pills and links-as-buttons. Colour dot
            swatches (span.rounded-full) stay circular. */

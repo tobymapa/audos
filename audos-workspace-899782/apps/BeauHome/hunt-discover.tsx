@@ -519,7 +519,9 @@ const RATING_LEGEND: Array<{ tier: BeauRating; line: string }> = [
 
 function RatingLegend() {
   return (
-    <div className="bg-[var(--color-paper,#FBF8F1)] border border-[var(--color-divider,#D9CFBE)]" style={{ padding: '14px 18px 16px' }}>
+    /* Equal padding on every side at phone widths (16px), widening at sm —
+       the legend sits inside the safe content area with even margins. */
+    <div className="bg-[var(--color-paper,#FBF8F1)] border border-[var(--color-divider,#D9CFBE)] p-4 sm:pt-3.5 sm:px-[18px] sm:pb-4">
       <p
         className="uppercase text-[var(--color-neutral-600,#8A7F70)]"
         style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.14em', marginBottom: '10px' }}
@@ -1692,7 +1694,7 @@ export function DiscoverSubTab({
     <div className="space-y-5">
       {/* —— ADD A MAKER — above filters and table. ONE smart input (name
           or URL, auto-detected) plus the file upload. */}
-      <div className="bg-[var(--color-paper,#fbf8f1)] border-t border-t-[var(--color-text,#3b2b1d)] border-b border-b-[var(--color-divider,rgba(59,43,29,0.18))]" style={{ padding: '24px 26px 26px' }}>
+      <div className="bg-[var(--color-paper,#fbf8f1)] border-t border-t-[var(--color-text,#3b2b1d)] border-b border-b-[var(--color-divider,rgba(59,43,29,0.18))] p-4 sm:pt-6 sm:px-[26px] sm:pb-[26px]">
         <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', marginBottom: '6px' }}>
           Add a maker
         </p>

@@ -26,6 +26,33 @@ function ws(): any {
 /** Fired after a successful save, so other surfaces can re-read. */
 export const DOSSIER_DETAILS_EVENT = 'ethaion:dossier-details-updated';
 
+// ---------------------------------------------------------------------------
+// Synchronous display-name cache — the "Made For" tape must never flash its
+// placeholder for a name the user has already given. The last known name is
+// mirrored to localStorage on every fetch/save, so the Dossier can seed its
+// very first render with it (before any DB round-trip resolves).
+// ---------------------------------------------------------------------------
+
+const NAME_CACHE_KEY = 'ethaion_dossier_display_name';
+
+/** The last known display name, read synchronously — or null when none. */
+export function cachedDisplayName(): string | null {
+  try {
+    const raw = (localStorage.getItem(NAME_CACHE_KEY) || '').trim();
+    return raw || null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberDisplayName(name: string | null): void {
+  try {
+    const clean = (name || '').trim();
+    if (clean) localStorage.setItem(NAME_CACHE_KEY, clean);
+    else localStorage.removeItem(NAME_CACHE_KEY);
+  } catch { /* storage unavailable — the DB value still wins on load */ }
+}
+
 export interface DossierDetails {
   id: number;
   displayName: string | null;
@@ -105,7 +132,9 @@ function rowToDetails(row: any): DossierDetails {
 export async function fetchDossierDetails(): Promise<DossierDetails> {
   try {
     const { data } = await ws().from('dossier_details').orderBy('created_at', 'desc').limit(1).get();
-    return data?.[0] ? rowToDetails(data[0]) : EMPTY_DOSSIER_DETAILS;
+    const details = data?.[0] ? rowToDetails(data[0]) : EMPTY_DOSSIER_DETAILS;
+    rememberDisplayName(details.displayName);
+    return details;
   } catch (e) {
     console.warn('[Ethaion] dossier details fetch failed (non-fatal):', e);
     return EMPTY_DOSSIER_DETAILS;
@@ -142,6 +171,7 @@ export async function saveDossierDetails(patch: DossierDetailsPatch): Promise<Do
     if (existing) {
       await ws().from('dossier_details').update(existing.id, fields);
       const merged = rowToDetails({ ...existing, ...fields });
+      rememberDisplayName(merged.displayName);
       window.dispatchEvent(new CustomEvent(DOSSIER_DETAILS_EVENT, { detail: merged }));
       return merged;
     }

@@ -240,7 +240,7 @@ function SubcategoryCard({ sub, onOpen }: { sub: RailSubcategory; onOpen: () => 
     <button
       type="button"
       onClick={onOpen}
-      className="min-w-0 text-left group"
+      className="min-w-0 text-left group flex flex-col self-start"
       aria-label={`${sub.label} — see Beau's recommendations`}
       title={`See Beau's ${sub.label.toLowerCase()} recommendations`}
     >
@@ -255,9 +255,13 @@ function SubcategoryCard({ sub, onOpen }: { sub: RailSubcategory; onOpen: () => 
           className={artwork ? 'w-[88%] h-[88%]' : 'w-[68%] h-[68%]'}
         />
       </span>
+      {/* CONSISTENT HEADING SLOT: the label area reserves two lines whether
+          the name wraps ("Crew Neck Jumper") or not ("V-Neck"), so every
+          card in a row is the same height and the plates + "Beau's picks ›"
+          lines stay vertically aligned — on mobile's 3-up grid especially. */}
       <span
         className={`block ${typography.color.primary} group-hover:underline`}
-        style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '17px', lineHeight: 1.25, marginTop: '9px' }}
+        style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '17px', lineHeight: 1.25, marginTop: '9px', minHeight: '43px' }}
       >
         {sub.label}
       </span>
@@ -1394,7 +1398,7 @@ export function CuratedTab({
                   {category.blurb}
                 </p>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-5 gap-y-7">
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-5 gap-y-7 items-start">
                 {subs.map((sub) => (
                   <SubcategoryCard
                     key={sub.id}
