@@ -260,6 +260,21 @@ export function CanonicalGarment({
   const [cutoutBroken, setCutoutBroken] = useState(false);
   useEffect(() => setCutoutBroken(false), [cutout]);
   const display = cutout && !cutoutBroken ? cutout : candidate;
+  // FLASH-FREE SWAP (founder's fix): when the processed garment image lands,
+  // the quiet processing tile used to vanish the instant the <img> mounted —
+  // before the file had painted — so the tile popped to the image mid-load.
+  // The image now decodes IN PLACE behind the tile: it renders at opacity 0,
+  // the tile stays visible on top, and only once the browser reports the
+  // file fully loaded does the image fade in (and the tile fade out).
+  const [displayLoaded, setDisplayLoaded] = useState(false);
+  const displayImgRef = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    setDisplayLoaded(false);
+    // Already-cached images may fire no load event after mount — read the
+    // element's own complete flag once the new src has been committed.
+    const el = displayImgRef.current;
+    if (el && el.complete && el.naturalWidth > 0) setDisplayLoaded(true);
+  }, [display]);
   // UNIVERSAL TRANSPARENCY (the founder's rule): a photograph the pipeline
   // has not cut yet is NEVER painted raw. Its ingestion is scheduled from
   // here — idle-time, deduplicated and queued inside the pipeline itself —
@@ -374,11 +389,20 @@ export function CanonicalGarment({
           style={{ background: genuineCutout ? 'transparent' : 'var(--color-paper,#fbf8f1)', border: 'none', boxShadow: 'none' }}
         >
           <img
+            ref={displayImgRef}
             src={display}
             alt={label}
             className="absolute object-contain"
-            style={{ inset: 0, width: '100%', height: '100%', background: 'transparent' }}
+            style={{
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              background: 'transparent',
+              opacity: displayLoaded ? 1 : 0,
+              transition: 'opacity 240ms ease',
+            }}
             loading="lazy"
+            onLoad={() => setDisplayLoaded(true)}
             onError={() => {
               // A stored cutout that will not load is not a missing
               // photograph: fall back to the piece's own image first.
@@ -386,6 +410,24 @@ export function CanonicalGarment({
               else setBroken(true);
             }}
           />
+          {/* The quiet tile keeps holding the place ON TOP of the loading
+              image, fading away only once the file is fully in memory — the
+              placeholder never pops to a half-painted image. */}
+          <span
+            aria-hidden="true"
+            className="absolute inline-flex items-center justify-center bg-[#eadfcb]"
+            style={{
+              inset: 0,
+              opacity: displayLoaded ? 0 : 1,
+              transition: 'opacity 240ms ease',
+              pointerEvents: 'none',
+            }}
+          >
+            <span
+              className="block w-1/3 opacity-70"
+              style={{ background: 'var(--space-neutral-300, #dccdb2)', aspectRatio: '1 / 1' }}
+            />
+          </span>
           {regenBadge}
         </span>
       );

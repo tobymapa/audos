@@ -44,14 +44,17 @@
  *           of its own children, and Ethaion's positioning already implies
  *           natural fibres.
  *   Row 5 — "Known for": a text filter over Beau's known-for line
- *   Row 6 — "Your note": a text filter over the user's own notes
- *   Row 7 — "Style": the archetype chips (multi)
- *   Row 8 — "Rating": Beau's four tiers (Excellent / Reliable /
+ *   Row 6 — "Style": the archetype multi-select
+ *   Row 7 — "Rating": Beau's four tiers (Excellent / Reliable /
  *           Inconsistent / Avoid, multi)
+ *   Row 8 — "Your note": a text filter over the user's own notes — LAST,
+ *           because its column is now the table's rightmost
  *   then, past one hairline — Category · Construction · Register (facets
  *   without a column of their own).
- * The MAKER NAME SEARCH sits on its own, DIRECTLY above the table, and a
- * four-tier RATING LEGEND sits at the top of the view.
+ * Every MULTI-SELECT filter renders as a DROPDOWN (a checkbox panel), never
+ * an inline chip row; single-choice facets are native selects.
+ * The MAKER NAME SEARCH sits on its own, DIRECTLY above the table, with the
+ * four-tier RATING LEGEND between it and the table.
  * Every chip is the same height and padding: active = walnut fill with paper
  * text, inactive = paper fill with a walnut hairline. No sustainability
  * filter, no colour surprises.
@@ -70,7 +73,7 @@
  * that costs, and what the tier itself means), sizing note, archetype fit.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Star, Upload, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Star, Trash2, Upload, X } from 'lucide-react';
 import { typography } from '../../lib/colors';
 import {
   BRAND_INDEX_CHANGED_EVENT,
@@ -201,6 +204,158 @@ function FilterRow({ label, children }: { label: string; children: React.ReactNo
       </span>
       <div className="flex flex-wrap gap-1.5 min-w-0">{children}</div>
     </div>
+  );
+}
+
+/**
+ * ONE MULTI-SELECT FILTER AS A DROPDOWN (Discover filter overhaul — the
+ * founder's fix): a chip-styled trigger summarising the selection, opening
+ * a compact checkbox panel. Replaces the inline chip rows for every
+ * multi-select column filter, so a long option list (countries, styles)
+ * never becomes a wall of chips.
+ */
+function MultiSelectDropdown({
+  label,
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  label: string;
+  options: Array<{ id: string; label: string }>;
+  selected: string[];
+  onToggle: (id: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (hostRef.current && !hostRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  const summary =
+    selected.length === 0
+      ? 'Any'
+      : selected.length <= 2
+        ? selected.map((id) => options.find((o) => o.id === id)?.label || id).join(', ')
+        : `${selected.length} selected`;
+  return (
+    <div ref={hostRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((cur) => !cur)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={`${label} filter`}
+        className="inline-flex items-center gap-1.5 transition-colors"
+        style={chipStyle(selected.length > 0)}
+      >
+        <span className="max-w-[24ch] truncate">{summary}</span>
+        <ChevronDown
+          className="w-3.5 h-3.5 flex-shrink-0"
+          aria-hidden="true"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }}
+        />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label={label}
+          aria-multiselectable="true"
+          className="absolute left-0 top-full z-30 mt-1 overflow-y-auto bg-[var(--color-paper,#fbf8f1)]"
+          style={{
+            minWidth: '220px',
+            maxHeight: '280px',
+            border: '1px solid var(--color-divider,rgba(59,43,29,0.35))',
+            boxShadow: '0 10px 26px rgba(36,26,18,0.16)',
+            padding: '4px 0',
+          }}
+        >
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="w-full text-left uppercase text-[var(--color-neutral-600,#8A7F70)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors"
+              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.12em', padding: '8px 14px', borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}
+            >
+              Clear {label.toLowerCase()}
+            </button>
+          )}
+          {options.map((o) => {
+            const active = selected.includes(o.id);
+            return (
+              <button
+                key={o.id}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => onToggle(o.id)}
+                className="w-full flex items-center gap-2.5 text-left hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors"
+                style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.3, padding: '8px 14px', color: 'var(--color-text,#3b2b1d)' }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-flex items-center justify-center flex-shrink-0"
+                  style={{
+                    width: '15px',
+                    height: '15px',
+                    border: '1px solid var(--color-divider,rgba(59,43,29,0.45))',
+                    background: active ? '#241a12' : 'var(--color-paper,#fbf8f1)',
+                  }}
+                >
+                  {active && <Check className="w-3 h-3" style={{ color: '#fbf8f1' }} />}
+                </span>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One single-choice filter as a native dropdown — the same register as the
+ * multi-select trigger, for facets that only ever hold one value. */
+function SingleSelectDropdown({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ id: string; label: string }>;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={`${label} filter`}
+      className="hab-input"
+      style={{ height: '32px', paddingTop: 0, paddingBottom: 0, fontSize: '12.5px', width: 'min(100%, 220px)' }}
+    >
+      <option value="">Any</option>
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -893,6 +1048,7 @@ function BrandTable({
   onToggleCompare,
   matrixList,
   onToggleMatrix,
+  onDeleteBrand,
 }: {
   entries: DirectoryEntry[];
   /** brand (lowercase) → the personal brand_index row (favourite, logo, note). */
@@ -903,6 +1059,8 @@ function BrandTable({
   onToggleCompare: (brand: string) => void;
   matrixList: string[];
   onToggleMatrix: (brand: string) => void;
+  /** Per-row delete (founder's fix) — removes the maker from the list. */
+  onDeleteBrand: (brand: string) => void;
 }) {
   // The identity of THIS set of rows: a filter change (or the profile toggle
   // re-splitting the directory) starts the reveal over; Beau filing a new
@@ -932,10 +1090,10 @@ function BrandTable({
           <col style={{ width: '9%' }} />
           <col style={{ width: '10%' }} />
           <col style={{ width: '15%' }} />
-          <col style={{ width: '12%' }} />
-          <col style={{ width: '18%' }} />
+          <col style={{ width: '17%' }} />
           <col style={{ width: '7%' }} />
-          <col style={{ width: '4%' }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '5%' }} />
         </colgroup>
         <thead>
           <tr className="border-b border-[var(--color-text,#3b2b1d)]">
@@ -945,9 +1103,11 @@ function BrandTable({
             <th className={head} style={headStyle}>Price tier</th>
             <th className={head} style={headStyle}>Material signal</th>
             <th className={head} style={headStyle}>Known for</th>
-            <th className={head} style={headStyle}>Your note</th>
             <th className={head} style={headStyle}>Archetype fit</th>
             <th className={head} style={headStyle}>Beau&rsquo;s rating</th>
+            {/* YOUR NOTE is the LAST data column (founder's fix) — its filter
+                sits last in the filter list to match. */}
+            <th className={head} style={headStyle}>Your note</th>
             <th className={`${head} text-right`} style={headStyle} aria-label="Actions" />
           </tr>
         </thead>
@@ -1023,16 +1183,6 @@ function BrandTable({
                   <span className={`${typography.size.xs} ${typography.color.muted}`}>—</span>
                 )}
               </td>
-              {/* YOUR NOTE — the one free-text field the user owns. */}
-              <td className="px-3 py-3 min-w-[140px]">
-                {meta?.note ? (
-                  <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, color: 'var(--color-neutral-700,#634e38)' }}>
-                    {meta.note}
-                  </span>
-                ) : (
-                  <span className={`${typography.size.xs} ${typography.color.muted}`}>—</span>
-                )}
-              </td>
               <td className="px-3 py-3">
                 {/* Every direction this maker serves, as wrapping chips — no
                     comma list, no truncation. */}
@@ -1046,10 +1196,37 @@ function BrandTable({
               <td className="px-3 py-3">
                 <BeauRatingTag rating={rating} note={ratingNote} />
               </td>
+              {/* YOUR NOTE — the one free-text field the user owns; the LAST
+                  data column (founder's fix), mirroring its filter's bottom
+                  position in the filter list. */}
+              <td className="px-3 py-3 min-w-[140px]">
+                {meta?.note ? (
+                  <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, color: 'var(--color-neutral-700,#634e38)' }}>
+                    {meta.note}
+                  </span>
+                ) : (
+                  <span className={`${typography.size.xs} ${typography.color.muted}`}>—</span>
+                )}
+              </td>
               <td className="px-3 py-3">
                 <span className="flex items-center justify-end gap-1.5">
                   <CompareAction brand={b.brand} compareList={compareList} onToggleCompare={onToggleCompare} />
                   <MatrixAction brand={b.brand} matrixList={matrixList} onToggleMatrix={onToggleMatrix} />
+                  {/* DELETE (founder's fix) — a quiet trash action per row;
+                      confirmation happens in the handler, so a stray tap
+                      never silently drops a maker. */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteBrand(b.brand);
+                    }}
+                    className="inline-flex items-center justify-center min-w-[36px] min-h-[36px] rounded transition-colors text-[var(--color-neutral-600,#856c51)] hover:text-[#8B3A3A]"
+                    title={`Remove ${b.brand} from your directory`}
+                    aria-label={`Remove ${b.brand} from your directory`}
+                  >
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
+                  </button>
                 </span>
               </td>
             </tr>
@@ -1114,6 +1291,16 @@ export function DiscoverSubTab({
     window.addEventListener(BRAND_INDEX_CHANGED_EVENT, onChanged);
     return () => window.removeEventListener(BRAND_INDEX_CHANGED_EVENT, onChanged);
   }, [refreshMeta]);
+
+  // HIDDEN CATALOG MAKERS (founder's fix — the per-row delete): a maker
+  // from the static catalog cannot be deleted from the seed itself, so a
+  // `hunt_hidden_brands` row filters it out of the table instead.
+  // User-added / Beau-recommended rows delete their hunt_directory_brands
+  // row directly and never appear here.
+  const { data: hiddenRows, refresh: refreshHidden } = window.useWorkspaceDB<{ id: number; brand: string }>('hunt_hidden_brands', {
+    orderBy: { column: 'created_at', direction: 'desc' },
+    limit: 500,
+  });
 
   // RETROACTIVE LOGO BACKFILL — one-time sweep on mount: every ledger row
   // filed with a site `url` but NO stored `logo_url` gets its mark fetched
@@ -1187,6 +1374,49 @@ export function DiscoverSubTab({
     void setBrandStatus(brand, fav ? 'curious' : 'trusted');
   };
 
+  /** DELETE A ROW (founder's fix): remove a maker from the directory table,
+   * behind a confirmation prompt so a stray tap never drops one. A
+   * user-added / Beau-recommended maker deletes its hunt_directory_brands
+   * row; a catalog maker is hidden via a hunt_hidden_brands row instead
+   * (the static seed itself cannot lose entries). */
+  const deleteBrand = async (brand: string) => {
+    const clean = brand.trim();
+    if (!clean) return;
+    if (!window.confirm(`Remove ${clean} from your Discover directory?`)) return;
+    try {
+      const key = clean.toLowerCase();
+      const row = (addedRows || []).find((r) => (r.brand || '').trim().toLowerCase() === key);
+      if (row) {
+        await (window as any).__workspaceDb.from('hunt_directory_brands').delete(row.id);
+        window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
+        refresh();
+      } else {
+        await (window as any).__workspaceDb.from('hunt_hidden_brands').insert({ brand: clean });
+        refreshHidden();
+      }
+    } catch (e) {
+      console.warn('[Ethaion] brand removal failed:', e);
+    }
+  };
+
+  /** RE-ADD RESTORES (the delete's counterpart): adding a maker back — by
+   * name, URL or file import — clears any hunt_hidden_brands row holding
+   * it out of the table, so a removed catalog maker is never a dead end. */
+  const unhideBrand = async (brand: string) => {
+    const key = brand.trim().toLowerCase();
+    if (!key) return;
+    const rows = (hiddenRows || []).filter((r) => (r.brand || '').trim().toLowerCase() === key);
+    if (rows.length === 0) return;
+    try {
+      for (const row of rows) {
+        await (window as any).__workspaceDb.from('hunt_hidden_brands').delete(row.id);
+      }
+      refreshHidden();
+    } catch (e) {
+      console.warn('[Ethaion] could not restore the removed maker (non-fatal):', e);
+    }
+  };
+
   // "Add a maker" — the TOP element of Discover: ONE smart input (a name
   // or a URL, auto-detected per keystroke) plus the file upload, on one
   // toggle.
@@ -1209,10 +1439,12 @@ export function DiscoverSubTab({
     setFormNote('');
   };
 
-  /** ONE SMART INPUT (founder's fix): a pasted URL is auto-detected and
-   * imported — the brand's name and logo read off its own page — while a
-   * plain name goes straight to Beau's dossier generation. One box, two
-   * behaviours. */
+  /** ONE SMART INPUT (founder's fix): a name or a URL, auto-detected — and
+   * BOTH roads end at the same place (dossier-parity fix): the brand's name
+   * and logo read off its own site, and Beau files his full dossier
+   * (knownFor, rating, construction, the lot). A pasted URL reads the site
+   * first and then generates; a typed name generates first and then reads
+   * the site Beau named for the maker. Same output either way. */
   const submitAdd = async () => {
     const raw = formInput.trim();
     if (!raw || addBusy) return;
@@ -1230,6 +1462,25 @@ export function DiscoverSubTab({
         logo = meta.logoUrl || faviconFor(cleanUrl);
       }
       const added = await addUserDirectoryBrand(name);
+      // A maker previously removed from the table comes back the moment it
+      // is added again — without this, re-adding a deleted catalog maker
+      // would silently change nothing.
+      await unhideBrand(added.brand);
+      // NAME ENTRY GETS THE SITE READ TOO (dossier-parity fix): the dossier
+      // generation names the maker's official site (websiteUrl), with the
+      // verified catalog URL as the fallback — its logo is read exactly as
+      // a pasted URL's would be, so a typed name never lands with less.
+      if (!cleanUrl) {
+        const verified = brandWebsiteUrl(added.brand);
+        const site = normalizeSiteUrl(
+          added.websiteUrl || (verified && !/duckduckgo\.com/i.test(verified) ? verified : '') || '',
+        );
+        if (site) {
+          cleanUrl = site;
+          const meta = await fetchSiteMeta(site).catch(() => ({ name: '', logoUrl: null }));
+          logo = meta.logoUrl || faviconFor(site);
+        }
+      }
       // The ledger row rides along when there is anything to keep — the
       // site + its logo (URL adds) and/or the user's own note.
       if (cleanUrl || formNote.trim()) {
@@ -1290,6 +1541,10 @@ export function DiscoverSubTab({
     setAddError(null);
     try {
       const { added, skipped } = await addDirectoryBrandStubs(importEntries.map((entry) => entry.name));
+      // Imported names also restore makers previously removed from the
+      // table (catalog rows land in `skipped`, so the stub call alone
+      // would leave them hidden).
+      for (const entry of importEntries) await unhideBrand(entry.name);
       // URL rows also get a ledger row (status Curious) carrying the site
       // and its favicon logo, so the mark shows in the table immediately.
       for (const entry of importEntries) {
@@ -1313,10 +1568,10 @@ export function DiscoverSubTab({
     }
   };
 
-  // Filters — the labelled chip rows. The FIRST block mirrors the table's
-  // column order left→right (Maker · Status · Origin · Price · Material ·
-  // Style · Rating); Category / Construction / Register follow past the
-  // hairline as facets without a column of their own.
+  // Filters — the labelled rows. The FIRST block mirrors the table's column
+  // order left→right (Favourite · Origin · Price · Material · Known for ·
+  // Style · Rating · Your note); Category / Construction / Register follow
+  // past the hairline as facets without a column of their own.
   const [nameQuery, setNameQuery] = useState('');
   const [favesOnly, setFavesOnly] = useState(false);
   const [knownForQuery, setKnownForQuery] = useState('');
@@ -1330,7 +1585,13 @@ export function DiscoverSubTab({
   const [archetypes, setArchetypes] = useState<string[]>([]);
   const [ratings, setRatings] = useState<BeauRating[]>([]);
 
-  const entries = useMemo(() => mergeDirectory(addedRows), [addedRows]);
+  const entries = useMemo(() => {
+    const hidden = new Set(
+      (hiddenRows || []).map((r) => (r.brand || '').trim().toLowerCase()).filter(Boolean),
+    );
+    const all = mergeDirectory(addedRows);
+    return hidden.size === 0 ? all : all.filter((e) => !hidden.has(e.profile.brand.toLowerCase()));
+  }, [addedRows, hiddenRows]);
 
   const countryOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -1429,10 +1690,6 @@ export function DiscoverSubTab({
 
   return (
     <div className="space-y-5">
-      {/* —— RATING LEGEND — Beau's four tiers, spelled out at the top of
-          the view so every rating tag below reads itself. */}
-      <RatingLegend />
-
       {/* —— ADD A MAKER — above filters and table. ONE smart input (name
           or URL, auto-detected) plus the file upload. */}
       <div className="bg-[var(--color-paper,#fbf8f1)] border-t border-t-[var(--color-text,#3b2b1d)] border-b border-b-[var(--color-divider,rgba(59,43,29,0.18))]" style={{ padding: '24px 26px 26px' }}>
@@ -1440,8 +1697,8 @@ export function DiscoverSubTab({
           Add a maker
         </p>
         <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '58ch' }}>
-          One box, two behaviours — type a name and Beau builds the full dossier himself, or paste the brand&rsquo;s
-          site URL into the same box and the name and logo read themselves. Whole lists upload as a file.
+          One box, two ways in — type a maker&rsquo;s name or paste their site URL. Either way the name and logo read
+          off the brand&rsquo;s own site and Beau files his full dossier. Whole lists upload as a file.
         </p>
 
         <div className="flex flex-wrap gap-1.5 mt-4" role="group" aria-label="How to add the brand">
@@ -1493,8 +1750,8 @@ export function DiscoverSubTab({
             </div>
             <p className={`${typography.size.xs} ${inputIsUrl ? 'text-[var(--color-accent-700,#7c4a17)]' : typography.color.muted} mt-1.5`}>
               {inputIsUrl
-                ? 'URL detected — the brand’s name and logo will be read off its own page.'
-                : 'A name gets Beau’s full dossier; a pasted URL imports itself — name and logo off the site.'}
+                ? 'URL detected — name and logo off the site, plus Beau’s full dossier.'
+                : 'Name or URL — the same result either way: name and logo off the site, plus Beau’s full dossier.'}
             </p>
             <textarea
               value={formNote}
@@ -1569,12 +1826,12 @@ export function DiscoverSubTab({
         by what matters. Tap a row for the full brand dossier.
       </p>
 
-      {/* —— THE FILTERS — every chip row carries its category label in the
-          left column, chips indented in the second column (wrapped chips
-          align to the chip column, never back to the label). The first
-          block mirrors the table's column order, left to right — Maker ·
-          Status · Origin · Price · Material · Style · Rating — then one
-          hairline, then the column-less facets. */}
+      {/* —— THE FILTERS — every row carries its category label in the left
+          column, its control indented in the second. Multi-selects are
+          DROPDOWNS (founder's fix), never inline chip rows. The first block
+          mirrors the table's column order, left to right — Favourite ·
+          Origin · Price · Material · Known for · Style · Rating · Your note
+          — then one hairline, then the column-less facets. */}
       <div>
         {anyFilter ? (
           <div className="flex justify-end" style={{ paddingTop: '4px' }}>
@@ -1588,6 +1845,10 @@ export function DiscoverSubTab({
             </button>
           </div>
         ) : null}
+        {/* COLUMN FILTERS — dropdowns, never inline chip rows (founder's
+            fix). Top→bottom mirrors the table's columns left→right:
+            Favourite · Origin · Price · Material · Known for · Style ·
+            Rating · Your note (LAST, matching the rightmost column). */}
         <div>
           <FilterRow label="Favourite">
             <FilterChip
@@ -1599,26 +1860,30 @@ export function DiscoverSubTab({
             </FilterChip>
           </FilterRow>
           <FilterRow label="Origin">
-            {countryOptions.map((c) => (
-              <FilterChip key={c} active={countries.includes(c)} onClick={() => toggleIn(countries, c, setCountries)}>
-                {c}
-              </FilterChip>
-            ))}
+            <MultiSelectDropdown
+              label="Origin"
+              options={countryOptions.map((c) => ({ id: c, label: c }))}
+              selected={countries}
+              onToggle={(c) => toggleIn(countries, c, setCountries)}
+              onClear={() => setCountries([])}
+            />
           </FilterRow>
           <FilterRow label="Price">
-            <FilterChip active={priceBand === ''} onClick={() => setPriceBand('')}>Any</FilterChip>
-            {PRICE_BAND_ORDER.map((b) => (
-              <FilterChip key={b} active={priceBand === b} onClick={() => setPriceBand(priceBand === b ? '' : b)} title={PRICE_BAND_SYMBOL[b]}>
-                {PRICE_TIER_LABELS[b]}
-              </FilterChip>
-            ))}
+            <SingleSelectDropdown
+              label="Price tier"
+              value={priceBand}
+              onChange={(v) => setPriceBand(v as PriceBand | '')}
+              options={PRICE_BAND_ORDER.map((b) => ({ id: b, label: `${PRICE_TIER_LABELS[b]} · ${PRICE_BAND_SYMBOL[b]}` }))}
+            />
           </FilterRow>
           <FilterRow label="Material">
-            {DISCOVER_MATERIALS.map((m) => (
-              <FilterChip key={m} active={materials.includes(m)} onClick={() => toggleIn(materials, m, setMaterials)}>
-                {m}
-              </FilterChip>
-            ))}
+            <MultiSelectDropdown
+              label="Material"
+              options={DISCOVER_MATERIALS.map((m) => ({ id: m, label: m }))}
+              selected={materials}
+              onToggle={(m) => toggleIn(materials, m, setMaterials)}
+              onClear={() => setMaterials([])}
+            />
           </FilterRow>
           <FilterRow label="Known for">
             <input
@@ -1631,6 +1896,27 @@ export function DiscoverSubTab({
               aria-label="Filter by what a maker is known for"
             />
           </FilterRow>
+          <FilterRow label="Style">
+            <MultiSelectDropdown
+              label="Style"
+              options={Object.keys(ARCHETYPE_LABELS).map((id) => ({ id, label: ARCHETYPE_LABELS[id] }))}
+              selected={archetypes}
+              onToggle={(id) => toggleIn(archetypes, id, setArchetypes)}
+              onClear={() => setArchetypes([])}
+            />
+          </FilterRow>
+          <FilterRow label="Rating">
+            <MultiSelectDropdown
+              label="Rating"
+              options={BEAU_RATINGS.map((r) => ({ id: r, label: r }))}
+              selected={ratings}
+              onToggle={(r) => toggleIn(ratings, r as BeauRating, setRatings)}
+              onClear={() => setRatings([])}
+            />
+          </FilterRow>
+          {/* YOUR NOTE — the LAST filter (founder's fix), because its column
+              is now the table's rightmost: filter order top→bottom = column
+              order left→right. */}
           <FilterRow label="Your note">
             <input
               type="search"
@@ -1642,48 +1928,37 @@ export function DiscoverSubTab({
               aria-label="Filter by your note"
             />
           </FilterRow>
-          <FilterRow label="Style">
-            {Object.keys(ARCHETYPE_LABELS).map((id) => (
-              <FilterChip key={id} active={archetypes.includes(id)} onClick={() => toggleIn(archetypes, id, setArchetypes)}>
-                {ARCHETYPE_LABELS[id]}
-              </FilterChip>
-            ))}
-          </FilterRow>
-          <FilterRow label="Rating">
-            {BEAU_RATINGS.map((r) => (
-              <FilterChip key={r} active={ratings.includes(r)} onClick={() => toggleIn(ratings, r, setRatings)} title={`Beau's rating — ${r}`}>
-                {r}
-              </FilterChip>
-            ))}
-          </FilterRow>
         </div>
 
         {/* The row separator — one subtle hairline. */}
         <div style={{ borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))', marginTop: '8px', marginBottom: '8px' }} aria-hidden="true" />
 
+        {/* Facets without a column of their own — dropdowns too. */}
         <div>
           <FilterRow label="Category">
-            <FilterChip active={category === ''} onClick={() => setCategory('')}>Any</FilterChip>
-            {DISCOVER_CATEGORIES.map((c) => (
-              <FilterChip key={c} active={category === c} onClick={() => setCategory(category === c ? '' : c)}>
-                {c}
-              </FilterChip>
-            ))}
+            <SingleSelectDropdown
+              label="Category"
+              value={category}
+              onChange={setCategory}
+              options={DISCOVER_CATEGORIES.map((c) => ({ id: c, label: c }))}
+            />
           </FilterRow>
           <FilterRow label="Construction">
-            <FilterChip active={construction === ''} onClick={() => setConstruction('')}>Any</FilterChip>
-            {CONSTRUCTION_METHODS.map((m) => (
-              <FilterChip key={m} active={construction === m} onClick={() => setConstruction(construction === m ? '' : m)}>
-                {m}
-              </FilterChip>
-            ))}
+            <SingleSelectDropdown
+              label="Construction"
+              value={construction}
+              onChange={setConstruction}
+              options={CONSTRUCTION_METHODS.map((m) => ({ id: m, label: m }))}
+            />
           </FilterRow>
           <FilterRow label="Register">
-            {REGISTERS.map((r) => (
-              <FilterChip key={r} active={registers.includes(r)} onClick={() => toggleIn(registers, r, setRegisters)}>
-                {r}
-              </FilterChip>
-            ))}
+            <MultiSelectDropdown
+              label="Register"
+              options={REGISTERS.map((r) => ({ id: r, label: r }))}
+              selected={registers}
+              onToggle={(r) => toggleIn(registers, r, setRegisters)}
+              onClear={() => setRegisters([])}
+            />
           </FilterRow>
         </div>
       </div>
@@ -1701,6 +1976,11 @@ export function DiscoverSubTab({
           aria-label="Search makers by name"
         />
       </div>
+
+      {/* —— RATING LEGEND — Beau's four tiers, DIRECTLY above the table and
+          below the maker search (founder's fix), so every rating tag in the
+          rows beneath reads itself. */}
+      <RatingLegend />
 
       {/* —— THE TABLE(S). Profile ON: matched-to-you first, the rest below. */}
       {matched.length === 0 && beyond.length === 0 ? (
@@ -1724,6 +2004,7 @@ export function DiscoverSubTab({
               onToggleCompare={onToggleCompare}
               matrixList={matrixList}
               onToggleMatrix={onToggleMatrix}
+              onDeleteBrand={(b) => void deleteBrand(b)}
             />
           ) : (
             userArchetypes.size > 0 && (
@@ -1750,6 +2031,7 @@ export function DiscoverSubTab({
                 onToggleCompare={onToggleCompare}
                 matrixList={matrixList}
                 onToggleMatrix={onToggleMatrix}
+                onDeleteBrand={(b) => void deleteBrand(b)}
               />
             </section>
           )}
