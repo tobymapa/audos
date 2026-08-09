@@ -968,7 +968,9 @@ function ReserveWatchlist() {
             tells you when waiting stops being clever.
           </p>
         </div>
-        <div className="w-full">
+        {/* data-tour: the first-run walkthrough's Reserve stop rings this
+            Watching block (onboarding-tour.tsx). */}
+        <div className="w-full" data-tour="tour-reserve-watch">
           <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-[var(--color-text,#3b2b1d)]">
             <span
               className="uppercase text-[var(--color-neutral-700,#634e38)]"

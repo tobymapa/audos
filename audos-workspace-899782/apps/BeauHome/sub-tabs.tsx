@@ -36,6 +36,9 @@ export interface SubTabItem<T extends string> {
   label: string;
   /** Appended to the label — e.g. The Hunt's Compare queue count. */
   suffix?: string;
+  /** Emitted as data-tour on the button — lets the first-run walkthrough
+   * (onboarding-tour.tsx) ring individual sub-tabs. */
+  tourAnchor?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +124,7 @@ export function SubTabs<T extends string>({
             key={item.id}
             type="button"
             role="tab"
+            data-tour={item.tourAnchor}
             aria-selected={isActive}
             aria-pressed={isActive}
             onClick={() => onChange(item.id)}

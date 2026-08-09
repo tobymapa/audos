@@ -419,7 +419,8 @@ Respond ONLY with strict JSON (no markdown):
   "archetypes": string[],          // subset of ["ivy","country","continental","sportsman","workwear","relaxed","military","nautical","riviera"] — ivy=Classic Ivy, country=British Country, continental=Continental, sportsman=American Outdoors, workwear=Workwear, relaxed=Smart Casual, military=Military/Utility, nautical=Coastal/Nautical, riviera=Mediterranean/Riviera
   "sizingNote": string,            // ONE sentence on sizing characteristics — especially whether they run short/long/narrow (useful for a shorter build)
   "qualityScore": number,          // 1–10 construction/quality score
-  "naturalMaterials": boolean      // do they lead with natural materials?
+  "naturalMaterials": boolean,     // do they lead with natural materials?
+  "websiteUrl": string | null      // the maker's OFFICIAL site URL (https://…) — null when not confidently known; never a marketplace or social page
 }`;
 
 const BRAND_GEN_CACHE_KEY = 'ethaion_brand_gen_v1';
@@ -491,6 +492,9 @@ function sanitizeGenerated(raw: any, fallbackName: string): BrandProfile | null 
     sizingNote: str(raw?.sizingNote),
     qualityScore: Number.isFinite(score) ? Math.min(10, Math.max(1, Math.round(score))) : 5,
     naturalMaterials: raw?.naturalMaterials === true,
+    // The official site, when the model is confident — lets a typed NAME
+    // get the same logo/site read as a pasted URL (dossier-parity fix).
+    websiteUrl: /^https?:\/\/\S+$/i.test(str(raw?.websiteUrl)) ? str(raw?.websiteUrl) : null,
     generated: true,
   };
 }

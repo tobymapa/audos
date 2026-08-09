@@ -58,6 +58,7 @@ import {
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { FlatLayBoard, type FlatLayPiece } from './flat-lay-board';
 import { OnboardingTour } from './onboarding-tour';
+import { FloatingBackButton } from './floating-back';
 import { HairlineRowsSkeleton, HomeSkeleton, ShimmerDefs } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { CategoryGrid, CategoryPage, SeeAllPieces, WardrobeSearch } from './wardrobe';
@@ -1046,6 +1047,7 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
           // The first-run tour's anchors — the coach marks ring these buttons.
           const tourAnchor =
             id === 'wardrobe' ? 'tour-ledger'
+            : id === 'curated' ? 'tour-rail'
             : id === 'radar' ? 'tour-reserve'
             : id === 'scout' ? 'tour-hunt'
             : id === 'fitting-room' ? 'tour-fitting'
@@ -2154,6 +2156,18 @@ export default function BeauHome() {
   const backToWardrobe = useCallback(() => setTab('wardrobe'), []);
   const backToCurated = useCallback(() => setTab('curated'), []);
 
+  // FLOATING BACK (founder's fix): the one back action the CURRENT view
+  // supports, if any — exactly the handler that view's own back button
+  // already calls. Top-level tab roots have none, so nothing floats there;
+  // the button itself only appears once the page is scrolled down.
+  const floatingBack =
+    tab === 'wardrobe' && openStyleToday ? closeStyleToday
+    : tab === 'wardrobe' && !openStyleToday && openCategory ? closeCategory
+    : tab === 'wardrobe' && !openStyleToday && !openCategory && openSeeAll ? closeAllPieces
+    : tab === 'dressed' ? backToWardrobe
+    : tab === 'saved' ? backToCurated
+    : null;
+
   if (!profileLoaded) {
     // Skeleton over spinner (Track J): ghost outlines of the page that's
     // coming, so opening the wardrobe feels instant rather than waited-for.
@@ -2338,7 +2352,7 @@ export default function BeauHome() {
                   LAST section — it closes the page with the 72px bottom
                   padding (the old "On the Rail" section was removed: owned
                   pieces are already organised by category here). */}
-              <section className="px-6 sm:px-10 pt-[52px] pb-[72px]">
+              <section className="px-6 sm:px-10 pt-[52px] pb-[72px]" data-tour="tour-ledger-pieces">
                 <div className="pb-2.5 border-b border-[var(--color-text,#3b2b1d)] mb-4">
                   <h3 className={`hab-section-head ${typography.color.primary}`}>Your pieces</h3>
                 </div>
@@ -2485,6 +2499,10 @@ export default function BeauHome() {
       </div>
       {/* Single chat entry point: the Beau button in the shell header — no
           floating duplicates. */}
+
+      {/* Floating back — fixed top-left once the user scrolls down inside a
+          sub-view; mirrors that view's own back button exactly. */}
+      {floatingBack && <FloatingBackButton onBack={floatingBack} />}
 
       {/* First-run coach-mark tour + the quiet "?" re-trigger in the corner.
           Auto-shows once (localStorage-gated), never over the intake wizard

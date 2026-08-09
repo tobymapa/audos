@@ -5,18 +5,22 @@
  * bottom-left corner of the shell (bottom-right is the photo-migration
  * pill's spot).
  *
- * Five stops, in the order a new customer meets the product:
- *   1. The Ledger — where pieces live (add one to get started)
- *   2. Beau · Today — the daily outfit on the walnut band
- *   3. The Reserve → The Rail — watched pieces and Beau's picks
- *   4. The Hunt → Discover — hunts, verdicts and the maker directory
- *   5. The Fitting — build a look and try it on
+ * Twelve stops, in the order a new customer meets the product — the main
+ * tabs AND their key sub-tabs / sections (walkthrough extension):
+ *   The Ledger · Beau · Today · Your pieces (category sections)
+ *   The Reserve · its Watching list · The Rail
+ *   The Hunt · its Find sub-tab · its Discover sub-tab
+ *   The Fitting · the outfit board's actions · the shelf sections
  *
- * Each stop is a tooltip card anchored to a `data-tour="…"` element (the tab
- * bar's buttons, plus the Beau · Today band on The Ledger). The highlighted
- * element gets a subtle oxblood ring and the rest of the page dims lightly
- * behind it; when an anchor isn't on screen the card centres instead — the
- * tour never breaks on a missing element.
+ * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
+ * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
+ * lives INSIDE a tab first navigates there — dispatching the same
+ * `ethaion:navigate` / `ethaion:hunt-subtab` events chat deep links use —
+ * so the element exists before it is measured. The highlighted element
+ * gets a subtle oxblood ring and the rest of the page dims lightly behind
+ * it; when an anchor isn't on screen the card centres instead — the tour
+ * never breaks on a missing element. The "?" re-trigger replays the FULL
+ * extended walkthrough, sub-tab stops included.
  *
  * The auto-show is gated behind localStorage `ethaion_onboarding_done`: once
  * dismissed (skip or finish alike) it never auto-shows again. The "?" button
@@ -26,6 +30,7 @@
  * #EDE8DF darker beige · #D9CFBE line · #8A7F70 muted · #8B3A3A oxblood.
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { setHuntSubTabHandoff } from './brands';
 
 export const ONBOARDING_DONE_KEY = 'ethaion_onboarding_done';
 
@@ -34,6 +39,11 @@ interface TourStep {
   anchor: string;
   kicker: string;
   body: string;
+  /** Where this step's anchor LIVES: dispatched as `ethaion:navigate` (and
+   * `ethaion:hunt-subtab` for The Hunt's sub-tabs) before measuring, so
+   * sub-tab stops can ring elements inside their own tab. Stops anchored
+   * to the always-visible tab bar carry none. */
+  navigate?: { tab?: string; huntSubTab?: string };
 }
 
 /** Copy contract: short, direct, Ethaion's voice — never "Welcome to the
@@ -43,26 +53,69 @@ const STEPS: TourStep[] = [
     anchor: 'tour-ledger',
     kicker: 'The Ledger',
     body: 'Your pieces live here. Add one to get started — a photo or a few words is enough.',
+    navigate: { tab: 'wardrobe' },
   },
   {
     anchor: 'tour-beau-today',
     kicker: 'Beau · Today',
     body: 'The day\u2019s outfit, composed from what you own — weather read, occasion set.',
+    navigate: { tab: 'wardrobe' },
+  },
+  {
+    anchor: 'tour-ledger-pieces',
+    kicker: 'The Ledger · Your pieces',
+    body: 'Everything you own, organised by category — search it, open a category, or see every piece in one view.',
+    navigate: { tab: 'wardrobe' },
   },
   {
     anchor: 'tour-reserve',
-    kicker: 'The Reserve · The Rail',
-    body: 'Pieces you\u2019re weighing up wait on the Reserve. The Rail hangs Beau\u2019s picks for your gaps.',
+    kicker: 'The Reserve',
+    body: 'Pieces you\u2019re weighing up wait here while you decide.',
+  },
+  {
+    anchor: 'tour-reserve-watch',
+    kicker: 'The Reserve · Watching',
+    body: 'Add a piece to the watch list and Beau re-checks price, stock and size on every visit — drops surface at the top.',
+    navigate: { tab: 'radar' },
+  },
+  {
+    anchor: 'tour-rail',
+    kicker: 'The Rail',
+    body: 'The Rail hangs Beau\u2019s picks for your gaps — pieces move from here to the Reserve, then into the Ledger.',
   },
   {
     anchor: 'tour-hunt',
+    kicker: 'The Hunt',
+    body: 'Ask for anything — Beau hunts it down: real listings, brand dossiers, quality verdicts.',
+  },
+  {
+    anchor: 'tour-hunt-find',
+    kicker: 'The Hunt · Find',
+    body: 'One box — name a piece with a size and a ceiling for live listings, or ask \u201cis it worth the money?\u201d.',
+    navigate: { tab: 'scout', huntSubTab: 'find' },
+  },
+  {
+    anchor: 'tour-hunt-discover',
     kicker: 'The Hunt · Discover',
-    body: 'Ask for anything — Beau hunts it down. Discover keeps your directory of makers worth knowing.',
+    body: 'Your maker directory — every brand Beau trusts plus the ones you add, filtered and rated by him.',
+    navigate: { tab: 'scout', huntSubTab: 'discover' },
   },
   {
     anchor: 'tour-fitting',
     kicker: 'The Fitting',
     body: 'Build the look flat and try it on — your pieces, head to toe.',
+  },
+  {
+    anchor: 'tour-fitting-board',
+    kicker: 'The Fitting · The board',
+    body: 'Compose an outfit on the board, then save it, share it, or send unowned pieces to the Reserve.',
+    navigate: { tab: 'fitting-room' },
+  },
+  {
+    anchor: 'tour-fitting-shelf',
+    kicker: 'The Fitting · The shelf',
+    body: 'Everything you can put on the board — what you own, your Reserve and Beau\u2019s picks, each its own shelf.',
+    navigate: { tab: 'fitting-room' },
   },
 ];
 
@@ -102,19 +155,39 @@ function TourOverlay({ onDone }: { onDone: () => void }) {
   // Bring the step's anchor into view, then measure it — and keep the
   // measurement honest through scrolls and resizes.
   useLayoutEffect(() => {
-    const el = typeof document !== 'undefined'
-      ? document.querySelector<HTMLElement>(`[data-tour="${current.anchor}"]`)
-      : null;
-    if (el) {
+    // SUB-TAB NAVIGATION (walkthrough extension): a stop whose anchor lives
+    // inside a tab navigates there first — the same events chat deep links
+    // use — so the element actually exists before it is measured.
+    if (current.navigate?.tab) {
+      window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab: current.navigate.tab } }));
+    }
+    if (current.navigate?.huntSubTab) {
+      // The handoff helper covers BOTH cases: a mounted Hunt hears the live
+      // event; a Hunt still lazy-loading reads the stored handoff at mount.
+      setHuntSubTabHandoff(current.navigate.huntSubTab);
+    }
+    // Bring the anchor into view once it exists. Lazily-mounted tabs land
+    // over several frames, so the scroll attempt retries inside the settle
+    // loop until the element appears.
+    let scrolledTo = false;
+    const scrollToAnchor = () => {
+      if (scrolledTo || typeof document === 'undefined') return;
+      const el = document.querySelector<HTMLElement>(`[data-tour="${current.anchor}"]`);
+      if (!el) return;
+      scrolledTo = true;
       try {
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       } catch { /* older engines: instant is fine */ }
-    }
-    const sync = () => setRect(measureAnchor(current.anchor));
+    };
+    const sync = () => {
+      scrollToAnchor();
+      setRect(measureAnchor(current.anchor));
+    };
     sync();
-    // A smooth scrollIntoView lands over a few frames — re-measure briefly.
-    const settle = window.setInterval(sync, 120);
-    const stopSettle = window.setTimeout(() => window.clearInterval(settle), 800);
+    // A smooth scrollIntoView — and a lazy tab still mounting — lands over
+    // several frames: keep re-measuring briefly.
+    const settle = window.setInterval(sync, 140);
+    const stopSettle = window.setTimeout(() => window.clearInterval(settle), 2600);
     window.addEventListener('resize', sync);
     window.addEventListener('scroll', sync, true);
     return () => {
@@ -123,7 +196,7 @@ function TourOverlay({ onDone }: { onDone: () => void }) {
       window.removeEventListener('resize', sync);
       window.removeEventListener('scroll', sync, true);
     };
-  }, [current.anchor]);
+  }, [current.anchor, current.navigate]);
 
   // The ring sits a touch proud of the element it highlights.
   const pad = 6;
@@ -257,6 +330,9 @@ export function OnboardingTour() {
     try {
       localStorage.setItem(ONBOARDING_DONE_KEY, '1');
     } catch { /* best-effort */ }
+    // The walkthrough may end deep inside a sub-tab — land the customer
+    // back on The Ledger rather than wherever the last stop happened to be.
+    window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab: 'wardrobe' } }));
   }, []);
 
   return (

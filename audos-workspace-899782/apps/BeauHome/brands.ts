@@ -55,6 +55,10 @@ export interface BrandProfile {
   /** 1–10 construction/quality score — the Matrix's x axis. */
   qualityScore: number;
   naturalMaterials: boolean;
+  /** The maker's official site (https…), when the dossier generation knows
+   * it confidently — lets a typed NAME get the same logo/site read a pasted
+   * URL does (Discover's dossier-parity fix). */
+  websiteUrl?: string | null;
   /** True when the profile came from the AI layer, not this catalog. */
   generated?: boolean;
 }

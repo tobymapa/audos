@@ -277,8 +277,13 @@ function loadBackgroundRemovalModule(): Promise<any> {
   return imglyModulePromise;
 }
 
-/** A cleaned image, as either a URL (https or data:) or inline base64. */
-interface CleanImage { url?: string; base64?: string; mimeType?: string }
+/** A cleaned image, as either a URL (https or data:) or inline base64.
+ * `provider` records which remover produced the cutout so normalization can
+ * gate the alpha-erosion strength on the quality of the mask: Photoroom's
+ * segmentation is already clean and needs at most a whisper of erosion,
+ * while the local @imgly fallback still needs the full border-artifact
+ * cleanup. */
+interface CleanImage { url?: string; base64?: string; mimeType?: string; provider?: 'photoroom' | 'imgly' }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -428,7 +433,7 @@ async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): 
   if (status >= 300) throw new Error(`Photoroom returned ${status}`);
   const b64img = typeof body?.base64img === 'string' ? body.base64img.trim() : '';
   if (!b64img) throw new Error('Photoroom returned no image');
-  return { base64: b64img, mimeType: 'image/png' };
+  return { base64: b64img, mimeType: 'image/png', provider: 'photoroom' };
 }
 
 /**
@@ -507,7 +512,7 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
     // server-side retry instead of running the model in the browser at all.
     () => sourceAbort.abort(),
   );
-  return { url: await blobToDataUrl(blob) };
+  return { url: await blobToDataUrl(blob), provider: 'imgly' };
 }
 
 // ---------------------------------------------------------------------------
@@ -1078,8 +1083,18 @@ const TIGHT_CROP_PAD_PX = 4;
  * different colour from the ground) survives the pass and reads as a faint
  * rectangle around the item. Shrinking the opaque region by ~4px eats those
  * hairline artifacts — and the white fringe removal sometimes leaves — while
- * costing the garment itself nothing visible. */
+ * costing the garment itself nothing visible.
+ *
+ * PROVIDER-GATED (the white-garment fix): this full-strength erosion exists
+ * for the local @imgly fallback, whose masks keep retailer-baked borders and
+ * fringes. Photoroom's segmentation is already clean — running 4px of
+ * erosion on it visibly ate into white and near-white garments — so a
+ * Photoroom cut gets only the minimal pass below. */
 const ALPHA_ERODE_PX = 4;
+
+/** Erosion applied when Photoroom produced the mask — a single pixel, just
+ * enough to soften any residual fringe without eating the garment. */
+const PHOTOROOM_ERODE_PX = 1;
 
 /**
  * GRAYSCALE EROSION of the alpha channel — each pass replaces every pixel's
@@ -1246,8 +1261,13 @@ async function trimTransparent(
   // 1 — BORDER-ARTIFACT CLEANUP: erode the alpha edge (hairline strokes and
   // white fringe), then clear any surviving hollow-rectangle frame region
   // outright — whatever its thickness — and write the cleaned frame back so
-  // the crop below ships the cleaned pixels.
-  erodeAlpha(data, w, h, ALPHA_ERODE_PX);
+  // the crop below ships the cleaned pixels. The erosion strength is gated
+  // on the provider that produced the mask: Photoroom's cut is already clean
+  // (full-strength erosion ate into white garments), so it gets the minimal
+  // 1px pass; the @imgly fallback — and any image whose provider is unknown,
+  // e.g. the erosion-remediation retry — keeps the full cleanup.
+  const erodePx = image.provider === 'photoroom' ? PHOTOROOM_ERODE_PX : ALPHA_ERODE_PX;
+  if (erodePx > 0) erodeAlpha(data, w, h, erodePx);
   stripFrameComponents(data, w, h);
   wctx.putImageData(frame, 0, 0);
   let minX = w;

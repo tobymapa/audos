@@ -1,0 +1,23 @@
+# Ethaion
+
+> An AI wardrobe advisor for timeless menswear. Beau, the in-app valet, learns a
+> customer's proportions, taste and wardrobe gaps, then does the searching so
+> they can buy with conviction.
+
+Ethaion is a private web app. Customers enter with an email address and build a
+digital wardrobe: photographing garments they own, recording fit and sizing, and
+receiving daily outfit suggestions based on real weather and occasion. Most
+functionality sits behind the email gate and is not publicly crawlable.
+
+## What Ethaion does
+
+- Digital wardrobe — photograph owned garments; each catalogued with fabric, fit, season and occasion
+- Beau — an AI advisor that recommends outfits and sources new pieces against a stored taste profile
+- The Dossier — measurements, proportions, archetypes and brand sizing in one place
+- The Fitting — daily outfit composition using live weather and the customer's own wardrobe
+- Maker Scout — discovery of makers and garments matched to the customer's profile
+
+## Notes for agents
+
+- The public site is a marketing page and an email gate; the application requires a session
+- Customer wardrobes, measurements and taste profiles are private and per-session

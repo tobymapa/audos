@@ -1013,9 +1013,10 @@ function ScoutHistory({
 
 type HuntSubTab = 'find' | 'discover' | 'compare' | 'matrix';
 
-const HUNT_SUB_TABS: Array<{ id: HuntSubTab; label: string }> = [
-  { id: 'find', label: 'Find' },
-  { id: 'discover', label: 'Discover' },
+const HUNT_SUB_TABS: Array<{ id: HuntSubTab; label: string; tourAnchor?: string }> = [
+  // The first-run walkthrough (onboarding-tour.tsx) rings Find and Discover.
+  { id: 'find', label: 'Find', tourAnchor: 'tour-hunt-find' },
+  { id: 'discover', label: 'Discover', tourAnchor: 'tour-hunt-discover' },
   { id: 'compare', label: 'Compare' },
   { id: 'matrix', label: 'Matrix' },
 ];
@@ -1347,10 +1348,11 @@ export function ScoutTab({
           and colour, horizontally scrollable on mobile. */}
       <div className="border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
         <SubTabs
-          items={HUNT_SUB_TABS.map(({ id, label: subLabel }) => ({
+          items={HUNT_SUB_TABS.map(({ id, label: subLabel, tourAnchor }) => ({
             id,
             label: subLabel,
             suffix: id === 'compare' && compareList.length > 0 ? ` · ${compareList.length}` : undefined,
+            tourAnchor,
           }))}
           active={subTab}
           onChange={(id) => {

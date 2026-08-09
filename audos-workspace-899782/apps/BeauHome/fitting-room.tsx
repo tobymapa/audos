@@ -2013,7 +2013,9 @@ export function FittingRoomTab({
   const actionBtnStyle: React.CSSProperties = { fontFamily: 'var(--space-font-family)', fontSize: '13px', borderRadius: 0 };
 
   const actionBar = (
-    <div className="flex items-center gap-2 flex-wrap py-1 border-t border-b border-[var(--color-divider,rgba(59,43,29,0.18))] mt-3">
+    // data-tour: the first-run walkthrough's Fitting-board stop rings this
+    // action row (onboarding-tour.tsx).
+    <div className="flex items-center gap-2 flex-wrap py-1 border-t border-b border-[var(--color-divider,rgba(59,43,29,0.18))] mt-3" data-tour="tour-fitting-board">
       {trip ? (
         <button
           type="button"
@@ -2398,6 +2400,7 @@ export function FittingRoomTab({
               style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
               role="group"
               aria-label="Shelf sections"
+              data-tour="tour-fitting-shelf"
             >
               {SHELF_SECTIONS.map(({ id, label }) => {
                 const on = sectionsOn[id];
