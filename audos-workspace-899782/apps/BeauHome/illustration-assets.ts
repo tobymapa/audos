@@ -196,6 +196,19 @@ export const RAIL_ILLUSTRATIONS: Record<string, string> = {
     'https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1785798286796-5bun5j.png',
   'fair-isle':
     'https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1785798323521-meko0i.png',
+  // Sweatshirts — the whole category, drawn at last. All three shared the one
+  // coded sweatshirt SVG, the last Tier 1 cards left off the ligne claire
+  // register. Told apart by construction: ribbed crew collar with the V-notch
+  // insert, the laid-back hood with drawcords and kangaroo pocket, and the
+  // quarter-snap placket with a flapped chest pocket. Crewneck and hoodie in
+  // warm grey (the house colour sweatshirts actually come in), the fleece in
+  // oatmeal to keep the trio from reading as one drawing.
+  'crewneck-sweatshirt':
+    'https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1786284332928-jh88zw.png',
+  hoodie:
+    'https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1786284360900-snqitn.png',
+  'fleece-pullover':
+    'https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1786284389928-27s004.png',
 };
 
 /**
@@ -270,6 +283,7 @@ export const LEDGER_ILLUSTRATIONS: Record<string, string> = {
   shoes: RAIL_ILLUSTRATIONS.loafer,
   outerwear: RAIL_ILLUSTRATIONS['waxed-jacket'],
   knitwear: RAIL_ILLUSTRATIONS['crew-neck'],
+  sweatshirts: RAIL_ILLUSTRATIONS['crewneck-sweatshirt'],
   formalwear: RAIL_ILLUSTRATIONS.suit,
   accessories: RAIL_ILLUSTRATIONS.belt,
   'base-layers': RAIL_ILLUSTRATIONS['base-layer-top'],

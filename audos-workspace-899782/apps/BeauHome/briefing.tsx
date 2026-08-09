@@ -10,7 +10,7 @@
  *
  * It is deliberately NOT styled like the rest of The Edit. No grid, no
  * table, no hairline rows: a single wide column of serif prose at ~640px,
- * a monospace dateline and one document heading. It should read as the
+ * a small uppercase dateline and one document heading. It should read as the
  * thing written for you, not another dashboard module — which is also why
  * it carries an export: this is the one artifact in the app someone would
  * plausibly keep or send on.
@@ -44,8 +44,9 @@ import {
   type BriefingRecord,
 } from './briefing.ts';
 
-// The document's own type scale — a wide single column, serif body, a
-// monospace dateline. Deliberately distinct from the rest of The Edit.
+// The document's own type scale — a wide single column, serif body, and
+// small uppercase datelines set in the site's own heading face (the same
+// Cormorant/Lora pairing as everywhere else — no monospace anywhere).
 const DOC_WIDTH = '640px';
 const WALNUT = '#241a12';
 const CREAM = '#f6f0e5';
@@ -54,9 +55,9 @@ const CREAM = '#f6f0e5';
 const OXBLOOD = '#8b3a3a';
 
 const kicker: React.CSSProperties = {
-  fontFamily: '"Courier New", Courier, monospace',
-  fontSize: '10px',
-  letterSpacing: '0.25em',
+  fontFamily: 'var(--space-font-heading)',
+  fontSize: '12px',
+  letterSpacing: '0.16em',
   textTransform: 'uppercase',
 };
 
@@ -178,7 +179,7 @@ function BriefingDocument({
       {/* Season memory — present from the second Briefing onward only. */}
       {sections.sinceLastTime && (
         <div style={{ borderLeft: `2px solid ${OXBLOOD}`, paddingLeft: '18px', marginBottom: '32px' }}>
-          <p style={{ ...kicker, letterSpacing: '0.2em', color: OXBLOOD, marginBottom: '8px' }}>
+          <p style={{ ...kicker, color: OXBLOOD, marginBottom: '8px' }}>
             Since last time
           </p>
           <p className={typography.color.secondary} style={{ ...prose, fontSize: '14px', lineHeight: 1.65, maxWidth: '600px' }}>
@@ -187,7 +188,7 @@ function BriefingDocument({
         </div>
       )}
 
-      <p style={{ ...kicker, letterSpacing: '0.2em', color: OXBLOOD, marginBottom: '8px' }}>
+      <p style={{ ...kicker, color: OXBLOOD, marginBottom: '8px' }}>
         The considered path forward
       </p>
       <p className={typography.color.primary} style={{ ...prose, marginBottom: sections.referencedPieces.length > 0 ? '18px' : '32px' }}>

@@ -584,15 +584,16 @@ function briefingPrintHtml(record: BriefingRecord): string {
     ? `<section class="since"><h2>Since last time</h2><p>${escapeHtml(sections.sinceLastTime)}</p></section>`
     : '';
   // The sheet carries the app's type and palette, not the mockup's: Cormorant
-  // Garamond headings, Lora body, Courier New section labels, and oxblood
-  // rather than gold on every accent.
+  // Garamond headings and section labels, Lora body, and oxblood rather than
+  // gold on every accent — no monospace anywhere, matching the on-screen
+  // document.
   const css = [
     '@page { margin: 22mm 20mm; }',
     'body { margin: 0; background: #fbf8f1; color: #3b2b1d; font-family: Lora, serif; }',
     '.sheet { max-width: 640px; margin: 0 auto; padding: 48px 8px; }',
-    '.dateline { font-family: "Courier New", monospace; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: #8b3a3a; margin: 0 0 10px; }',
+    '.dateline { font-family: "Cormorant Garamond", serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #8b3a3a; margin: 0 0 10px; }',
     'h1 { font-family: "Cormorant Garamond", serif; font-weight: 400; font-size: 28px; line-height: 1.2; margin: 0 0 28px; }',
-    'h2 { font-family: "Courier New", monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #8b3a3a; font-weight: 400; margin: 0 0 8px; }',
+    'h2 { font-family: "Cormorant Garamond", serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #8b3a3a; font-weight: 400; margin: 0 0 8px; }',
     'p { font-size: 15px; line-height: 1.75; margin: 0 0 28px; }',
     '.since { border-left: 2px solid #8b3a3a; padding-left: 18px; margin-bottom: 30px; }',
     '.since p { color: #634e38; font-size: 14px; line-height: 1.65; margin: 0; }',
