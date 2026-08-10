@@ -67,9 +67,11 @@ import {
   savePrefs,
   setActiveCurrency,
   setPieceValue,
+  slotLabel as canonicalSlotLabel,
   type NewPiece,
   type WardrobePiece,
 } from './profile-data';
+import { enrichPiece } from './beau-enrichment';
 import { BrandField, ColorSelector, MaterialSelector, PatternSelector, SizeSelector } from './input-fields';
 import { CanonicalGarment } from './canonical-garment';
 import { queueWardrobeReassessment } from './reassess-queue';
@@ -741,8 +743,22 @@ function upper(raw: string): string {
   return raw.toUpperCase();
 }
 
-export function SearchPieceFlow({ pieces, onAdded }: { pieces: WardrobePiece[]; onAdded: () => void }) {
+export function SearchPieceFlow({
+  pieces,
+  onAdded,
+  focusToken = 0,
+}: {
+  pieces: WardrobePiece[];
+  onAdded: () => void;
+  /** Bumped by the header's [ Search ] button — the input focuses at once,
+   * ready to type into. No sub-box, no second click. */
+  focusToken?: number;
+}) {
   const [query, setQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, [focusToken]);
   const [searching, setSearching] = useState(false);
   const [fetchingUrl, setFetchingUrl] = useState(false);
   /** null = not searched yet; [] = searched, nothing found. */
@@ -1025,6 +1041,17 @@ export function SearchPieceFlow({ pieces, onAdded }: { pieces: WardrobePiece[]; 
         .limit(1)
         .get();
       const insertedId = Number(insertedRows?.[0]?.id || 0);
+      if (insertedId) {
+        // Beau reads up on the piece online — fire-and-forget; the result
+        // lands on the piece card in The Ledger (beau-enrichment.ts).
+        void enrichPiece({
+          pieceId: insertedId,
+          name: finalName,
+          brand: finalBrand || null,
+          typeLabel: canonicalSlotLabel(draft.slot) || categoryById(draft.category)?.label || '',
+          material: draft.material.trim() || null,
+        });
+      }
       const priceNum = parsePrice(draft.price);
       if (priceNum != null && insertedId) {
         try {
@@ -1095,6 +1122,7 @@ export function SearchPieceFlow({ pieces, onAdded }: { pieces: WardrobePiece[]; 
         }}
       >
         <input
+          ref={searchInputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -1251,18 +1279,20 @@ export function SearchPieceFlow({ pieces, onAdded }: { pieces: WardrobePiece[]; 
               </div>
             </div>
 
+            {/* Fields run in the order the piece's NAME reads them —
+                colour → material → type → maker — then pattern, size,
+                season and occasion (add-piece refinements pass). */}
             <div className="mt-3 space-y-2.5">
               <div>
-                <p className={`${labelCls} mb-1`}>Category</p>
-                <div className="flex flex-wrap gap-1">
-                  {WARDROBE_CATEGORIES.map((c) => (
-                    <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: '10px' }}>
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
+                <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
+                <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
               </div>
               <div className="grid sm:grid-cols-2 gap-2.5">
+                <label className={labelCls}>Material
+                  <div className="mt-1">
+                    <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
+                  </div>
+                </label>
                 <label className={labelCls}>Item type
                   <select
                     value={draft.slot || ''}
@@ -1275,19 +1305,16 @@ export function SearchPieceFlow({ pieces, onAdded }: { pieces: WardrobePiece[]; 
                     ))}
                   </select>
                 </label>
-                <label className={labelCls}>Material
-                  <div className="mt-1">
-                    <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
-                  </div>
-                </label>
               </div>
               <div>
-                <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
-                <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
-              </div>
-              <div>
-                <p className={`${labelCls} mb-1`}>Pattern</p>
-                <PatternSelector value={draft.pattern} onChange={(p) => patch({ pattern: p })} ariaLabel="Pattern" />
+                <p className={`${labelCls} mb-1`}>Category</p>
+                <div className="flex flex-wrap gap-1">
+                  {WARDROBE_CATEGORIES.map((c) => (
+                    <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: '10px' }}>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <label className={labelCls}>Brand — from the search result, correct it if wrong
@@ -1295,6 +1322,11 @@ export function SearchPieceFlow({ pieces, onAdded }: { pieces: WardrobePiece[]; 
                   <BrandField value={draft.brand} onChange={(b) => patch({ brand: b })} ariaLabel="Brand" />
                 </div>
               </label>
+
+              <div>
+                <p className={`${labelCls} mb-1`}>Pattern</p>
+                <PatternSelector value={draft.pattern} onChange={(p) => patch({ pattern: p })} ariaLabel="Pattern" />
+              </div>
 
               <div className="grid sm:grid-cols-2 gap-2.5">
                 <label className={labelCls}>Size (optional)

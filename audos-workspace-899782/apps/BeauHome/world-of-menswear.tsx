@@ -256,7 +256,7 @@ function FindRow({ card, category }: { card: FindCard; category: WorldCategoryId
   );
 }
 
-function WorldEntryPage({
+export function WorldEntryPage({
   entry,
   pieces,
   profile,

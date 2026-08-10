@@ -45,12 +45,21 @@ import {
   setPieceDetails,
   setPieceSource,
   setPieceValue,
+  slotLabel as canonicalSlotLabel,
   updatePiece,
   type PieceSource,
   type PieceValue,
   type WardrobePiece,
 } from './profile-data';
 import { BrandField, ColorSelector, MaterialSelector, PatternSelector, SizeSelector } from './input-fields';
+import {
+  PIECE_ENRICHED_EVENT,
+  enrichPiece,
+  fetchPieceEnrichment,
+  isEnriching,
+  type PieceEnrichment,
+} from './beau-enrichment';
+import { MONO } from './mono-type';
 import { CanonicalGarment } from './canonical-garment';
 import { queueWardrobeReassessment } from './reassess-queue';
 import { analyzeGarmentPhoto } from './wardrobe-ai';
@@ -157,25 +166,19 @@ async function fetchLooksHolding(pieceId: number): Promise<LookIn[]> {
 }
 
 // ---------------------------------------------------------------------------
-// "More details" open state — remembered per session (Track H): once opened,
-// it stays open for every subsequent edit until the tab is closed.
+// "Edit details" open state (add-piece refinements pass): the editable
+// fields live behind a foldable section that ALWAYS opens collapsed — the
+// card leads with the record (photo, Beau's enrichment, the piece's life),
+// and editing is one tap away. Edits inside save themselves on blur/Enter.
 // ---------------------------------------------------------------------------
 
-const MORE_OPEN_KEY = 'brummell_edit_more_open';
-
-function readMoreOpen(): boolean {
-  try {
-    return sessionStorage.getItem(MORE_OPEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function rememberMoreOpen(open: boolean): void {
-  try {
-    sessionStorage.setItem(MORE_OPEN_KEY, open ? '1' : '0');
-  } catch { /* storage unavailable — stays per-mount */ }
-}
+/** The mono small-caps working-label register (16a) for the Beau panel. */
+const monoLabelStyle: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: '9px',
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+};
 
 // ---------------------------------------------------------------------------
 // Item-type inference for legacy pieces without a canonical slot: the
@@ -236,7 +239,9 @@ export function PieceEditForm({
   const [detailsLoaded, setDetailsLoaded] = useState(false);
   const initialDetails = useRef<{ size: string; notes: string }>({ size: '', notes: '' });
   const initialPattern = useRef('');
-  const [moreOpen, setMoreOpen] = useState(readMoreOpen);
+  // "Edit details" — ALWAYS opens collapsed; the record leads, the form is
+  // one tap away (add-piece refinements pass).
+  const [moreOpen, setMoreOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -283,6 +288,47 @@ export function PieceEditForm({
       cancelled = true;
     };
   }, [piece.id]);
+
+  // BEAU, ON THIS PIECE (16a): the details Beau pulled from an online
+  // lookup after the piece was saved — composition, construction, care,
+  // sizing. Loaded here; a piece with no stored row (logged before this
+  // pass, or the lookup never ran) kicks one off now, fire-and-forget.
+  const [enrichment, setEnrichment] = useState<PieceEnrichment | null>(null);
+  const [enrichPending, setEnrichPending] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setEnrichment(null);
+    setEnrichPending(true);
+    const load = () =>
+      fetchPieceEnrichment(piece.id).then((row) => {
+        if (!cancelled) {
+          setEnrichment(row);
+          setEnrichPending(isEnriching(piece.id));
+        }
+        return row;
+      });
+    void load().then((row) => {
+      if (cancelled || row || isEnriching(piece.id)) return;
+      setEnrichPending(true);
+      void enrichPiece({
+        pieceId: piece.id,
+        name: piece.name,
+        brand: piece.brand,
+        typeLabel: canonicalSlotLabel(piece.slot) || categoryById(piece.category)?.label || '',
+        material: material || null,
+      }).then(() => {
+        if (!cancelled) void load();
+      });
+    });
+    const onEnriched = (e: Event) => {
+      if ((e as CustomEvent).detail?.pieceId === piece.id) void load();
+    };
+    window.addEventListener(PIECE_ENRICHED_EVENT, onEnriched);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PIECE_ENRICHED_EVENT, onEnriched);
+    };
+  }, [piece.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Currency selector (Pass Forty-Six) — inline next to the price field;
   // GBP default; selecting persists the app-wide display currency.
   const [currencyId, setCurrencyId] = useState<string>(() => getCurrency().id);
@@ -377,12 +423,69 @@ export function PieceEditForm({
     setNameIsCustom(false);
   };
 
-  const toggleMore = () => {
-    setMoreOpen((open) => {
-      rememberMoreOpen(!open);
-      return !open;
-    });
+  // EDITS SAVE THEMSELVES (add-piece refinements): any change inside the
+  // Edit details fold persists on blur / Enter / change — debounced and
+  // silent. The Save button remains as the explicit "done": it also
+  // refreshes the cleaned image and closes the sheet.
+  const [autoSaved, setAutoSaved] = useState(false);
+  const draftSig = JSON.stringify([
+    nameDraft, brandDraft, categoryDraft, slotDraft, colorsDraft, patternDraft,
+    materialDraft, sizeDraft, notesDraft, seasonsDraft, occasionsDraft,
+  ]);
+  const savedSigRef = useRef<string | null>(null);
+  const saveSilently = async () => {
+    const finalName = nameDraft.trim().toUpperCase();
+    if (!finalName || saving) return;
+    piece.name = finalName;
+    piece.brand = brandDraft.trim() || null;
+    piece.category = categoryDraft;
+    piece.slot = slotDraft || null;
+    piece.colors = colorsDraft;
+    piece.seasons = seasonsDraft;
+    piece.occasions = occasionsDraft;
+    (piece as WardrobePiece & { pattern?: string | null }).pattern = patternDraft || null;
+    window.dispatchEvent(new CustomEvent('ethaion:piece-optimistic', { detail: { piece: { ...piece } } }));
+    try {
+      await Promise.all([
+        updatePiece(piece.id, {
+          name: finalName,
+          brand: brandDraft.trim() || null,
+          category: categoryDraft,
+          slot: slotDraft || null,
+          colors: colorsDraft,
+          seasons: seasonsDraft,
+          occasions: occasionsDraft,
+          material: materialDraft.trim() || null,
+          pattern: patternDraft || null,
+          name_is_custom: nameIsCustom,
+        }),
+        setPieceDetails(piece.id, { size: sizeDraft.trim() || null, notes: notesDraft.trim() || null }),
+      ]);
+      initialDetails.current = { size: sizeDraft, notes: notesDraft };
+      onSaved();
+      queueWardrobeReassessment('piece edited');
+      setAutoSaved(true);
+      window.setTimeout(() => setAutoSaved(false), 1800);
+    } catch (e) {
+      console.warn('[Ethaion] in-place save failed (non-fatal) — the Save button still works:', e);
+    }
   };
+  useEffect(() => {
+    if (!detailsLoaded) return;
+    // The first pass after the companion rows load is the baseline, not an edit.
+    if (savedSigRef.current === null) {
+      savedSigRef.current = draftSig;
+      return;
+    }
+    if (savedSigRef.current === draftSig) return;
+    const t = window.setTimeout(() => {
+      savedSigRef.current = draftSig;
+      void saveSilently();
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [draftSig, detailsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleMore = () => setMoreOpen((open) => !open);
 
   const toggleTag = (values: string[], id: string, set: (next: string[]) => void) =>
     set(values.includes(id) ? values.filter((v) => v !== id) : [...values, id]);
@@ -737,45 +840,61 @@ export function PieceEditForm({
         </div>
       )}
 
-      {/* Above the fold: Name · Brand · Category (Track H) */}
-      <div className="grid sm:grid-cols-2 gap-3">
-        <label className={`${labelCls} sm:col-span-2`}>Name
-          <input value={nameDraft} onChange={(e) => onNameTyped(e.target.value)} onBlur={onNameBlur} className={inputCls} aria-label="Name" />
-          <span className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className={labelCls} style={{ fontSize: '10px' }}>
-              {nameIsCustom ? 'Your own name — kept as typed.' : 'Auto-named from colour, material and type.'}
-            </span>
-            {nameIsCustom && autoName && autoName.trim() !== nameDraft.trim() && (
-              <button
-                type="button"
-                onClick={resetToAutoName}
-                className={`inline-flex items-center gap-1 ${typography.color.brand} hover:underline`}
-                style={{ fontSize: '10px' }}
-              >
-                <RotateCcw className="w-2.5 h-2.5" /> Use “{autoName}”
-              </button>
+      {/* BEAU, ON THIS PIECE (16a): what Beau found about this piece online
+          after it was saved — his one-line reading, then composition,
+          construction, care and sizing when the search turned them up, and
+          the page he leaned on. A miss reads as one quiet informational
+          line — never an error. */}
+      <div style={{ borderLeft: '2px solid #a8712c', background: '#fbf8f1', padding: '14px 16px 15px', marginBottom: '4px' }}>
+        <p style={{ ...monoLabelStyle, color: '#856c51', margin: 0 }}>Beau, on this piece</p>
+        {enrichment?.status === 'found' ? (
+          <div>
+            {enrichment.summary && (
+              <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.6, color: '#3b2b1d', maxWidth: '76ch' }}>
+                {enrichment.summary}
+              </p>
             )}
-          </span>
-        </label>
-        <label className={labelCls}>Brand
-          <div className="mt-1">
-            <BrandField value={brandDraft} onChange={setBrandDraft} placeholder="Optional" ariaLabel="Brand" />
+            <div style={{ marginTop: enrichment.summary ? '10px' : '8px' }}>
+              {([
+                ['Composition', enrichment.composition],
+                ['Construction', enrichment.construction],
+                ['Care', enrichment.care],
+                ['Sizing', enrichment.sizing],
+              ] as Array<[string, string | null]>)
+                .filter(([, v]) => !!v)
+                .map(([label, v], i, rows) => (
+                  <div
+                    key={label}
+                    className="grid grid-cols-[92px_minmax(0,1fr)] gap-3 items-baseline"
+                    style={{ padding: '7px 0', borderBottom: i < rows.length - 1 ? '1px solid rgba(59,43,29,0.14)' : 'none' }}
+                  >
+                    <span style={{ ...monoLabelStyle, color: '#7a6349' }}>{label}</span>
+                    <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5, color: '#241a12' }}>{v}</span>
+                  </div>
+                ))}
+            </div>
+            {enrichment.source_url && (
+              <a
+                href={enrichment.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block hover:underline"
+                style={{ ...monoLabelStyle, fontSize: '9.5px', color: '#7c4a17', marginTop: '10px' }}
+              >
+                {enrichment.source_title ? `From ${enrichment.source_title.slice(0, 60)}` : 'The page he leaned on'} →
+              </a>
+            )}
           </div>
-        </label>
-        <label className={labelCls}>Category
-          <select
-            value={categoryDraft}
-            onChange={(e) => {
-              setCategoryDraft(e.target.value);
-              setSlotDraft('');
-            }}
-            className={inputCls}
-          >
-            {WARDROBE_CATEGORIES.map((category) => (
-              <option key={category.id} value={category.id}>{category.label}</option>
-            ))}
-          </select>
-        </label>
+        ) : enrichPending ? (
+          <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: '#856c51' }}>
+            Beau is reading up on this piece…
+          </p>
+        ) : (
+          <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: '#856c51' }}>
+            Beau couldn’t find details for this piece — an unfamiliar maker, or not enough to go on. Everything you
+            log below still counts.
+          </p>
+        )}
       </div>
 
       {/* Source link (Pass Forty-Six B) — beneath the main fields, only for
@@ -845,18 +964,25 @@ export function PieceEditForm({
         </div>
       )}
 
-      {/* More details — collapsed by default, remembered per session */}
+      {/* EDIT DETAILS — the foldable section holding every editable field
+          that came in on first upload. ALWAYS opens collapsed; expanded, the
+          fields sit inline and save themselves on blur or Enter. */}
       <button
         type="button"
         onClick={toggleMore}
         aria-expanded={moreOpen}
         className={`mt-3 w-full flex items-center justify-between gap-2 rounded-xl border border-[var(--space-border-default)] px-3 py-2 ${typography.size.sm} ${typography.color.secondary} hover:border-[var(--space-border-strong)] transition-colors`}
       >
-        <span className={`${typography.weight.medium}`}>More details</span>
+        <span className={`${typography.weight.medium}`}>{moreOpen ? 'Edit details' : '↓ Edit details'}</span>
         <span className="flex items-center gap-1.5 min-w-0">
+          {autoSaved && (
+            <span className={`${typography.size.xs} flex-shrink-0`} style={{ color: 'var(--color-accent-700,#7c4a17)' }} aria-live="polite">
+              Saved.
+            </span>
+          )}
           {!moreOpen && (
             <span className={`${typography.size.xs} ${typography.color.muted} truncate`} style={{ fontSize: '10px' }}>
-              colour · pattern · material · size · notes · warmth
+              colour · material · type · maker · pattern · size · seasons · occasions
             </span>
           )}
           <ChevronRight className={`w-4 h-4 flex-shrink-0 transition-transform ${moreOpen ? 'rotate-90' : ''}`} />
@@ -865,13 +991,45 @@ export function PieceEditForm({
 
       {moreOpen && (
         <div className="mt-3 space-y-3">
+          <p className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
+            The details from first upload — review and correct anything here. Edits save themselves on blur or
+            Enter; there is nothing to submit.
+          </p>
+          <label className={labelCls}>Name
+            <input
+              value={nameDraft}
+              onChange={(e) => onNameTyped(e.target.value)}
+              onBlur={onNameBlur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className={inputCls}
+              aria-label="Name — saves when you leave the field"
+            />
+            <span className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={labelCls} style={{ fontSize: '10px' }}>
+                {nameIsCustom ? 'Your own name — kept as typed.' : 'Auto-named from colour, material and type.'}
+              </span>
+              {nameIsCustom && autoName && autoName.trim() !== nameDraft.trim() && (
+                <button
+                  type="button"
+                  onClick={resetToAutoName}
+                  className={`inline-flex items-center gap-1 ${typography.color.brand} hover:underline`}
+                  style={{ fontSize: '10px' }}
+                >
+                  <RotateCcw className="w-2.5 h-2.5" /> Use “{autoName}”
+                </button>
+              )}
+            </span>
+          </label>
+          {/* The fields run in the order the piece's name reads them:
+              colour → material → type → maker — then pattern and size. */}
           <div>
             <p className={`${labelCls} mb-1`}>Colour(s) — tap to select, up to 3; the first is the primary</p>
             <ColorSelector value={colorsDraft} onChange={setColorsDraft} ariaLabel="Colours" />
-          </div>
-          <div>
-            <p className={`${labelCls} mb-1`}>Pattern</p>
-            <PatternSelector value={patternDraft} onChange={setPatternDraft} ariaLabel="Pattern" />
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             <label className={labelCls}>Material
@@ -887,6 +1045,31 @@ export function PieceEditForm({
                 ))}
               </select>
             </label>
+            <label className={labelCls}>Category
+              <select
+                value={categoryDraft}
+                onChange={(e) => {
+                  setCategoryDraft(e.target.value);
+                  setSlotDraft('');
+                }}
+                className={inputCls}
+              >
+                {WARDROBE_CATEGORIES.map((category) => (
+                  <option key={category.id} value={category.id}>{category.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className={labelCls}>Maker / brand
+              <div className="mt-1">
+                <BrandField value={brandDraft} onChange={setBrandDraft} placeholder="Optional" ariaLabel="Brand" />
+              </div>
+            </label>
+          </div>
+          <div>
+            <p className={`${labelCls} mb-1`}>Pattern</p>
+            <PatternSelector value={patternDraft} onChange={setPatternDraft} ariaLabel="Pattern" />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
             <label className={labelCls}>Size
               <div className={`mt-1 ${detailsLoaded ? '' : 'opacity-60 pointer-events-none'}`}>
                 <SizeSelector value={sizeDraft} onChange={setSizeDraft} ariaLabel="Size" />

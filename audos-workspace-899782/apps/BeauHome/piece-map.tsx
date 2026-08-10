@@ -24,7 +24,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
 import { promoteToScout, type StyleProfile, type WardrobePiece } from './profile-data';
-import { WorldOfMenswear } from './world-of-menswear';
+import { PieceIndexList } from './piece-index-list';
 import { peekBeauAssessment } from './beau-assessment';
 import { COVERAGE_PREFS_EVENT, MUTED_STORE_KEY, fetchCoveragePrefs, loadLocalJson } from './coverage-prefs';
 import { useIsNarrow, usePinchZoom } from './plot-zoom';
@@ -631,7 +631,16 @@ type PiecesView = 'list' | 'map' | 'quadrant';
  * AS A LIST · ON A MAP · AS A QUADRANT toggle at the RIGHT edge), then the
  * selected reading. All three views read the same records.
  */
-export function PiecesIndex({ pieces, profile }: { pieces: WardrobePiece[]; profile: StyleProfile | null }) {
+export function PiecesIndex({
+  pieces,
+  profile,
+  onShowMakers,
+}: {
+  pieces: WardrobePiece[];
+  profile: StyleProfile | null;
+  /** The MAKERS chip in the 13a list header hands over to the makers index. */
+  onShowMakers?: () => void;
+}) {
   usePlexMono();
   const [view, setView] = useState<PiecesView>('list');
   const { gaps } = usePieceStatuses(pieces);
@@ -650,17 +659,21 @@ export function PiecesIndex({ pieces, profile }: { pieces: WardrobePiece[]; prof
   );
 
   if (view === 'list') {
+    // AS A LIST — the 13a piece index: category rail left, the types in
+    // tailor's runs right, FIND + the four filters + the jump rail above.
+    // The map/quadrant toggle stays in its header (never removed).
     return (
-      <div>
-        <div className="flex justify-end" style={{ marginBottom: '10px' }}>{toggle}</div>
-        <WorldOfMenswear
-          pieces={pieces}
-          profile={profile}
-          // A gap leads to The Hunt, pre-filled — reference never sells, it
-          // points at the funnel.
-          onSeeForYou={(sub) => promoteToScout(sub.label)}
-        />
-      </div>
+      <PieceIndexList
+        pieces={pieces}
+        profile={profile}
+        // A gap leads to The Hunt, pre-filled — reference never sells, it
+        // points at the funnel.
+        onSeeForYou={(sub) => promoteToScout(sub.label)}
+        toggle={toggle}
+        onShowMap={() => setView('map')}
+        onShowQuadrant={() => setView('quadrant')}
+        onShowMakers={onShowMakers}
+      />
     );
   }
 
