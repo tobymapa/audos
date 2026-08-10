@@ -21,9 +21,13 @@ import { typography } from '../../lib/colors';
 import { promoteToScout, type StyleProfile, type WardrobePiece } from './profile-data';
 import { WorldOfMenswear } from './world-of-menswear';
 import { MakersIndex } from './maker-views';
+import { PiecesMap } from './piece-map';
 import { SubTabs } from './sub-tabs';
 
 type IndexView = 'pieces' | 'makers';
+/** The Pieces section's three readings (20a): the list is the reference,
+ * the map explores the taxonomy, the quadrant judges the wardrobe. */
+type PiecesView = 'list' | 'map' | 'quadrant';
 
 export function IndexTab({
   pieces,
@@ -33,6 +37,7 @@ export function IndexTab({
   profile: StyleProfile | null;
 }) {
   const [view, setView] = useState<IndexView>('pieces');
+  const [piecesView, setPiecesView] = useState<PiecesView>('list');
 
   return (
     <div className="pb-24">
@@ -61,15 +66,49 @@ export function IndexTab({
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
         {view === 'pieces' && (
-          <WorldOfMenswear
-            pieces={pieces}
-            profile={profile}
-            // A gap leads to The Hunt, pre-filled — the corrected IA's route
-            // (7a): reference never sells, it points at the funnel.
-            onSeeForYou={(sub) => promoteToScout(sub.label)}
-          />
+          <div>
+            {/* One toggle, three views (20a): as a list · on a map · as a
+                quadrant — the plots are ADDED beside the list, never
+                replacing it. */}
+            <div className="flex mb-6" role="group" aria-label="Piece index views">
+              {([
+                { id: 'list' as const, label: 'As a list' },
+                { id: 'map' as const, label: 'On a map' },
+                { id: 'quadrant' as const, label: 'As a quadrant' },
+              ]).map(({ id, label }, i) => {
+                const active = piecesView === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setPiecesView(id)}
+                    aria-pressed={active}
+                    className={`uppercase min-h-[44px] px-4 grid place-items-center whitespace-nowrap transition-colors ${
+                      active
+                        ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
+                        : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
+                    } ${i > 0 ? 'border-l-0' : ''}`}
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em' }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {piecesView === 'list' ? (
+              <WorldOfMenswear
+                pieces={pieces}
+                profile={profile}
+                // A gap leads to The Hunt, pre-filled — the corrected IA's route
+                // (7a): reference never sells, it points at the funnel.
+                onSeeForYou={(sub) => promoteToScout(sub.label)}
+              />
+            ) : (
+              <PiecesMap pieces={pieces} view={piecesView} />
+            )}
+          </div>
         )}
-        {view === 'makers' && <MakersIndex profile={profile} />}
+        {view === 'makers' && <MakersIndex profile={profile} pieces={pieces} />}
       </div>
     </div>
   );

@@ -78,6 +78,43 @@ interface ConfirmDraft {
   description: string;
 }
 
+/** One tappable, underlined phrase of the read-back sentence (23a) — tap it
+ * and the correction opens inline under the sentence. */
+function ReadbackPhrase({
+  label,
+  active,
+  onTap,
+  ariaLabel,
+}: {
+  label: string;
+  active: boolean;
+  onTap: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      aria-label={ariaLabel}
+      aria-expanded={active}
+      className="hover:opacity-80 transition-opacity align-baseline"
+      style={{
+        fontFamily: 'var(--space-font-family)',
+        fontSize: '14.5px',
+        lineHeight: 1.7,
+        color: active ? 'var(--color-accent-700,#7c4a17)' : 'var(--space-text-primary)',
+        textDecoration: 'underline',
+        textDecorationColor: 'var(--color-accent,#a8712c)',
+        textUnderlineOffset: '3px',
+        background: 'transparent',
+        padding: 0,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function PhotoConfirmFlow({
   pieces,
   onAdded,
@@ -95,11 +132,15 @@ export function PhotoConfirmFlow({
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dupeDismissed, setDupeDismissed] = useState(false);
-  // THE CONFIRMATION SURFACE, SIMPLIFIED (23a): three fields on screen —
-  // photo, type, maker — plus a free-text line. Everything else Beau read
-  // off the photo is STATED, not shown, behind this toggle. Nothing left
-  // the data model.
+  // THE CONFIRMATION SURFACE, SIMPLIFIED (23a): the read-back is a SENTENCE,
+  // not a form — three underlined phrases (colour · material · type), each
+  // tappable, with the correction opening INLINE under the sentence. The
+  // remaining five fields (material, pattern, size, seasons, occasions) are
+  // stated in one readable line behind "+ 5 more". Nothing left the data
+  // model — this only changes what surfaces here.
   const [showAll, setShowAll] = useState(false);
+  // Which phrase of the read-back sentence is being corrected, if any.
+  const [correcting, setCorrecting] = useState<'type' | 'colour' | 'material' | null>(null);
   // The uploaded photo URL — kept in a ref because the background clean-up
   // can swap it while the user is still confirming fields.
   const photoUrlRef = useRef<string>('');
@@ -137,6 +178,7 @@ export function PhotoConfirmFlow({
     setError(null);
     setSavedFlash(null);
     setDupeDismissed(false);
+    setCorrecting(null);
     photoUrlRef.current = '';
     uploadRef.current = null;
 
@@ -231,6 +273,7 @@ export function PhotoConfirmFlow({
     setError(null);
     setDupeDismissed(false);
     setShowAll(false);
+    setCorrecting(null);
     setAnalysing(false);
     photoUrlRef.current = '';
     uploadRef.current = null;
@@ -342,6 +385,12 @@ export function PhotoConfirmFlow({
 
   const labelCls = `${typography.size.xs} ${typography.color.muted}`;
   const slots = draft ? categoryById(draft.category)?.slots || [] : [];
+  // The type phrase of the read-back sentence — the slot's label first, the
+  // category as the honest fallback, blank while Beau hasn't read one yet.
+  const slotLabel = draft
+    ? slots.find((s) => s.id === draft.slot)?.label ||
+      (draft.category !== 'other' ? categoryById(draft.category)?.label || '' : '')
+    : '';
   const chip = (active: boolean) =>
     `px-2 py-1 rounded-full border transition-colors ${typography.size.xs} ${
       active
@@ -463,31 +512,80 @@ export function PhotoConfirmFlow({
             </div>
 
             <div className="mt-3 space-y-2.5">
-              <div>
-                <p className={`${labelCls} mb-1`}>Category</p>
-                <div className="flex flex-wrap gap-1">
-                  {WARDROBE_CATEGORIES.map((c) => (
-                    <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: '10px' }}>
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* FIELD 2 — the piece type, from the taxonomy (23a). */}
-              <label className={labelCls}>Piece type
-                <select
-                  value={draft.slot || ''}
-                  onChange={(e) => patch({ slot: e.target.value || null })}
-                  className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1`}
-                >
-                  <option value="">Other / not specified</option>
-                  {slots.map((s) => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-              </label>
+              {/* THE READ-BACK IS A SENTENCE, NOT A FORM (23a): "Beau reads
+                  it as a light blue cotton oxford button-down shirt." Three
+                  underlined phrases — colour · material · type — each
+                  tappable, its correction opening inline right below. It is
+                  faster to check one sentence than to scan eight labelled
+                  controls, and it reads like him. */}
+              <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14.5px', lineHeight: 1.7 }}>
+                Beau reads it as a{' '}
+                <ReadbackPhrase
+                  label={draft.colors.length > 0 ? draft.colors.join(' and ').toLowerCase() : 'colour — tap to set'}
+                  active={correcting === 'colour'}
+                  onTap={() => setCorrecting((c) => (c === 'colour' ? null : 'colour'))}
+                  ariaLabel="Correct the colour"
+                />{' '}
+                <ReadbackPhrase
+                  label={draft.material ? draft.material.toLowerCase() : 'material — tap to set'}
+                  active={correcting === 'material'}
+                  onTap={() => setCorrecting((c) => (c === 'material' ? null : 'material'))}
+                  ariaLabel="Correct the material"
+                />{' '}
+                <ReadbackPhrase
+                  label={slotLabel ? slotLabel.toLowerCase() : 'piece — tap to set'}
+                  active={correcting === 'type'}
+                  onTap={() => setCorrecting((c) => (c === 'type' ? null : 'type'))}
+                  ariaLabel="Correct the piece type"
+                />
+                .{' '}
+                <span className={labelCls} style={{ fontSize: '11px' }}>Tap any of those three to correct it.</span>
+              </p>
 
-              {/* Brand — ONE targeted prompt only when it isn't in the photo */}
+              {/* The inline corrections — one at a time, under the sentence. */}
+              {correcting === 'colour' && (
+                <div className="rounded-lg border border-[var(--space-border-default)] px-2.5 py-2">
+                  <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
+                  <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
+                </div>
+              )}
+              {correcting === 'material' && (
+                <div className="rounded-lg border border-[var(--space-border-default)] px-2.5 py-2">
+                  <p className={`${labelCls} mb-1`}>Material</p>
+                  <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
+                </div>
+              )}
+              {correcting === 'type' && (
+                <div className="rounded-lg border border-[var(--space-border-default)] px-2.5 py-2 space-y-2">
+                  <div>
+                    <p className={`${labelCls} mb-1`}>Category</p>
+                    <div className="flex flex-wrap gap-1">
+                      {WARDROBE_CATEGORIES.map((c) => (
+                        <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: '10px' }}>
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <label className={labelCls}>Piece type
+                    <select
+                      value={draft.slot || ''}
+                      onChange={(e) => patch({ slot: e.target.value || null })}
+                      className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1`}
+                    >
+                      <option value="">Other / not specified</option>
+                      {slots.map((s) => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              {/* THE MAKER IS THE ONE QUESTION (23a): the only field Beau
+                  genuinely cannot see, and the one that changes what he
+                  recommends — a real question, with explicit permission to
+                  skip. ONE targeted prompt only when it isn't in the photo. */}
               {draft.brandFromPhoto ? (
                 <label className={labelCls}>Brand — read off the photo, correct it if wrong
                   <div className="mt-1">
@@ -497,13 +595,13 @@ export function PhotoConfirmFlow({
               ) : (
                 <div className="rounded-lg bg-[var(--space-surface-accent-soft)] px-2.5 py-2">
                   <p className={`${typography.size.xs} ${typography.color.primary} ${typography.weight.medium}`}>
-                    Which brand is this?
+                    No label in the photo — who made it?
                   </p>
                   <p className={labelCls} style={{ fontSize: '10px' }}>
-                    Couldn’t see a label in the photo — leave it blank if you’d rather not say.
+                    Leave it blank if you’d rather not say. It only changes which makers he puts up.
                   </p>
                   <div className="mt-1.5">
-                    <BrandField value={draft.brand} onChange={(b) => patch({ brand: b })} ariaLabel="Which brand is this?" />
+                    <BrandField value={draft.brand} onChange={(b) => patch({ brand: b })} ariaLabel="No label in the photo — who made it?" />
                   </div>
                 </div>
               )}
@@ -524,14 +622,29 @@ export function PhotoConfirmFlow({
                   three plus a sentence. Beau filled the others from the
                   photo — right in almost every case, and correctable later
                   from the piece itself. */}
+              {/* THE REST IS STATED, NOT SHOWN (23a): eight fields on the
+                  record, three surfaced above (type · colour · maker). The
+                  other five read as one sentence, with the editors behind
+                  "+ 5 more". Right in almost every case, and correctable
+                  later from the piece itself. */}
               {!showAll ? (
                 <p className={labelCls} style={{ fontSize: '11px', lineHeight: 1.6 }}>
-                  He also filled in {draft.material ? draft.material.toLowerCase() : 'the material'},{' '}
-                  {draft.colors.length > 0 ? draft.colors.join(' and ').toLowerCase() : 'the colour'},{' '}
-                  {draft.pattern ? draft.pattern.toLowerCase() : 'the pattern'}, the seasons and the occasions —
-                  correctable now or any time from the piece.{' '}
+                  He also filled in {draft.pattern ? draft.pattern.toLowerCase() : 'the pattern'},{' '}
+                  {draft.seasons.length === 4
+                    ? 'all four seasons'
+                    : draft.seasons.length > 0
+                      ? `${draft.seasons.length} season${draft.seasons.length === 1 ? '' : 's'}`
+                      : 'the seasons'}{' '}
+                  and{' '}
+                  {draft.occasions.length > 0
+                    ? draft.occasions
+                        .map((id) => OCCASION_TAGS.find((o) => o.id === id)?.label || id)
+                        .join(' · ')
+                        .toLowerCase()
+                    : 'the occasions'}{' '}
+                  — right in almost every case, and correctable later from the piece itself.{' '}
                   <button type="button" onClick={() => setShowAll(true)} className={`${typography.color.brand} hover:underline`}>
-                    Show all fields ›
+                    + 5 more
                   </button>
                 </p>
               ) : (
@@ -548,10 +661,9 @@ export function PhotoConfirmFlow({
                       </div>
                     </label>
                   </div>
-                  <div>
-                    <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
-                    <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
-                  </div>
+                  {/* Colour edits live on the read-back sentence above — the
+                      five here are material · pattern · size · seasons ·
+                      occasions. */}
                   <div>
                     <p className={`${labelCls} mb-1`}>Pattern</p>
                     <PatternSelector value={draft.pattern} onChange={(p) => patch({ pattern: p })} ariaLabel="Pattern" />
@@ -756,6 +868,25 @@ export function AddPieceSection({
           onClick={() => setMode((m) => (m === 'search' ? null : 'search'))}
         />
       </div>
+
+      {/* THE COUNTER STOPS AT FIVE (23a): the only progress indicator in the
+          flow — it appears from the first piece logged, names the one real
+          threshold (five is where The Edit can say something honest), and it
+          disappears at five and never returns. A wardrobe is never a
+          percentage. */}
+      {pieces.length > 0 && pieces.length < 5 && (
+        <p
+          className="mt-3 text-[var(--color-neutral-700,#634e38)]"
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5 }}
+        >
+          <span className="tabular-nums" style={{ color: 'var(--color-accent-700,#7c4a17)' }}>
+            {pieces.length} of 5 pieces
+          </span>
+          {' — '}
+          {5 - pieces.length === 1 ? 'one more' : `${5 - pieces.length} more`} and Beau can tell you what’s
+          missing. Before that he’d only be guessing.
+        </p>
+      )}
 
       {/* Photograph — shows its interface; the user taps "Choose Photo" and
           only THEN does the system picker fire (Pass Forty-Eight). */}

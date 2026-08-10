@@ -367,6 +367,11 @@ export const CategoryGrid = memo(function CategoryGrid({
                 it, the white disappears on the FIRST paint, and the layout box
                 — and therefore the row height — is unchanged either way. */}
             <span className="flex items-center gap-3 min-w-0">
+              {/* CATEGORY ICONS COMMENTED OUT (founder request, 3-fixes pass):
+                  the rows read as text only. The rendering is preserved
+                  verbatim below — un-comment this block to bring the plates
+                  back. Do NOT delete it, and do NOT remove the Illo /
+                  ledgerIllustration imports above.
               <span className="relative flex-shrink-0 w-9 h-9" aria-hidden="true">
                 <span
                   className="absolute block"
@@ -382,6 +387,7 @@ export const CategoryGrid = memo(function CategoryGrid({
                   />
                 </span>
               </span>
+              */}
               <span className={`block truncate ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '19px', fontWeight: 400, lineHeight: 1.2 }}>
                 {cat.label}
               </span>
@@ -389,7 +395,9 @@ export const CategoryGrid = memo(function CategoryGrid({
             {/* The pieces filed under it — their labels and nothing else. No
                 per-piece illustration, no colour treatment: the category's
                 single drawing above carries the whole visual load. */}
-            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5" style={{ marginTop: '8px', paddingLeft: '48px' }}>
+            {/* paddingLeft was 48px to clear the (now commented-out) category
+                icon — restore it together with the icon block above. */}
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5" style={{ marginTop: '8px', paddingLeft: '0px' }}>
               {catPieces.map((p, i) => (
                 <Fragment key={p.id}>
                   {/* The interpunct between pieces — the house separator, not
