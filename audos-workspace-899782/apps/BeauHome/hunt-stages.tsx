@@ -30,11 +30,15 @@ import { typography } from '../../lib/colors';
 import {
   RESERVE_CHANGED_EVENT,
   categoryLabel,
+  fetchStyleMeasurements,
   insertRadarItem,
   radarToWardrobe,
   type RadarItem,
+  type StyleMeasurements,
+  type WardrobePiece,
 } from './profile-data';
 import { parseCandidateUrl } from './candidate-url';
+import { findCatalogBrand, beauRating, normalizeBeauRating, type BeauRating, type DirectoryBrandRow } from './brands';
 
 // window.__workspaceDb is auto-injected by the platform compiler when it sees
 // this literal token in app source.
@@ -70,8 +74,92 @@ export interface Candidate {
   reason: string | null;
 }
 
+
+
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 const WEIGHED_CAP = 4;
+
+// ---------------------------------------------------------------------------
+// WEIGHED — the deep-comparison facts (7a · 19a). The Weighed stage IS the
+// comparison view (founder's correction — the separate Compare / Matrix
+// sub-tabs are retired): a desktop table of the decisive rows per candidate,
+// and a second view that PLOTS them — two axes, one dot per candidate.
+// Everything below derives from records the app already holds; where a fact
+// is genuinely unknown the row says so honestly instead of guessing.
+// ---------------------------------------------------------------------------
+
+/** A parsed numeric price from the free-text price_seen ("€189", "£85.00"). */
+function parsePrice(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const match = String(raw).replace(/[,\s]/g, '').match(/(\d+(?:\.\d+)?)/);
+  const value = match ? Number(match[1]) : NaN;
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** Which owned categories a candidate of this category pairs with — the
+ * basis of the "what it finishes" read. */
+const PAIRS_WITH: Record<string, string[]> = {
+  shoes: ['tops', 'bottoms', 'knitwear'],
+  bottoms: ['tops', 'shoes', 'knitwear'],
+  tops: ['bottoms', 'shoes', 'outerwear', 'knitwear'],
+  knitwear: ['bottoms', 'shoes', 'tops'],
+  sweatshirts: ['bottoms', 'shoes'],
+  outerwear: ['tops', 'bottoms', 'knitwear'],
+  formalwear: ['bottoms', 'shoes', 'tops'],
+  accessories: ['tops', 'bottoms', 'shoes', 'outerwear'],
+};
+
+function worksWithCount(category: string | null | undefined, pieces: WardrobePiece[]): number {
+  const partners = PAIRS_WITH[(category || '').toLowerCase()] || ['tops', 'bottoms', 'shoes'];
+  return pieces.filter((p) => partners.includes((p.category || '').toLowerCase())).length;
+}
+
+/** The fit row, read from the dossier's sizes — and honest when they are
+ * missing (14a: a missing size is the difference between advice and a
+ * guess). */
+function fitNoteFor(category: string | null | undefined, m: StyleMeasurements | null): string {
+  const cat = (category || '').toLowerCase();
+  if (cat === 'shoes') {
+    return m?.shoe_size
+      ? `Judged against your usual ${m.shoe_size}${m.shoe_size_system ? ` ${m.shoe_size_system}` : ''}.`
+      : 'No shoe size in The Dossier yet — this row is guesswork until you add it.';
+  }
+  if (cat === 'bottoms') {
+    return m?.waist_cm
+      ? `Against your ${m.waist_cm} waist${m.inseam_cm ? ` · ${m.inseam_cm} inseam` : ''}.`
+      : 'No trouser waist in The Dossier yet — add it and this row gets specific.';
+  }
+  return m?.clothing_size
+    ? `Against your usual ${m.clothing_size}.`
+    : 'No sizes in The Dossier yet — add them and this row stops being guesswork.';
+}
+
+interface WeighedFacts {
+  candidate: Candidate;
+  price: number | null;
+  tier: BeauRating | null;
+  tierNote: string;
+  fit: string;
+  finishes: number;
+  make: string;
+  boards: number;
+}
+
+/** Beau's tier for the candidate's maker — the persisted directory rating
+ * first, the verified catalog next, honestly blank for an unrated maker. */
+function tierFor(brand: string | null | undefined, directoryRows: DirectoryBrandRow[]): { tier: BeauRating | null; note: string } {
+  const name = (brand || '').trim().toLowerCase();
+  if (!name) return { tier: null, note: '' };
+  const row = directoryRows.find((r) => (r.brand || '').trim().toLowerCase() === name);
+  const fromRow = normalizeBeauRating(row?.rating);
+  if (fromRow) return { tier: fromRow, note: row?.rating_note || '' };
+  const catalog = findCatalogBrand(name);
+  if (catalog) {
+    const { rating, note } = beauRating(catalog);
+    return { tier: rating, note };
+  }
+  return { tier: null, note: '' };
+}
 
 /** How a legacy row (no meta) reads: watching → held, else spotted. */
 function derivedStage(item: RadarItem): CandidateStage {
@@ -463,10 +551,146 @@ function AddCandidate({ onAdded }: { onAdded: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// WEIGHED · the deep comparison table (7a) — candidates as columns, the
+// decisive facts as rows: the piece · how it got here · Beau's tier · fit,
+// for you · what it finishes · price · make · boards it has sat on. Four
+// columns is the ceiling, so the table never outgrows a desktop screen; on
+// a phone it scrolls sideways (the cards remain the phone's first view, M5).
+// ---------------------------------------------------------------------------
+
+function WeighedTable({ facts }: { facts: WeighedFacts[] }) {
+  const rowHead: React.CSSProperties = {
+    fontFamily: 'var(--space-font-heading)',
+    fontSize: '11px',
+    letterSpacing: '0.12em',
+    fontWeight: 400,
+    color: 'var(--color-neutral-600,#856c51)',
+    padding: '10px 12px 10px 0',
+    verticalAlign: 'top',
+    whiteSpace: 'nowrap',
+    borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
+  };
+  const cell: React.CSSProperties = {
+    fontFamily: 'var(--space-font-family)',
+    fontSize: '13px',
+    lineHeight: 1.5,
+    padding: '10px 12px 10px 0',
+    verticalAlign: 'top',
+    borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
+    minWidth: '160px',
+  };
+  const row = (label: string, render: (f: WeighedFacts) => React.ReactNode) => (
+    <tr>
+      <th scope="row" className="text-left uppercase" style={rowHead}>{label}</th>
+      {facts.map((f) => (
+        <td key={f.candidate.item.id} className={typography.color.primary} style={cell}>{render(f)}</td>
+      ))}
+    </tr>
+  );
+  return (
+    <div className="overflow-x-auto mt-4 border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] px-4 pb-4">
+      <table className="w-full border-collapse" style={{ minWidth: `${180 + facts.length * 190}px` }}>
+        <tbody>
+          {row('The piece', (f) => (
+            <span>
+              {f.candidate.item.brand && (
+                <span className="block uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.14em' }}>
+                  {f.candidate.item.brand}
+                </span>
+              )}
+              <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1.2 }}>{f.candidate.item.name}</span>
+            </span>
+          ))}
+          {row('How it got here', (f) => `${f.candidate.origin}${f.candidate.originDate ? ` · ${formatDate(f.candidate.originDate)}` : ''}`)}
+          {row('Beau\u2019s tier', (f) => (f.tier ? `${f.tier}${f.tierNote ? ` — ${f.tierNote}` : ''}` : 'Unrated — Beau hasn\u2019t read this maker yet.'))}
+          {row('Fit, for you', (f) => f.fit)}
+          {row('What it finishes', (f) => (f.finishes > 0 ? `Works with ${f.finishes} piece${f.finishes === 1 ? '' : 's'} you own.` : 'Nothing logged yet for it to finish.'))}
+          {row('Price', (f) => f.candidate.item.price_seen || '—')}
+          {row('Make', (f) => f.make || '—')}
+          {row('Boards it has sat on', (f) => (f.boards > 0 ? `${f.boards} board${f.boards === 1 ? '' : 's'} — evidence it keeps being reached for.` : 'Never on a board — put it on one in The Fitting.'))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WEIGHED · on a map (19a) — the second view is a PLOT, not a denser table:
+// price across, what-it-finishes up, one dot per candidate. The map answers
+// “how do these relate”; the table answers “what is true of each one”.
+// ---------------------------------------------------------------------------
+
+function WeighedMap({ facts }: { facts: WeighedFacts[] }) {
+  const W = 640;
+  const H = 360;
+  const PAD = { top: 28, right: 36, bottom: 44, left: 52 };
+  const priced = facts.filter((f) => f.price != null);
+  const maxPrice = Math.max(...priced.map((f) => f.price as number), 1);
+  const maxFinish = Math.max(...facts.map((f) => f.finishes), 1);
+  const x = (price: number | null) =>
+    PAD.left + (price == null ? 0 : (price / maxPrice) * (W - PAD.left - PAD.right));
+  const y = (finishes: number) =>
+    H - PAD.bottom - (finishes / maxFinish) * (H - PAD.top - PAD.bottom);
+  const axis: React.CSSProperties = { fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em', fill: 'var(--color-neutral-600,#856c51)' };
+  return (
+    <div className="mt-4 border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] p-4">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Weighed candidates plotted — price across, what each finishes up">
+        {/* Axes — hairlines, no chart chrome. */}
+        <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} stroke="var(--color-divider,rgba(59,43,29,0.3))" strokeWidth="1" />
+        <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={H - PAD.bottom} stroke="var(--color-divider,rgba(59,43,29,0.3))" strokeWidth="1" />
+        <text x={PAD.left} y={H - 14} style={axis}>ACROSS · PRICE →</text>
+        <text x={14} y={PAD.top - 8} style={axis}>UP · WHAT IT FINISHES</text>
+        {priced.length > 0 && (
+          <>
+            <text x={W - PAD.right} y={H - 14} textAnchor="end" style={axis}>{Math.round(maxPrice)}</text>
+          </>
+        )}
+        {facts.map((f) => {
+          const hisPick = /beau/i.test(f.candidate.origin);
+          const cx = x(f.price);
+          const cy = y(f.finishes);
+          return (
+            <g key={f.candidate.item.id}>
+              <circle
+                cx={cx}
+                cy={cy}
+                r="7"
+                fill={hisPick ? 'var(--color-accent,#a8712c)' : 'var(--color-paper,#fbf8f1)'}
+                stroke="var(--color-text,#241a12)"
+                strokeWidth="1.5"
+              />
+              <text x={cx + 11} y={cy + 4} style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', fill: 'var(--color-text,#241a12)' }}>
+                {[f.candidate.item.brand, f.candidate.item.name].filter(Boolean).join(' · ')}
+                {f.price == null ? ' (no price yet)' : ''}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <p className="mt-2 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11.5px' }}>
+        One dot per weighed candidate — price across, how much of your wardrobe it works with up. A filled dot is
+        Beau’s pick. A candidate with no recorded price sits on the left edge until one is noted.
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The pipeline root.
 // ---------------------------------------------------------------------------
 
-export function HuntStages() {
+export function HuntStages({
+  pieces = [],
+  spottedExtras,
+}: {
+  /** The owned wardrobe — feeds the “what it finishes” row. */
+  pieces?: WardrobePiece[];
+  /** FIND & DISCOVER LIVE INSIDE SPOTTED (founder's correction — the
+   * standalone Find / Discover sub-tabs are gone): rendered beneath the
+   * Spotted cards, so searching and adding candidates happens where the
+   * candidates land. */
+  spottedExtras?: React.ReactNode;
+} = {}) {
   const { data: radarRows, refresh: refreshRadar } = (window as any).useWorkspaceDB('radar_items', {
     orderBy: { column: 'created_at', direction: 'desc' },
     limit: 200,
@@ -475,7 +699,24 @@ export function HuntStages() {
     orderBy: { column: 'created_at', direction: 'desc' },
     limit: 200,
   });
+  // The Weighed comparison's supporting records — directory ratings for the
+  // tier row, saved outfits for the boards-it-sat-on row.
+  const { data: directoryRows } = (window as any).useWorkspaceDB('hunt_directory_brands', {
+    orderBy: { column: 'created_at', direction: 'desc' },
+    limit: 200,
+  });
+  const { data: outfitRows } = (window as any).useWorkspaceDB('saved_outfits', {
+    orderBy: { column: 'created_at', direction: 'desc' },
+    limit: 100,
+  });
   const [activeStage, setActiveStage] = useState<CandidateStage>('spotted');
+  // WEIGHED has three readings (founder's correction + 19a): the cards, the
+  // deep comparison TABLE, and the PLOT. One record set, three views.
+  const [weighedView, setWeighedView] = useState<'cards' | 'table' | 'map'>('cards');
+  const [measurements, setMeasurements] = useState<StyleMeasurements | null>(null);
+  useEffect(() => {
+    fetchStyleMeasurements().then(setMeasurements).catch(() => undefined);
+  }, []);
   const [showExits, setShowExits] = useState(false);
   const [passingId, setPassingId] = useState<number | null>(null);
   const [passReason, setPassReason] = useState('');
@@ -509,6 +750,44 @@ export function HuntStages() {
     for (const c of candidates) groups[c.stage].push(c);
     return groups;
   }, [candidates]);
+
+  // The Weighed facts — derived, never stored (one source for every count).
+  const weighedFacts = useMemo<WeighedFacts[]>(() => {
+    const dirRows = (directoryRows || []) as DirectoryBrandRow[];
+    const boardsFor = (item: RadarItem): number => {
+      let count = 0;
+      for (const row of (outfitRows || []) as Array<{ pieces: unknown }>) {
+        try {
+          const parsed = typeof row.pieces === 'string' ? JSON.parse(row.pieces) : row.pieces;
+          if (!Array.isArray(parsed)) continue;
+          const onBoard = parsed.some(
+            (p: any) =>
+              p?.key === `radar-${item.id}` ||
+              (typeof p?.name === 'string' && p.name === item.name && (p?.brand || null) === (item.brand || null)),
+          );
+          if (onBoard) count += 1;
+        } catch { /* an unreadable saved board never breaks the row */ }
+      }
+      return count;
+    };
+    return byStage.weighed.map((candidate) => {
+      const { tier, note } = tierFor(candidate.item.brand, dirRows);
+      const catalog = findCatalogBrand((candidate.item.brand || '').trim());
+      const make = [catalog?.construction, catalog?.materials?.[0], categoryLabel(candidate.item.category || '') || null]
+        .filter(Boolean)
+        .join(' · ');
+      return {
+        candidate,
+        price: parsePrice(candidate.item.price_seen),
+        tier,
+        tierNote: note,
+        fit: fitNoteFor(candidate.item.category, measurements),
+        finishes: worksWithCount(candidate.item.category, pieces),
+        make,
+        boards: boardsFor(candidate.item),
+      };
+    });
+  }, [byStage.weighed, directoryRows, outfitRows, measurements, pieces]);
 
   const moveStage = async (candidate: Candidate, stage: CandidateStage) => {
     // FOUR IS THE CEILING (7a): a fifth weighed candidate stops being a
@@ -593,9 +872,48 @@ export function HuntStages() {
         </p>
       )}
 
+      {/* WEIGHED VIEW TOGGLE — cards · as a table · on a map (19a): the
+          table answers “what is true of each”, the map “how do they
+          relate”. Only the Weighed stage earns a second reading. */}
+      {activeStage === 'weighed' && byStage.weighed.length > 0 && (
+        <div className="flex mt-4" role="group" aria-label="Weighed views">
+          {([
+            { id: 'cards' as const, label: 'Cards' },
+            { id: 'table' as const, label: 'As a table' },
+            { id: 'map' as const, label: 'On a map' },
+          ]).map(({ id, label }, i) => {
+            const active = weighedView === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setWeighedView(id)}
+                aria-pressed={active}
+                className={`uppercase min-h-[44px] px-4 grid place-items-center whitespace-nowrap transition-colors ${
+                  active
+                    ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
+                    : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
+                } ${i > 0 ? 'border-l-0' : ''}`}
+                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em' }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {activeStage === 'weighed' && weighedView === 'table' && byStage.weighed.length > 0 && (
+        <WeighedTable facts={weighedFacts} />
+      )}
+      {activeStage === 'weighed' && weighedView === 'map' && byStage.weighed.length > 0 && (
+        <WeighedMap facts={weighedFacts} />
+      )}
+
       {/* THE STAGE'S CANDIDATES — cards (one per candidate: image-less but
           scannable — maker, piece, price, origin · date, the reason).
           Cards, not a table, so the same layout serves 390pt (M5). */}
+      {(activeStage !== 'weighed' || weighedView === 'cards' || byStage.weighed.length === 0) && (
       <div className="grid gap-3 mt-4 sm:grid-cols-2">
         {shown.map((candidate) => (
           <div key={candidate.item.id}>
@@ -632,12 +950,18 @@ export function HuntStages() {
         ))}
         {shown.length === 0 && (
           <p className="sm:col-span-2 py-6 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '14px' }}>
-            {activeStage === 'spotted' && 'Nothing spotted yet — paste a product link above, or put a piece up from a board or the index.'}
+            {activeStage === 'spotted' && 'Nothing spotted yet — paste a product link above, search below, or put a piece up from a board or the index.'}
             {activeStage === 'weighed' && 'Nothing being weighed — move a spotted candidate in and compare up to four at once.'}
             {activeStage === 'held' && 'Nothing held — a held candidate is one you\u2019ve decided on and are waiting to buy.'}
           </p>
         )}
       </div>
+      )}
+
+      {/* FIND · SEARCH · DISCOVER — folded INTO the Spotted stage
+          (founder's correction: the standalone Find / Discover sub-tabs are
+          deleted; finding new candidates happens where they land). */}
+      {activeStage === 'spotted' && spottedExtras && <div className="mt-10">{spottedExtras}</div>}
 
       {activeStage === 'weighed' && byStage.weighed.length >= WEIGHED_CAP && (
         <p className="mt-2 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11.5px' }}>

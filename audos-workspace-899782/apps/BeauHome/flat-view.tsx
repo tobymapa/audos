@@ -472,10 +472,11 @@ export function StyledOutfitBoard({
   // nothing here re-implements the layout.
   if (pieces.length === 0) {
     return (
-      <div className="relative w-full" style={{ background: '#EDE7DA' }}>
+      <div className="relative w-full" style={{ background: 'transparent' }}>
         {/* The empty state holds the same SQUARE footprint the populated
-            framed canvas renders at (founder's frame fix), so nothing jumps
-            when the first piece lands. */}
+            board renders at, so nothing jumps when the first piece lands.
+            No field, no frame — the Fitting board is transparent space
+            (founder's correction). */}
         <div className="relative w-full max-w-[420px] mx-auto" style={{ aspectRatio: '1 / 1' }}>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
             <span className="block w-12 h-[3px] bg-[var(--color-neutral-300,#dccdb2)]" aria-hidden="true" />
@@ -499,16 +500,16 @@ export function StyledOutfitBoard({
   // count. Every category has exactly one defined position on it (the
   // vertical zone structure in flat-lay-board.tsx), so the board never grows
   // or reflows as pieces are added.
-  // THE FRAME (founder's frame fix): the Build a Look stage renders the SAME
-  // square framed canvas the "Beau · Today" card uses — the #EDE8DF field
-  // with the 2px dark-walnut inset line, equal width and height (420px max),
-  // the portrait stage scaled to fit inside it — centred on the paper panel
-  // (`.today-canvas--center`). Held-out pieces are still named beneath it
-  // (`showHeldOut`).
+  // NO BACKGROUND BOX (founder's correction): the Fitting's outfit board has
+  // no field, no fill and no frame behind the composition — the clothes
+  // float on transparent empty space (`ground="transparent"`). The framed
+  // #EDE8DF square survives ONLY on the "Beau · Today" card on The Ledger,
+  // where it sits on the dark walnut slab and needs the visual frame.
+  // Held-out pieces are still named beneath the board (`showHeldOut`).
   const aspect = 480 / 600;
 
   return (
-    <div className="relative w-full" style={{ background: '#EDE7DA' }}>
+    <div className="relative w-full" style={{ background: 'transparent' }}>
       <div className="px-4 sm:px-8 py-6 sm:py-8">
         <FlatLayBoard
           pieces={pieces}
@@ -522,6 +523,7 @@ export function StyledOutfitBoard({
           maxWidth="420px"
           panel="paper"
           variant="tray"
+          ground="transparent"
           showHeldOut
           onRemove={onRemove}
           className="today-canvas--center"

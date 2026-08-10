@@ -35,6 +35,14 @@ import { label, promoteToScout, type StyleProfile, type WardrobePiece } from './
 import { fetchSemanticTags, type SemanticTags } from './semantic-tags';
 import { SAGE, TicketFrame, coveredBoxStyle, dashedBoxStyle } from './ticket-frame';
 import { sortByCategoryOrder } from './category-order';
+import {
+  MUTED_STORE_KEY,
+  NA_STORE_KEY,
+  fetchCoveragePrefs,
+  loadLocalJson,
+  writeMutedPref,
+  writeNaPref,
+} from './coverage-prefs';
 
 // Rows, in the app's canonical menswear order — worn garments first, then
 // shoes, then accessories (which carries bags and headwear too).
@@ -145,26 +153,8 @@ const DEFAULT_NA: Record<string, RegisterId[]> = {
   Formalwear: ['casual', 'smart-casual'],
 };
 
-const NA_STORE_KEY = 'ethaion_coverage_na_v1';
-const MUTED_STORE_KEY = 'ethaion_muted_registers_v1';
-
 function cellKey(rowId: string, register: string): string {
   return `${rowId}\u241f${register}`;
-}
-
-function loadJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function storeJson(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch { /* storage unavailable — the session state still applies */ }
 }
 
 /** A GAP LEADS TO THE HUNT, pre-filled (7a — the Rail is gone from the IA):
@@ -227,10 +217,26 @@ export function CoverageMap({
   /** "row␟column" of the filled cell whose archetype detail is open. */
   const [openCell, setOpenCell] = useState<string | null>(null);
   /** Per-cell doesn't-apply overrides — true forces N/A, false un-marks a
-   * default. Persisted per browser. */
-  const [naOverrides, setNaOverrides] = useState<Record<string, boolean>>(() => loadJson(NA_STORE_KEY, {}));
-  /** MUTED registers — columns Beau holds no opinion about. */
-  const [muted, setMuted] = useState<RegisterId[]>(() => loadJson(MUTED_STORE_KEY, []));
+   * default. Seeded from the localStorage mirror instantly; the
+   * coverage_prefs WorkspaceDB read reconciles below, so the marks follow
+   * the customer ACROSS DEVICES (the founder's persistence fix). */
+  const [naOverrides, setNaOverrides] = useState<Record<string, boolean>>(() => loadLocalJson(NA_STORE_KEY, {}));
+  /** MUTED registers — columns Beau holds no opinion about. Same store. */
+  const [muted, setMuted] = useState<RegisterId[]>(() => loadLocalJson(MUTED_STORE_KEY, []));
+
+  // The cross-device truth — one read on mount; the local mirror already
+  // painted, so this only ever corrects it.
+  useEffect(() => {
+    let live = true;
+    void fetchCoveragePrefs().then(({ na, muted: mutedIds }) => {
+      if (!live) return;
+      setNaOverrides(na);
+      setMuted(mutedIds.filter((id): id is RegisterId => REGISTERS.some((r) => r.id === id)));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   const narrow = useIsNarrow();
   const [mobileRegister, setMobileRegister] = useState<RegisterId>('casual');
 
@@ -254,15 +260,19 @@ export function CoverageMap({
     setNaOverrides((cur) => {
       const isNaNow = key in cur ? cur[key] : (DEFAULT_NA[rowId] || []).includes(register);
       const next = { ...cur, [key]: !isNaNow };
-      storeJson(NA_STORE_KEY, next);
+      // Local mirror + the coverage_prefs DB row — survives across devices.
+      writeNaPref(key, !isNaNow, next);
       return next;
     });
   };
 
   const toggleMuted = (register: RegisterId) => {
     setMuted((cur) => {
-      const next = cur.includes(register) ? cur.filter((r) => r !== register) : [...cur, register];
-      storeJson(MUTED_STORE_KEY, next);
+      const isMutedNow = cur.includes(register);
+      const next = isMutedNow ? cur.filter((r) => r !== register) : [...cur, register];
+      // Local mirror + the DB row — and Beau's assessment reads the muted
+      // list from the same store, so he stops holding an opinion on it.
+      writeMutedPref(register, !isMutedNow, next);
       return next;
     });
   };

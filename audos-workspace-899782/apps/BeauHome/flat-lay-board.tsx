@@ -547,6 +547,13 @@ const TRAY_CSS =
   'padding:12px;display:flex;align-items:center;justify-content:center}' +
   '.today-canvas--center{margin:16px auto}' +
   '.today-canvas::before{content:"";position:absolute;inset:10px;border:2px solid #241a12;pointer-events:none;z-index:20}' +
+  // THE BARE GROUND (founder's correction — the Fitting Room's outfit board
+  // loses its square field and frame; the clothes float on transparent empty
+  // space). Beau · Today on The Ledger keeps the framed canvas — it sits on
+  // the dark walnut slab and needs the visual frame — so this is a modifier,
+  // never the default.
+  '.today-canvas--bare{background:transparent!important;padding:0}' +
+  '.today-canvas--bare::before{display:none}' +
   '.today-clip{position:relative;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
   '.today-stage{position:relative;height:100%;max-width:100%;margin:0 auto;aspect-ratio:var(--aspect,480/600);background:transparent;border:none;box-shadow:none}' +
   '.today-piece{position:absolute;left:var(--x);top:var(--y);width:var(--w);height:var(--h);' +
@@ -563,6 +570,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   panel = 'paper',
   uniformItems = false,
   variant = 'stage',
+  ground = 'canvas',
   showHeldOut = false,
   onRemove,
   dragKey,
@@ -591,6 +599,11 @@ export function FlatLayBoard<T extends FlatLayPiece>({
    * `.today-piece` per garment — the same zone composition, expressed through
    * the tray's own CSS. */
   variant?: 'stage' | 'tray';
+  /** Tray only — which ground the outfit lies on. 'canvas' is the framed
+   * #EDE8DF square (Beau · Today on the Ledger — KEEP IT THERE); 'transparent'
+   * removes the field and the inset frame entirely so the clothes float on
+   * empty space (the Fitting Room's outfit board — founder's correction). */
+  ground?: 'canvas' | 'transparent';
   /** Tray only: also name the held-out pieces beneath the canvas (the
    * Fitting's stage wants that; the Today card has no room and skips it). */
   showHeldOut?: boolean;
@@ -929,7 +942,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   if (tray) {
     const canvas = (
       <div
-        className={`today-canvas ${className}`.replace(/\s+/g, ' ').trim()}
+        className={`today-canvas ${ground === 'transparent' ? 'today-canvas--bare' : ''} ${className}`.replace(/\s+/g, ' ').trim()}
         style={{
           ['--aspect' as string]: String(trayAspect),
           ['--today-canvas-ground' as string]: canvasGround,

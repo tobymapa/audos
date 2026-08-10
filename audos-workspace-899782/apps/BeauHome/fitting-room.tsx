@@ -95,6 +95,7 @@ import {
   prepareProductPhoto,
 } from './photo-enhance';
 import { extractFromUrl } from './discovery-ai';
+import { cutoutVariantFor } from './cutout-server';
 import { flatLayAssetForProduct, ingestProductInBackground } from './flat-lay-sourcing';
 import {
   cappedImageUrl,
@@ -317,6 +318,11 @@ function ShelfThumb({ piece }: { piece: FittingPiece }) {
   // processing tone holds the tile's space until the stored PNG lands.
   // Evaluated during render, so the tile is right on first paint.
   const cut = !!img && isTransparentCutout(img);
+  // THREE SIZES PER CUTOUT (Efficiency §02): a shelf tile reads the stored
+  // ~300px variant when ingestion has produced one — seventeen tiles no
+  // longer each download the ~900px board hero. Falls back to the hero
+  // until variants exist; synchronous, so nothing waits.
+  const shownImg = cut ? cutoutVariantFor(img, 'tile') : img;
   return (
     <span
       className="block w-full"
@@ -335,7 +341,7 @@ function ShelfThumb({ piece }: { piece: FittingPiece }) {
     >
       {cut && (
         <img
-          src={cappedImageUrl(img, width)}
+          src={cappedImageUrl(shownImg, width)}
           {...(srcSet ? { srcSet, sizes: SHELF_TILE_SIZES } : null)}
           alt={piece.name}
           loading="eager"

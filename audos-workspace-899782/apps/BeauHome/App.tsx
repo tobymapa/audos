@@ -954,20 +954,19 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level navigation (design handoff — the five-tab backbone): FIVE tabs,
-// in this exact order, each with a hairline stroke icon:
-//   The Ledger · The Edit · The Fitting · The Hunt · The Index.
+// Top-level navigation (founder's correction — SIX tabs), in this exact
+// order, each with a hairline stroke icon:
+//   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier.
 // The Rail / Hunt / Reserve funnel is consolidated into The Hunt as three
 // stages on one screen (hunt-stages.tsx); The Index houses the two
 // reference works (the piece taxonomy + the maker directory); The Dossier
-// leaves the nav for the ACCOUNT CORNER — it is settings Beau reads, the
-// same weight as sign-out. The internal tab ids are unchanged ('wardrobe',
-// 'beau', 'scout', 'fitting-room', …) so chat deep links keep working, and
-// the retired tab surfaces ('curated', 'radar', 'your-style') stay fully
-// routable as hidden views.
-// On a phone the five tabs move to a BOTTOM bar at thumb height with 52pt
-// targets, same order (Mobile spec M1); the top strip keeps the account
-// corner.
+// is BACK IN THE PRIMARY NAV as the RIGHTMOST tab (founder's correction —
+// it was briefly demoted to the account corner). The internal tab ids are
+// unchanged ('wardrobe', 'beau', 'scout', 'fitting-room', 'your-style', …)
+// so chat deep links keep working, and the retired tab surfaces ('curated',
+// 'radar') stay fully routable as hidden views.
+// On a phone the six tabs move to a BOTTOM bar at thumb height with 52pt
+// targets, same order.
 // ---------------------------------------------------------------------------
 
 type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed' | 'index';
@@ -979,6 +978,8 @@ const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'gri
   { id: 'fitting-room', label: 'The Fitting', short: 'Fitting', icon: 'figure' },
   { id: 'scout', label: 'The Hunt', short: 'Hunt', icon: 'compass' },
   { id: 'index', label: 'The Index', short: 'Index', icon: 'library' },
+  // The Dossier — a PRIMARY tab again, rightmost (founder's correction).
+  { id: 'your-style', label: 'The Dossier', short: 'Dossier', icon: 'folder' },
 ];
 
 /** A small clothes-hanger glyph — stroke-only, inherits the tab's colour. */
@@ -1026,42 +1027,21 @@ function TabIcon({ icon }: { icon: string }) {
  * routable by deep link;
  * 'curated' is the old Rail tab — its reference half lives in The Index,
  * its funnel half in The Hunt's Spotted stage;
- * 'radar' is the old Reserve — now The Hunt's Held stage;
- * 'your-style' is The Dossier — reached from the account corner, the same
- * weight as sign-out (design handoff 14a). */
-const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar', 'your-style'];
+ * 'radar' is the old Reserve — now The Hunt's Held stage. */
+const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar'];
 
 function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void }) {
-  // Warm Editorial nav, two placements (design handoff §Navigation · M1):
-  //  · DESKTOP — the five tabs as a centred header strip, 47px tall, plus
-  //    THE ACCOUNT CORNER on the right: the Dossier, the same weight as
-  //    sign-out — it left the primary nav (14a).
-  //  · PHONE — the five tabs move to a fixed BOTTOM bar at thumb height,
-  //    52pt targets, same order; the slim top strip keeps the wordmark and
-  //    the account corner.
+  // Warm Editorial nav, two placements (founder's correction — six tabs):
+  //  · DESKTOP — the six tabs as a centred header strip, 47px tall. The
+  //    Dossier sits rightmost IN the strip; the account corner is retired.
+  //  · PHONE — the six tabs move to a fixed BOTTOM bar at thumb height,
+  //    52pt targets, same order; the slim top strip keeps the wordmark.
   const tourAnchorFor = (id: TabId) =>
     id === 'wardrobe' ? 'tour-ledger'
     : id === 'scout' ? 'tour-hunt'
     : id === 'fitting-room' ? 'tour-fitting'
     : id === 'index' ? 'tour-index'
     : undefined;
-
-  const dossierActive = tab === 'your-style';
-  const accountCorner = (
-    <button
-      type="button"
-      onClick={() => onChange('your-style')}
-      className={`flex items-center flex-shrink-0 px-2.5 min-h-[44px] whitespace-nowrap uppercase transition-colors ${
-        dossierActive ? 'text-[var(--space-text-primary)]' : 'text-[var(--color-neutral-600,#856c51)] hover:text-[var(--space-text-primary)]'
-      }`}
-      style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', letterSpacing: '0.1em', fontWeight: dossierActive ? 600 : 400 }}
-      aria-current={dossierActive ? 'page' : undefined}
-      title="The Dossier — what Beau knows about you, and your account"
-    >
-      <Folder className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" strokeWidth={1.5} fill="none" aria-hidden="true" />
-      Dossier
-    </button>
-  );
 
   return (
     <>
@@ -1105,13 +1085,12 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
               );
             })}
           </nav>
-          {/* THE ACCOUNT CORNER — the Dossier lives here now (14a). */}
-          <span className="sm:absolute sm:right-3 sm:top-1/2 sm:-translate-y-1/2">{accountCorner}</span>
         </div>
       </div>
 
-      {/* PHONE — the five tabs at the bottom, thumb height, 52pt targets,
-          same order as the desktop header (Mobile spec M1). */}
+      {/* PHONE — the six tabs at the bottom, thumb height, 52pt targets,
+          same order as the desktop header (Mobile spec M1 + the founder's
+          six-tab correction). */}
       <nav
         className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex bg-[var(--space-surface-card)] border-t border-[var(--space-text-primary)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
@@ -2269,8 +2248,8 @@ export default function BeauHome() {
     <BeauAssessmentProvider profile={profile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
       {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
-          The Hunt · The Index (five tabs; the Dossier in the account
-          corner; on a phone the five tabs sit in the bottom bar). */}
+          The Hunt · The Index · The Dossier (six tabs — the founder's
+          correction; on a phone the six tabs sit in the bottom bar). */}
       <TabBar
         tab={tab}
         onChange={(t) => {

@@ -85,6 +85,7 @@ import {
   type CutoutVerdict,
   type SourceSelection,
 } from './image-pipeline';
+import { serverCutout, storeCutoutVariants } from './cutout-server';
 
 function db(): any {
   return (window as any).__workspaceDb;
@@ -514,6 +515,21 @@ async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): 
  * keep the original image, so nothing ever blocks or breaks.
  */
 async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
+  // SERVER-SIDE FIRST (Efficiency doc §04 — "move ingestion server-side"):
+  // a platform server function does the WHOLE round for a new upload —
+  // Photoroom segmentation through the secrets proxy AND durable storage —
+  // and hands back only the stored URL. No image bytes cross the browser's
+  // main thread at all on this path. Any failure (hook unavailable,
+  // offline, key missing) falls through SILENTLY to the in-browser call
+  // below — the client-side pipeline is the offline/legacy fallback, per
+  // the design handoff.
+  try {
+    const server = await serverCutout(url);
+    if (server?.url) return { url: server.url, provider: 'photoroom' };
+    if (server?.base64) return { base64: server.base64, mimeType: server.mimeType || 'image/png', provider: 'photoroom' };
+  } catch (e) {
+    console.warn('[Ethaion] server-side ingestion unavailable — the in-browser remover carries it:', e);
+  }
   // PHOTOROOM-ONLY (Pass Fifty — direct call). Photoroom is now the SOLE
   // background remover: no client-side @imgly fallback and no two-tier logic.
   // A Photoroom failure is SURFACED (logged and rethrown), never silently
@@ -1947,7 +1963,21 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
       const dataUrl = cutout.url
         || (cutout.base64 ? `data:${cutout.mimeType || 'image/png'};base64,${cutout.base64}` : '');
       if (!dataUrl) throw new Error('Photoroom returned no usable image');
-      const durable = await persistCutout(source, dataUrl);
+      // SERVER-STORED CUTS ARRIVE AS URLS (cutout-server.ts): the PNG is
+      // already in object storage, so re-uploading it would be a wasted
+      // round trip — record it and move on. Base64 results (the in-browser
+      // fallback) upload exactly as before.
+      let durable: string;
+      if (cutout.url && /^https?:\/\//i.test(cutout.url)) {
+        durable = cutout.url;
+        knownCutoutUrls.add(durable);
+        storeCutout(source, durable);
+      } else {
+        durable = await persistCutout(source, dataUrl);
+      }
+      // THREE SIZES PER CUTOUT (Efficiency §02) — derived once, at ingest
+      // time, never on view; fire-and-forget.
+      if (/^https?:\/\//i.test(durable)) storeCutoutVariants(cutoutHash(source), durable);
       storeMeta(source, 1, category);
       settledBoardCutouts.set(source, durable);
       const asset: FlatLayAsset = {

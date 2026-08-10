@@ -62,6 +62,23 @@ export function nameFromUrl(url: string): string {
     .join(' ');
 }
 
+/** True when a URL points at a PRODUCT page rather than a maker's home —
+ * on a product page the <title> names the PRODUCT ("The Fisherman's
+ * Jacket"), never the maker, so it must not be trusted as a brand name.
+ * The founder's rule: domain root → brand/maker; product slug → product.
+ * asphalte.com/…/products/the-fishermans-jacket → the maker is "Asphalte". */
+export function isProductPagePath(url: string): boolean {
+  try {
+    const path = new URL(url).pathname;
+    if (/\/(products?|item|items|p|dp|shopping|buy)\//i.test(path)) return true;
+    // Two or more path segments almost always means a product / listing
+    // page, not the brand's front door.
+    return path.split('/').filter(Boolean).length >= 2;
+  } catch {
+    return false;
+  }
+}
+
 /** True when a line/cell reads as a URL rather than a plain brand name. */
 export function looksLikeUrl(text: string): boolean {
   const t = (text || '').trim();
@@ -139,7 +156,13 @@ export async function fetchSiteMeta(pageUrl: string): Promise<SiteMeta> {
       // Titles read “Brand | Official Site” — the stem before the separator
       // is the name. Hyphenated brand names survive: the separator must be
       // whitespace-parted.
-      name = siteName || (title ? title.split(/\s+[|·–—-]\s+/)[0].trim() : '');
+      // BUT ONLY ON A BRAND'S OWN FRONT PAGE (founder's URL-parser fix): on
+      // a PRODUCT page the title stem is the PRODUCT'S name (“The
+      // Fisherman's Jacket”), so it must never be filed as the maker — the
+      // maker comes from og:site_name or, failing that, the DOMAIN ROOT
+      // (asphalte.com → “Asphalte”, via the nameFromUrl fallback below).
+      const titleStem = title ? title.split(/\s+[|·–—-]\s+/)[0].trim() : '';
+      name = siteName || (isProductPagePath(clean) ? '' : titleStem);
     }
   } catch (e) {
     console.warn('[Ethaion] brand site read failed — falling back to the domain stem + favicon:', e);

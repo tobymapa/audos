@@ -1,5 +1,11 @@
 import { useState, Suspense, lazy, LazyExoticComponent, ComponentType, useEffect, useRef, useMemo, useCallback, Component, ErrorInfo, ReactNode } from 'react';
-import { Bot, Folder, X, Plus, Menu, PanelLeftClose, PanelLeftOpen, ChevronLeft, Activity, Maximize2, Minimize2, Moon, Heart, Calendar, Users, FileText, BarChart, Settings as SettingsIcon, ArrowUp, MessageCircle, ChevronUp, Plane, TrendingUp, LineChart, Dumbbell, Brain, Target, Zap, Star, Clock, CheckCircle, List, BookOpen, Coffee, Music, Camera, MapPin, Wallet, ShoppingCart, Gift, Lightbulb, Sparkles, Rocket, Home, Building, Globe, Mail, Phone, Video, Mic, Image, Play, Pause, Volume2, Wifi, Cloud, Sun, Umbrella, Thermometer, Wind, Droplets, Leaf, Flower2, Mountain, Waves, Compass, Map, Navigation, Car, Bike, Ship, Award, Trophy, Medal, Crown, Diamond, Gem, Key, Lock, Unlock, Shield, Eye, Search, Filter, SortAsc, Download, Upload, Share2, Link, ExternalLink, Copy, Clipboard, Trash2, Edit, Pencil, PenTool, Scissors, Bookmark, Flag, Bell, AlertCircle, Info, HelpCircle, XCircle, CheckCircle2, Circle, Square, Triangle, Hexagon, Octagon, Hash, AtSign, DollarSign, Percent, Calculator, Code, Terminal, Database, Server, Cpu, Monitor, Smartphone, Tablet, Laptop, Watch, Headphones, Speaker, Radio, Tv, Printer, Scan, QrCode, Barcode, CreditCard, Receipt, Banknote, PiggyBank, TrendingDown, AreaChart, PieChart, Shirt, Palette } from 'lucide-react';
+// LUCIDE IMPORT, TRIMMED (design handoff §performance — ~200 icons in one
+// statement cost ~172 KB): only the icons the shell chrome actually renders,
+// the iconMap's alias targets, and the names this workspace's config.json
+// registers (Shirt · Folder · Search) are imported now. The iconMap itself
+// is UNCHANGED in shape — add an icon here AND to baseIconMap below when a
+// new app registration needs one.
+import { Bot, Folder, X, Plus, Menu, PanelLeftClose, PanelLeftOpen, ChevronLeft, Activity, Moon, Heart, Calendar, Users, FileText, BarChart, Settings as SettingsIcon, MessageCircle, Plane, TrendingUp, LineChart, Dumbbell, Brain, Target, Zap, Star, Clock, CheckCircle, List, BookOpen, Coffee, Music, Camera, MapPin, Wallet, ShoppingCart, Gift, Lightbulb, Sparkles, Rocket, Home, Globe, Mail, Phone, Video, Mic, Image, Play, Volume2, Cloud, Sun, Compass, Map, Key, Lock, Shield, Search, Bookmark, Bell, DollarSign, Database, CreditCard, PieChart, Shirt, Palette } from 'lucide-react';
 import type { SpaceConfig, DesktopBranding, DesktopThemeTokens } from './types';
 import { useSpaceRuntime } from './SpaceRuntimeContext';
 // ---------------------------------------------------------------------------
@@ -174,23 +180,18 @@ function resolveGenesisRuntimeTheme(config: SpaceConfig) {
   };
 }
 
-// Icon mapping for app icons - supports both PascalCase and lowercase
+// Icon mapping for app icons - supports both PascalCase and lowercase.
+// TRIMMED to the icons actually imported above (each entry here costs bundle
+// weight); the case-insensitive/kebab-case lookup and every alias below are
+// untouched, so existing registrations keep resolving.
 const baseIconMap: Record<string, ComponentType<any>> = {
   Activity, Moon, Heart, Calendar, Users, FileText, BarChart, Bot, Folder,
   Plane, TrendingUp, LineChart, Dumbbell, Brain, Target, Zap, Star, Clock,
   CheckCircle, List, BookOpen, Coffee, Music, Camera, MapPin, Wallet,
-  ShoppingCart, Gift, Lightbulb, Sparkles, Rocket, Home, Building, Globe,
-  Mail, Phone, Video, Mic, Image, Play, Pause, Volume2, Wifi, Cloud, Sun,
-  Umbrella, Thermometer, Wind, Droplets, Leaf, Mountain, Waves, Compass,
-  Map, Navigation, Car, Bike, Ship, Award, Trophy, Medal, Crown, Diamond,
-  Gem, Key, Lock, Unlock, Shield, Eye, Search, Filter, SortAsc, Download,
-  Upload, Share2, Link, ExternalLink, Copy, Clipboard, Trash2, Edit, Pencil,
-  PenTool, Scissors, Bookmark, Flag, Bell, AlertCircle, Info, HelpCircle,
-  XCircle, CheckCircle2, Circle, Square, Triangle, Hexagon, Octagon, Hash,
-  AtSign, DollarSign, Percent, Calculator, Code, Terminal, Database, Server,
-  Cpu, Monitor, Smartphone, Tablet, Laptop, Watch, Headphones, Speaker,
-  Radio, Tv, Printer, Scan, QrCode, Barcode, CreditCard, Receipt, Banknote,
-  PiggyBank, TrendingDown, AreaChart, PieChart, Flower2, Shirt, Palette,
+  ShoppingCart, Gift, Lightbulb, Sparkles, Rocket, Home, Globe,
+  Mail, Phone, Video, Mic, Image, Play, Volume2, Cloud, Sun,
+  Compass, Map, Key, Lock, Shield, Search, Bookmark, Bell,
+  DollarSign, Database, CreditCard, PieChart, Shirt, Palette,
 };
 
 // Create case-insensitive lookup with common aliases

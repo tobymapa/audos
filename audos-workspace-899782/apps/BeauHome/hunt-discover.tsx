@@ -587,7 +587,10 @@ function BrandMark({ name, logoUrl }: { name: string; logoUrl?: string | null })
   );
 }
 
-/** "Compare" queue action — shared by rows, Find results and the dossier. */
+/** "Compare" queue action — RETIRED with the Compare sub-tab (founder's
+ * correction: the Weighed stage IS the comparison view). Kept exported for
+ * API compatibility; it renders NOTHING unless a caller still wires the
+ * retired queue in. */
 export function CompareAction({
   brand,
   compareList,
@@ -595,10 +598,11 @@ export function CompareAction({
   size = 'sm',
 }: {
   brand: string;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
+  compareList?: string[];
+  onToggleCompare?: (brand: string) => void;
   size?: 'sm' | 'md';
 }) {
+  if (!onToggleCompare || !compareList) return null;
   const queued = compareList.some((b) => b.toLowerCase() === brand.toLowerCase());
   const full = !queued && compareList.length >= MAX_COMPARE;
   const pad = size === 'md' ? 'px-4 min-h-[44px]' : 'px-2.5 py-1.5';
@@ -629,7 +633,10 @@ export function CompareAction({
   );
 }
 
-/** "Add to Matrix" action — builds the custom Matrix view from Discover. */
+/** "Add to Matrix" action — RETIRED with the Matrix sub-tab (founder's
+ * correction: comparison-matrix logic folded into the Weighed stage). Kept
+ * exported for API compatibility; renders NOTHING without the retired
+ * queue wired in. */
 export function MatrixAction({
   brand,
   matrixList,
@@ -637,10 +644,11 @@ export function MatrixAction({
   size = 'sm',
 }: {
   brand: string;
-  matrixList: string[];
-  onToggleMatrix: (brand: string) => void;
+  matrixList?: string[];
+  onToggleMatrix?: (brand: string) => void;
   size?: 'sm' | 'md';
 }) {
+  if (!onToggleMatrix || !matrixList) return null;
   const queued = matrixList.some((b) => b.toLowerCase() === brand.toLowerCase());
   const full = !queued && matrixList.length >= MAX_MATRIX;
   const pad = size === 'md' ? 'px-4 min-h-[44px]' : 'px-2.5 py-1.5';
@@ -701,8 +709,8 @@ export function BrandDetailContent({
   onToggleCompare,
 }: {
   brand: BrandProfile;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
+  compareList?: string[];
+  onToggleCompare?: (brand: string) => void;
 }) {
   const ratingForBrand = beauRatingFromQuality(brand.constructionQuality, brand.qualityScore);
   const ratingEvidence = beauRatingEvidence(brand);
@@ -830,7 +838,6 @@ export function BrandDetailContent({
       )}
 
       <div className="mt-6 flex items-center gap-4 flex-wrap">
-        <CompareAction brand={brand.brand} compareList={compareList} onToggleCompare={onToggleCompare} size="md" />
         <a
           href={brandWebsiteUrl(brand.brand)}
           target="_blank"
@@ -996,8 +1003,8 @@ export function BrandDetailSheet({
 }: {
   brandName: string;
   onClose: () => void;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
+  compareList?: string[];
+  onToggleCompare?: (brand: string) => void;
 }) {
   const [profile, setProfile] = useState<BrandProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1084,10 +1091,10 @@ function BrandTable({
   metaMap: Map<string, BrandIndexEntry>;
   onToggleFavourite: (brand: string) => void;
   onOpenBrand: (brandName: string) => void;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
-  matrixList: string[];
-  onToggleMatrix: (brand: string) => void;
+  compareList?: string[];
+  onToggleCompare?: (brand: string) => void;
+  matrixList?: string[];
+  onToggleMatrix?: (brand: string) => void;
   /** Per-row delete (founder's fix) — removes the maker from the list. */
   onDeleteBrand: (brand: string) => void;
 }) {
@@ -1251,6 +1258,9 @@ function BrandTable({
               </td>
               <td className="px-3 py-3">
                 <span className="flex items-center justify-end gap-1.5">
+                  {/* Compare / Matrix queue actions RETIRED (founder's
+                      correction) — the Weighed stage in The Hunt is the one
+                      comparison surface now. */}
                   <CompareAction brand={b.brand} compareList={compareList} onToggleCompare={onToggleCompare} />
                   <MatrixAction brand={b.brand} matrixList={matrixList} onToggleMatrix={onToggleMatrix} />
                   {/* DELETE (founder's fix) — a quiet trash action per row;
@@ -1303,10 +1313,12 @@ export function DiscoverSubTab({
   profileOn: boolean;
   profile: StyleProfile | null;
   onOpenBrand: (brandName: string) => void;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
-  matrixList: string[];
-  onToggleMatrix: (brand: string) => void;
+  /** RETIRED queues (the Compare / Matrix sub-tabs are gone) — optional so
+   * legacy callers compile; the row actions render nothing without them. */
+  compareList?: string[];
+  onToggleCompare?: (brand: string) => void;
+  matrixList?: string[];
+  onToggleMatrix?: (brand: string) => void;
 }) {
   // Persisted directory additions (user-added / Beau-recommended / imported).
   const { data: addedRows, refresh } = window.useWorkspaceDB<DirectoryBrandRow>('hunt_directory_brands', {

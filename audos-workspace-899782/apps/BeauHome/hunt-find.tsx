@@ -307,8 +307,10 @@ export function UnifiedResultView({
   result: UnifiedFindResult;
   profileOn: boolean;
   onOpenBrand: (brandName: string) => void;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
+  /** RETIRED — the Compare sub-tab is gone (the Weighed stage is the one
+   * comparison surface); optional so legacy history views compile. */
+  compareList?: string[];
+  onToggleCompare?: (brand: string) => void;
   /** Re-runs the hunt with a relaxed brief — live Find surface only. */
   onRefine?: (query: string) => void;
   /** true on the live Find surface — Beau's verdict prose types on
@@ -588,8 +590,9 @@ export function FindSubTab({
   /** Called after a history row lands so the parent list refreshes. */
   onLogged: () => void;
   onOpenBrand: (brandName: string) => void;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
+  /** RETIRED — the Compare queue left with its sub-tab. */
+  compareList?: string[];
+  onToggleCompare?: (brand: string) => void;
 }) {
   const [query, setQuery] = useState(prefill);
   const [busy, setBusy] = useState(false);

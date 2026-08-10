@@ -6,9 +6,11 @@
  *     searchable and browsable, with Beau's note per entry. Was housed as
  *     The Rail's second sub-tab; reference is not a shortlist, so it lives
  *     here now.
- *   · MAKERS — the personal maker directory (brand-index.tsx): who you
- *     trust, who you're curious about, who you've ruled out — the list
- *     that steers Beau's recommendations.
+ *   · MAKERS — the FULL maker directory (maker-views.tsx): the verified
+ *     catalog plus every maker you or Beau added, with your favourites and
+ *     notes folded in — as a list, on a map (price × tier) and as a
+ *     quadrant (price × fit-to-you). The list that steers Beau's
+ *     recommendations.
  *
  * The Index never says "buy": picks live in The Hunt, where you went
  * looking for them — an entry's "see options" hands the type to The Hunt's
@@ -18,7 +20,7 @@ import { useState } from 'react';
 import { typography } from '../../lib/colors';
 import { promoteToScout, type StyleProfile, type WardrobePiece } from './profile-data';
 import { WorldOfMenswear } from './world-of-menswear';
-import { BrandIndexSubTab } from './brand-index';
+import { MakersIndex } from './maker-views';
 import { SubTabs } from './sub-tabs';
 
 type IndexView = 'pieces' | 'makers';
@@ -67,7 +69,7 @@ export function IndexTab({
             onSeeForYou={(sub) => promoteToScout(sub.label)}
           />
         )}
-        {view === 'makers' && <BrandIndexSubTab />}
+        {view === 'makers' && <MakersIndex profile={profile} />}
       </div>
     </div>
   );

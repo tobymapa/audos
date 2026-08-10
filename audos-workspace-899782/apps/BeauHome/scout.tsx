@@ -1,29 +1,20 @@
 /**
- * THE HUNT (v7 — Recommendation Engine overhaul) — the brand and piece
- * intelligence hub. Exactly FOUR internal sub-tabs on a horizontal chip
- * bar (see the root component at the bottom):
+ * THE HUNT (v8 — the founder's corrections) — exactly THREE stages and
+ * NOTHING else: Spotted · Weighed · Held (hunt-stages.tsx). Every sub-tab
+ * beyond the stages is DELETED:
  *
- *   Find · Discover · Compare · Matrix
+ *  - "Profile on/off" — gone. Beau reads the dossier automatically; no
+ *    manual toggle is needed.
+ *  - "Compare" — gone. The WEIGHED stage IS the comparison view: cards,
+ *    the deep comparison table, and the plot (19a) live there.
+ *  - "Find" — gone as a standalone tab. The unified search (./hunt-find),
+ *    the re-runnable Hunt History and the Discover maker table
+ *    (./hunt-discover) are folded INTO the Spotted stage — searching and
+ *    adding candidates happens where the candidates land.
+ *  - "Matrix" — gone. Comparison-matrix logic folded into Weighed's plot.
  *
- *  - Find: the UNIFIED search (./hunt-find) — the old Find, the AI
- *    Matchmaker and Judge merged into ONE input; Beau reads the intent and
- *    answers with recommendations, a brand dossier or a quality judgement.
- *    Every query is logged to Your Hunt History with its full result set —
- *    and the FULL history (filterable, tag/note-able, RE-RUNNABLE) lives
- *    right beneath the input on this same sub-tab. The old separate
- *    "Your Hunt History" sub-tab is RETIRED.
- *  - Discover: the maker directory as a TABLE (./hunt-discover) — filter
- *    chips, Beau ratings, source tags, Add to Compare / Add to Matrix,
- *    "Don't see a maker?" at the top.
- *  - Compare / Matrix: the brand-intelligence layer (./brands seed catalog,
- *    ./hunt-ai models, ./hunt-tools components, the shared Brand Dossier).
- *
- * "Plan a Trip" left this tab entirely — it lives on The Ledger now
- * (App.tsx renders ./travel there; a tapped gap hands back to Find here).
- *
- * A PROFILE TOGGLE at the top (above the sub-tab bar) persists for the
- * session and applies to every sub-tab: ON, Beau reasons with the full user
- * context; OFF, general knowledge only.
+ * "Plan a Trip" lives on The Ledger (App.tsx renders ./travel there; a
+ * tapped gap hands back to the Spotted search here).
  */
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
@@ -61,22 +52,7 @@ import {
   type ScoutHuntRow,
 } from './scout-ai';
 import { HairlineRowsSkeleton, ShimmerDefs, Skeleton } from './skeleton';
-import {
-  addToCompare,
-  addToMatrix,
-  clearCompare,
-  clearMatrix,
-  consumeHuntSubTabHandoff,
-  readCompareSession,
-  readMatrixSession,
-  readProfileToggle,
-  removeFromCompare,
-  removeFromMatrix,
-  writeProfileToggle,
-} from './brands';
 import { BrandDetailSheet, DiscoverSubTab } from './hunt-discover';
-import { CompareSubTab, MatrixSubTab } from './hunt-tools';
-import { SubTabs } from './sub-tabs';
 import { FindSubTab, UnifiedResultView, parseUnifiedResult, unifiedRowMeta } from './hunt-find';
 import { HuntStages } from './hunt-stages';
 
@@ -427,8 +403,6 @@ function HuntDetail({
   onSaveMeta,
   onRerun,
   onOpenBrand,
-  compareList,
-  onToggleCompare,
 }: {
   row: ScoutHuntRow;
   meta: ScoutMetaRow | undefined;
@@ -438,8 +412,6 @@ function HuntDetail({
   /** Re-run this hunt's query through the unified Find (re-runnable history). */
   onRerun: (row: ScoutHuntRow) => void;
   onOpenBrand: (brandName: string) => void;
-  compareList: string[];
-  onToggleCompare: (brand: string) => void;
 }) {
   const unified = parseUnifiedResult(row);
   const result = parseScoutResult(row);
@@ -526,8 +498,6 @@ function HuntDetail({
           result={unified.result}
           profileOn={unified.profileOn}
           onOpenBrand={onOpenBrand}
-          compareList={compareList}
-          onToggleCompare={onToggleCompare}
         />
       ) : result?.kind === 'find' ? (
         <FindResultView row={row} result={result} />
@@ -993,45 +963,14 @@ function ScoutHistory({
 }
 
 // ---------------------------------------------------------------------------
-// The Hunt root — the brand & piece intelligence hub (Recommendation
-// Engine overhaul): ONE profile toggle at the top, then exactly FOUR
-// internal sub-tabs on a horizontal chip bar:
-//   Find · Discover · Compare · Matrix
-//  - Find: the unified search (hunt-find) — Find + Match + Judge merged;
-//    Beau reads the intent and answers in the right form. The FULL Hunt
-//    History (filters, list/sheet, re-runnable) lives beneath the input —
-//    the old separate history sub-tab is retired.
-//  - Discover: the maker directory table with filter chips (hunt-discover).
-//  - Compare: 2–3 brands side by side + Beau's verdict (hunt-tools).
-//  - Matrix: the quality/longevity scatter, built from Discover (hunt-tools).
-// "Plan a Trip" moved to The Ledger (App.tsx). The old Match and Judge
-// sub-tabs merged into Find — their deep links normalise to it.
-// The PROFILE TOGGLE persists for the session (brands.ts) and applies
-// across every sub-tab: ON, Beau reasons with the full user context
-// (archetypes, budget, skin tone, measurements, wardrobe); OFF, general
-// knowledge only — nothing personal is read.
+// The Hunt root (founder's corrections) — THREE stages and nothing else:
+// Spotted · Weighed · Held (hunt-stages.tsx). The old Find / Discover /
+// Compare / Matrix sub-tabs and the Profile on/off toggle are DELETED:
+// Beau reads the dossier automatically; the unified search, the Hunt
+// History and the Discover maker table are folded into the SPOTTED stage;
+// the Weighed stage carries the comparison table and the plot. Stale deep
+// links to any retired sub-tab simply land on the pipeline.
 // ---------------------------------------------------------------------------
-
-type HuntSubTab = 'find' | 'discover' | 'compare' | 'matrix';
-
-const HUNT_SUB_TABS: Array<{ id: HuntSubTab; label: string; tourAnchor?: string }> = [
-  // The first-run walkthrough (onboarding-tour.tsx) rings Find and Discover.
-  { id: 'find', label: 'Find', tourAnchor: 'tour-hunt-find' },
-  { id: 'discover', label: 'Discover', tourAnchor: 'tour-hunt-discover' },
-  { id: 'compare', label: 'Compare' },
-  { id: 'matrix', label: 'Matrix' },
-];
-
-/** Normalise a requested sub-tab, mapping retired ids to their new homes:
- * 'match' and 'judge' merged into the unified Find; 'trip' moved to The
- * Ledger; 'history' now lives INSIDE Find — so a stale deep link lands on
- * Find rather than a dead end. */
-function normalizeHuntSubTab(value: string | null | undefined): HuntSubTab | null {
-  if (!value) return null;
-  if (HUNT_SUB_TABS.some((t) => t.id === value)) return value as HuntSubTab;
-  if (value === 'match' || value === 'judge' || value === 'trip' || value === 'history') return 'find';
-  return null;
-}
 
 export function ScoutTab({
   profile,
@@ -1071,63 +1010,10 @@ export function ScoutTab({
     return map;
   }, [metaRows, optimisticTags]);
 
-  // The sub-tab on show — a handoff (The Rail's "Compare makers") can land
-  // The Hunt on a specific sub-tab.
-  const [subTab, setSubTab] = useState<HuntSubTab>(() => {
-    const handoff = normalizeHuntSubTab(consumeHuntSubTabHandoff());
-    return handoff ?? 'find';
-  });
-
-  // The PROFILE TOGGLE — session-persistent, applies to every sub-tab.
-  const [profileOn, setProfileOn] = useState<boolean>(() => readProfileToggle());
-  const setProfileToggle = (on: boolean) => {
-    setProfileOn(on);
-    writeProfileToggle(on);
-  };
-
-  // The Compare queue (max 3 brands) — session storage + live event.
-  const [compareList, setCompareList] = useState<string[]>(() => readCompareSession());
-  useEffect(() => {
-    const onCompare = (e: Event) => {
-      const brands = (e as CustomEvent).detail?.brands;
-      setCompareList(Array.isArray(brands) ? brands : readCompareSession());
-    };
-    const onSubTab = (e: Event) => {
-      const wanted = normalizeHuntSubTab((e as CustomEvent).detail?.subTab as string | undefined);
-      if (wanted) {
-        setSubTab(wanted);
-        setSelectedId(null);
-      }
-    };
-    window.addEventListener('ethaion:compare-changed', onCompare);
-    window.addEventListener('ethaion:hunt-subtab', onSubTab);
-    return () => {
-      window.removeEventListener('ethaion:compare-changed', onCompare);
-      window.removeEventListener('ethaion:hunt-subtab', onSubTab);
-    };
-  }, []);
-
-  const toggleCompare = (brand: string) => {
-    const queued = compareList.some((b) => b.toLowerCase() === brand.toLowerCase());
-    setCompareList(queued ? removeFromCompare(brand) : addToCompare(brand));
-  };
-
-  // The Matrix selection — "Add to Matrix" on Discover rows builds a custom
-  // Matrix view (session store + live event, same mechanics as Compare).
-  const [matrixList, setMatrixList] = useState<string[]>(() => readMatrixSession());
-  useEffect(() => {
-    const onMatrix = (e: Event) => {
-      const brands = (e as CustomEvent).detail?.brands;
-      setMatrixList(Array.isArray(brands) ? brands : readMatrixSession());
-    };
-    window.addEventListener('ethaion:matrix-changed', onMatrix);
-    return () => window.removeEventListener('ethaion:matrix-changed', onMatrix);
-  }, []);
-
-  const toggleMatrix = (brand: string) => {
-    const queued = matrixList.some((b) => b.toLowerCase() === brand.toLowerCase());
-    setMatrixList(queued ? removeFromMatrix(brand) : addToMatrix(brand));
-  };
+  // NO PROFILE TOGGLE (founder's correction): Beau reads the dossier
+  // automatically — the research tools always reason with the full user
+  // context.
+  const profileOn = true;
 
   // The shared Brand Dossier page — opened from Find, Discover, Compare and
   // Matrix (and the "Don't see a maker?" addition flow).
@@ -1145,7 +1031,6 @@ export function ScoutTab({
       const text = (e as CustomEvent).detail?.text as string | undefined;
       if (text) {
         setFindPrefill(text);
-        setSubTab('find');
         setSelectedId(null);
       }
     };
@@ -1193,7 +1078,6 @@ export function ScoutTab({
     const q = (row.query || row.title || '').trim();
     if (!q) return;
     setSelectedId(null);
-    setSubTab('find');
     setRerunReq({ query: q, token: Date.now() });
   };
 
@@ -1250,8 +1134,6 @@ export function ScoutTab({
           onSaveMeta={saveMeta}
           onRerun={rerunHunt}
           onOpenBrand={setOpenBrandName}
-          compareList={compareList}
-          onToggleCompare={toggleCompare}
         />
       </div>
     );
@@ -1298,193 +1180,99 @@ export function ScoutTab({
 
   return (
     <div className="pb-24">
-      {/* Page heading row: heading + standfirst left, the PROFILE TOGGLE
-          right (above the sub-tab bar — it applies to every sub-tab and
-          persists for the session). */}
+      {/* Page heading — NO profile toggle (founder's correction): Beau
+          reads the dossier automatically; there is nothing to switch. */}
       <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <div className="max-w-[1180px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-          <div className="min-w-0">
-            <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>The Hunt</h3>
-            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '54ch' }}>
-              Everything you’re considering, in the order you’re considering it — spotted, weighed, held. Nothing
-              here is yours yet; the research tools below help you decide.
-            </p>
-          </div>
-          <div className="flex flex-col items-start sm:items-end gap-1.5 flex-shrink-0">
-            <div className="flex" role="group" aria-label="Profile toggle">
-              {([
-                { on: true, label: 'Profile on' },
-                { on: false, label: 'Profile off' },
-              ] as const).map(({ on, label: toggleLabel }, i) => {
-                const active = profileOn === on;
-                return (
-                  <button
-                    key={toggleLabel}
-                    type="button"
-                    onClick={() => setProfileToggle(on)}
-                    aria-pressed={active}
-                    className={`uppercase h-[40px] px-4 grid place-items-center whitespace-nowrap transition-colors ${
-                      active
-                        ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
-                        : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
-                    } ${i > 0 ? 'border-l-0' : ''}`}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.12em' }}
-                  >
-                    {toggleLabel}
-                  </button>
-                );
-              })}
-            </div>
-            <span className={`${typography.size.xs} ${typography.color.muted} sm:text-right max-w-[34ch]`}>
-              {profileOn
-                ? 'Beau reasons with your full profile — archetypes, budget, skin tone, measurements, wardrobe.'
-                : 'General knowledge only — nothing personal is read.'}
-            </span>
-          </div>
+        <div className="max-w-[1180px] mx-auto">
+          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>The Hunt</h3>
+          <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '54ch' }}>
+            Everything you’re considering, in the order you’re considering it — spotted, weighed, held. Nothing
+            here is yours yet. Beau reads your dossier automatically; finding and adding candidates lives under
+            Spotted, and Weighed is where they get compared.
+          </p>
         </div>
       </div>
 
       {/* THE PIPELINE — Spotted · Weighed · Held on ONE screen (7a): the
-          Rail / Hunt / Reserve funnel consolidated. A candidate is one
-          record at one stage; every count below derives from it. */}
-      <div className="px-6 sm:px-10 py-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+          Rail / Hunt / Reserve funnel consolidated, and NOTHING beyond the
+          three stages (founder's correction). The unified search, the Hunt
+          History and the Discover maker directory render INSIDE the Spotted
+          stage; the Weighed stage carries the comparison table and plot. */}
+      <div className="px-6 sm:px-10 py-8">
         <div className="max-w-[1180px] mx-auto">
-          <HuntStages />
+          <HuntStages
+            pieces={pieces}
+            spottedExtras={
+              <>
+                {/* FIND — the unified search: one input, Beau routes the
+                    intent; every result can file candidates to Spotted. */}
+                <div data-tour="tour-hunt-find">
+                  <FindSubTab
+                    profileOn={profileOn}
+                    profile={profile}
+                    budgets={budgets}
+                    pieces={pieces}
+                    prefs={prefs}
+                    prefill={findPrefill}
+                    rerun={rerunReq}
+                    onLogged={refresh}
+                    onOpenBrand={setOpenBrandName}
+                  />
+                </div>
+
+                {/* YOUR HUNT HISTORY — the full filterable, RE-RUNNABLE
+                    record, right beneath the search it feeds. */}
+                <section aria-label="Your Hunt History" className="mt-10">
+                  {rowsLoading && huntCount === 0 ? (
+                    <HairlineRowsSkeleton rows={4} />
+                  ) : (
+                    <ScoutHistory
+                      rows={rows || []}
+                      metaByHunt={metaByHunt}
+                      onOpen={setSelectedId}
+                      onSaveMeta={saveMeta}
+                      onDelete={deleteHunt}
+                      onRerun={rerunHunt}
+                      clearControl={clearHistoryControl}
+                    />
+                  )}
+                </section>
+
+                <div className="flex justify-end mt-4">
+                  <button
+                    type="button"
+                    onClick={() => openApp('maker-scout')}
+                    className={`${typography.size.xs} ${typography.color.brand} hover:underline`}
+                    title="Structured artisan-maker discovery with cost-per-wear analysis"
+                  >
+                    Prefer a structured maker hunt? →
+                  </button>
+                </div>
+
+                {/* DISCOVER — the maker directory table, folded into
+                    Spotted (founder's correction): chip filters, Beau
+                    ratings, source tags, per-row remove. */}
+                <section aria-label="Discover — the maker directory" className="mt-12" data-tour="tour-hunt-discover">
+                  <div className="pb-2.5 border-b border-[var(--color-text,#3b2b1d)] mb-6">
+                    <h4 className={`hab-section-head ${typography.color.primary}`}>Discover · the maker directory</h4>
+                  </div>
+                  <DiscoverSubTab
+                    profileOn={profileOn}
+                    profile={profile}
+                    onOpenBrand={setOpenBrandName}
+                  />
+                </section>
+              </>
+            }
+          />
         </div>
       </div>
-
-      {/* The sub-tab bar — the SHARED component (sub-tabs.tsx), identical to
-          The Rail's: same font, weight, active/inactive treatment, spacing
-          and colour, horizontally scrollable on mobile. */}
-      <div className="border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <SubTabs
-          items={HUNT_SUB_TABS.map(({ id, label: subLabel, tourAnchor }) => ({
-            id,
-            label: subLabel,
-            suffix: id === 'compare' && compareList.length > 0 ? ` · ${compareList.length}` : undefined,
-            tourAnchor,
-          }))}
-          active={subTab}
-          onChange={(id) => {
-            setSubTab(id);
-            setSelectedId(null);
-          }}
-          ariaLabel="The Hunt sections"
-          className="max-w-[1180px] mx-auto px-6 sm:px-10 py-3"
-        />
-      </div>
-
-      {/* FIND — the unified search (Find + Match + Judge merged): one input,
-          Beau routes the intent; recent hunts listed beneath. */}
-      {subTab === 'find' && (
-        <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
-          <FindSubTab
-            profileOn={profileOn}
-            profile={profile}
-            budgets={budgets}
-            pieces={pieces}
-            prefs={prefs}
-            prefill={findPrefill}
-            rerun={rerunReq}
-            onLogged={refresh}
-            onOpenBrand={setOpenBrandName}
-            compareList={compareList}
-            onToggleCompare={toggleCompare}
-          />
-
-          {/* YOUR HUNT HISTORY — the full filterable, RE-RUNNABLE record,
-              embedded right beneath the input: hunt history lives HERE,
-              inside Find (the separate history sub-tab is retired). */}
-          <section aria-label="Your Hunt History" className="mt-10">
-            {rowsLoading && huntCount === 0 ? (
-              /* History loading — shimmer hairline rows, never a blank area */
-              <HairlineRowsSkeleton rows={4} />
-            ) : (
-              <ScoutHistory
-                rows={rows || []}
-                metaByHunt={metaByHunt}
-                onOpen={setSelectedId}
-                onSaveMeta={saveMeta}
-                onDelete={deleteHunt}
-                onRerun={rerunHunt}
-                clearControl={clearHistoryControl}
-              />
-            )}
-          </section>
-
-          <div className="flex justify-end mt-4">
-            <button
-              type="button"
-              onClick={() => openApp('maker-scout')}
-              className={`${typography.size.xs} ${typography.color.brand} hover:underline`}
-              title="Structured artisan-maker discovery with cost-per-wear analysis"
-            >
-              Prefer a structured maker hunt? →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* DISCOVER — the maker directory table: chip filters, source tags,
-          Beau ratings, Add to Compare / Add to Matrix. */}
-      {subTab === 'discover' && (
-        <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
-          <DiscoverSubTab
-            profileOn={profileOn}
-            profile={profile}
-            onOpenBrand={setOpenBrandName}
-            compareList={compareList}
-            onToggleCompare={toggleCompare}
-            matrixList={matrixList}
-            onToggleMatrix={toggleMatrix}
-          />
-        </div>
-      )}
-
-      {/* COMPARE — side-by-side brand comparison + Beau's verdict. */}
-      {subTab === 'compare' && (
-        <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
-          <CompareSubTab
-            profileOn={profileOn}
-            profile={profile}
-            budgets={budgets}
-            pieces={pieces}
-            prefs={prefs}
-            compareList={compareList}
-            onRemove={(brand) => setCompareList(removeFromCompare(brand))}
-            onClear={() => {
-              clearCompare();
-              setCompareList([]);
-            }}
-            onOpenBrand={setOpenBrandName}
-            onGoDiscover={() => setSubTab('discover')}
-          />
-        </div>
-      )}
-
-      {/* MATRIX — the quality/longevity scatter, built from Discover. */}
-      {subTab === 'matrix' && (
-        <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
-          <MatrixSubTab
-            onOpenBrand={setOpenBrandName}
-            matrixList={matrixList}
-            onToggleMatrix={toggleMatrix}
-            onClearMatrix={() => {
-              clearMatrix();
-              setMatrixList([]);
-            }}
-            onGoDiscover={() => setSubTab('discover')}
-          />
-        </div>
-      )}
 
       {/* The shared Brand Dossier page — full-screen overlay. */}
       {openBrandName && (
         <BrandDetailSheet
           brandName={openBrandName}
           onClose={() => setOpenBrandName(null)}
-          compareList={compareList}
-          onToggleCompare={toggleCompare}
         />
       )}
     </div>

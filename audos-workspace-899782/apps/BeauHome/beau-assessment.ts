@@ -63,6 +63,7 @@ import {
   fetchDismissedRecommendations,
   type DismissedRecommendation,
 } from './taste-memory';
+import { fetchMutedRegisters } from './coverage-prefs';
 
 // ---------------------------------------------------------------------------
 // The decision logic — Beau's assessment system prompt, passed VERBATIM to
@@ -77,6 +78,7 @@ PERSONALISATION RULES (apply throughout all reasoning):
 - Budget: mid-range means quality independent brands, not luxury houses or fast fashion. Example brands should fit the stated range.
 - Dismissed recommendations: do NOT resurface a dismissed piece in the same form. If the user dismissed a white OCBD, recommend chambray or linen as alternatives for that gap. Acknowledge the gap remains but offer the alternative.
 - Brand reference layer: when recommending, check if there is a verified entry in the reference layer. If yes, use its quality signals in the rationale. If no entry exists, draw on general knowledge. The reference layer enriches reasoning — it never limits what Beau can recommend. Beau can recommend any brand in the world.
+- Muted registers: the mutedRegisters field lists dress registers the user has told the app he does NOT dress for (e.g. Formal). HOLD NO OPINION about a muted register: never count anything in it as a gap, never recommend a piece whose only purpose is a muted register, and never mention what it lacks. A gap is only a gap in a register he actually dresses for.
 
 DECISION LOGIC — execute in strict order. Never skip a step. At each step, if the condition is not met, your recommendations address only that step before moving on.
 
@@ -287,6 +289,7 @@ function buildUserMessage(
   measurements: StyleMeasurements | null,
   dismissed: DismissedRecommendation[],
   brandLayer: BrandReferenceEntry[],
+  mutedRegisters: string[],
 ): { message: string; untaggedCount: number } {
   const archetypeNames = (profile?.archetypes || []).filter(Boolean).map(archetypePromptName);
   let untaggedCount = 0;
@@ -334,6 +337,9 @@ function buildUserMessage(
       inHisOwnWords: prefs?.free_text || null,
     },
     selectedArchetypes: archetypeNames,
+    // Registers the user has MUTED on The Edit's coverage map — Beau holds
+    // no opinion about these (never a gap, never a recommendation).
+    mutedRegisters,
     wardrobe,
     dismissedRecommendations: dismissalsForPrompt(dismissed),
     brandReferenceLayer: brandLayer.map((b) => ({
@@ -512,6 +518,7 @@ function fingerprintOf(
   measurements: StyleMeasurements | null,
   dismissed: DismissedRecommendation[],
   brandLayer: BrandReferenceEntry[],
+  mutedRegisters: string[],
 ): string {
   const wardrobe = pieces
     .map((p) => `${p.id}:${p.name}:${p.category}:${p.slot || ''}`)
@@ -534,13 +541,14 @@ function fingerprintOf(
     ? [measurements.chest_cm, measurements.waist_cm, measurements.inseam_cm, measurements.shoulder_cm, measurements.clothing_size, measurements.shoe_size].join('~')
     : 'no-measurements';
   return [
-    'v3', // bumped: Step 1 became the joint tops+bottoms+shoes foundation
+    'v4', // bumped: muted registers joined the reasoning context
     wardrobe,
     prof,
     body,
     `tagged:${taggedCount}`,
     `dismissed:${dismissalSignature(dismissed)}`,
     `brands:${brandLayerSignature(brandLayer)}`,
+    `muted:${mutedRegisters.slice().sort().join(',')}`,
   ].join('\u241f');
 }
 
@@ -626,11 +634,15 @@ export async function getBeauAssessment(input: BeauAssessmentInput): Promise<Bea
 
   const job = (async (): Promise<BeauAssessmentResult> => {
     onPhase?.('Beau is pulling out his notes\u2026');
-    const [tags, measurements, dismissed] = await Promise.all([
+    const [tags, measurements, dismissed, mutedIds] = await Promise.all([
       fetchSemanticTags(),
       fetchStyleMeasurements(),
       fetchDismissedRecommendations(),
+      fetchMutedRegisters().catch(() => [] as string[]),
     ]);
+    // Pretty names for the prompt — the coverage map's ids are kebab-case.
+    const REGISTER_NAMES: Record<string, string> = { casual: 'Casual', 'smart-casual': 'Smart-Casual', formal: 'Formal' };
+    const mutedRegisters = mutedIds.map((id) => REGISTER_NAMES[id] || id);
     const archetypeNames = (profile?.archetypes || []).filter(Boolean).map(archetypePromptName);
     const brandLayer = await buildBrandReferenceLayer({
       archetypes: archetypeNames,
@@ -638,7 +650,7 @@ export async function getBeauAssessment(input: BeauAssessmentInput): Promise<Bea
       prefersShortSizing: needsShortSizing(profile, measurements),
     });
     const taggedCount = pieces.filter((p) => tags[p.id] && (tags[p.id].canonicalCategory || tags[p.id].subType)).length;
-    const fingerprint = fingerprintOf(profile, pieces, taggedCount, measurements, dismissed, brandLayer);
+    const fingerprint = fingerprintOf(profile, pieces, taggedCount, measurements, dismissed, brandLayer, mutedRegisters);
 
     if (!forceRefresh) {
       const cached = freshCache(fingerprint);
@@ -654,7 +666,7 @@ export async function getBeauAssessment(input: BeauAssessmentInput): Promise<Bea
       }
     }
 
-    const { message, untaggedCount } = buildUserMessage(profile, pieces, tags, budgets, prefs, measurements, dismissed, brandLayer);
+    const { message, untaggedCount } = buildUserMessage(profile, pieces, tags, budgets, prefs, measurements, dismissed, brandLayer, mutedRegisters);
 
     onPhase?.('Beau is reading your wardrobe against your directions\u2026');
     let engine: BeauAssessmentResult['engine'] = 'claude-sonnet';
