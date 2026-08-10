@@ -34,12 +34,14 @@ import {
   savePrefs,
   setActiveCurrency,
   fetchPieceAttributes,
+  fetchPieceConditions,
   fetchPieceDetails,
   fetchPieceSources,
   fetchPieceValues,
   generatePieceName,
   incrementWear,
   matchColorOption,
+  setPieceCondition,
   setPieceDetails,
   setPieceSource,
   setPieceValue,
@@ -63,6 +65,96 @@ import {
   setPhotoOriginal,
   type PhotoSource,
 } from './photo-enhance';
+
+// ---------------------------------------------------------------------------
+// "Looks it has been in" (16a · M3): the saved boards this piece appears on,
+// most recently worn first. The piece's life is the relationship between
+// records, not the record alone — so the detail view reads the boards
+// straight off saved_outfits + look_meta; nothing keeps its own copy.
+// ---------------------------------------------------------------------------
+
+// window.__workspaceDb is auto-injected by the platform compiler when it sees
+// this literal token in app source.
+function workspaceDb(): any {
+  return (window as any).__workspaceDb;
+}
+
+interface LookIn {
+  id: number;
+  name: string;
+  timesWorn: number;
+  lastWornAt: string | null;
+  /** Holds at least one piece the user doesn't own — a proposal. */
+  proposal: boolean;
+}
+
+/** Whether a saved outfit's pieces JSON contains this owned piece — and
+ * whether the board holds anything NOT owned (which makes it a proposal). */
+function lookHoldsPiece(pieces: unknown, pieceId: number): { holds: boolean; proposal: boolean } {
+  let list: any[] = [];
+  try {
+    const parsed = typeof pieces === 'string' ? JSON.parse(pieces) : pieces;
+    if (Array.isArray(parsed)) list = parsed;
+    else if (parsed && Array.isArray((parsed as any).pieces)) list = (parsed as any).pieces;
+  } catch { /* unreadable board JSON — reads as empty */ }
+  let holds = false;
+  let proposal = false;
+  for (const slot of list) {
+    const key = String((slot as any)?.key || '');
+    if (key === `owned-${pieceId}`) holds = true;
+    if (key && !key.startsWith('owned-')) proposal = true;
+  }
+  return { holds, proposal };
+}
+
+function lookAgoLabel(iso: string | null): string {
+  if (!iso) return '';
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)} week${Math.floor(days / 7) === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/** The saved looks holding this piece, most recently worn first — never
+ * throws; a failed read shows nothing rather than an error. */
+async function fetchLooksHolding(pieceId: number): Promise<LookIn[]> {
+  try {
+    const [{ data: outfitRows }, { data: metaRows }] = await Promise.all([
+      workspaceDb().from('saved_outfits').orderBy('created_at', 'desc').limit(100).get(),
+      workspaceDb().from('look_meta').orderBy('created_at', 'desc').limit(200).get(),
+    ]);
+    const metaByLook = new Map<number, { id: number; times_worn: number; last_worn_at: string | null }>();
+    for (const m of (metaRows || []) as Array<{ id: number; look_id: number; times_worn: number; last_worn_at: string | null }>) {
+      const existing = metaByLook.get(Number(m.look_id));
+      if (!existing || Number(m.id) > Number(existing.id)) metaByLook.set(Number(m.look_id), m);
+    }
+    const looks: LookIn[] = [];
+    for (const row of (outfitRows || []) as Array<{ id: number; name: string; pieces: unknown; mode?: string | null }>) {
+      const { holds, proposal } = lookHoldsPiece(row.pieces, pieceId);
+      if (!holds) continue;
+      const meta = metaByLook.get(Number(row.id)) || null;
+      looks.push({
+        id: Number(row.id),
+        name: row.name || 'Saved look',
+        timesWorn: meta?.times_worn || 0,
+        lastWornAt: meta?.last_worn_at || null,
+        proposal: row.mode === 'proposal' || proposal,
+      });
+    }
+    // Most recently worn first; never-worn sink (the M3/M7 sort rule).
+    looks.sort(
+      (a, b) =>
+        (b.lastWornAt ? new Date(b.lastWornAt).getTime() : 0) -
+        (a.lastWornAt ? new Date(a.lastWornAt).getTime() : 0),
+    );
+    return looks;
+  } catch (e) {
+    console.warn('[Ethaion] looks-it-has-been-in read failed (non-fatal):', e);
+    return [];
+  }
+}
 
 // ---------------------------------------------------------------------------
 // "More details" open state — remembered per session (Track H): once opened,
@@ -173,6 +265,24 @@ export function PieceEditForm({
   const [value, setValue] = useState<PieceValue | null>(null);
   const [priceDraft, setPriceDraft] = useState('');
   const [wearBusy, setWearBusy] = useState(false);
+  // Condition & care (piece-detail enhancements): freeform notes, edited
+  // in place — they save themselves on blur/Enter, never behind the Save
+  // button.
+  const [conditionDraft, setConditionDraft] = useState('');
+  const [careDraft, setCareDraft] = useState('');
+  const initialCondition = useRef<{ condition: string; care: string }>({ condition: '', care: '' });
+  const [noteFlash, setNoteFlash] = useState<string | null>(null);
+  // "Looks it has been in" (16a · M3) — the saved boards holding this piece.
+  const [looksIn, setLooksIn] = useState<LookIn[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLooksHolding(piece.id).then((looks) => {
+      if (!cancelled) setLooksIn(looks);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [piece.id]);
   // Currency selector (Pass Forty-Six) — inline next to the price field;
   // GBP default; selecting persists the app-wide display currency.
   const [currencyId, setCurrencyId] = useState<string>(() => getCurrency().id);
@@ -203,8 +313,8 @@ export function PieceEditForm({
   // + cost-per-wear) load once on open.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchPieceDetails(), fetchPieceAttributes(), fetchPhotoMeta(), fetchPieceValues(), fetchPieceSources()])
-      .then(([detailsMap, attrMap, photoMap, valueMap, sourceMap]) => {
+    Promise.all([fetchPieceDetails(), fetchPieceAttributes(), fetchPhotoMeta(), fetchPieceValues(), fetchPieceSources(), fetchPieceConditions()])
+      .then(([detailsMap, attrMap, photoMap, valueMap, sourceMap, conditionMap]) => {
         if (cancelled) return;
         const d = detailsMap[piece.id];
         const a = attrMap[piece.id];
@@ -222,6 +332,10 @@ export function PieceEditForm({
         const v = valueMap[piece.id] ?? null;
         setValue(v);
         setPriceDraft(v?.price_paid != null ? String(v.price_paid) : '');
+        const cond = conditionMap[piece.id] ?? null;
+        initialCondition.current = { condition: cond?.condition_note || '', care: cond?.care_note || '' };
+        setConditionDraft(cond?.condition_note || '');
+        setCareDraft(cond?.care_note || '');
         setDetailsLoaded(true);
       })
       .catch(() => setDetailsLoaded(true));
@@ -362,6 +476,22 @@ export function PieceEditForm({
       console.warn('[Ethaion] wear increment failed (non-fatal):', e);
     } finally {
       setWearBusy(false);
+    }
+  };
+
+  // Condition & care save themselves in place — on blur or Enter, never
+  // behind a separate form (piece-detail enhancements).
+  const saveConditionNotes = async () => {
+    const condition = conditionDraft.trim();
+    const care = careDraft.trim();
+    if (condition === initialCondition.current.condition.trim() && care === initialCondition.current.care.trim()) return;
+    try {
+      await setPieceCondition(piece.id, { condition_note: condition || null, care_note: care || null });
+      initialCondition.current = { condition, care };
+      setNoteFlash('Noted.');
+      window.setTimeout(() => setNoteFlash(null), 1800);
+    } catch (e) {
+      console.warn('[Ethaion] condition/care save failed (non-fatal):', e);
     }
   };
 
@@ -811,17 +941,38 @@ export function PieceEditForm({
         </div>
       )}
 
-      {/* Cost per wear (Pass Fifteen, Track G) — price paid + wear counter.
-          Quality justifies cost: £200 over 100 wears is £2 a wear. */}
+      {/* THE PIECE'S LIFE (piece-detail enhancements · 16a · M3): worn
+          count leads, cost-per-wear follows — £200 over 100 wears is £2 a
+          wear. No price logged reads “—”, never an error; zero wears reads
+          “Not yet worn”. CPW moves live as the counter does. */}
       <div className="mt-4 rounded-xl border border-[var(--space-border-default)] px-4 py-3.5">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <p className={`${typography.size.xs} uppercase tracking-[0.15em] ${typography.weight.medium} ${typography.color.secondary}`}>
-            Cost per wear
-          </p>
-          <p className={`${typography.size.sm} ${typography.weight.semibold} ${costPerWearLabel(value) ? typography.color.primary : typography.color.muted}`}>
-            {costPerWearLabel(value) || 'Add a price to track cost per wear'}
-          </p>
+        <div className="flex items-end gap-6 flex-wrap">
+          <span>
+            <span className={`block ${typography.size.xs} uppercase tracking-[0.15em] ${typography.color.secondary}`}>Worn</span>
+            <span className={`block tabular-nums ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '26px', lineHeight: 1.1 }}>
+              {value?.times_worn ?? 0}×
+            </span>
+          </span>
+          <span>
+            <span className={`block ${typography.size.xs} uppercase tracking-[0.15em] ${typography.color.secondary}`}>Per wear</span>
+            <span className={`block tabular-nums ${costPerWearLabel(value) ? typography.color.primary : typography.color.muted}`} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '26px', lineHeight: 1.1 }}>
+              {costPerWearLabel(value) || '\u2014'}
+            </span>
+          </span>
+          {value?.last_worn_at && (
+            <span>
+              <span className={`block ${typography.size.xs} uppercase tracking-[0.15em] ${typography.color.secondary}`}>Last worn</span>
+              <span className={`block ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.3, paddingTop: '6px' }}>
+                {new Date(value.last_worn_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
+            </span>
+          )}
         </div>
+        {!(value?.price_paid != null && value.price_paid > 0) && (
+          <p className={`${typography.size.xs} ${typography.color.muted} mt-1`}>
+            Log the price paid and cost per wear tracks itself.
+          </p>
+        )}
         <div className="flex items-center gap-3 mt-2.5 flex-wrap">
           <label className={`${labelCls} inline-flex items-center gap-1.5 flex-wrap`}>
             Price paid
@@ -860,9 +1011,6 @@ export function PieceEditForm({
             </span>
           </label>
           <span className="flex-1" />
-          <span className={`${typography.size.xs} ${typography.color.secondary} tabular-nums`}>
-            Worn {value?.times_worn ?? 0} time{(value?.times_worn ?? 0) === 1 ? '' : 's'}
-          </span>
           <button
             type="button"
             onClick={() => void addWear()}
@@ -874,7 +1022,85 @@ export function PieceEditForm({
             Wore it
           </button>
         </div>
+
+        {/* CONDITION & CARE — freeform, edited in place: blur or Enter
+            saves; there is no separate form for these. */}
+        <div className="grid sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-[var(--space-border-default)]">
+          <label className={`${typography.size.xs} ${typography.color.muted}`}>
+            Condition
+            <input
+              type="text"
+              value={conditionDraft}
+              onChange={(e) => setConditionDraft(e.target.value)}
+              onBlur={() => void saveConditionNotes()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              placeholder="e.g. excellent · collar fraying · needs resoling"
+              disabled={!detailsLoaded}
+              className={`mt-1 w-full px-3 py-2 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.sm} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)] disabled:opacity-60`}
+              aria-label="Condition note — saves when you leave the field"
+            />
+          </label>
+          <label className={`${typography.size.xs} ${typography.color.muted}`}>
+            Care instructions — yours
+            <input
+              type="text"
+              value={careDraft}
+              onChange={(e) => setCareDraft(e.target.value)}
+              onBlur={() => void saveConditionNotes()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              placeholder="e.g. cold hand wash · cedar trees in · no tumble"
+              disabled={!detailsLoaded}
+              className={`mt-1 w-full px-3 py-2 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.sm} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)] disabled:opacity-60`}
+              aria-label="Your care instructions — saves when you leave the field"
+            />
+          </label>
+          {noteFlash && (
+            <p className={`${typography.size.xs} sm:col-span-2`} style={{ color: 'var(--color-accent-700,#7c4a17)' }} aria-live="polite">
+              {noteFlash} Edits here save themselves — on blur or Enter.
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* LOOKS IT HAS BEEN IN (16a · M3): the looks this piece has entered —
+          worn line per look, proposals named as such. Absent entirely when
+          the piece has never been on a saved board; never an error. */}
+      {looksIn.length > 0 && (
+        <div className="mt-4 rounded-xl border border-[var(--space-border-default)] px-4 py-3.5">
+          <p className={`${typography.size.xs} uppercase tracking-[0.15em] ${typography.color.secondary}`}>
+            Looks it has been in
+          </p>
+          <div className="divide-y divide-[var(--space-border-default)] mt-1">
+            {looksIn.map((look) => (
+              <div key={look.id} className="py-2 flex items-baseline justify-between gap-3 flex-wrap">
+                <span className={`${typography.color.primary} min-w-0 truncate`} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '15px', lineHeight: 1.3 }}>
+                  {look.name}
+                </span>
+                <span className={`${typography.size.xs} ${typography.color.muted} flex-shrink-0`}>
+                  {look.proposal
+                    ? 'Proposal — holds a piece you don\u2019t own yet'
+                    : look.timesWorn > 0
+                      ? `Worn ${look.timesWorn}\u00d7 · ${lookAgoLabel(look.lastWornAt)}`
+                      : 'Not yet worn'}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5`} style={{ fontSize: '10px' }}>
+            “Wore it” on a saved look moves this piece’s counter too — cost per wear follows real life.
+          </p>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-2 mt-4 flex-wrap">

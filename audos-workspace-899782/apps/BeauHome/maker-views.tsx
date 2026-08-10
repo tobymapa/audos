@@ -20,7 +20,7 @@
  * All three views read the SAME records — a maker you add lands in every
  * view at once. Tapping a dot opens the shared brand dossier.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { typography } from '../../lib/colors';
 import {
   PRICE_BAND_ORDER,
@@ -90,6 +90,23 @@ function usePlotted(rows: DirectoryBrandRow[] | null, archetypes: string[]): Plo
   }, [rows, archetypes]);
 }
 
+/** Narrow-viewport check — the plot thins below 640px (Mobile spec M13:
+ * “the plot keeps eight points, not eighteen”). */
+function useIsNarrow(): boolean {
+  const [narrow, setNarrow] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 639px)').matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener('change', onChange) : mq.removeListener(onChange);
+    };
+  }, []);
+  return narrow;
+}
+
 const axisType: React.CSSProperties = {
   fontFamily: 'var(--space-font-heading)',
   fontSize: '10px',
@@ -113,6 +130,22 @@ function MakerScatter({
   quadrant?: boolean;
   archetypesChosen: boolean;
 }) {
+  // MOBILE (M13): a map is legible on a phone only if it's thinned — the
+  // plot keeps EIGHT points at 390pt, your own makers first, then Beau's
+  // best tiers. The list view always has the full set.
+  const narrow = useIsNarrow();
+  const shown = useMemo(() => {
+    if (!narrow || plotted.length <= 8) return plotted;
+    const ranked = [...plotted].sort((a, b) => {
+      const aYours = a.entry.source !== 'catalog' ? 1 : 0;
+      const bYours = b.entry.source !== 'catalog' ? 1 : 0;
+      if (aYours !== bYours) return bYours - aYours;
+      if (a.tier !== b.tier) return b.tier - a.tier;
+      return a.px - b.px;
+    });
+    return ranked.slice(0, 8);
+  }, [narrow, plotted]);
+
   const W = 760;
   const H = 520;
   const PAD = { top: 34, right: 30, bottom: 46, left: 40 };
@@ -176,7 +209,7 @@ function MakerScatter({
           </>
         )}
 
-        {plotted.map((m) => {
+        {shown.map((m) => {
           const j = jitterOf(m.entry.profile.brand);
           const cx = Math.max(PAD.left + 10, Math.min(W - PAD.right - 10, x(m.px) + j.dx));
           const cy = Math.max(PAD.top + 10, Math.min(H - PAD.bottom - 10, y(yOf(m)) + j.dy));
@@ -205,6 +238,9 @@ function MakerScatter({
         })}
       </svg>
       <p className="mt-2 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px', lineHeight: 1.5 }}>
+        {shown.length < plotted.length
+          ? `${shown.length} of ${plotted.length} makers at this width — the rest are one tap away in the list. `
+          : ''}
         {quadrant
           ? archetypesChosen
             ? 'Fit-to-you reads the overlap between a maker\u2019s directions and the ones in your dossier — your lane is top-left. A filled dot is a maker you (or Beau) added; tap any dot for the maker\u2019s entry.'
