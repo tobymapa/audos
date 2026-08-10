@@ -10,6 +10,11 @@
  *   · clothes_size_system — which system the general clothing size is
  *     expressed in: 'alpha' (XS/S/M/L/XL), 'eu' (numerical) or 'us'
  *     (numerical).
+ *   · garment_sizes — per-garment-category size labels (UI corrections
+ *     pass): a JSON object keyed by category id (shirt / trouser / jacket /
+ *     knitwear / suit), each value the size label the user wears in that
+ *     category, e.g. {"shirt":"M","trouser":"W32","jacket":"EU 50"}.
+ *     Complements (never replaces) the general clothing_size.
  *
  * Same companion-table pattern as measurement_extras and dossier_details:
  * one row per visitor session, updated in place. Every read is non-fatal —
@@ -28,13 +33,54 @@ export interface DossierMeasurements {
   foot_length: string | null;
   /** 'alpha' | 'eu' | 'us' — the system clothing_size is expressed in. */
   clothes_size_system: string | null;
+  /** Per-garment-category sizes, JSON object keyed by GARMENT_SIZE_CATEGORIES id. */
+  garment_sizes: string | null;
 }
 
 export const EMPTY_DOSSIER_MEASUREMENTS: DossierMeasurements = {
   id: 0,
   foot_length: null,
   clothes_size_system: null,
+  garment_sizes: null,
 };
+
+/** The garment categories that carry their OWN size label — one field each
+ * in the Dossier's Sizes section. Shoes keep their own subsection (with the
+ * full standard selector), so they are not repeated here. */
+export const GARMENT_SIZE_CATEGORIES: Array<{ id: string; label: string; placeholder: string }> = [
+  { id: 'shirt', label: 'Shirt / top', placeholder: 'e.g. M or 15.5″ collar' },
+  { id: 'trouser', label: 'Trouser / bottom', placeholder: 'e.g. W32 L32 or EU 48' },
+  { id: 'jacket', label: 'Jacket / blazer', placeholder: 'e.g. EU 50 or 40R' },
+  { id: 'knitwear', label: 'Knitwear', placeholder: 'e.g. M' },
+  { id: 'suit', label: 'Suit / formalwear', placeholder: 'e.g. 50 or 40R' },
+];
+
+/** Best-effort read of the stored garment_sizes JSON — bad data reads as
+ * empty rather than throwing. */
+export function parseGarmentSizes(stored: string | null | undefined): Record<string, string> {
+  if (!stored) return {};
+  try {
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string' && v.trim()) out[k] = v.trim();
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Serialise the per-category drafts back to the stored JSON (or null when
+ * every field is empty). */
+export function serializeGarmentSizes(drafts: Record<string, string>): string | null {
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(drafts)) {
+    if (typeof v === 'string' && v.trim()) clean[k] = v.trim();
+  }
+  return Object.keys(clean).length > 0 ? JSON.stringify(clean) : null;
+}
 
 export const CLOTHES_SIZE_SYSTEMS: Array<{ id: string; label: string }> = [
   { id: 'alpha', label: 'Alpha' },

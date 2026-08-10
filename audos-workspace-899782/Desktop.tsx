@@ -1215,12 +1215,12 @@ export default function SpaceDesktop({
               space left over beside the toggles. The left slot is an empty
               mirror of the right one; nothing may be added to it. */}
           <span aria-hidden="true" className="min-w-0" />
-          <div className="flex items-center justify-center gap-3 sm:gap-4 min-w-0">
-            <span className="hidden sm:block w-[110px] md:w-[200px] min-w-0 h-px bg-[var(--space-brand-primary)]" aria-hidden="true" />
+          <div className="flex items-center justify-center min-w-0">
+            {/* The wordmark stands alone — the flanking accent rules are
+                retired (UI corrections pass). */}
             <span className="hab-wordmark text-[19px] sm:text-[30px] md:text-[34px] leading-none text-[#241a12] whitespace-nowrap flex-shrink-0" style={{ paddingLeft: '0.28em' }}>
               {runtimeTheme.branding.name}
             </span>
-            <span className="hidden sm:block w-[110px] md:w-[200px] min-w-0 h-px bg-[var(--space-brand-primary)]" aria-hidden="true" />
           </div>
           {/* Clean top-right corner: the Beau chat toggle plus a distinct
               Settings toggle — both true toggles, no dead ends. Right-anchored
@@ -1731,10 +1731,13 @@ export default function SpaceDesktop({
         </div>
 
         {/* Customer right-side overlays (Pass Twenty-Eight, Linear-style):
-            Beau chat and Settings slide in from the RIGHT over the page —
-            ~40% width on desktop, full width on mobile — never a split.
-            Dismiss by tapping the backdrop or the X. One overlayView state
-            means the two can never appear simultaneously. */}
+            Beau is a MARGIN DRAWER (feature pass · 15a · M9) — a ~420px
+            column sliding in from the right on desktop, a full-width bottom
+            sheet on a phone — always OVER the current screen, never
+            replacing it: the page stays visible behind the dimmed backdrop.
+            Settings keeps the wider right panel. Dismiss by tapping the
+            backdrop or the X. One overlayView state means the two can never
+            appear simultaneously. */}
         {!isBuilderView && (
           <>
             {(overlayView === 'settings' || (overlayView === 'chat' && !!activePanelId)) && (
@@ -1753,8 +1756,10 @@ export default function SpaceDesktop({
                 IS the main surface and needs no overlay. */}
             {activePanelId && (
               <aside
-                className={`fixed inset-y-0 right-0 z-[70] w-full md:w-[40vw] md:min-w-[400px] md:max-w-[680px] flex flex-col bg-[var(--space-surface-card)] md:border-l md:border-[var(--space-border-default)] transition-transform duration-300 ease-out ${
-                  overlayView === 'chat' ? 'translate-x-0 shadow-[-12px_0_44px_rgba(0,0,0,0.16)]' : 'translate-x-full'
+                className={`fixed z-[70] flex flex-col bg-[var(--space-surface-card)] transition-transform duration-300 ease-out max-md:inset-x-0 max-md:bottom-0 max-md:h-[94dvh] max-md:border-t max-md:border-[var(--space-border-default)] md:inset-y-0 md:right-0 md:w-[420px] md:min-w-[380px] md:max-w-[420px] md:border-l md:border-[var(--space-border-default)] ${
+                  overlayView === 'chat'
+                    ? 'max-md:translate-y-0 md:translate-x-0 shadow-[-12px_0_44px_rgba(0,0,0,0.16)]'
+                    : 'max-md:translate-y-full md:translate-x-full'
                 }`}
                 aria-hidden={overlayView !== 'chat'}
                 data-testid="overlay-chat"

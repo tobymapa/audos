@@ -1308,19 +1308,16 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
 
   return (
     <>
-      <div className="sticky top-0 z-30 bg-[var(--space-surface-card)] border-b border-[var(--space-text-primary)] flex-shrink-0">
+      {/* PHONE: the strip is GONE — the shell masthead above already
+          carries the Ethaion wordmark, so repeating it here read as a
+          duplicate smaller header (UI corrections pass). The tabs live in
+          the fixed bottom bar; this strip only exists from sm up. */}
+      <div className="hidden sm:block sticky top-0 z-30 bg-[var(--space-surface-card)] border-b border-[var(--space-text-primary)] flex-shrink-0">
         {/* The strip scrolls horizontally when it must, but never shows a
             scrollbar track — scrollbar-width: none (Firefox), -ms-overflow-style
             (legacy Edge) and ::-webkit-scrollbar (Chrome/Safari) all hidden. */}
         <style>{'.ethaion-tabnav{scrollbar-width:none;-ms-overflow-style:none}.ethaion-tabnav::-webkit-scrollbar{display:none;width:0;height:0}'}</style>
-        <div className="relative flex items-center justify-between sm:justify-center px-3 sm:px-12">
-          {/* Phone: the wordmark holds the strip; the tabs live at the bottom. */}
-          <span
-            className="sm:hidden uppercase text-[var(--space-text-primary)] py-3"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', letterSpacing: '0.22em' }}
-          >
-            Ethaion
-          </span>
+        <div className="relative flex items-center justify-center px-3 sm:px-12">
           <nav
             className="ethaion-tabnav hidden sm:flex justify-center gap-1 overflow-x-auto"
             style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', scrollbarWidth: 'none', msOverflowStyle: 'none' }}

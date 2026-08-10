@@ -24,8 +24,8 @@
  * silently. Every candidate card carries HOW IT GOT HERE (origin · date)
  * and the reason it exists — a recommendation without a reason is an advert.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Link2, Loader2, RotateCcw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ExternalLink, Link2, Loader2, RotateCcw, X } from 'lucide-react';
 import { typography } from '../../lib/colors';
 import {
   RESERVE_CHANGED_EVENT,
@@ -39,6 +39,12 @@ import {
 } from './profile-data';
 import { parseCandidateUrl } from './candidate-url';
 import { findCatalogBrand, beauRating, normalizeBeauRating, type BeauRating, type DirectoryBrandRow } from './brands';
+import { fetchProductImage } from './og-image';
+import { MONO, capWord, numberWord, usePlexMono } from './mono-type';
+import { ViewToggle } from './view-toggle';
+import { HuntWeighedMap, type HuntMapCandidate } from './hunt-map';
+import { requestFittingRoomTryOn } from './fitting-room-state';
+import { peekBeauAssessment } from './beau-assessment';
 
 // window.__workspaceDb is auto-injected by the platform compiler when it sees
 // this literal token in app source.
@@ -72,11 +78,18 @@ export interface Candidate {
   origin: string;
   originDate: string | null;
   reason: string | null;
+  /** Whole days since the candidate was last touched — drives the eighty-day
+   * warning and the ninety-day auto-archive (12a). */
+  daysUntouched: number;
 }
 
 
 
-const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const NINETY_DAYS_MS = 90 * DAY_MS;
+/** The warning shows from day eighty — ten days before the silence. */
+const AUTO_ARCHIVE_WARN_DAYS = 80;
+const AUTO_ARCHIVE_REASON = 'No activity for 90 days';
 const WEIGHED_CAP = 4;
 
 // ---------------------------------------------------------------------------
@@ -187,11 +200,12 @@ function composeCandidates(items: RadarItem[], metas: CandidateMetaRow[]): Candi
     const meta = metaByRadar.get(item.id) || null;
     let stage = (meta?.stage as CandidateStage) || derivedStage(item);
     let autoArchived = false;
+    const touched = meta?.stage_changed_at || meta?.created_at || item.created_at;
+    const touchedMs = touched ? new Date(touched).getTime() : now;
+    const daysUntouched = Math.max(0, Math.floor((now - touchedMs) / DAY_MS));
     // The ninety-day rule (12a): an untouched spotted/weighed candidate goes
     // quiet — no opinion recorded, off the shelf, never deleted.
     if (stage === 'spotted' || stage === 'weighed') {
-      const touched = meta?.stage_changed_at || meta?.created_at || item.created_at;
-      const touchedMs = touched ? new Date(touched).getTime() : now;
       if (now - touchedMs > NINETY_DAYS_MS) {
         stage = 'archived';
         autoArchived = true;
@@ -205,6 +219,7 @@ function composeCandidates(items: RadarItem[], metas: CandidateMetaRow[]): Candi
       origin: originFor(item, meta),
       originDate: meta?.created_at || item.created_at || null,
       reason: meta?.reason || item.notes || null,
+      daysUntouched,
     };
   });
 }
@@ -324,11 +339,13 @@ function CandidateCard({
   candidate,
   onStage,
   onPass,
+  onArchive,
   onOwned,
 }: {
   candidate: Candidate;
   onStage: (stage: CandidateStage) => void;
   onPass: () => void;
+  onArchive: () => void;
   onOwned: () => void;
 }) {
   const { item, stage } = candidate;
@@ -367,25 +384,37 @@ function CandidateCard({
         </p>
       )}
 
+      {/* THE EIGHTY-DAY WARNING (12a): ten days before the silence, the card
+          says so — any stage move resets the clock. */}
+      {(stage === 'spotted' || stage === 'weighed') && candidate.daysUntouched >= AUTO_ARCHIVE_WARN_DAYS && (
+        <p style={{ ...bodyFont, fontSize: '12px', color: 'var(--color-accent-2,#7d2a24)' }}>
+          Untouched {candidate.daysUntouched} days — it auto-archives at ninety (“{AUTO_ARCHIVE_REASON}”). Weigh it,
+          hold it or pass and the clock resets.
+        </p>
+      )}
+
       <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-[var(--color-divider,rgba(59,43,29,0.12))]">
         {stage === 'spotted' && (
           <>
             {textAction('Weigh it', () => onStage('weighed'), { accent: true, title: 'Move it into the comparison' })}
             {textAction('Hold it', () => onStage('held'))}
-            {textAction('Pass', onPass)}
+            {textAction('Pass', onPass, { title: 'An opinion — records a reason, teaches Beau' })}
+            {textAction('Archive', onArchive, { title: 'Silence — off the shelf, no opinion recorded' })}
           </>
         )}
         {stage === 'weighed' && (
           <>
             {textAction('Hold it', () => onStage('held'), { accent: true, title: 'Decided — watch for size, sale or season' })}
-            {textAction('Pass', onPass)}
+            {textAction('Pass', onPass, { title: 'An opinion — records a reason, teaches Beau' })}
+            {textAction('Archive', onArchive, { title: 'Silence — off the shelf, no opinion recorded' })}
             {textAction('Back to Spotted', () => onStage('spotted'))}
           </>
         )}
         {stage === 'held' && (
           <>
             {textAction('Bought it', onOwned, { accent: true, title: 'It becomes a piece in The Ledger; the boards it sat on stop being proposals' })}
-            {textAction('Pass', onPass)}
+            {textAction('Pass', onPass, { title: 'An opinion — records a reason, teaches Beau' })}
+            {textAction('Archive', onArchive, { title: 'Silence — off the shelf, no opinion recorded' })}
             {textAction('Back to Spotted', () => onStage('spotted'))}
           </>
         )}
@@ -410,7 +439,7 @@ function CandidateCard({
 // The add entry — paste a link (parsed), or the manual form when it fails.
 // ---------------------------------------------------------------------------
 
-function AddCandidate({ onAdded }: { onAdded: () => void }) {
+export function AddCandidate({ onAdded }: { onAdded: () => void }) {
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [manual, setManual] = useState(false);
@@ -551,63 +580,241 @@ function AddCandidate({ onAdded }: { onAdded: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// WEIGHED · the deep comparison table (7a) — candidates as columns, the
-// decisive facts as rows: the piece · how it got here · Beau's tier · fit,
-// for you · what it finishes · price · make · boards it has sat on. Four
-// columns is the ceiling, so the table never outgrows a desktop screen; on
-// a phone it scrolls sideways (the cards remain the phone's first view, M5).
+// WEIGHED · the deep comparison table — rebuilt to 7a: candidates as
+// columns under their MAKER's name, the decisive facts as mono-labelled
+// rows: the piece (its photograph) · how it got here · Beau's tier · fit,
+// for you · what it finishes · price tier · make · tried on · Beau,
+// briefly (his verdict, with Hold · Drop right on the column — his pick's
+// Hold is the one boxed control). Four columns is the ceiling; on a phone
+// it scrolls sideways (M5).
 // ---------------------------------------------------------------------------
 
-function WeighedTable({ facts }: { facts: WeighedFacts[] }) {
-  const rowHead: React.CSSProperties = {
-    fontFamily: 'var(--space-font-heading)',
-    fontSize: '11px',
-    letterSpacing: '0.12em',
+/** The 7a price tiers, read off the seen price — honestly blank without
+ * a recorded price. */
+function priceTierOf(price: number | null): string | null {
+  if (price == null) return null;
+  if (price < 120) return 'Budget · ££';
+  if (price < 350) return 'Mid · £££';
+  if (price < 700) return 'Premium · ££££';
+  return 'Luxury · £££££';
+}
+
+/** THE PIECE cell — the listing's photograph when one can be read, the
+ * dashed named plate otherwise (7a). */
+function CandidateImage({ item }: { item: RadarItem }) {
+  const [src, setSrc] = useState('');
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setSrc('');
+    setBroken(false);
+    if (item.product_url) {
+      fetchProductImage(item.product_url)
+        .then((url) => {
+          if (!cancelled && url) setSrc(url);
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [item.product_url]);
+  return (
+    <span
+      className="block w-full overflow-hidden"
+      style={{ aspectRatio: '5 / 4', maxWidth: '190px', border: '1px dashed rgba(59,43,29,0.4)', background: 'var(--color-bg,#efe7d9)' }}
+    >
+      {src && !broken ? (
+        <img src={src} alt={item.name} className="w-full h-full object-cover" loading="lazy" onError={() => setBroken(true)} />
+      ) : (
+        <span className="w-full h-full flex flex-col items-center justify-center text-center px-2">
+          <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', color: 'var(--color-neutral-700,#634e38)' }}>
+            {categoryLabel(item.category || '') || item.name}
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: '8px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-neutral-500,#a68e70)', marginTop: '4px' }}>
+            Its photograph comes off the listing
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** The bordered tier mark — EXCELLENT · RELIABLE, as 7a boxes it. */
+function TierMark({ tier }: { tier: BeauRating }) {
+  return (
+    <span
+      className="inline-block"
+      style={{
+        fontFamily: MONO,
+        fontSize: '8.5px',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        color: 'var(--color-neutral-700,#634e38)',
+        border: '1px solid rgba(59,43,29,0.34)',
+        background: 'var(--color-paper,#fbf8f1)',
+        padding: '5px 10px',
+      }}
+    >
+      {tier}
+    </span>
+  );
+}
+
+function WeighedTable({
+  facts,
+  onHold,
+  onDrop,
+  onBoard,
+}: {
+  facts: WeighedFacts[];
+  onHold: (c: Candidate) => void;
+  onDrop: (c: Candidate) => void;
+  /** "PUT IT ON THE BOARD" — hands the candidate to The Fitting's canvas. */
+  onBoard: (c: Candidate) => void;
+}) {
+  usePlexMono();
+  const monoLabel: React.CSSProperties = {
+    fontFamily: MONO,
+    fontSize: '8.5px',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: 'var(--color-neutral-500,#a68e70)',
     fontWeight: 400,
-    color: 'var(--color-neutral-600,#856c51)',
-    padding: '10px 12px 10px 0',
+  };
+  const rowHead: React.CSSProperties = {
+    ...monoLabel,
+    padding: '13px 14px 13px 0',
     verticalAlign: 'top',
     whiteSpace: 'nowrap',
-    borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
+    borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.14))',
+    width: '112px',
   };
   const cell: React.CSSProperties = {
     fontFamily: 'var(--space-font-family)',
     fontSize: '13px',
     lineHeight: 1.5,
-    padding: '10px 12px 10px 0',
+    padding: '13px 16px 13px 0',
     verticalAlign: 'top',
-    borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
-    minWidth: '160px',
+    borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.14))',
+    minWidth: '176px',
   };
-  const row = (label: string, render: (f: WeighedFacts) => React.ReactNode) => (
+  const row = (label: string, sub: string | null, render: (f: WeighedFacts) => React.ReactNode) => (
     <tr>
-      <th scope="row" className="text-left uppercase" style={rowHead}>{label}</th>
+      <th scope="row" className="text-left" style={rowHead}>
+        <span className="block" style={{ whiteSpace: 'normal', maxWidth: '104px' }}>{label}</span>
+        {sub && (
+          <span className="block normal-case" style={{ fontFamily: 'var(--space-font-family)', fontSize: '10.5px', letterSpacing: 0, textTransform: 'none', color: 'var(--color-neutral-500,#a68e70)', marginTop: '3px' }}>
+            {sub}
+          </span>
+        )}
+      </th>
       {facts.map((f) => (
         <td key={f.candidate.item.id} className={typography.color.primary} style={cell}>{render(f)}</td>
       ))}
     </tr>
   );
+  const hisPick = (f: WeighedFacts) => /beau/i.test(f.candidate.origin);
   return (
-    <div className="overflow-x-auto mt-4 border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] px-4 pb-4">
-      <table className="w-full border-collapse" style={{ minWidth: `${180 + facts.length * 190}px` }}>
-        <tbody>
-          {row('The piece', (f) => (
-            <span>
-              {f.candidate.item.brand && (
-                <span className="block uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.14em' }}>
-                  {f.candidate.item.brand}
+    <div className="overflow-x-auto mt-4 border border-[var(--color-divider,rgba(59,43,29,0.3))] bg-[var(--color-paper,#fbf8f1)] px-4 pb-4">
+      <table className="w-full border-collapse" style={{ minWidth: `${140 + facts.length * 200}px` }}>
+        <thead>
+          <tr>
+            <th style={{ ...rowHead, borderTop: 'none' }} aria-hidden="true" />
+            {facts.map((f) => (
+              <th key={f.candidate.item.id} className="text-left" style={{ ...cell, borderTop: 'none', paddingTop: '16px' }}>
+                <span className="block" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', fontWeight: 400, lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
+                  {f.candidate.item.brand || f.candidate.item.name}
                 </span>
-              )}
-              <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1.2 }}>{f.candidate.item.name}</span>
+                <span className="block" style={{ ...monoLabel, marginTop: '4px', color: 'var(--color-neutral-600,#856c51)' }}>
+                  {f.candidate.item.brand ? f.candidate.item.name : categoryLabel(f.candidate.item.category || '') || '—'}
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {row('The piece', null, (f) => (
+            <CandidateImage item={f.candidate.item} />
+          ))}
+          {row('How it got here', null, (f) => (
+            <span>
+              <span className="block" style={{ ...monoLabel, color: 'var(--color-accent-700,#7c4a17)' }}>{f.candidate.origin}</span>
+              <span className="block" style={{ marginTop: '3px' }}>
+                {f.candidate.reason ? `${f.candidate.reason}` : 'No note recorded'}
+                {f.candidate.originDate ? ` · ${formatDate(f.candidate.originDate)}` : ''}
+              </span>
             </span>
           ))}
-          {row('How it got here', (f) => `${f.candidate.origin}${f.candidate.originDate ? ` · ${formatDate(f.candidate.originDate)}` : ''}`)}
-          {row('Beau\u2019s tier', (f) => (f.tier ? `${f.tier}${f.tierNote ? ` — ${f.tierNote}` : ''}` : 'Unrated — Beau hasn\u2019t read this maker yet.'))}
-          {row('Fit, for you', (f) => f.fit)}
-          {row('What it finishes', (f) => (f.finishes > 0 ? `Works with ${f.finishes} piece${f.finishes === 1 ? '' : 's'} you own.` : 'Nothing logged yet for it to finish.'))}
-          {row('Price', (f) => f.candidate.item.price_seen || '—')}
-          {row('Make', (f) => f.make || '—')}
-          {row('Boards it has sat on', (f) => (f.boards > 0 ? `${f.boards} board${f.boards === 1 ? '' : 's'} — evidence it keeps being reached for.` : 'Never on a board — put it on one in The Fitting.'))}
+          {row('Beau’s tier', null, (f) =>
+            f.tier ? <TierMark tier={f.tier} /> : <span style={{ color: 'var(--color-neutral-600,#856c51)' }}>Unrated — Beau hasn’t read this maker yet.</span>,
+          )}
+          {row('Fit, for you', 'From your sizes', (f) => f.fit)}
+          {row('What it finishes', 'Of what you own', (f) =>
+            f.finishes > 0 ? `Works with ${f.finishes} piece${f.finishes === 1 ? '' : 's'} you own.` : 'Nothing logged yet for it to finish.',
+          )}
+          {row('Price tier', null, (f) => (
+            <span>
+              <span className="block" style={{ fontFamily: MONO, fontSize: '11px', letterSpacing: '0.05em', color: 'var(--color-text,#241a12)' }}>
+                {priceTierOf(f.price) || '—'}
+              </span>
+              {f.candidate.item.price_seen && (
+                <span className="block" style={{ marginTop: '2px', fontSize: '12px', color: 'var(--color-neutral-600,#856c51)' }}>
+                  Seen at {f.candidate.item.price_seen}
+                </span>
+              )}
+            </span>
+          ))}
+          {row('Make', null, (f) => f.make || '—')}
+          {row('Tried on', 'Boards it has sat on', (f) => (
+            <span>
+              <span className="block">
+                {f.boards > 0 ? `${capWord(numberWord(f.boards))} board${f.boards === 1 ? '' : 's'} — it keeps being reached for.` : 'Never — not on a board yet.'}
+              </span>
+              <button
+                type="button"
+                onClick={() => onBoard(f.candidate)}
+                className="hover:underline text-left"
+                style={{ ...monoLabel, color: 'var(--color-accent-700,#7c4a17)', marginTop: '4px', background: 'transparent' }}
+              >
+                Put it on the board →
+              </button>
+            </span>
+          ))}
+          {row('Beau, briefly', null, (f) => (
+            <span>
+              {hisPick(f) && (
+                <span className="block" style={{ ...monoLabel, color: 'var(--color-accent-2,#7d2a24)' }}>His pick</span>
+              )}
+              <span className="block" style={{ marginTop: hisPick(f) ? '3px' : 0 }}>
+                {f.tierNote || f.candidate.reason || 'Nothing to add — the rows above are the whole argument.'}
+              </span>
+              <span className="flex items-center gap-3 flex-wrap" style={{ marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => onHold(f.candidate)}
+                  className="hover:opacity-80"
+                  style={
+                    hisPick(f)
+                      ? { fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent-800,#5c3413)', border: '1px solid var(--color-accent,#a8712c)', padding: '6px 14px', background: 'transparent' }
+                      : { fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-text,#241a12)', background: 'transparent', textDecoration: 'underline', textUnderlineOffset: '3px' }
+                  }
+                  title="Decided — watch for size, sale or season"
+                >
+                  Hold
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDrop(f.candidate)}
+                  className="hover:underline"
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-neutral-600,#856c51)', background: 'transparent' }}
+                  title="An opinion — records a reason, teaches Beau"
+                >
+                  Drop
+                </button>
+              </span>
+            </span>
+          ))}
         </tbody>
       </table>
     </div>
@@ -615,62 +822,478 @@ function WeighedTable({ facts }: { facts: WeighedFacts[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// WEIGHED · on a map (19a) — the second view is a PLOT, not a denser table:
-// price across, what-it-finishes up, one dot per candidate. The map answers
-// “how do these relate”; the table answers “what is true of each one”.
+// THE STAGES — the 7a left rail: the funnel as a vertical list of filters
+// (Spotted · Weighed · Held with live counts), FILTERING FOR (what the
+// hunt is answering, carried in from The Edit's first priority), and OUT
+// OF THE WAY (Passed · Archived — the way into the decision history).
+// Desktop only; narrow screens keep the chip rail.
 // ---------------------------------------------------------------------------
 
-function WeighedMap({ facts }: { facts: WeighedFacts[] }) {
-  const W = 640;
-  const H = 360;
-  const PAD = { top: 28, right: 36, bottom: 44, left: 52 };
-  const priced = facts.filter((f) => f.price != null);
-  const maxPrice = Math.max(...priced.map((f) => f.price as number), 1);
-  const maxFinish = Math.max(...facts.map((f) => f.finishes), 1);
-  const x = (price: number | null) =>
-    PAD.left + (price == null ? 0 : (price / maxPrice) * (W - PAD.left - PAD.right));
-  const y = (finishes: number) =>
-    H - PAD.bottom - (finishes / maxFinish) * (H - PAD.top - PAD.bottom);
-  const axis: React.CSSProperties = { fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em', fill: 'var(--color-neutral-600,#856c51)' };
+const railMono: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: '8.5px',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'var(--color-neutral-500,#a68e70)',
+};
+
+function StageSidebar({
+  stages,
+  byStage,
+  activeStage,
+  onStage,
+  onOpenExits,
+}: {
+  stages: Array<{ id: CandidateStage; label: string; sub: string }>;
+  byStage: Record<CandidateStage, Candidate[]>;
+  activeStage: CandidateStage;
+  onStage: (id: CandidateStage) => void;
+  onOpenExits: () => void;
+}) {
+  usePlexMono();
+  // WHAT THE HUNT IS ANSWERING — carried in from The Edit's last stored
+  // assessment (never a fresh model call); honestly empty without one.
+  const carried = (() => {
+    const peeked = peekBeauAssessment();
+    const rec = peeked?.assessment?.recommendations?.[0];
+    if (!rec) return [] as string[];
+    return [rec.pieceName, categoryLabel(rec.category || '') || null]
+      .filter((v): v is string => !!v && v.trim().length > 0)
+      .slice(0, 3);
+  })();
   return (
-    <div className="mt-4 border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] p-4">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Weighed candidates plotted — price across, what each finishes up">
-        {/* Axes — hairlines, no chart chrome. */}
-        <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} stroke="var(--color-divider,rgba(59,43,29,0.3))" strokeWidth="1" />
-        <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={H - PAD.bottom} stroke="var(--color-divider,rgba(59,43,29,0.3))" strokeWidth="1" />
-        <text x={PAD.left} y={H - 14} style={axis}>ACROSS · PRICE →</text>
-        <text x={14} y={PAD.top - 8} style={axis}>UP · WHAT IT FINISHES</text>
-        {priced.length > 0 && (
-          <>
-            <text x={W - PAD.right} y={H - 14} textAnchor="end" style={axis}>{Math.round(maxPrice)}</text>
-          </>
-        )}
-        {facts.map((f) => {
-          const hisPick = /beau/i.test(f.candidate.origin);
-          const cx = x(f.price);
-          const cy = y(f.finishes);
+    <aside className="hidden lg:block" aria-label="The Hunt — stages and history">
+      <div style={railMono}>The stages</div>
+      <div className="flex flex-col" style={{ marginTop: '6px' }} role="tablist" aria-label="Candidate stages">
+        {stages.map(({ id, label, sub }) => {
+          const active = activeStage === id;
+          const count = (byStage[id] || []).length;
           return (
-            <g key={f.candidate.item.id}>
-              <circle
-                cx={cx}
-                cy={cy}
-                r="7"
-                fill={hisPick ? 'var(--color-accent,#a8712c)' : 'var(--color-paper,#fbf8f1)'}
-                stroke="var(--color-text,#241a12)"
-                strokeWidth="1.5"
-              />
-              <text x={cx + 11} y={cy + 4} style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', fill: 'var(--color-text,#241a12)' }}>
-                {[f.candidate.item.brand, f.candidate.item.name].filter(Boolean).join(' · ')}
-                {f.price == null ? ' (no price yet)' : ''}
-              </text>
-            </g>
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onStage(id)}
+              className="text-left transition-colors"
+              style={{
+                padding: '10px 12px 11px',
+                margin: '0 -12px',
+                borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.14))',
+                background: active ? 'var(--color-paper,#fbf8f1)' : 'transparent',
+                borderLeft: active ? '2px solid var(--color-accent,#a8712c)' : '2px solid transparent',
+              }}
+            >
+              <span className="flex items-baseline justify-between gap-3">
+                <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16.5px', fontWeight: 400, color: 'var(--color-text,#241a12)' }}>{label}</span>
+                <span className="tabular-nums" style={{ fontFamily: MONO, fontSize: '11px', color: 'var(--color-neutral-700,#634e38)' }}>{count}</span>
+              </span>
+              <span className="block" style={{ ...bodyFont, fontSize: '11px', color: 'var(--color-neutral-600,#856c51)', marginTop: '2px' }}>
+                {sub}
+              </span>
+            </button>
           );
         })}
-      </svg>
-      <p className="mt-2 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11.5px' }}>
-        One dot per weighed candidate — price across, how much of your wardrobe it works with up. A filled dot is
-        Beau’s pick. A candidate with no recorded price sits on the left edge until one is noted.
+      </div>
+
+      <div style={{ ...railMono, marginTop: '22px' }}>Filtering for</div>
+      <div style={{ marginTop: '8px' }}>
+        {carried.length > 0 ? (
+          <>
+            {carried.map((label) => (
+              <div key={label} className="flex items-center gap-2" style={{ padding: '3px 0' }}>
+                <span aria-hidden="true" style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--color-accent,#a8712c)', display: 'inline-block' }} />
+                <span style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-text,#241a12)' }}>{label}</span>
+              </div>
+            ))}
+            <p style={{ ...bodyFont, fontSize: '11px', color: 'var(--color-neutral-600,#856c51)', marginTop: '7px', lineHeight: 1.5 }}>
+              Carried in from The Edit’s first priority — the gap this hunt is answering.
+            </p>
+          </>
+        ) : (
+          <p style={{ ...bodyFont, fontSize: '11.5px', color: 'var(--color-neutral-600,#856c51)', lineHeight: 1.5 }}>
+            Nothing carried in — the shelf shows everything you’ve spotted. Run The Edit and its first priority
+            lands here.
+          </p>
+        )}
+      </div>
+
+      <div style={{ ...railMono, marginTop: '22px' }}>Out of the way</div>
+      <div className="flex flex-col" style={{ marginTop: '6px' }}>
+        {([
+          ['Passed', byStage.passed.length, 'Beau won’t put these up again'],
+          ['Archived', byStage.archived.length, 'Untouched ninety days — off the Fitting shelf'],
+        ] as Array<[string, number, string]>).map(([label, count, sub]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={onOpenExits}
+            className="text-left hover:bg-[var(--color-paper,#fbf8f1)] transition-colors"
+            style={{ padding: '9px 12px 10px', margin: '0 -12px', borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.14))' }}
+            title="Open the decision history — reasons, dates, and the way back"
+          >
+            <span className="flex items-baseline justify-between gap-3">
+              <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '15px', fontWeight: 400, color: 'var(--color-neutral-700,#634e38)' }}>{label}</span>
+              <span className="tabular-nums" style={{ fontFamily: MONO, fontSize: '11px', color: 'var(--color-neutral-600,#856c51)' }}>{count}</span>
+            </span>
+            <span className="block" style={{ ...bodyFont, fontSize: '10.5px', color: 'var(--color-neutral-600,#856c51)', marginTop: '2px' }}>
+              {sub}
+            </span>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// THE BEAU PANEL — the 7a right column: his standing explanation of the
+// screen, plus the live read of the current comparison. On the map view it
+// becomes 19a's "Two views, two questions". Wide screens only.
+// ---------------------------------------------------------------------------
+
+function BeauPanelSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.14))' }}>
+      <p style={{ fontFamily: 'var(--space-font-heading)', fontSize: '14px', fontWeight: 400, fontStyle: 'italic', color: 'var(--color-accent-700,#7c4a17)', margin: 0 }}>
+        {title}
       </p>
+      <p style={{ ...bodyFont, fontSize: '12px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', margin: '5px 0 0' }}>{children}</p>
+    </div>
+  );
+}
+
+function BeauPanel({
+  activeStage,
+  weighedView,
+  weighedFacts,
+  heldCount,
+}: {
+  activeStage: CandidateStage;
+  weighedView: 'table' | 'map';
+  weighedFacts: WeighedFacts[];
+  heldCount: number;
+}) {
+  usePlexMono();
+  const pick = weighedFacts.find((f) => /beau/i.test(f.candidate.origin));
+  const mapView = activeStage === 'weighed' && weighedView === 'map' && weighedFacts.length > 0;
+  return (
+    <aside
+      className="hidden xl:block"
+      aria-label="Beau, on this screen"
+      style={{ background: 'var(--color-paper,#fbf8f1)', border: '1px solid var(--color-divider,rgba(59,43,29,0.18))', padding: '16px 18px 18px' }}
+    >
+      <div style={railMono}>Beau, on this screen</div>
+      <p style={{ fontFamily: 'var(--space-font-heading)', fontSize: '19px', fontWeight: 400, lineHeight: 1.2, color: 'var(--color-text,#241a12)', margin: '8px 0 0' }}>
+        {mapView ? 'Two views, two questions' : 'One rail, three stages'}
+      </p>
+      {mapView ? (
+        <>
+          <BeauPanelSection title="The table answers “what”">
+            Per candidate, per criterion, in prose where prose is needed: the fit note, what it finishes, my verdict.
+            It’s the reading view.
+          </BeauPanelSection>
+          <BeauPanelSection title="The map answers “how they relate”">
+            Two axes, one dot each — the finding is spatial: which candidates sit in a band doing the same job, and
+            no table can put that in one look.
+          </BeauPanelSection>
+          <BeauPanelSection title="The axes are the control">
+            Price against what-it-finishes today. Changing the question is changing an axis, not opening another
+            screen.
+          </BeauPanelSection>
+          <BeauPanelSection title="The outlier becomes obvious">
+            Whatever sits alone at the bottom was never in the same conversation — on the map you read that at a
+            glance instead of row by row.
+          </BeauPanelSection>
+        </>
+      ) : (
+        <>
+          <BeauPanelSection title="The stage is a filter, not a place">
+            Spotted, weighed, held live in one rail with counts. You never navigate to finish a thought, and a
+            candidate keeps my reasoning attached the whole way through.
+          </BeauPanelSection>
+          <BeauPanelSection title="Four is the ceiling, and it holds">
+            A real comparison fits inside a stage: tier and fit note first, because those are what most people
+            decide on. A fifth candidate would break the table, so a fifth isn’t allowed.
+          </BeauPanelSection>
+          {pick ? (
+            <BeauPanelSection title="He picks one, and says why">
+              {pick.candidate.item.brand || pick.candidate.item.name}: {pick.tierNote || pick.candidate.reason || 'the safe answer — nothing here is a mistake.'}{' '}
+              The other columns get a sentence each, including the ones that talk you out of them.
+            </BeauPanelSection>
+          ) : (
+            <BeauPanelSection title="He picks one, and says why">
+              When one of these is my pick, its column carries the reason and the caveat — a recommendation without
+              a reason is an advert.
+            </BeauPanelSection>
+          )}
+          {heldCount > 0 && (
+            <BeauPanelSection title="Held sits under the comparison">
+              The thing you’ve already decided on is context for the thing you’re deciding now — not another tab.
+            </BeauPanelSection>
+          )}
+        </>
+      )}
+    </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// HELD · the strip under the Weighed comparison (7a): the decided-on
+// candidates as context, each with the way to buy and the way back.
+// ---------------------------------------------------------------------------
+
+function HeldStrip({
+  held,
+  onBackToSpotted,
+}: {
+  held: Candidate[];
+  onBackToSpotted: (c: Candidate) => void;
+}) {
+  if (held.length === 0) return null;
+  return (
+    <div style={{ marginTop: '34px', paddingTop: '16px', borderTop: '1px solid var(--color-text,#3b2b1d)' }}>
+      <div className="flex items-baseline justify-between gap-4">
+        <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '21px', fontWeight: 400, color: 'var(--color-text,#241a12)' }}>
+          Held · {held.length}
+        </span>
+        <span style={railMono}>Beau re-checks price and stock each visit</span>
+      </div>
+      {held.map((c) => (
+        <div
+          key={c.item.id}
+          className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_auto] gap-2 sm:gap-6 sm:items-baseline"
+          style={{ padding: '12px 0', borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.14))' }}
+        >
+          <span>
+            <span className="block" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 400, color: 'var(--color-text,#241a12)' }}>
+              {c.item.name}
+            </span>
+            {c.item.brand && (
+              <span className="block" style={{ ...railMono, marginTop: '2px' }}>{c.item.brand}</span>
+            )}
+          </span>
+          <span style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-neutral-700,#634e38)' }}>
+            {c.reason || 'Decided — watching for size, sale or season.'}{' '}
+            {c.daysUntouched > 0 ? `Held ${c.daysUntouched === 1 ? 'a day' : `${numberWord(Math.min(99, c.daysUntouched))} days`}.` : ''}
+          </span>
+          <span className="flex items-baseline gap-4 flex-wrap">
+            {c.item.product_url && (
+              <a
+                href={c.item.product_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+                style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-accent,#a8712c)' }}
+              >
+                Where to buy
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => onBackToSpotted(c)}
+              className="hover:underline"
+              style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-neutral-600,#856c51)', background: 'transparent' }}
+            >
+              Back to spotted
+            </button>
+          </span>
+        </div>
+      ))}
+      <p style={{ ...bodyFont, fontSize: '11.5px', color: 'var(--color-neutral-600,#856c51)', marginTop: '10px', maxWidth: '64ch' }}>
+        Held sits under the comparison rather than behind a tab: the thing you’ve already decided on is context for
+        the thing you’re deciding now.
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PASSED & ARCHIVED — the dedicated decision-history screen (12a · M12).
+// “A pass is an opinion. An archive is silence.” Every row: the piece's
+// image (its listing's photograph when one can be read, an initial tile
+// otherwise), the maker, the reason recorded, the date — and the way back.
+// ---------------------------------------------------------------------------
+
+/** The row's image — the listing's photograph when the candidate carries a
+ * product URL (cached og:image read), the piece's initial otherwise. */
+function ExitImage({ item }: { item: RadarItem }) {
+  const [src, setSrc] = useState('');
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setSrc('');
+    setBroken(false);
+    if (item.product_url) {
+      fetchProductImage(item.product_url)
+        .then((url) => {
+          if (!cancelled && url) setSrc(url);
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [item.product_url]);
+  return (
+    <span
+      className="flex-shrink-0 w-[52px] h-[64px] border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] overflow-hidden flex items-center justify-center"
+      aria-hidden="true"
+    >
+      {src && !broken ? (
+        <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" onError={() => setBroken(true)} />
+      ) : (
+        <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '22px', color: 'var(--color-neutral-500,#a68e70)', lineHeight: 1 }}>
+          {(item.name || '?').trim().charAt(0).toUpperCase() || '?'}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ExitRow({
+  candidate,
+  onBringBack,
+  busy,
+}: {
+  candidate: Candidate;
+  onBringBack: () => void;
+  busy: boolean;
+}) {
+  const { item, meta } = candidate;
+  const exitDate = meta?.stage_changed_at || meta?.created_at || item.created_at || null;
+  return (
+    <div className="flex items-start gap-3.5 py-3.5 border-b border-[var(--color-divider,rgba(59,43,29,0.12))]">
+      <ExitImage item={item} />
+      <div className="min-w-0 flex-1">
+        {item.brand && (
+          <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={kicker}>
+            {item.brand}
+          </p>
+        )}
+        <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1.2 }}>
+          {item.name}
+        </p>
+        {meta?.passed_reason && (
+          <p className="text-[var(--color-neutral-700,#634e38)] italic" style={{ ...bodyFont, fontSize: '12.5px', marginTop: '2px' }}>
+            “{meta.passed_reason}”
+          </p>
+        )}
+        <p className="text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11.5px', marginTop: '2px' }}>
+          {candidate.origin}
+          {exitDate ? ` · ${formatDate(exitDate)}` : ''}
+        </p>
+        <button
+          type="button"
+          onClick={onBringBack}
+          disabled={busy}
+          className="inline-flex items-center gap-1 mt-1.5 min-h-[36px] hover:underline disabled:opacity-50"
+          style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-accent,#a8712c)' }}
+        >
+          <RotateCcw className="w-3 h-3" aria-hidden="true" /> Bring back
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PassedArchivedScreen({
+  passed,
+  archived,
+  onBringBack,
+  onClose,
+}: {
+  passed: Candidate[];
+  archived: Candidate[];
+  onBringBack: (candidate: Candidate) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const bringBack = async (candidate: Candidate) => {
+    if (busyId != null) return;
+    setBusyId(candidate.item.id);
+    try {
+      await onBringBack(candidate);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  return (
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto"
+      style={{ background: 'var(--color-bg,#efe7d9)' }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Passed and archived — the decision history"
+    >
+      <div className="max-w-[880px] mx-auto px-5 sm:px-10 py-8 pb-24">
+        <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 min-h-[44px] hover:underline"
+            style={{ ...bodyFont, fontSize: '13px', color: 'var(--color-neutral-700,#634e38)' }}
+          >
+            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> Back to The Hunt
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-9 h-9 flex items-center justify-center border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <h3 className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '34px', lineHeight: 1.1, marginTop: '18px' }}>
+          Passed & archived
+        </h3>
+        <p className={typography.color.primary} style={{ ...bodyFont, fontSize: '14.5px', marginTop: '8px', maxWidth: '54ch' }}>
+          A pass is an opinion. An archive is silence. Neither shows on the shelf — and nothing is ever deleted.
+          Bring anything back, any time.
+        </p>
+
+        <div className="grid gap-8 sm:grid-cols-2 mt-8">
+          <section aria-label="Passed candidates">
+            <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-text,#3b2b1d)]" style={kicker}>
+              Passed · {passed.length}
+            </p>
+            <p className="text-[var(--color-neutral-600,#856c51)] py-2" style={{ ...bodyFont, fontSize: '12px' }}>
+              You said no, with a reason — Beau won’t put these up again in the same form.
+            </p>
+            {passed.map((c) => (
+              <ExitRow key={c.item.id} candidate={c} onBringBack={() => void bringBack(c)} busy={busyId === c.item.id} />
+            ))}
+            {passed.length === 0 && (
+              <p className="py-4 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '12.5px' }}>
+                Nothing passed. A pass records a reason and teaches Beau — it’s the cheapest signal in the product.
+              </p>
+            )}
+          </section>
+          <section aria-label="Archived candidates">
+            <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-text,#3b2b1d)]" style={kicker}>
+              Archived · {archived.length}
+            </p>
+            <p className="text-[var(--color-neutral-600,#856c51)] py-2" style={{ ...bodyFont, fontSize: '12px' }}>
+              Quiet, not judged — archived by hand, or untouched for ninety days.
+            </p>
+            {archived.map((c) => (
+              <ExitRow key={c.item.id} candidate={c} onBringBack={() => void bringBack(c)} busy={busyId === c.item.id} />
+            ))}
+            {archived.length === 0 && (
+              <p className="py-4 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '12.5px' }}>
+                Nothing archived. Anything untouched ninety days drops here — off the shelf, never deleted.
+              </p>
+            )}
+          </section>
+        </div>
+
+        <p className="mt-8 pt-3 border-t border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '12px', maxWidth: '60ch' }}>
+          Two passes on a maker move it down your index; three passes on a type stop Beau proposing that type for the
+          gap. Both undo themselves the moment you bring one back.
+        </p>
+      </div>
     </div>
   );
 }
@@ -682,6 +1305,7 @@ function WeighedMap({ facts }: { facts: WeighedFacts[] }) {
 export function HuntStages({
   pieces = [],
   spottedExtras,
+  hideAdd = false,
 }: {
   /** The owned wardrobe — feeds the “what it finishes” row. */
   pieces?: WardrobePiece[];
@@ -690,6 +1314,9 @@ export function HuntStages({
    * Spotted cards, so searching and adding candidates happens where the
    * candidates land. */
   spottedExtras?: React.ReactNode;
+  /** True when the host page renders <AddCandidate> in its own header
+   * (7a: the field sits opposite the page title). */
+  hideAdd?: boolean;
 } = {}) {
   const { data: radarRows, refresh: refreshRadar } = (window as any).useWorkspaceDB('radar_items', {
     orderBy: { column: 'created_at', direction: 'desc' },
@@ -710,17 +1337,25 @@ export function HuntStages({
     limit: 100,
   });
   const [activeStage, setActiveStage] = useState<CandidateStage>('spotted');
-  // WEIGHED has three readings (founder's correction + 19a): the cards, the
-  // deep comparison TABLE, and the PLOT. One record set, three views.
-  const [weighedView, setWeighedView] = useState<'cards' | 'table' | 'map'>('cards');
+  // WEIGHED has two readings (7a · 19a): AS A TABLE answers “what is true
+  // of each one”, ON A MAP answers “how they relate”. One record set.
+  const [weighedView, setWeighedView] = useState<'table' | 'map'>('table');
   const [measurements, setMeasurements] = useState<StyleMeasurements | null>(null);
   useEffect(() => {
     fetchStyleMeasurements().then(setMeasurements).catch(() => undefined);
   }, []);
-  const [showExits, setShowExits] = useState(false);
+  // The dedicated Passed & Archived screen (12a · M12) — the full decision
+  // history, opened from the row under the pipeline.
+  const [exitsOpen, setExitsOpen] = useState(false);
   const [passingId, setPassingId] = useState<number | null>(null);
   const [passReason, setPassReason] = useState('');
+  // ARCHIVE is its own act (build brief rule 9): silence, not an opinion —
+  // but it still records a reason and stays reversible.
+  const [archivingId, setArchivingId] = useState<number | null>(null);
+  const [archiveReason, setArchiveReason] = useState('');
   const [flash, setFlash] = useState<string | null>(null);
+  // UNDO, immediately after a pass (12a): the flash carries the way back.
+  const [undoPass, setUndoPass] = useState<{ id: number; prevStage: CandidateStage } | null>(null);
 
   const refreshAll = () => {
     refreshRadar();
@@ -736,14 +1371,32 @@ export function HuntStages({
 
   useEffect(() => {
     if (!flash) return;
-    const t = window.setTimeout(() => setFlash(null), 4500);
+    // A flash carrying an undo stays up longer — the way back should not
+    // vanish while the hand is still over the card.
+    const t = window.setTimeout(() => {
+      setFlash(null);
+      setUndoPass(null);
+    }, undoPass ? 9000 : 4500);
     return () => window.clearTimeout(t);
-  }, [flash]);
+  }, [flash, undoPass]);
 
   const candidates = useMemo(
     () => composeCandidates((radarRows || []) as RadarItem[], (metaRows || []) as CandidateMetaRow[]),
     [radarRows, metaRows],
   );
+
+  // PERSIST THE NINETY-DAY RULE: a derived auto-archive becomes a STORED
+  // stage with its reason (“No activity for 90 days”), so the decision
+  // history lives in WorkspaceDB — never recomputed, never lost. Each id is
+  // written once per mount; the write itself refreshes the records.
+  const persistedAutoArchive = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    for (const c of candidates) {
+      if (!c.autoArchived || persistedAutoArchive.current.has(c.item.id)) continue;
+      persistedAutoArchive.current.add(c.item.id);
+      void setCandidateStage(c.item.id, 'archived', { passed_reason: AUTO_ARCHIVE_REASON });
+    }
+  }, [candidates]);
 
   const byStage = useMemo(() => {
     const groups: Record<CandidateStage, Candidate[]> = { spotted: [], weighed: [], held: [], passed: [], archived: [] };
@@ -806,10 +1459,29 @@ export function HuntStages({
   };
 
   const confirmPass = async (candidate: Candidate) => {
+    const prevStage: CandidateStage =
+      candidate.stage === 'passed' || candidate.stage === 'archived' ? 'spotted' : candidate.stage;
     await setCandidateStage(candidate.item.id, 'passed', { passed_reason: passReason.trim() || null });
     setPassingId(null);
     setPassReason('');
-    setFlash(`Passed — Beau won\u2019t put “${candidate.item.name}\u201d up again. Undo any time under Passed & archived.`);
+    setUndoPass({ id: candidate.item.id, prevStage });
+    setFlash(`Passed — Beau won\u2019t put “${candidate.item.name}\u201d up again.`);
+    refreshAll();
+  };
+
+  const confirmArchive = async (candidate: Candidate) => {
+    await setCandidateStage(candidate.item.id, 'archived', { passed_reason: archiveReason.trim() || null });
+    setArchivingId(null);
+    setArchiveReason('');
+    setFlash(`Archived — “${candidate.item.name}\u201d is off the shelf, not deleted. Bring it back any time under Passed & archived.`);
+    refreshAll();
+  };
+
+  const undoLastPass = async () => {
+    if (!undoPass) return;
+    await setCandidateStage(undoPass.id, undoPass.prevStage);
+    setUndoPass(null);
+    setFlash('Undone — the candidate is back where it was.');
     refreshAll();
   };
 
@@ -821,19 +1493,29 @@ export function HuntStages({
 
   const stages: Array<{ id: CandidateStage; label: string; sub: string }> = [
     { id: 'spotted', label: 'Spotted', sub: 'Saved, unjudged' },
-    { id: 'weighed', label: 'Weighed', sub: 'Being compared' },
-    { id: 'held', label: 'Held', sub: 'Decided · watching' },
+    { id: 'weighed', label: 'Weighed', sub: 'As a table' },
+    { id: 'held', label: 'Held', sub: 'Decided, watching price' },
   ];
 
   const shown = byStage[activeStage] || [];
 
   return (
     <section aria-label="The Hunt — the candidate pipeline">
-      <AddCandidate onAdded={refreshAll} />
+      {!hideAdd && <AddCandidate onAdded={refreshAll} />}
 
-      {/* THE STAGE RAIL — the funnel as filters on one screen, never tabs to
-          another. Counts derive from the records; nothing stores its own. */}
-      <div className="flex items-stretch gap-1.5 mt-5 flex-wrap" role="tablist" aria-label="Candidate stages">
+      <div className="lg:grid lg:items-start lg:grid-cols-[176px_minmax(0,1fr)] xl:grid-cols-[176px_minmax(0,1fr)_246px] lg:gap-x-9 xl:gap-x-8 mt-1">
+
+      <StageSidebar
+        stages={stages}
+        byStage={byStage}
+        activeStage={activeStage}
+        onStage={setActiveStage}
+        onOpenExits={() => setExitsOpen(true)}
+      />
+
+      <div className="min-w-0">
+
+      <div className="flex items-stretch gap-1.5 mt-5 flex-wrap lg:hidden" role="tablist" aria-label="Candidate stages">
         {stages.map(({ id, label, sub }) => {
           const active = activeStage === id;
           const count = (byStage[id] || []).length;
@@ -867,53 +1549,128 @@ export function HuntStages({
       </div>
 
       {flash && (
-        <p className="mt-2.5" style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-accent-700,#7c4a17)' }}>
-          {flash}
+        <p className="mt-2.5 flex items-baseline gap-3 flex-wrap" style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-accent-700,#7c4a17)' }}>
+          <span>{flash}</span>
+          {undoPass && (
+            <button
+              type="button"
+              onClick={() => void undoLastPass()}
+              className="inline-flex items-center gap-1 hover:underline"
+              style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-accent,#a8712c)' }}
+            >
+              <RotateCcw className="w-3 h-3" aria-hidden="true" /> Undo the pass
+            </button>
+          )}
         </p>
       )}
 
-      {/* WEIGHED VIEW TOGGLE — cards · as a table · on a map (19a): the
-          table answers “what is true of each”, the map “how do they
-          relate”. Only the Weighed stage earns a second reading. */}
-      {activeStage === 'weighed' && byStage.weighed.length > 0 && (
-        <div className="flex mt-4" role="group" aria-label="Weighed views">
-          {([
-            { id: 'cards' as const, label: 'Cards' },
-            { id: 'table' as const, label: 'As a table' },
-            { id: 'map' as const, label: 'On a map' },
-          ]).map(({ id, label }, i) => {
-            const active = weighedView === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setWeighedView(id)}
-                aria-pressed={active}
-                className={`uppercase min-h-[44px] px-4 grid place-items-center whitespace-nowrap transition-colors ${
-                  active
-                    ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
-                    : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
-                } ${i > 0 ? 'border-l-0' : ''}`}
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em' }}
-              >
-                {label}
-              </button>
-            );
-          })}
+      {/* THE STAGE HEADING (7a) — “Weighed · four candidates” with the
+          AS A TABLE · ON A MAP toggle at the right edge. The table answers
+          “what is true of each”; the map “how do they relate” (19a). */}
+      <div className="flex items-end justify-between gap-4 flex-wrap mt-5 lg:mt-4">
+        <div style={{ maxWidth: '68ch' }}>
+          <h4 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontSize: '25px', fontWeight: 400, lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
+            {activeStage === 'spotted' && `Spotted · ${byStage.spotted.length === 0 ? 'nothing yet' : `${numberWord(Math.min(99, byStage.spotted.length))} candidate${byStage.spotted.length === 1 ? '' : 's'}`}`}
+            {activeStage === 'weighed' && `Weighed · ${byStage.weighed.length === 0 ? 'nothing yet' : `${numberWord(byStage.weighed.length)} candidate${byStage.weighed.length === 1 ? '' : 's'}`}`}
+            {activeStage === 'held' && `Held · ${byStage.held.length === 0 ? 'nothing yet' : numberWord(byStage.held.length)}`}
+          </h4>
+          <p style={{ ...bodyFont, fontSize: '13px', color: 'var(--color-neutral-700,#634e38)', margin: '6px 0 0' }}>
+            {activeStage === 'spotted' && 'Saved, unjudged — weighing one starts the comparison; finding new candidates lives below, where they land.'}
+            {activeStage === 'weighed' && 'All answering the same question, so the only decision is which. Beau’s tier and the fit note from your sizes are the two rows most people decide on — they’re first.'}
+            {activeStage === 'held' && 'Decided, watching price — Beau re-checks price and stock each visit.'}
+          </p>
         </div>
-      )}
+        {activeStage === 'weighed' && byStage.weighed.length > 0 && (
+          <ViewToggle
+            items={[
+              { id: 'table' as const, label: 'As a table' },
+              { id: 'map' as const, label: 'On a map' },
+            ]}
+            active={weighedView}
+            onChange={(id) => setWeighedView(id)}
+            ariaLabel="Weighed views"
+          />
+        )}
+      </div>
 
       {activeStage === 'weighed' && weighedView === 'table' && byStage.weighed.length > 0 && (
-        <WeighedTable facts={weighedFacts} />
+        <>
+          <WeighedTable
+            facts={weighedFacts}
+            onHold={(c) => void moveStage(c, 'held')}
+            onDrop={(c) => {
+              setPassingId(c.item.id);
+              setArchivingId(null);
+              setPassReason('');
+            }}
+            onBoard={(c) =>
+              requestFittingRoomTryOn({
+                key: `radar-${c.item.id}`,
+                name: c.item.name,
+                brand: c.item.brand || null,
+                category: c.item.category || null,
+                productUrl: c.item.product_url || null,
+                note: c.reason || null,
+              })
+            }
+          />
+          {(() => {
+            const passing = byStage.weighed.find((c) => c.item.id === passingId);
+            if (!passing) return null;
+            return (
+              <div className="border border-t-0 border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-accent-100,#fbf1de)] p-3">
+                <p className={typography.color.primary} style={{ ...bodyFont, fontSize: '12.5px' }}>
+                  Dropping “{passing.item.name}” — why the pass? Optional, but it’s the most useful thing you can tell Beau.
+                </p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <input
+                    type="text"
+                    value={passReason}
+                    onChange={(e) => setPassReason(e.target.value)}
+                    placeholder="e.g. too heavy for the shoes I actually reach for"
+                    aria-label="Reason for passing"
+                    className="flex-1 min-w-[180px] px-3 min-h-[44px] border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] focus:outline-none focus:border-[var(--color-accent,#a8712c)]"
+                    style={{ ...bodyFont, fontSize: '13px', borderRadius: 0 }}
+                  />
+                  {textAction('Pass it', () => void confirmPass(passing), { accent: true })}
+                  {textAction('Keep it', () => setPassingId(null))}
+                </div>
+              </div>
+            );
+          })()}
+          <p style={{ ...bodyFont, fontSize: '11.5px', color: 'var(--color-neutral-600,#856c51)', marginTop: '10px', maxWidth: '68ch' }}>
+            Four columns is the ceiling — a fifth stops being a comparison and starts being a list. Add a fifth and
+            the earliest-added drops back to Spotted, stated at the moment it happens.
+          </p>
+        </>
       )}
       {activeStage === 'weighed' && weighedView === 'map' && byStage.weighed.length > 0 && (
-        <WeighedMap facts={weighedFacts} />
+        <HuntWeighedMap
+          candidates={weighedFacts.map(
+            (f): HuntMapCandidate => ({
+              id: f.candidate.item.id,
+              brand: f.candidate.item.brand || null,
+              name: f.candidate.item.name,
+              price: f.price,
+              finishes: f.finishes,
+              tier: f.tier,
+              isPick: /beau/i.test(f.candidate.origin),
+              reason: f.tierNote || f.candidate.reason || null,
+            }),
+          )}
+          onOpenTable={() => setWeighedView('table')}
+        />
+      )}
+
+      {/* HELD · under the comparison (7a) — context, not another tab. */}
+      {activeStage === 'weighed' && byStage.weighed.length > 0 && (
+        <HeldStrip held={byStage.held} onBackToSpotted={(c) => void moveStage(c, 'spotted')} />
       )}
 
       {/* THE STAGE'S CANDIDATES — cards (one per candidate: image-less but
           scannable — maker, piece, price, origin · date, the reason).
           Cards, not a table, so the same layout serves 390pt (M5). */}
-      {(activeStage !== 'weighed' || weighedView === 'cards' || byStage.weighed.length === 0) && (
+      {(activeStage !== 'weighed' || byStage.weighed.length === 0) && (
       <div className="grid gap-3 mt-4 sm:grid-cols-2">
         {shown.map((candidate) => (
           <div key={candidate.item.id}>
@@ -922,7 +1679,13 @@ export function HuntStages({
               onStage={(stage) => void moveStage(candidate, stage)}
               onPass={() => {
                 setPassingId(candidate.item.id);
+                setArchivingId(null);
                 setPassReason('');
+              }}
+              onArchive={() => {
+                setArchivingId(candidate.item.id);
+                setPassingId(null);
+                setArchiveReason('');
               }}
               onOwned={() => void markOwned(candidate)}
             />
@@ -946,10 +1709,34 @@ export function HuntStages({
                 </div>
               </div>
             )}
+            {archivingId === candidate.item.id && (
+              <div className="border border-t-0 border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] p-3">
+                <p className={typography.color.primary} style={{ ...bodyFont, fontSize: '12.5px' }}>
+                  A pass is an opinion. An archive is silence — off the shelf, no opinion recorded, nothing deleted.
+                  Note why, if you like.
+                </p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <input
+                    type="text"
+                    value={archiveReason}
+                    onChange={(e) => setArchiveReason(e.target.value)}
+                    placeholder="e.g. parking it until autumn"
+                    aria-label="Reason for archiving"
+                    className="flex-1 min-w-[180px] px-3 min-h-[44px] border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] focus:outline-none focus:border-[var(--color-accent,#a8712c)]"
+                    style={{ ...bodyFont, fontSize: '13px', borderRadius: 0 }}
+                  />
+                  {textAction('Archive it', () => void confirmArchive(candidate), { accent: true })}
+                  {textAction('Keep it', () => setArchivingId(null))}
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {shown.length === 0 && (
-          <p className="sm:col-span-2 py-6 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '14px' }}>
+          /* ONE register for every descriptive/empty-state line in the
+             pipeline — the same face, size and colour as the line under the
+             stage heading, with the tighter rhythm used elsewhere. */
+          <p className="sm:col-span-2 py-3 text-[var(--color-neutral-700,#634e38)]" style={{ ...bodyFont, fontSize: '13px' }}>
             {activeStage === 'spotted' && 'Nothing spotted yet — paste a product link above, search below, or put a piece up from a board or the index.'}
             {activeStage === 'weighed' && 'Nothing being weighed — move a spotted candidate in and compare up to four at once.'}
             {activeStage === 'held' && 'Nothing held — a held candidate is one you\u2019ve decided on and are waiting to buy.'}
@@ -961,7 +1748,7 @@ export function HuntStages({
       {/* FIND · SEARCH · DISCOVER — folded INTO the Spotted stage
           (founder's correction: the standalone Find / Discover sub-tabs are
           deleted; finding new candidates happens where they land). */}
-      {activeStage === 'spotted' && spottedExtras && <div className="mt-10">{spottedExtras}</div>}
+      {activeStage === 'spotted' && spottedExtras && <div className="mt-6">{spottedExtras}</div>}
 
       {activeStage === 'weighed' && byStage.weighed.length >= WEIGHED_CAP && (
         <p className="mt-2 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11.5px' }}>
@@ -969,78 +1756,44 @@ export function HuntStages({
         </p>
       )}
 
-      {/* OUT OF THE WAY — passed & archived, drawn apart (12a): a pass is an
-          opinion, an archive is silence. Both reversible; nothing deleted. */}
-      <div className="mt-6 border-t border-[var(--color-divider,rgba(59,43,29,0.18))] pt-3">
+      {/* OUT OF THE WAY — the way into the decision history (12a · M12) on
+          narrow screens; the sidebar carries it from lg up. */}
+      <div className="mt-6 border-t border-[var(--color-divider,rgba(59,43,29,0.18))] pt-3 lg:hidden">
         <button
           type="button"
-          onClick={() => setShowExits((v) => !v)}
+          onClick={() => setExitsOpen(true)}
           className="min-h-[44px] hover:underline text-left"
           style={{ ...bodyFont, fontSize: '13px', color: 'var(--color-neutral-700,#634e38)' }}
-          aria-expanded={showExits}
         >
-          Passed {byStage.passed.length} · Archived {byStage.archived.length} — {showExits ? 'hide' : 'show'} ›
+          Passed & archived — {byStage.passed.length} passed · {byStage.archived.length} archived ›
         </button>
-        {showExits && (
-          <div className="grid gap-5 sm:grid-cols-2 mt-2">
-            <div>
-              <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-1.5 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]" style={kicker}>
-                Passed · {byStage.passed.length} — you said no; Beau won’t put these up again
-              </p>
-              {byStage.passed.map((c) => (
-                <div key={c.item.id} className="py-2.5 border-b border-[var(--color-divider,rgba(59,43,29,0.12))]">
-                  <p className={typography.color.primary} style={{ ...bodyFont, fontSize: '14px' }}>
-                    {[c.item.brand, c.item.name].filter(Boolean).join(' · ')}
-                  </p>
-                  {c.meta?.passed_reason && (
-                    <p className="text-[var(--color-neutral-700,#634e38)] italic" style={{ ...bodyFont, fontSize: '12px' }}>
-                      “{c.meta.passed_reason}”
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void moveStage(c, 'spotted')}
-                    className="inline-flex items-center gap-1 mt-1 min-h-[36px] hover:underline"
-                    style={{ ...bodyFont, fontSize: '12px', color: 'var(--color-accent,#a8712c)' }}
-                  >
-                    <RotateCcw className="w-3 h-3" aria-hidden="true" /> Undo the pass
-                  </button>
-                </div>
-              ))}
-              {byStage.passed.length === 0 && (
-                <p className="py-3 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '12.5px' }}>
-                  Nothing passed. A pass records a reason and teaches Beau — it’s the cheapest signal in the product.
-                </p>
-              )}
-            </div>
-            <div>
-              <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-1.5 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]" style={kicker}>
-                Archived · {byStage.archived.length} — untouched ninety days; no opinion recorded
-              </p>
-              {byStage.archived.map((c) => (
-                <div key={c.item.id} className="py-2.5 border-b border-[var(--color-divider,rgba(59,43,29,0.12))]">
-                  <p className={typography.color.primary} style={{ ...bodyFont, fontSize: '14px' }}>
-                    {[c.item.brand, c.item.name].filter(Boolean).join(' · ')}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void moveStage(c, 'spotted')}
-                    className="inline-flex items-center gap-1 mt-1 min-h-[36px] hover:underline"
-                    style={{ ...bodyFont, fontSize: '12px', color: 'var(--color-accent,#a8712c)' }}
-                  >
-                    <RotateCcw className="w-3 h-3" aria-hidden="true" /> Bring it back
-                  </button>
-                </div>
-              ))}
-              {byStage.archived.length === 0 && (
-                <p className="py-3 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '12.5px' }}>
-                  Nothing archived. Anything untouched ninety days drops here — off the shelf, never deleted.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        <p className="text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11.5px' }}>
+          A pass is an opinion. An archive is silence. The full decision history — reasons, dates, and the way back
+          — lives there.
+        </p>
       </div>
+
+      </div>
+
+      <BeauPanel
+        activeStage={activeStage}
+        weighedView={weighedView}
+        weighedFacts={weighedFacts}
+        heldCount={byStage.held.length}
+      />
+
+      </div>
+
+      {exitsOpen && (
+        <PassedArchivedScreen
+          passed={byStage.passed}
+          archived={byStage.archived}
+          onBringBack={async (c) => {
+            await moveStage(c, 'spotted');
+          }}
+          onClose={() => setExitsOpen(false)}
+        />
+      )}
     </section>
   );
 }

@@ -28,7 +28,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { typography } from '../../lib/colors';
 import { SearchPieceFlow } from './search-piece';
 import {
@@ -524,6 +524,15 @@ export function PhotoConfirmFlow({
 
   return (
     <div>
+      {/* Nothing renders below the header until a photo is chosen — the
+          [ Photograph ] button opens the picker directly, and the card
+          (with the photo beside it) appears the moment a photo lands. */}
+      {savedFlash && !draft && (
+        <p className={`${typography.size.xs} text-[var(--space-semantic-success)]`} style={{ marginTop: '14px' }}>
+          “{savedFlash}” logged — in The Ledger, under Your pieces. Beau is reading up on it…
+        </p>
+      )}
+      {draft && (
       <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-8 md:gap-[44px] items-start" style={{ marginTop: '28px' }}>
         {/* ------------------------------------------------ the photo column */}
         <div>
@@ -536,23 +545,7 @@ export function PhotoConfirmFlow({
                   className="w-full h-full object-cover"
                   style={{ display: 'block' }}
                 />
-              ) : (
-                <button
-                  type="button"
-                  onClick={openPicker}
-                  className="w-full h-full flex flex-col items-center justify-center gap-2 transition-colors hover:opacity-90"
-                  style={{ border: '1px dashed rgba(59,43,29,0.45)', background: 'transparent', padding: '16px' }}
-                  aria-label="Take a photo or browse files"
-                >
-                  <ImageIcon className="w-5 h-5" style={{ color: MUTED }} aria-hidden="true" />
-                  <span style={{ fontFamily: BODY, fontSize: '14px', lineHeight: 1.45, color: SECONDARY, textAlign: 'center' }}>
-                    Your photo of the piece
-                  </span>
-                  <span style={{ fontFamily: BODY, fontSize: '12.5px', color: ACCENT_DEEP, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
-                    or browse files
-                  </span>
-                </button>
-              )}
+              ) : null}
             </div>
           </div>
           {draft && (
@@ -579,26 +572,11 @@ export function PhotoConfirmFlow({
             One piece at a time, laid flat, daylight if you have it. The background comes off after you save — this
             photograph stays as the piece’s anchor either way.
           </p>
-          {savedFlash && (
-            <p className={`${typography.size.xs} text-[var(--space-semantic-success)]`} style={{ marginTop: '10px' }}>
-              “{savedFlash}” logged — in The Ledger, under Your pieces. Beau is reading up on it…
-            </p>
-          )}
         </div>
 
         {/* ------------------------------------------------- the card column */}
         <div>
-          {!draft ? (
-            /* Before a photo: the card's ground, waiting — the flow never
-               shows a blank form. */
-            <div style={{ border: '1px dashed rgba(59,43,29,0.3)', padding: '22px 24px' }}>
-              <span style={{ fontFamily: SERIF, fontSize: '26px', lineHeight: 1.1, color: FAINT }}>Beau’s card opens here</span>
-              <p style={{ margin: '9px 0 0', maxWidth: '62ch', fontFamily: BODY, fontSize: '14.5px', lineHeight: 1.55, color: SECONDARY }}>
-                Choose a photo on the left and the card opens the moment you do — every field visible at once, the
-                upload and his read filling in behind it. Nothing you have already corrected is overwritten.
-              </p>
-            </div>
-          ) : (
+          {draft && (
             <>
               <div style={{ border: '1px solid rgba(59,43,29,0.28)', background: PAPER, padding: '22px 24px' }}>
                 <div className="flex items-baseline justify-between gap-4 flex-wrap">
@@ -890,6 +868,7 @@ export function PhotoConfirmFlow({
           )}
         </div>
       </div>
+      )}
 
       {/* NO capture attribute: with accept="image/*" alone, iOS shows its
           standard sheet (Take Photo / Photo Library / Browse) and desktop
@@ -914,18 +893,19 @@ export function PhotoConfirmFlow({
 
 function ActionButton({
   label,
-  active,
+  primary = false,
   onClick,
 }: {
   label: string;
-  active: boolean;
+  /** The lead action draws walnut-filled; the second reads as an outline.
+   * Both are plain, always-live actions — never a toggle or a tab. */
+  primary?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={active}
       className="transition-colors"
       style={{
         fontFamily: SERIF,
@@ -934,7 +914,7 @@ function ActionButton({
         lineHeight: 1,
         padding: '13px 26px',
         whiteSpace: 'nowrap',
-        ...(active
+        ...(primary
           ? { background: WALNUT, color: PAPER, border: `1px solid ${WALNUT}` }
           : { background: 'transparent', color: INK, border: '1px solid rgba(59,43,29,0.3)' }),
       }}
@@ -955,23 +935,23 @@ export function AddPieceSection({
   categoryId?: string;
 }) {
   usePlexMono();
-  const [mode, setMode] = useState<'photograph' | 'search'>('photograph');
-  // [ Photograph ] opens the picker DIRECTLY — the flow stays mounted (just
-  // hidden in search mode) so this call lands synchronously in the tap.
+  // NO MODE, NO TOGGLE: both buttons are live at the same time.
+  // [ Photograph ] opens the picker DIRECTLY — the flow stays mounted so
+  // this call lands synchronously in the tap. [ Search ] opens the search
+  // input focused and ready to type into. Neither hides the other.
   const openPhotoPicker = useRef<(() => void) | null>(null);
-  // [ Search ] focuses the search input DIRECTLY — the token bump tells the
-  // flow to focus as it appears.
+  const [searchOpen, setSearchOpen] = useState(false);
+  // The token bump tells the search flow to focus as it appears.
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const logged = pieces.length;
   const remaining = 5 - logged;
 
   const onPhotograph = () => {
-    setMode('photograph');
     // Synchronous within the tap — the browser treats it as user-initiated.
     openPhotoPicker.current?.();
   };
   const onSearch = () => {
-    setMode('search');
+    setSearchOpen(true);
     setSearchFocusToken((t) => t + 1);
   };
 
@@ -994,17 +974,16 @@ export function AddPieceSection({
           </p>
         </div>
         <div className="flex gap-3" role="group" aria-label="How to add a piece">
-          <ActionButton label="Photograph" active={mode === 'photograph'} onClick={onPhotograph} />
-          <ActionButton label="Search" active={mode === 'search'} onClick={onSearch} />
+          <ActionButton label="Photograph" primary onClick={onPhotograph} />
+          <ActionButton label="Search" onClick={onSearch} />
         </div>
       </div>
 
-      {/* The photograph flow stays MOUNTED in search mode (hidden) so the
-          [ Photograph ] button can open the picker synchronously. */}
-      <div className={mode === 'photograph' ? '' : 'hidden'}>
-        <PhotoConfirmFlow pieces={pieces} onAdded={onAdded} categoryId={categoryId} openPickerRef={openPhotoPicker} />
-      </div>
-      {mode === 'search' && (
+      {/* BOTH ways in coexist — no switch between them. The photograph flow
+          renders nothing until a photo is actually chosen (the picker is the
+          entry); the search flow appears when [ Search ] is tapped. */}
+      <PhotoConfirmFlow pieces={pieces} onAdded={onAdded} categoryId={categoryId} openPickerRef={openPhotoPicker} />
+      {searchOpen && (
         <div style={{ marginTop: '28px' }}>
           <SearchPieceFlow pieces={pieces} onAdded={onAdded} focusToken={searchFocusToken} />
         </div>

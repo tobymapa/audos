@@ -59,7 +59,7 @@ export function IndexTab({
       </div>
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
-        {view === 'pieces' && <PiecesIndex pieces={pieces} profile={profile} onShowMakers={() => setView('makers')} />}
+        {view === 'pieces' && <PiecesIndex pieces={pieces} profile={profile} />}
         {view === 'makers' && <MakersIndex profile={profile} pieces={pieces} />}
       </div>
     </div>

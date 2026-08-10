@@ -52,9 +52,9 @@ import {
   type ScoutHuntRow,
 } from './scout-ai';
 import { HairlineRowsSkeleton, ShimmerDefs, Skeleton } from './skeleton';
-import { BrandDetailSheet, DiscoverSubTab } from './hunt-discover';
+import { BrandDetailSheet } from './hunt-discover';
 import { FindSubTab, UnifiedResultView, parseUnifiedResult, unifiedRowMeta } from './hunt-find';
-import { HuntStages } from './hunt-stages';
+import { AddCandidate, HuntStages } from './hunt-stages';
 
 function formatDate(iso?: string) {
   if (!iso) return '';
@@ -1183,13 +1183,33 @@ export function ScoutTab({
       {/* Page heading — NO profile toggle (founder's correction): Beau
           reads the dossier automatically; there is nothing to switch. */}
       <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <div className="max-w-[1180px] mx-auto">
-          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>The Hunt</h3>
-          <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '54ch' }}>
-            Everything you’re considering, in the order you’re considering it — spotted, weighed, held. Nothing
-            here is yours yet. Beau reads your dossier automatically; finding and adding candidates lives under
-            Spotted, and Weighed is where they get compared.
-          </p>
+        {/* THE 7a HEADER — title + intro left, ADD A CANDIDATE at the right
+            edge, always reachable. Intake is a field, not a destination. */}
+        <div className="max-w-[1180px] mx-auto lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12 lg:items-start">
+          <div>
+            <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>The Hunt</h3>
+            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '54ch' }}>
+              Everything you’re considering, in the order you’re considering it — spotted, weighed, held. Nothing
+              here is yours yet, and nothing you own appears except where it argues against a candidate.
+            </p>
+          </div>
+          <div className="mt-6 lg:mt-1">
+            <div className="flex items-baseline justify-between gap-4" style={{ marginBottom: '8px' }}>
+              <span
+                className="uppercase"
+                style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: '8.5px', letterSpacing: '0.1em', color: 'var(--color-neutral-500,#a68e70)' }}
+              >
+                Add a candidate
+              </span>
+              <span
+                className="uppercase"
+                style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: '8.5px', letterSpacing: '0.1em', color: 'var(--color-neutral-500,#a68e70)' }}
+              >
+                Beau’s profile · on
+              </span>
+            </div>
+            <AddCandidate onAdded={refresh} />
+          </div>
         </div>
       </div>
 
@@ -1202,6 +1222,7 @@ export function ScoutTab({
         <div className="max-w-[1180px] mx-auto">
           <HuntStages
             pieces={pieces}
+            hideAdd
             spottedExtras={
               <>
                 {/* FIND — the unified search: one input, Beau routes the
@@ -1249,19 +1270,9 @@ export function ScoutTab({
                   </button>
                 </div>
 
-                {/* DISCOVER — the maker directory table, folded into
-                    Spotted (founder's correction): chip filters, Beau
-                    ratings, source tags, per-row remove. */}
-                <section aria-label="Discover — the maker directory" className="mt-12" data-tour="tour-hunt-discover">
-                  <div className="pb-2.5 border-b border-[var(--color-text,#3b2b1d)] mb-6">
-                    <h4 className={`hab-section-head ${typography.color.primary}`}>Discover · the maker directory</h4>
-                  </div>
-                  <DiscoverSubTab
-                    profileOn={profileOn}
-                    profile={profile}
-                    onOpenBrand={setOpenBrandName}
-                  />
-                </section>
+                {/* The Discover maker-directory table is GONE from The Hunt
+                    (UI corrections pass): the maker directory lives in The
+                    Index → Makers now, so it no longer repeats here. */}
               </>
             }
           />

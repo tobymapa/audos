@@ -5,11 +5,11 @@
  * bottom-left corner of the shell (bottom-right is the photo-migration
  * pill's spot).
  *
- * Ten stops, in the order a new customer meets the product — the five
+ * Nine stops, in the order a new customer meets the product — the five
  * primary tabs AND their key sub-tabs / sections (five-tab IA):
  *   The Ledger · Beau · Today · Your pieces (category sections)
- *   The Hunt (spotted · weighed · held) · its Find and Discover tools
- *   The Index · The Fitting · the board's actions · the shelf sections
+ *   The Hunt (spotted · weighed · held) · its Find tool
+ *   The Index · The Fitting · the board's actions · the Board section
  *
  * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
  * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
@@ -78,15 +78,9 @@ const STEPS: TourStep[] = [
     navigate: { tab: 'scout', huntSubTab: 'find' },
   },
   {
-    anchor: 'tour-hunt-discover',
-    kicker: 'The Hunt · Discover',
-    body: 'Your maker directory — every brand Beau trusts plus the ones you add, filtered and rated by him.',
-    navigate: { tab: 'scout', huntSubTab: 'discover' },
-  },
-  {
     anchor: 'tour-index',
     kicker: 'The Index',
-    body: 'The reference wing — every garment type worth knowing, and the makers on your radar. It never says buy.',
+    body: 'The reference wing — every garment type worth knowing, and the full maker directory, rated by Beau. It never says buy.',
   },
   {
     anchor: 'tour-fitting',
@@ -101,7 +95,7 @@ const STEPS: TourStep[] = [
   },
   {
     anchor: 'tour-fitting-shelf',
-    kicker: 'The Fitting · The shelf',
+    kicker: 'The Fitting · Board',
     body: 'Everything you can put on the board — what you own, what you\u2019re weighing and Beau\u2019s picks; anything not yours lands dashed.',
     navigate: { tab: 'fitting-room' },
   },

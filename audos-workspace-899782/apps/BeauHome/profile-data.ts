@@ -343,7 +343,8 @@ export interface StyleMeasurements {
   brand_sizes: string | null;
   /** Shoe size in the chosen system, e.g. '9' or '43'. */
   shoe_size: string | null;
-  /** Sizing system for shoe_size: 'UK' | 'EU' | 'US'. */
+  /** Sizing system for shoe_size — one of SHOE_SIZE_SYSTEMS ('UK' | 'EU' |
+   * 'US' | 'JP' | 'IT' | 'FR' | 'AU/NZ'). */
   shoe_size_system: string | null;
   /** Shoe sizes in typical brands, e.g. 'Adidas UK 9.5, Loake UK 9'. */
   shoe_brand_sizes: string | null;
@@ -354,7 +355,9 @@ export interface StyleMeasurements {
   shoulder_cm: string | null;
 }
 
-export const SHOE_SIZE_SYSTEMS = ['UK', 'EU', 'US'];
+/** Every common shoe-size standard the Dossier accepts — the user picks
+ * their preferred system and enters the size in it (UI corrections pass). */
+export const SHOE_SIZE_SYSTEMS = ['UK', 'EU', 'US', 'JP', 'IT', 'FR', 'AU/NZ'];
 
 export const CLOTHING_SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
@@ -5219,8 +5222,63 @@ export async function incrementWear(pieceId: number, current?: PieceValue | null
  */
 export function costPerWearLabel(value: PieceValue | null | undefined): string | null {
   if (!value || value.price_paid == null || value.price_paid <= 0) return null;
-  if (!value.times_worn || value.times_worn <= 0) return 'Not worn yet';
+  if (!value.times_worn || value.times_worn <= 0) return 'Not yet worn';
   const per = value.price_paid / value.times_worn;
   const amount = per >= 10 ? String(Math.round(per)) : per.toFixed(2);
   return `${currencySymbol()}${amount} per wear`;
+}
+
+// ---------------------------------------------------------------------------
+// Condition & care notes (piece-detail enhancements) — the piece_condition
+// companion table: one row per piece holding the user's freeform condition
+// note ("excellent", "needs resoling") and their own care instructions,
+// edited inline on the piece detail and saved on blur/Enter.
+// ---------------------------------------------------------------------------
+
+export interface PieceCondition {
+  id: number;
+  piece_id: number;
+  condition_note: string | null;
+  care_note: string | null;
+}
+
+function normalizePieceCondition(row: any): PieceCondition {
+  return {
+    id: Number(row.id),
+    piece_id: Number(row.piece_id),
+    condition_note: row.condition_note || null,
+    care_note: row.care_note || null,
+  };
+}
+
+/** piece id → condition/care row. */
+export async function fetchPieceConditions(): Promise<Record<number, PieceCondition>> {
+  try {
+    const { data } = await db().from('piece_condition').orderBy('created_at', 'asc').limit(200).get();
+    const out: Record<number, PieceCondition> = {};
+    for (const row of data || []) if (row.piece_id != null) out[Number(row.piece_id)] = normalizePieceCondition(row);
+    return out;
+  } catch (e) {
+    console.warn('[Ethaion] piece condition fetch failed (non-fatal):', e);
+    return {};
+  }
+}
+
+/** Upsert one piece's condition/care row; returns the fresh row. */
+export async function setPieceCondition(
+  pieceId: number,
+  patch: { condition_note?: string | null; care_note?: string | null },
+): Promise<PieceCondition | null> {
+  const { data } = await db().from('piece_condition').eq('piece_id', pieceId).limit(2).get();
+  const existing = data?.[0];
+  const clean: Record<string, unknown> = {};
+  if (patch.condition_note !== undefined) clean.condition_note = patch.condition_note;
+  if (patch.care_note !== undefined) clean.care_note = patch.care_note;
+  if (existing) {
+    await db().from('piece_condition').update(existing.id, clean);
+  } else {
+    await db().from('piece_condition').insert({ piece_id: pieceId, ...clean });
+  }
+  const { data: fresh } = await db().from('piece_condition').eq('piece_id', pieceId).limit(1).get();
+  return fresh?.[0] ? normalizePieceCondition(fresh[0]) : null;
 }

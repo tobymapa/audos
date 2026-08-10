@@ -634,12 +634,9 @@ type PiecesView = 'list' | 'map' | 'quadrant';
 export function PiecesIndex({
   pieces,
   profile,
-  onShowMakers,
 }: {
   pieces: WardrobePiece[];
   profile: StyleProfile | null;
-  /** The MAKERS chip in the 13a list header hands over to the makers index. */
-  onShowMakers?: () => void;
 }) {
   usePlexMono();
   const [view, setView] = useState<PiecesView>('list');
@@ -672,7 +669,6 @@ export function PiecesIndex({
         toggle={toggle}
         onShowMap={() => setView('map')}
         onShowQuadrant={() => setView('quadrant')}
-        onShowMakers={onShowMakers}
       />
     );
   }

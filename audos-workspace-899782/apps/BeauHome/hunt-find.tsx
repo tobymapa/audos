@@ -716,7 +716,7 @@ export function FindSubTab({
     <div>
       {/* THE ONE INPUT — paper panel framed by the ink rule. */}
       <div className="border-t border-t-[var(--color-text,#3b2b1d)] border-b border-b-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <div className="bg-[var(--color-paper,#fbf8f1)] flex flex-col" style={{ padding: '32px 32px 34px' }}>
+        <div className="bg-[var(--color-paper,#fbf8f1)] flex flex-col" style={{ padding: '22px 28px 26px' }}>
           <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', marginBottom: '8px' }}>
             Find
           </p>

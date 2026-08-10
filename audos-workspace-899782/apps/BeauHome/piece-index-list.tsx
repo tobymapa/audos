@@ -27,11 +27,11 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { swatchFor, type StyleProfile, type WardrobePiece } from './profile-data';
 import type { RailSubcategory } from './rail-subcategories';
 import { worldEntry } from './world-taxonomy';
-import { WorldEntryPage } from './world-of-menswear';
+import { PieceDetailPanel } from './index-detail-panel';
+import { catalogDirectoryEntries } from './brands';
 import { PIECE_INDEX_CATEGORIES, type PieceIndexCategory, type PieceIndexType } from './piece-index-data';
 import { MONO, usePlexMono } from './mono-type';
 import { useIsNarrow } from './plot-zoom';
@@ -235,18 +235,17 @@ export function PieceIndexList({
   toggle,
   onShowMap,
   onShowQuadrant,
-  onShowMakers,
 }: {
   pieces: WardrobePiece[];
   profile: StyleProfile | null;
   onSeeForYou: (sub: RailSubcategory) => void;
-  /** The AS A LIST · ON A MAP · AS A QUADRANT toggle — stays at the
-   * header's right edge (previous pass; never removed). */
+  /** The AS A LIST · ON A MAP · AS A QUADRANT toggle — the sub-view
+   * options WITHIN the Pieces tab, rendered under the Pieces | Makers
+   * switcher (which lives once, at The Index's top — never duplicated
+   * here). */
   toggle: React.ReactNode;
   onShowMap: () => void;
   onShowQuadrant: () => void;
-  /** The MAKERS · N chip in the header hands over to the makers index. */
-  onShowMakers?: () => void;
 }) {
   usePlexMono();
   const narrow = useIsNarrow();
@@ -256,7 +255,10 @@ export function PieceIndexList({
   const [occasion, setOccasion] = useState<string | null>(null);
   const [essential, setEssential] = useState<string | null>(null);
   const [flexibility, setFlexibility] = useState<string | null>(null);
-  const [openEntryId, setOpenEntryId] = useState<string | null>(null);
+  // THE DETAIL PANEL (8a) — which type is open, addressed as its category
+  // plus its position on that category's own shelf, so forward/back can
+  // walk the shelf without closing the panel.
+  const [openType, setOpenType] = useState<{ catId: string; index: number } | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
 
   const ownership = useOwnership(pieces);
@@ -315,30 +317,35 @@ export function PieceIndexList({
     setFlexibility(null);
   };
 
-  const openEntry = worldEntry(openEntryId);
-  if (openEntry) {
+  // The open type's category shelf — every type of the category in list
+  // order; the panel's ← → walk it (8a: "← Oxford · ALL SHOES · 7 · Loafer →").
+  const openPanel = (() => {
+    if (!openType) return null;
+    const cat = PIECE_INDEX_CATEGORIES.find((c) => c.id === openType.catId);
+    if (!cat) return null;
+    const shelf = cat.groups.flatMap((group) => group.types.map((type) => ({ ...type, group: group.label })));
+    const index = Math.max(0, Math.min(shelf.length - 1, openType.index));
+    const type = shelf[index];
+    if (!type) return null;
+    const key = typeKey(cat.id, type.name);
+    const meta = metas.get(key);
     return (
-      <div>
-        <button
-          type="button"
-          onClick={() => setOpenEntryId(null)}
-          className="inline-flex items-center gap-1.5 hover:underline"
-          style={{ ...mono(9.5, ACCENT_DEEP) }}
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> The piece index
-        </button>
-        <div style={{ marginTop: '14px' }}>
-          <WorldEntryPage
-            entry={openEntry}
-            pieces={pieces}
-            profile={profile}
-            onBack={() => setOpenEntryId(null)}
-            onSeeForYou={onSeeForYou}
-          />
-        </div>
-      </div>
+      <PieceDetailPanel
+        category={cat}
+        type={type}
+        occasions={meta ? [...meta.occasions] : []}
+        ownedSwatches={ownership.get(key)}
+        position={{ index, total: shelf.length }}
+        prevName={index > 0 ? shelf[index - 1].name.replace(/\(.*?\)/g, '').trim() : null}
+        nextName={index < shelf.length - 1 ? shelf[index + 1].name.replace(/\(.*?\)/g, '').trim() : null}
+        pieceTotal={totals.all}
+        makerTotal={catalogDirectoryEntries().length}
+        onPrev={() => setOpenType({ catId: cat.id, index: Math.max(0, index - 1) })}
+        onNext={() => setOpenType({ catId: cat.id, index: Math.min(shelf.length - 1, index + 1) })}
+        onClose={() => setOpenType(null)}
+      />
     );
-  }
+  })();
 
   const activeFilterNames = [archetype, occasion, essential, flexibility].filter(Boolean) as string[];
   const columns = narrow ? 2 : 4;
@@ -362,20 +369,10 @@ export function PieceIndexList({
           </p>
         </div>
         <div className="flex flex-col items-start md:items-end" style={{ gap: '10px' }}>
+          {/* The duplicate Pieces · N | Makers chip is GONE (UI corrections
+              pass) — the ONE Pieces | Makers switcher lives at the top of
+              The Index; this header carries only the sub-view toggle. */}
           {toggle}
-          <div className="inline-flex" style={{ border: `1px solid ${ACCENT}` }}>
-            <span style={{ padding: '9px 18px', background: WALNUT, color: PAPER, fontFamily: SERIF, fontSize: '14px', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              Pieces · {totals.all}
-            </span>
-            <button
-              type="button"
-              onClick={onShowMakers}
-              className="hover:underline"
-              style={{ padding: '9px 18px', background: 'transparent', color: ACCENT_DEEP, fontFamily: SERIF, fontSize: '14px', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
-            >
-              Makers
-            </button>
-          </div>
           <span style={{ ...mono(10, MUTED), letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
             · Swatches are the colours you own · {totals.own} type{totals.own === 1 ? '' : 's'} of {totals.all}
           </span>
@@ -553,11 +550,17 @@ export function PieceIndexList({
                           color: owned ? WALNUT : INK,
                           textAlign: 'left',
                         };
-                        return type.entry ? (
+                        // EVERY TYPE OPENS ITS ENTRY PANEL (8a) — the ones
+                        // with a written entry carry the full file; the rest
+                        // open as reference rows, still navigable.
+                        const shelfIndex = cat.groups
+                          .flatMap((g) => g.types)
+                          .findIndex((t) => t.name === type.name);
+                        return (
                           <button
                             key={type.name}
                             type="button"
-                            onClick={() => setOpenEntryId(type.entry || null)}
+                            onClick={() => setOpenType({ catId: cat.id, index: shelfIndex })}
                             className="hover:underline"
                             style={{ ...rowStyle, background: 'transparent' }}
                             aria-label={`${type.name} — open the entry`}
@@ -565,11 +568,6 @@ export function PieceIndexList({
                             <span />
                             {nameNode}
                           </button>
-                        ) : (
-                          <span key={type.name} style={rowStyle}>
-                            <span />
-                            {nameNode}
-                          </span>
                         );
                       })}
                     </div>
@@ -606,6 +604,10 @@ export function PieceIndexList({
         it well. The obscure ones are being written up entry by entry; every type is already findable, filterable
         and mappable — that is the point of a reference work.
       </div>
+
+      {/* THE ENTRY PANEL (8a) — opened over the index, ← → walk the shelf,
+          backdrop · × · Escape dismiss it. */}
+      {openPanel}
     </div>
   );
 }

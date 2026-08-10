@@ -58,6 +58,7 @@ import {
   buildCuratedFeed,
   categoryLabel,
   fetchMaterials,
+  goToTab,
   type CategoryBudget,
   type RadarItem,
   type StylePrefs,
@@ -84,9 +85,12 @@ import {
 import {
   StyledOutfitBoard,
   boardPieceFrom,
+  composeFlatLayBoard,
   parsePieces,
   type BoardPiece,
 } from './flat-view';
+import { bodyOrderRank } from './body-order';
+import { MONO, numberWord, usePlexMono } from './mono-type';
 import {
   flatLayAssetForShelf,
   isTransparentCutout,
@@ -115,6 +119,7 @@ import {
 import { getTodayBoard, peekTodayBoard, rememberTodayBoard } from './today-board';
 import { fileCandidate } from './hunt-stages';
 import { TripBriefForm } from './trip-card';
+import { SavedLooksScreen } from './saved-looks';
 import { useBeauReveal } from './beau-reveal';
 import { WeatherLine, sharedWeatherPromptLine } from './weather-context';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
@@ -153,8 +158,8 @@ let fittingReserveFetchedAt = 0;
 type ShelfSectionId = 'owned' | 'reserve' | 'picks';
 
 const SHELF_SECTIONS: Array<{ id: ShelfSectionId; label: string }> = [
-  { id: 'owned', label: 'What you own' },
-  { id: 'reserve', label: 'In your Reserve' },
+  { id: 'owned', label: 'Yours' },
+  { id: 'reserve', label: 'Weighing' },
   { id: 'picks', label: 'Beau\u2019s picks' },
 ];
 
@@ -558,7 +563,7 @@ function TryFromUrlSection({
         source: 'fitting',
       });
       setSaveOpen(false);
-      setSavedFlash('Saved to your Reserve \u2014 it\u2019s on the \u201cIn your Reserve\u201d shelf below.');
+      setSavedFlash('Saved to your Reserve \u2014 it\u2019s under \u201cWeighing\u201d below.');
     } catch (e) {
       console.warn('[Ethaion] saving the previewed piece to the Reserve failed:', e);
       setError('Couldn\u2019t save that to the Reserve \u2014 try again.');
@@ -583,10 +588,6 @@ function TryFromUrlSection({
         style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
       >
         Try something new
-      </p>
-      <p className="pt-2 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, maxWidth: '58ch' }}>
-        Paste a product page link — Beau pulls the piece off it, cuts the background away, and you can tap it
-        onto the board to see it against what you own. Nothing is kept unless you save it to your Reserve.
       </p>
       <div className="flex items-center gap-2 flex-wrap pt-2.5">
         <input
@@ -873,6 +874,280 @@ interface TripDayState {
   reasoningDismissed: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// TRIP DAY CHIPS (M8): the day row reads as weekdays — Fri · Sat · Sun ·
+// Mon — when the brief's dates parse to a start day, falling back to Day n.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// THE BOARD'S EDGE LABELS (10a) — a flat lay, not a stack: every piece is
+// named around the board's edge on a dotted leader, with its ZONE in mono
+// above the name and its category · maker beneath. Weighing pieces and
+// Beau's picks carry their status line, so the board itself says which
+// pieces aren't yours. The labels read the SAME zone composition the board
+// draws (composeFlatLayBoard) — nothing is re-implemented.
+// ---------------------------------------------------------------------------
+
+const annMono: React.CSSProperties = { fontFamily: MONO, fontSize: '8px', letterSpacing: '0.08em', textTransform: 'uppercase' };
+
+/** The 10a zone name for a piece — the same reading the flat-lay's zone
+ * system makes, said in the reference's own labels. */
+function zoneLabelFor(piece: BoardPiece): string {
+  const text = `${piece.category || ''} ${piece.name || ''}`.toLowerCase();
+  if (/\bsocks?\b/.test(text)) return 'Feet';
+  if (/glasses|sunglass/.test(text)) return 'Eyewear';
+  if (/\btie\b|scarf|cravat|neckerchief|ascot/.test(text)) return 'Neck';
+  if (/watch|bracelet|cufflink/.test(text)) return 'Wrist';
+  const rank = bodyOrderRank({ category: piece.category, slot: null, name: piece.name });
+  if (rank === 0) return 'Head';
+  if (/\bbelt\b|braces/.test(text)) return 'Waist';
+  if (rank === 1) return 'Outer layer';
+  if (rank === 2 || rank === 3) return 'Mid layer';
+  if (rank === 4) return 'Top';
+  if (rank === 5) return 'Bottom';
+  if (rank === 6) return 'Feet';
+  return 'Carry';
+}
+
+/** The status line under a label — only pieces that aren't yours carry one
+ * (dashed on the board): Beau's picks, Hunt candidates, pasted previews. */
+function boardStatusOf(piece: BoardPiece): string | null {
+  if (piece.key.startsWith('owned-')) return null;
+  if (piece.key.startsWith('curated-')) return 'Beau\u2019s pick';
+  if (piece.key.startsWith('radar-')) return 'Weighing · not yours yet';
+  return 'Not yours yet';
+}
+
+interface EdgeLabel {
+  piece: BoardPiece;
+  /** % from the rail's top. */
+  top: number;
+}
+
+/** Stack one side's labels down the rail — each at its piece's height,
+ * nudged apart so two labels in one zone never overlap. */
+function layoutEdgeLabels(items: Array<{ piece: BoardPiece; centre: number }>): EdgeLabel[] {
+  const sorted = [...items].sort((a, b) => a.centre - b.centre);
+  let last = -Infinity;
+  return sorted.map(({ piece, centre }) => {
+    const top = Math.min(88, Math.max(0, Math.max(centre - 6, last + 15)));
+    last = top;
+    return { piece, top };
+  });
+}
+
+function EdgeLabelBlock({ label, side }: { label: EdgeLabel; side: 'l' | 'r' }) {
+  const { piece } = label;
+  const status = boardStatusOf(piece);
+  const leader = (
+    <span
+      aria-hidden="true"
+      className="flex-1 self-start"
+      style={{ borderTop: '1px dotted rgba(59,43,29,0.4)', marginTop: '13px', minWidth: '14px' }}
+    />
+  );
+  const text = (
+    <span className="block min-w-0" style={{ textAlign: side === 'l' ? 'right' : 'left', maxWidth: '150px' }}>
+      <span className="block" style={{ ...annMono, color: 'var(--color-neutral-500,#a68e70)' }}>{zoneLabelFor(piece)}</span>
+      <span className="block" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12.5px', lineHeight: 1.25, color: 'var(--color-text,#241a12)', marginTop: '1px' }}>
+        {piece.name}
+      </span>
+      <span className="block" style={{ ...annMono, color: 'var(--color-neutral-600,#856c51)', marginTop: '2px' }}>
+        {[categoryLabel(piece.category || '') || null, piece.brand].filter(Boolean).join(' · ') || '—'}
+      </span>
+      {status && (
+        <span className="block" style={{ ...annMono, color: piece.key.startsWith('curated-') ? OXBLOOD : 'var(--color-accent-700,#7c4a17)', marginTop: '2px' }}>
+          {status}
+        </span>
+      )}
+    </span>
+  );
+  return (
+    <div
+      className="absolute w-full flex items-start"
+      style={{ top: `${label.top}%`, gap: '6px', flexDirection: side === 'l' ? 'row' : 'row' }}
+    >
+      {side === 'l' ? (
+        <>
+          {text}
+          {leader}
+        </>
+      ) : (
+        <>
+          {leader}
+          {text}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The board with its 10a annotation rails — names around the edge on
+ * dotted leaders (sm and up; a narrow screen lists the pieces beneath). */
+function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: React.ReactNode }) {
+  const placed = useMemo(() => composeFlatLayBoard(pieces), [pieces]);
+  const left = layoutEdgeLabels(
+    placed.filter((p) => p.left + p.width / 2 < 50).map((p) => ({ piece: p.piece as BoardPiece, centre: p.top + p.height / 2 })),
+  );
+  const right = layoutEdgeLabels(
+    placed.filter((p) => p.left + p.width / 2 >= 50).map((p) => ({ piece: p.piece as BoardPiece, centre: p.top + p.height / 2 })),
+  );
+  if (pieces.length === 0) return <>{children}</>;
+  return (
+    <div>
+      <div className="sm:grid sm:items-stretch sm:grid-cols-[minmax(120px,160px)_minmax(0,1fr)_minmax(120px,160px)] sm:gap-2">
+        <div className="hidden sm:block relative" aria-hidden="true">
+          {left.map((label) => (
+            <EdgeLabelBlock key={label.piece.key} label={label} side="l" />
+          ))}
+        </div>
+        <div className="min-w-0">{children}</div>
+        <div className="hidden sm:block relative" aria-hidden="true">
+          {right.map((label) => (
+            <EdgeLabelBlock key={label.piece.key} label={label} side="r" />
+          ))}
+        </div>
+      </div>
+      {/* A narrow screen names the pieces beneath the board instead. */}
+      <div className="sm:hidden pt-3">
+        {placed.map(({ piece }) => {
+          const p = piece as BoardPiece;
+          const status = boardStatusOf(p);
+          return (
+            <div key={p.key} className="flex items-baseline gap-2.5" style={{ padding: '3px 0' }}>
+              <span style={{ ...annMono, color: 'var(--color-neutral-500,#a68e70)', width: '74px', flexShrink: 0 }}>{zoneLabelFor(p)}</span>
+              <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', color: 'var(--color-text,#241a12)' }}>{p.name}</span>
+              {status && <span style={{ ...annMono, color: 'var(--color-accent-700,#7c4a17)' }}>{status}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// COMPLETE THE LOOK (10a) — beside the board, not under it, because it's
+// about the board: swaps and additions from pieces you OWN, each with the
+// reason in one line; tap one and it takes the slot. The single acquisition
+// line — the one thing you'd need to BUY — is drawn as the exception, in
+// its own box beneath.
+// ---------------------------------------------------------------------------
+
+interface CompleteLookSuggestion {
+  piece: FittingPiece;
+  reason: string;
+  fillsEmpty: boolean;
+}
+
+function CompleteLookRail({
+  suggestions,
+  buy,
+  onTap,
+  onSeePicks,
+}: {
+  suggestions: CompleteLookSuggestion[];
+  buy: FittingPiece | null;
+  onTap: (piece: FittingPiece) => void;
+  onSeePicks: () => void;
+}) {
+  return (
+    <aside className="mt-9 lg:mt-0" aria-label="Complete the look">
+      <div className="pb-2" style={{ borderBottom: '1px solid var(--color-text,#3b2b1d)' }}>
+        <h4 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '23px', lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
+          Complete the look
+        </h4>
+      </div>
+      <p style={{ margin: '9px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--color-neutral-700,#634e38)' }}>
+        Swaps and additions from pieces you own. Tap one and it takes the slot.
+      </p>
+      <div className="mt-2">
+        {suggestions.map(({ piece, reason }) => (
+          <button
+            key={piece.key}
+            type="button"
+            onClick={() => onTap(piece)}
+            className="w-full grid grid-cols-[46px_minmax(0,1fr)] gap-3 items-start text-left py-3 group"
+            style={{ borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.18))', background: 'transparent' }}
+            title={`Put it on the board — ${piece.name}`}
+          >
+            <span className="block w-[46px]">
+              <ShelfThumb piece={piece} />
+            </span>
+            <span className="min-w-0">
+              <span className="block group-hover:underline" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '14.5px', fontWeight: 400, lineHeight: 1.25, color: 'var(--color-text,#241a12)' }}>
+                {piece.name}
+              </span>
+              <span className="block" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px', lineHeight: 1.45, color: 'var(--color-neutral-600,#856c51)', marginTop: '2px' }}>
+                {reason}
+              </span>
+            </span>
+          </button>
+        ))}
+        {suggestions.length === 0 && (
+          <p style={{ margin: '10px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--color-neutral-600,#856c51)' }}>
+            Everything you own that suits the board is already on it — log more pieces in The Ledger and the swaps
+            appear here.
+          </p>
+        )}
+      </div>
+
+      {/* ONE ACQUISITION LINE, BOXED (10a) — this screen speaks only about
+          what you own; the exception is drawn as an exception. */}
+      {buy && (
+        <div className="mt-5" style={{ background: 'var(--color-paper,#fbf8f1)', borderLeft: '3px solid var(--color-accent,#a8712c)', padding: '12px 14px 13px' }}>
+          <p className="uppercase" style={{ margin: 0, fontFamily: MONO, fontSize: '8px', letterSpacing: '0.1em', color: 'var(--color-accent-700,#7c4a17)' }}>
+            The one thing you’d need to buy
+          </p>
+          <p style={{ margin: '7px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)' }}>
+            {piece10aBuyLine(buy)} It’s here because the board raised a question the wardrobe can’t answer.
+          </p>
+          <button
+            type="button"
+            onClick={onSeePicks}
+            className="uppercase hover:underline mt-2"
+            style={{ fontFamily: MONO, fontSize: '8px', letterSpacing: '0.1em', color: 'var(--color-accent,#a8712c)', background: 'transparent' }}
+          >
+            See it in Beau’s picks →
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function piece10aBuyLine(buy: FittingPiece): string {
+  const name = [buy.brand, buy.name].filter(Boolean).join(' · ');
+  const note = (buy.note || '').trim();
+  if (!note) return `${name} would take this exact look further than anything you own.`;
+  return `${name} — ${note.charAt(0).toLowerCase()}${note.slice(1)}${/[.!?]$/.test(note) ? '' : '.'}`;
+}
+
+const MONTH_STEMS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/** Read a start date out of free-text dates ("12–15 Sep", "3 Oct"). */
+function parseTripStartDate(dates: string): Date | null {
+  const m = (dates || '').match(/(\d{1,2})\s*(?:[–—-]\s*\d{1,2})?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const monthIdx = MONTH_STEMS.indexOf(m[2].toLowerCase());
+  if (monthIdx < 0 || !day || day > 31) return null;
+  const now = new Date();
+  let d = new Date(now.getFullYear(), monthIdx, day);
+  // A date months behind us means next year's trip, not last year's.
+  if (d.getTime() < now.getTime() - 180 * 24 * 60 * 60 * 1000) d = new Date(now.getFullYear() + 1, monthIdx, day);
+  return d;
+}
+
+function tripDayChipLabel(brief: TripBrief, index: number): string {
+  const start = parseTripStartDate(brief.dates);
+  if (start) {
+    const d = new Date(start.getTime() + index * 24 * 60 * 60 * 1000);
+    return d.toLocaleDateString(undefined, { weekday: 'short' });
+  }
+  return `Day ${index + 1}`;
+}
+
 interface TripState {
   brief: TripBrief;
   days: TripDayState[];
@@ -892,6 +1167,8 @@ export function FittingRoomTab({
   pieces: WardrobePiece[];
   prefs: StylePrefs | null;
 }) {
+  // The IBM Plex Mono register — the 10a working labels around the board.
+  usePlexMono();
   // One-shot read of the piece another surface opened the tab with — a
   // "Try this on" handoff lands the piece straight on the flat-lay board.
   const pendingRef = useRef<FittingPiece | null | undefined>(undefined);
@@ -929,6 +1206,14 @@ export function FittingRoomTab({
   // The trip BRIEF form (Part 10) — the "Plan for a trip" row on The Ledger
   // opens The Fitting first; the short form lives here, on the board.
   const [tripFormOpen, setTripFormOpen] = useState(false);
+  // The LIST tab of the day row (M8): packing list as the fifth chip.
+  const [tripList, setTripList] = useState(false);
+  // THE SAVED LOOKS SCREEN (22a · M7) — the dedicated two-up library.
+  const [savedLooksOpen, setSavedLooksOpen] = useState(false);
+  // TRIPS PERSIST (feature pass): the trips WorkspaceDB row this session's
+  // trip lives in — composed once, then updated in place as days are edited.
+  const tripRowIdRef = useRef<number | null>(null);
+  const tripPersistTimer = useRef<number | null>(null);
   const [composing, setComposing] = useState(false);
   const [adjustBusy, setAdjustBusy] = useState<BoardAdjustment | null>(null);
   const [materials, setMaterials] = useState<Record<number, string>>({});
@@ -1047,9 +1332,16 @@ export function FittingRoomTab({
       if (applied.trip) {
         setTripFormOpen(false);
         void composeTrip(applied.trip);
+      } else if (trip) {
+        // Already in Trip mode — stay on it.
+        setTripFormOpen(false);
       } else {
-        // "Plan for a trip" row — no brief yet: show the form on the board.
-        setTripFormOpen(true);
+        // "Plan for a trip" row — no brief yet: the LAST SAVED TRIP restores
+        // from WorkspaceDB (trips persist to the account); the form only
+        // shows when there is nothing to restore.
+        void restoreStoredTrip().then((restored) => {
+          if (!restored) setTripFormOpen(true);
+        });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1098,6 +1390,79 @@ export function FittingRoomTab({
     activeDay: 0,
   });
 
+  /** RESTORE THE LAST SAVED TRIP (feature pass): trips persist in the
+   * trips WorkspaceDB table — reopening Trip mode picks the newest row up
+   * instead of asking for the brief again. Returns false when none exists. */
+  const restoreStoredTrip = async (): Promise<boolean> => {
+    try {
+      const { data } = await db().from('trips').orderBy('created_at', 'desc').limit(1).get();
+      const row = data?.[0];
+      if (!row) return false;
+      const days = (typeof row.days === 'string' ? JSON.parse(row.days) : row.days) as Array<{
+        label?: string;
+        board?: BoardPiece[];
+        reasoning?: string | null;
+      }>;
+      if (!Array.isArray(days) || days.length === 0) return false;
+      tripRowIdRef.current = Number(row.id) || null;
+      setBoardSource('trip');
+      setTripList(false);
+      setTrip({
+        brief: { destination: row.destination || '', dates: row.dates || '', occasions: row.occasions || '' },
+        days: days.map((d) => ({
+          label: d.label || '',
+          board: Array.isArray(d.board) ? d.board : [],
+          reasoning: d.reasoning || null,
+          reasoningDismissed: true,
+        })),
+        gapNote: row.gap_note || null,
+        gapDismissed: true,
+        activeDay: 0,
+      });
+      return true;
+    } catch (e) {
+      console.warn('[Ethaion] stored trip restore failed (non-fatal):', e);
+      return false;
+    }
+  };
+
+  /** Write the trip's current state to its trips row — insert on first
+   * write, update in place after. Debounced by the effect below. */
+  const persistTrip = async (t: TripState) => {
+    const payload = {
+      destination: t.brief.destination || 'Trip',
+      dates: t.brief.dates || null,
+      occasions: t.brief.occasions || null,
+      days: JSON.stringify(t.days.map((d) => ({ label: d.label, board: d.board, reasoning: d.reasoning }))),
+      gap_note: t.gapNote || null,
+    };
+    try {
+      if (tripRowIdRef.current) {
+        await db().from('trips').update(tripRowIdRef.current, payload);
+      } else {
+        await db().from('trips').insert(payload);
+        const { data } = await db().from('trips').orderBy('created_at', 'desc').limit(1).get();
+        tripRowIdRef.current = Number(data?.[0]?.id) || null;
+      }
+    } catch (e) {
+      console.warn('[Ethaion] trip persist failed (non-fatal):', e);
+    }
+  };
+
+  // Persist quietly whenever the trip's boards change — a swap on a day
+  // board lands in WorkspaceDB without a save button.
+  useEffect(() => {
+    if (!trip || trip.days.length === 0) return;
+    if (tripPersistTimer.current) window.clearTimeout(tripPersistTimer.current);
+    tripPersistTimer.current = window.setTimeout(() => {
+      void persistTrip(trip);
+    }, 900);
+    return () => {
+      if (tripPersistTimer.current) window.clearTimeout(tripPersistTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip]);
+
   /** The Trip entry point — one composed set per brief + wardrobe per
    * session; resubmitting the same trip reuses it instead of re-running. */
   const composeTrip = async (brief: TripBrief) => {
@@ -1106,6 +1471,9 @@ export function FittingRoomTab({
     setReasoning(null);
     setGapNote(null);
     setGapDismissed(false);
+    // A new brief is a NEW trip — it gets its own trips row.
+    tripRowIdRef.current = null;
+    setTripList(false);
     const cached = cachedTripBoards(brief, wardrobeIds) as TripBoards | null;
     if (cached) {
       setTrip(tripStateFrom(brief, cached));
@@ -1133,6 +1501,7 @@ export function FittingRoomTab({
 
   const exitTrip = () => {
     setTrip(null);
+    setTripList(false);
     setBoardSource('manual');
     setBoard([]);
     setReasoning(null);
@@ -1702,6 +2071,25 @@ export function FittingRoomTab({
     return [...seen.values()];
   }, [trip]);
 
+  // DOUBLE DUTY (17a · M8): pieces appearing on TWO OR MORE day boards —
+  // the packing list counts them and marks each one.
+  const doubleDuty = useMemo(() => {
+    const daysPerPiece = new Map<string, number>();
+    if (trip) {
+      for (const day of trip.days) {
+        const seenToday = new Set<string>();
+        for (const p of day.board) {
+          if (seenToday.has(p.key)) continue;
+          seenToday.add(p.key);
+          daysPerPiece.set(p.key, (daysPerPiece.get(p.key) || 0) + 1);
+        }
+      }
+    }
+    let count = 0;
+    for (const v of daysPerPiece.values()) if (v >= 2) count += 1;
+    return { count, daysPerPiece };
+  }, [trip]);
+
   const activeDayState = trip ? trip.days[trip.activeDay] ?? null : null;
   const aiOriginated = boardSource === 'today' || boardSource === 'trip';
   const stripText = trip ? activeDayState?.reasoning ?? null : reasoning;
@@ -1727,84 +2115,154 @@ export function FittingRoomTab({
 
   const unownedOnBoard = activeBoardPieces.filter((p) => !p.key.startsWith('owned-'));
 
+  // COMPLETE THE LOOK (10a) — swaps and additions from pieces you OWN:
+  // empty-zone fillers first, then same-slot swaps, three rows, each with
+  // its reason in one line. Derived, never a model call.
+  const completeLook = useMemo<CompleteLookSuggestion[]>(() => {
+    const onBoardKeys = new Set(activeBoard.map((p) => p.key));
+    const out: CompleteLookSuggestion[] = [];
+    for (const piece of shelfOwned) {
+      if (onBoardKeys.has(piece.key)) continue;
+      const zone = zoneLabelFor(boardPieceFrom(piece));
+      const current = activeBoard.find((p) => zoneLabelFor(p) === zone);
+      out.push({
+        piece,
+        fillsEmpty: !current,
+        reason: current
+          ? `Swaps for the ${current.name.toLowerCase()} — same slot, a different read.`
+          : `Takes the empty ${zone.toLowerCase()} slot — nothing on the board covers it.`,
+      });
+    }
+    out.sort((a, b) => Number(b.fillsEmpty) - Number(a.fillsEmpty));
+    return out.slice(0, 3);
+  }, [activeBoard, shelfOwned]);
+  // THE ONE THING YOU'D NEED TO BUY (10a) — the single acquisition line,
+  // boxed as the exception: Beau's first pick, with his reason.
+  const acquisitionLine = shelfPicks[0] || null;
+
+  // START AN EMPTY BOARD (10a) — the manual entry, right in the action row.
+  const startEmptyBoard = () => {
+    setBoardSource('manual');
+    setBoard([]);
+    setReasoning(null);
+    setReasoningDismissed(false);
+    setGapNote(null);
+    setBoardSeed(`board-${Date.now()}`);
+  };
+
+  const monoAction: React.CSSProperties = { fontFamily: MONO, fontSize: '8.5px', letterSpacing: '0.1em', textTransform: 'uppercase' };
+
   const actionBar = (
     // data-tour: the first-run walkthrough's Fitting-board stop rings this
     // action row (onboarding-tour.tsx).
     <div className="mt-3" data-tour="tour-fitting-board">
+      {/* THE PROPOSAL STRIP (10a): the board states what isn't yours and
+          names the consequence — saved, it files as a proposal, and the
+          dashed pieces carry through to The Hunt. */}
       {unownedOnBoard.length > 0 && !trip && (
-        /* DASHED MEANS NOT YOURS (build brief rule 2): the board states the
-           count and names the consequence — saving files a proposal. */
-        <p className="pb-1" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-accent-700,#7c4a17)' }}>
-          {unownedOnBoard.length === 1
-            ? 'One piece on this board isn\u2019t yours'
-            : `${unownedOnBoard.length} pieces on this board aren\u2019t yours`}
-          {' '}— drawn dashed. Saved, this look files as a proposal, not an outfit.
-        </p>
+        <div
+          className="flex items-start justify-between gap-4 flex-wrap"
+          style={{ background: 'var(--color-paper,#fbf8f1)', borderLeft: '3px solid var(--color-accent,#a8712c)', padding: '11px 14px 12px', marginBottom: '12px' }}
+        >
+          <p style={{ margin: 0, fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', maxWidth: '56ch' }}>
+            This look has {unownedOnBoard.length === 1 ? 'one piece' : `${numberWord(Math.min(99, unownedOnBoard.length))} pieces`} you don’t
+            own — drawn dashed. Saved, it files as a <em>proposal</em>, not an outfit, and the dashed pieces carry
+            through to The Hunt — so a look can be the reason you buy something.
+          </p>
+          <button
+            type="button"
+            onClick={() => setBoard((cur) => cur.filter((p) => p.key.startsWith('owned-')))}
+            className="hover:underline"
+            style={{ ...monoAction, color: 'var(--color-accent-700,#7c4a17)', background: 'transparent' }}
+          >
+            Show only what I own →
+          </button>
+        </div>
       )}
-    <div className="flex items-center gap-2 flex-wrap py-1 border-t border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-      {trip ? (
+
+      {/* THE ZONES LINE (10a) — the board's stacking order, stated once. */}
+      <p className="uppercase" style={{ margin: '0 0 2px', fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
+        Zones · in stacking order&nbsp;&nbsp;&nbsp;Head&nbsp;&nbsp;Eyewear&nbsp;&nbsp;Neck&nbsp;&nbsp;Outer layer&nbsp;&nbsp;Mid layer&nbsp;&nbsp;Top&nbsp;&nbsp;Waist&nbsp;&nbsp;Bottom&nbsp;&nbsp;Feet&nbsp;&nbsp;Carry&nbsp;&nbsp;Wrist
+      </p>
+      <p className="uppercase" style={{ margin: '0 0 10px', fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
+        · A zone takes more than one piece; two jumpers stack, two shoes don’t
+      </p>
+
+      {/* THE ACTION ROW (10a): “Save this look” boxed, the rest in mono,
+          the saved-looks count at the right edge. */}
+      <div className="flex items-center gap-x-5 gap-y-2 flex-wrap py-2.5 border-t border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+        {trip ? (
+          <button
+            type="button"
+            onClick={() => void saveTrip()}
+            disabled={saving || packingList.length === 0}
+            className="inline-flex items-center gap-1.5 hover:opacity-80 disabled:opacity-40"
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '14.5px', color: 'var(--color-text,#241a12)', border: '1px solid var(--color-accent,#a8712c)', padding: '8px 16px', background: 'transparent' }}
+            title="Save every day of this trip under Saved looks"
+          >
+            {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+            Save trip
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSaveOpen(true)}
+            disabled={activeBoardPieces.length === 0}
+            className="hover:opacity-80 disabled:opacity-40"
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '14.5px', color: 'var(--color-text,#241a12)', border: '1px solid var(--color-accent,#a8712c)', padding: '8px 16px', background: 'transparent' }}
+            title="Save this outfit under a name"
+          >
+            Save this look
+          </button>
+        )}
+        {!trip && (
+          <button
+            type="button"
+            onClick={startEmptyBoard}
+            className="hover:underline"
+            style={{ ...monoAction, color: 'var(--color-neutral-700,#634e38)', background: 'transparent' }}
+            title="Clear the board and build by hand — today's look stays one tap away"
+          >
+            Start an empty board
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => void saveTrip()}
-          disabled={saving || packingList.length === 0}
-          className="min-h-[40px] px-1.5 hover:underline disabled:opacity-40 text-[var(--color-text,#241a12)] inline-flex items-center gap-1.5"
-          style={actionBtnStyle}
-          title="Save every day of this trip under View saved"
+          onClick={() => void fileBoardInHunt()}
+          disabled={reserveBusy || activeBoardPieces.length === 0}
+          className="hover:underline disabled:opacity-40 inline-flex items-center gap-1.5"
+          style={{ ...monoAction, color: 'var(--color-neutral-700,#634e38)', background: 'transparent' }}
+          title="File the unowned pieces on this board into The Hunt as Spotted"
         >
-          {saving && <Loader2 className="w-3 h-3 animate-spin" />}
-          Save trip
+          {reserveBusy && <Loader2 className="w-3 h-3 animate-spin" />}
+          File in The Hunt
         </button>
-      ) : (
         <button
           type="button"
-          onClick={() => setSaveOpen(true)}
-          disabled={activeBoardPieces.length === 0}
-          className="min-h-[40px] px-1.5 hover:underline disabled:opacity-40 text-[var(--color-text,#241a12)]"
-          style={actionBtnStyle}
-          title="Save this outfit under a name"
+          onClick={() => void shareBoard()}
+          disabled={trip ? packingList.length === 0 : activeBoardPieces.length === 0}
+          className="hover:underline disabled:opacity-40"
+          style={{ ...monoAction, color: 'var(--color-neutral-700,#634e38)', background: 'transparent' }}
+          title="Share this outfit"
         >
-          Save
+          Share
         </button>
-      )}
-      {actionDot}
-      <button
-        type="button"
-        onClick={() => void fileBoardInHunt()}
-        disabled={reserveBusy || activeBoardPieces.length === 0}
-        className="min-h-[40px] px-1.5 hover:underline disabled:opacity-40 text-[var(--color-text,#241a12)] inline-flex items-center gap-1.5"
-        style={actionBtnStyle}
-        title="File the unowned pieces on this board into The Hunt as Spotted"
-      >
-        {reserveBusy && <Loader2 className="w-3 h-3 animate-spin" />}
-        File in The Hunt
-      </button>
-      {actionDot}
-      <button
-        type="button"
-        onClick={() => void shareBoard()}
-        disabled={trip ? packingList.length === 0 : activeBoardPieces.length === 0}
-        className="min-h-[40px] px-1.5 hover:underline disabled:opacity-40 text-[var(--color-text,#241a12)]"
-        style={actionBtnStyle}
-        title="Share this outfit"
-      >
-        Share
-      </button>
-      <span className="flex-1" />
-      {actionFlash && (
-        <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-accent-700,#7c4a17)' }}>
-          {actionFlash}
-        </span>
-      )}
-      <button
-        type="button"
-        onClick={() => savedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        className="min-h-[40px] px-1.5 hover:underline"
-        style={{ ...actionBtnStyle, color: 'var(--color-accent,#a8712c)' }}
-        title="Saved looks and proposals — further down this page"
-      >
-        View saved ›
-      </button>
-    </div>
+        <span className="flex-1" />
+        {actionFlash && (
+          <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-accent-700,#7c4a17)' }}>
+            {actionFlash}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setSavedLooksOpen(true)}
+          className="hover:underline"
+          style={{ ...monoAction, color: 'var(--color-accent,#a8712c)', background: 'transparent' }}
+          title="Saved looks and proposals — the full library, sorted by last worn"
+        >
+          {(savedRows || []).length > 0 ? `${(savedRows || []).length} saved look${(savedRows || []).length === 1 ? '' : 's'}` : 'Saved looks'} ›
+        </button>
+      </div>
     </div>
   );
 
@@ -1812,35 +2270,36 @@ export function FittingRoomTab({
     <div style={{ background: 'var(--color-bg,#efe7d9)' }}>
       {/* ONE natural vertical scroll — no fixed zones, no bottom sheet, no
           overlays: the board is always visible and the page just scrolls. */}
-        {/* Slim header row: kicker + weather (+ trip carousel) + mode toggle. */}
-        <div className="px-4 sm:px-8 pt-2.5 pb-1.5 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+        {/* THE 10a HEADER — “The Fitting” set as a page title with the
+            intro line beneath; the shared location + weather context (ONE
+            state with the What-to-Wear card on The Ledger) at the right
+            edge, where the reference sets it. */}
+        <div className="px-4 sm:px-8 pt-7 pb-5 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
           <div className="max-w-[1180px] mx-auto">
-            <div className="flex items-center justify-between gap-3">
-              <span
-                className="uppercase text-[var(--color-neutral-600,#856c51)] min-w-0"
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em' }}
-              >
-                The Fitting
-                {trip ? ` · ${trip.brief.destination}` : ''}
-              </span>
-              {!trip && boardSource === 'today' && (
-                /* “Beau · Today” reads visually distinct (design handoff §2):
-                   the one accent chip on this header. */
-                <span
-                  className="uppercase px-2 py-0.5 border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)] whitespace-nowrap flex-shrink-0"
-                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.14em' }}
-                >
-                  Beau · Today
-                </span>
-              )}
-            </div>
-
-            {/* The shared location + weather context — ONE state with the
-                What-to-Wear card on The Ledger: change the city in either
-                place and both update instantly. Beau reads it when he
-                composes. */}
-            <div className="pt-1.5">
-              <WeatherLine tone="light" />
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 md:gap-10 md:items-end">
+              <div className="min-w-0">
+                <h3 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: 'clamp(30px, 4.5vw, 44px)', lineHeight: 1.06, letterSpacing: '-0.012em', color: 'var(--color-text,#241a12)' }}>
+                  The Fitting
+                  {trip ? ` · ${trip.brief.destination}` : ''}
+                </h3>
+                <p style={{ margin: '10px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', maxWidth: '58ch' }}>
+                  The board opens on what you’re wearing today and you change it from there. Everything on it, and
+                  everything offered beside it, is a piece you own — anything not yours lands dashed.
+                </p>
+              </div>
+              <div className="flex flex-col items-start md:items-end gap-2 flex-shrink-0 md:text-right">
+                {!trip && boardSource === 'today' && (
+                  /* “Beau · Today” reads visually distinct (design handoff §2):
+                     the one accent chip on this header. */
+                  <span
+                    className="uppercase px-2 py-0.5 border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)] whitespace-nowrap"
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.14em' }}
+                  >
+                    Beau · Today
+                  </span>
+                )}
+                <WeatherLine tone="light" />
+              </div>
             </div>
 
             {/* TRIP: the day-board carousel — ◄ [Day 1] [Day 2] [Day 3] ► */}
@@ -1862,14 +2321,17 @@ export function FittingRoomTab({
                   aria-label="Trip days"
                 >
                   {trip.days.map((day, i) => {
-                    const activeDay = i === trip.activeDay;
+                    const activeDay = i === trip.activeDay && !tripList;
                     return (
                       <button
                         key={day.label + i}
                         type="button"
                         role="tab"
                         aria-selected={activeDay}
-                        onClick={() => setTrip((cur) => (cur ? { ...cur, activeDay: i } : cur))}
+                        onClick={() => {
+                          setTripList(false);
+                          setTrip((cur) => (cur ? { ...cur, activeDay: i } : cur));
+                        }}
                         className={`flex-shrink-0 uppercase min-h-[34px] px-3 whitespace-nowrap transition-colors ${
                           activeDay
                             ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
@@ -1877,10 +2339,32 @@ export function FittingRoomTab({
                         }`}
                         style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.1em' }}
                       >
-                        {`Day ${i + 1}`}
+                        {tripDayChipLabel(trip.brief, i)}
                       </button>
                     );
                   })}
+                  {/* THE FIFTH TAB (M8): the packing list as a view of its
+                      own — the day boards step aside. */}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tripList}
+                    onClick={() => {
+                      setTripList(true);
+                      // The list lives further down the scroll — bring it up.
+                      window.setTimeout(() => {
+                        document.getElementById('trip-packing-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 60);
+                    }}
+                    className={`flex-shrink-0 uppercase min-h-[34px] px-3 whitespace-nowrap transition-colors ${
+                      tripList
+                        ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
+                        : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
+                    }`}
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.1em' }}
+                  >
+                    List
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -1890,6 +2374,15 @@ export function FittingRoomTab({
                   className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)] disabled:opacity-30"
                 >
                   <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTripFormOpen(true)}
+                  className="flex-shrink-0 min-h-[34px] px-2 hover:underline"
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-accent,#a8712c)' }}
+                  title="Plan a different trip — the current one stays saved"
+                >
+                  New trip
                 </button>
                 <button
                   type="button"
@@ -1925,57 +2418,102 @@ export function FittingRoomTab({
           </div>
         </div>
 
-        {/* THE BOARD — the flat-lay canvas, in normal document flow:
-            always visible, never overlaid or dismissed. */}
-        <div className="relative">
-          {/* TRIP BRIEF FORM (Part 10) — shown IN PLACE of the board when
-              Trip mode was entered without a brief (no overlay). */}
-          {tripFormOpen && (
-            <div style={{ background: 'var(--color-bg,#efe7d9)' }}>
-              <TripBriefForm
-                onSubmit={(brief) => {
-                  setTripFormOpen(false);
-                  void composeTrip(brief);
-                }}
-                onCancel={() => setTripFormOpen(false)}
-              />
-            </div>
-          )}
-          {!tripFormOpen && (
-            <section
-              aria-label={trip ? `${activeDayState?.label || 'Trip day'} outfit board` : 'Your outfit board'}
-              className="relative"
-            >
-              <StyledOutfitBoard
-                pieces={activeBoard}
-                onRemove={removeFromBoard}
-                seed={trip ? `trip-${trip.brief.destination}-day-${trip.activeDay}` : boardSeed}
-              />
-              {/* Beau composing — today's board or the trip's day boards. */}
-              {composing && (
-                <div
-                  className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
-                  style={{ background: 'rgba(239,231,217,0.72)' }}
-                  aria-live="polite"
-                >
-                  <span className="block w-12 h-[3px] bg-[var(--color-accent,#a8712c)] animate-pulse" aria-hidden="true" />
-                  <p
-                    className={`${typography.color.primary} mt-4`}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.3, maxWidth: '28ch' }}
-                  >
-                    {boardSource === 'trip' ? 'Beau is packing you…' : 'Beau is dressing you for today…'}
-                  </p>
+        {/* THE BOARD (10a) — “Today's look” with its edge labels at the
+            left, “Complete the look” beside it — swaps and additions from
+            pieces you own. One scroll, no overlays. */}
+        <div className="px-4 sm:px-8 pt-6">
+          <div className="max-w-[1180px] mx-auto lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-[44px] lg:items-start">
+            <div className="relative min-w-0">
+              {/* The section head — TODAY'S LOOK · carried over from The
+                  Ledger · edited here (10a). */}
+              <div className="flex items-baseline justify-between gap-4 pb-2" style={{ borderBottom: '1px solid var(--color-text,#3b2b1d)' }}>
+                <h4 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '23px', lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
+                  {trip ? activeDayState?.label || 'The trip board' : boardSource === 'today' ? 'Today’s look' : 'The board'}
+                </h4>
+                <span className="uppercase text-right" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
+                  {trip ? 'Composed for the trip' : boardSource === 'today' ? 'Carried over from The Ledger · edited here' : 'Built by hand · edited here'}
+                </span>
+              </div>
+
+              {/* TRIP BRIEF FORM (Part 10) — shown IN PLACE of the board when
+                  Trip mode was entered without a brief (no overlay). */}
+              {tripFormOpen && (
+                <div style={{ background: 'var(--color-bg,#efe7d9)' }}>
+                  <TripBriefForm
+                    onSubmit={(brief) => {
+                      setTripFormOpen(false);
+                      void composeTrip(brief);
+                    }}
+                    onCancel={() => setTripFormOpen(false)}
+                  />
                 </div>
               )}
-            </section>
-          )}
-        </div>
+              {!tripFormOpen && !(trip && tripList) && (
+                <section
+                  aria-label={trip ? `${activeDayState?.label || 'Trip day'} outfit board` : 'Your outfit board'}
+                  className="relative"
+                >
+                  {/* THE FLAT LAY, ANNOTATED (10a): names around the edge on
+                      dotted leaders — zone · name · category · maker, with
+                      the status line on anything not yours. The transparent
+                      board itself is untouched — no field, no frame. */}
+                  <AnnotatedBoard pieces={activeBoard}>
+                    <StyledOutfitBoard
+                      pieces={activeBoard}
+                      onRemove={removeFromBoard}
+                      seed={trip ? `trip-${trip.brief.destination}-day-${trip.activeDay}` : boardSeed}
+                    />
+                  </AnnotatedBoard>
+                  {/* THE BOARD'S OWN RULE, STATED (10a) — with the dashed
+                      count at the right edge. */}
+                  {activeBoard.length > 0 && (
+                    <div className="flex items-baseline justify-between gap-4 flex-wrap pt-2">
+                      <span className="uppercase" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
+                        Pieces land in their zone and stack outward from the body · drag to nudge, tap a piece to take it off
+                      </span>
+                      {unownedOnBoard.length > 0 && (
+                        <span className="uppercase" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-accent-700,#7c4a17)' }}>
+                          {unownedOnBoard.length} piece{unownedOnBoard.length === 1 ? '' : 's'} dashed — not yours yet
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/* Beau composing — today's board or the trip's day boards. */}
+                  {composing && (
+                    <div
+                      className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
+                      style={{ background: 'rgba(239,231,217,0.72)' }}
+                      aria-live="polite"
+                    >
+                      <span className="block w-12 h-[3px] bg-[var(--color-accent,#a8712c)] animate-pulse" aria-hidden="true" />
+                      <p
+                        className={`${typography.color.primary} mt-4`}
+                        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.3, maxWidth: '28ch' }}
+                      >
+                        {boardSource === 'trip' ? 'Beau is packing you…' : 'Beau is dressing you for today…'}
+                      </p>
+                    </div>
+                  )}
+                </section>
+              )}
 
-        {/* Action bar — directly below the board, in the same scroll:
-            Save · File in The Hunt · Share · View saved (scrolls to the
-            inline Saved section further down). */}
-        <div className="px-4 sm:px-8 bg-[var(--color-bg,#efe7d9)]">
-          <div className="max-w-[1180px] mx-auto">{actionBar}</div>
+              {/* Action bar — directly below the board (10a): the proposal
+                  strip, the zones line, then Save this look · Start an empty
+                  board · File in The Hunt · Share · the saved-looks count. */}
+              {actionBar}
+            </div>
+
+            {/* COMPLETE THE LOOK (10a) — beside the board, from pieces you
+                own. Trip mode keeps the full width for its day boards. */}
+            {!trip && !tripFormOpen && (
+              <CompleteLookRail
+                suggestions={completeLook}
+                buy={acquisitionLine}
+                onTap={(piece) => onShelfTap(piece)}
+                onSeePicks={() => document.getElementById('fitting-picks-shelf')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              />
+            )}
+          </div>
         </div>
 
       {/* ============ THE SHELF — plain sections in the same scroll ====== */}
@@ -1996,100 +2534,123 @@ export function FittingRoomTab({
               <AdjustChips busy={adjustBusy} onAdjust={(adj) => void runAdjustment(adj)} />
             )}
 
-            {/* 4 · TRY SOMETHING NEW — paste a product URL, preview the piece
-                on the board, and (only on an explicit tap) save it to the
-                Reserve. */}
-            <TryFromUrlSection
-              mode={mode}
-              selectedKeys={selectedKeys}
-              onTap={onShelfTap}
-              onPin={pinPiece}
-            />
-
-            {/* 5 · SOURCE toggles (Part 3.2) — show or hide whole shelf
-                SECTIONS. Deliberately distinct from the category chips
-                below: bigger, and filled. Active = walnut fill, paper text;
-                inactive = paper fill, walnut hairline border. */}
-            <div
-              className="flex gap-1.5 overflow-x-auto pt-3 pb-1"
-              style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
-              role="group"
-              aria-label="Shelf sections"
-              data-tour="tour-fitting-shelf"
-            >
-              {SHELF_SECTIONS.map(({ id, label }) => {
-                const on = sectionsOn[id];
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => setSectionsOn((cur) => ({ ...cur, [id]: !cur[id] }))}
-                    className="flex-shrink-0 min-h-[38px] px-3.5 whitespace-nowrap transition-colors"
-                    style={{
-                      fontFamily: 'var(--space-font-heading)',
-                      fontSize: '13.5px',
-                      borderRadius: 0,
-                      ...(on
-                        ? { background: '#241a12', color: '#fbf8f1', border: '1px solid #241a12' }
-                        : {
-                            background: 'var(--color-paper,#fbf8f1)',
-                            color: 'var(--color-text,#3b2b1d)',
-                            border: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
-                          }),
-                    }}
-                    title={on ? `Hide “${label}”` : `Show “${label}”`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+            {/* THE BOARD SECTION'S HEAD (10a) — renamed from “The Shelf”:
+                “The [X]” naming is reserved for the top-level tabs, so this
+                sub-section reads plainly as “Board” (UI corrections pass). */}
+            <div className="pt-6">
+              <h4 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '23px', lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
+                Board
+              </h4>
+              <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', maxWidth: '58ch' }}>
+                Everything you can put on the board: what you own, what you’re weighing, and what Beau has put up.
+              </p>
             </div>
 
-            {/* 6 · CATEGORY filters (Part 3.3) — kept, and kept visually
-                distinct: smaller chips, lighter weight, hairline only. They
-                filter WITHIN whichever sections are showing. */}
+            {/* 4 · TRY SOMETHING NEW — paste a product URL, preview the piece
+                on the board, and (only on an explicit tap) save it to the
+                Reserve. The PASTE A LINK chip below scrolls here. */}
+            <div id="fitting-paste-link">
+              <TryFromUrlSection
+                mode={mode}
+                selectedKeys={selectedKeys}
+                onTap={onShelfTap}
+                onPin={pinPiece}
+              />
+            </div>
+
+            {/* 5+6 · THE 10a FILTER ROW — the three sources with their live
+                counts at the left (YOURS · WEIGHING · BEAU'S PICKS · PASTE A
+                LINK), the category chips with counts at the right. Source
+                chips show or hide whole sections; category chips filter
+                within whichever sections are showing. */}
             <div
-              className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-1"
-              style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
-              role="group"
-              aria-label="Filter by category"
+              className="flex items-center justify-between gap-x-6 gap-y-2 flex-wrap pt-5 pb-1"
+              data-tour="tour-fitting-shelf"
             >
-              {SHELF_CATEGORIES.map(({ id, label }) => {
-                const on = categoryFilters.includes(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleCategoryFilter(id)}
-                    className="flex-shrink-0 min-h-[28px] px-2.5 whitespace-nowrap transition-colors"
-                    style={{
-                      fontFamily: 'var(--space-font-family)',
-                      fontSize: '11.5px',
-                      borderRadius: 0,
-                      background: 'transparent',
-                      color: on ? 'var(--color-accent-800,#5c3413)' : 'var(--color-neutral-600,#856c51)',
-                      border: on
-                        ? '1px solid var(--color-accent,#a8712c)'
-                        : '1px solid var(--color-divider,rgba(59,43,29,0.18))',
-                    }}
-                    title={on ? `Stop filtering by ${label.toLowerCase()}` : `Show only ${label.toLowerCase()}`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-              {categoryFilters.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Shelf sections">
+                {SHELF_SECTIONS.map(({ id, label }) => {
+                  const on = sectionsOn[id];
+                  const count = id === 'owned' ? ownedPieces.length : id === 'reserve' ? radarPieces.length : beauPicks.length;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setSectionsOn((cur) => ({ ...cur, [id]: !cur[id] }))}
+                      className="flex-shrink-0 uppercase whitespace-nowrap transition-colors"
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: '8.5px',
+                        letterSpacing: '0.09em',
+                        padding: '8px 12px',
+                        borderRadius: 0,
+                        ...(on
+                          ? { background: '#241a12', color: '#fbf8f1', border: '1px solid #241a12' }
+                          : { background: 'transparent', color: 'var(--color-neutral-700,#634e38)', border: '1px solid rgba(59,43,29,0.3)' }),
+                      }}
+                      title={on ? `Hide “${label}”` : `Show “${label}”`}
+                    >
+                      {label} {count}
+                    </button>
+                  );
+                })}
                 <button
                   type="button"
-                  onClick={() => setCategoryFilters([])}
-                  className="flex-shrink-0 min-h-[28px] px-1.5 hover:underline"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px', color: 'var(--color-neutral-600,#856c51)' }}
+                  onClick={() => document.getElementById('fitting-paste-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                  className="flex-shrink-0 uppercase whitespace-nowrap hover:underline"
+                  style={{ fontFamily: MONO, fontSize: '8.5px', letterSpacing: '0.09em', padding: '8px 6px', color: 'var(--color-accent-700,#7c4a17)', background: 'transparent' }}
+                  title="Paste a product page — it previews on the board and can file into The Hunt"
                 >
-                  Clear
+                  Paste a link
                 </button>
-              )}
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filter by category">
+                <button
+                  type="button"
+                  aria-pressed={categoryFilters.length === 0}
+                  onClick={() => setCategoryFilters([])}
+                  className="flex-shrink-0 uppercase whitespace-nowrap transition-colors"
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: '8.5px',
+                    letterSpacing: '0.09em',
+                    padding: '8px 12px',
+                    borderRadius: 0,
+                    ...(categoryFilters.length === 0
+                      ? { background: '#241a12', color: '#fbf8f1', border: '1px solid #241a12' }
+                      : { background: 'transparent', color: 'var(--color-neutral-700,#634e38)', border: '1px solid rgba(59,43,29,0.3)' }),
+                  }}
+                >
+                  All {ownedPieces.length + radarPieces.length + beauPicks.length}
+                </button>
+                {SHELF_CATEGORIES.map(({ id, label }) => {
+                  const on = categoryFilters.includes(id);
+                  const count = [...ownedPieces, ...radarPieces, ...beauPicks].filter((p) => pieceInCategory(p, id)).length;
+                  if (count === 0) return null;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggleCategoryFilter(id)}
+                      className="flex-shrink-0 uppercase whitespace-nowrap transition-colors"
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: '8.5px',
+                        letterSpacing: '0.09em',
+                        padding: '8px 12px',
+                        borderRadius: 0,
+                        ...(on
+                          ? { background: '#241a12', color: '#fbf8f1', border: '1px solid #241a12' }
+                          : { background: 'transparent', color: 'var(--color-neutral-600,#856c51)', border: '1px solid rgba(59,43,29,0.22)' }),
+                      }}
+                      title={on ? `Stop filtering by ${label.toLowerCase()}` : `Show only ${label.toLowerCase()}`}
+                    >
+                      {label} {count}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* 7 · THE THREE-LEVEL SHELF — What you own · In your Reserve ·
@@ -2098,12 +2659,12 @@ export function FittingRoomTab({
                 the category chips. */}
             {sectionsOn.owned && (
 
-              <section aria-label="What you own" className="pt-4">
+              <section aria-label="Yours — what you own" className="pt-4">
                 <p
                   className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
                   style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
                 >
-                  What you own
+                  Yours
                 </p>
                 {shelfOwned.length > 0 ? (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4 pt-3">
@@ -2133,12 +2694,12 @@ export function FittingRoomTab({
             )}
 
             {sectionsOn.reserve && (
-              <section aria-label="In your Reserve" className="pt-6">
+              <section aria-label="Weighing — in The Hunt" className="pt-6">
                 <p
                   className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
                   style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
                 >
-                  In your Reserve
+                  Weighing · in The Hunt
                 </p>
                 {shelfReserve.length > 0 ? (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4 pt-3">
@@ -2168,7 +2729,7 @@ export function FittingRoomTab({
             )}
 
             {sectionsOn.picks && (
-              <section aria-label="Beau's picks" className="pt-6">
+              <section id="fitting-picks-shelf" aria-label="Beau's picks" className="pt-6" style={{ scrollMarginTop: '80px' }}>
                 <p
                   className="uppercase pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
                   style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', color: OXBLOOD }}
@@ -2204,13 +2765,23 @@ export function FittingRoomTab({
 
             {/* TRIP ONLY: the packing list — flat, deduplicated. */}
             {trip && (
-              <section aria-label="Packing list" className="pt-8">
+              <section id="trip-packing-list" aria-label="Packing list" className="pt-8">
                 <p
                   className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
                   style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', letterSpacing: '0.16em' }}
                 >
                   Packing list
                 </p>
+                {packingList.length > 0 && (
+                  /* DOUBLE DUTY (17a): the packing list counts the pieces
+                     working two or more days — the measure of a tight bag. */
+                  <p className="pt-2" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-text,#241a12)' }}>
+                    {packingList.length} piece{packingList.length === 1 ? '' : 's'} ·{' '}
+                    <span style={{ color: doubleDuty.count > 0 ? 'var(--color-accent-700,#7c4a17)' : 'var(--color-neutral-600,#856c51)' }}>
+                      {doubleDuty.count} doing double duty
+                    </span>
+                  </p>
+                )}
                 {packingList.length > 0 ? (
                   <div
                     className="flex gap-3 sm:gap-4 overflow-x-auto pt-3 pb-1"
@@ -2245,6 +2816,11 @@ export function FittingRoomTab({
                         <span className="block mt-1 leading-tight break-words" style={{ ...pieceNameType, fontSize: '11px' }}>
                           {p.name}
                         </span>
+                        {(doubleDuty.daysPerPiece.get(p.key) || 0) >= 2 && (
+                          <span className="block" style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px', color: 'var(--color-accent-700,#7c4a17)' }}>
+                            {doubleDuty.daysPerPiece.get(p.key)} days · double duty
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2256,12 +2832,25 @@ export function FittingRoomTab({
               </section>
             )}
 
-            <p className={`${typography.size.xs} ${typography.color.muted} mt-6`} style={{ fontSize: '10px' }}>
-              Tap pieces and they gather on the board together, laid out in dressing order — tap one again to take it
-              off. The section toggles decide which shelves show; the smaller chips filter within them. Pieces without
-              a “Beau’s pick” tag are yours; anything not yours lands dashed — a board holding one saves as a
-              proposal — and product photography is cut out of its background before it lands on the board.
-            </p>
+            {/* THE SHELF'S FOOTNOTE (10a) — the funnel stated once, with
+                the way into The Hunt at the right edge. */}
+            <div className="flex items-baseline justify-between gap-x-6 gap-y-2 flex-wrap mt-6 pt-3" style={{ borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}>
+              <p className={`${typography.color.muted}`} style={{ margin: 0, fontSize: '10.5px', fontFamily: 'var(--space-font-family)', lineHeight: 1.55, maxWidth: '64ch' }}>
+                Pasting a product page here files the piece into The Hunt as <em>Spotted</em> and puts it straight on
+                the board — one action, both places. Anything not yours lands dashed; a board holding one saves as a
+                proposal, and product photography is cut out of its background before it lands.
+              </p>
+              {radarPieces.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => goToTab('scout')}
+                  className="uppercase hover:underline"
+                  style={{ fontFamily: MONO, fontSize: '8px', letterSpacing: '0.09em', color: 'var(--color-accent-700,#7c4a17)', background: 'transparent' }}
+                >
+                  See all {radarPieces.length} you’re weighing →
+                </button>
+              )}
+            </div>
 
             {/* SAVED OUTFITS — inline at the foot of the same scroll (the
                 old slide-up drawer is retired): "View saved" scrolls here,
@@ -2360,6 +2949,18 @@ export function FittingRoomTab({
           </div>
         </div>
       </div>
+
+      {/* THE SAVED LOOKS SCREEN (22a · M7) — two-up flat-lay grid, sorted
+          by last worn, proposals dashed. Tapping a card loads it here. */}
+      {savedLooksOpen && (
+        <SavedLooksScreen
+          onLoadLook={(row) => {
+            loadSavedOutfit(row as SavedOutfitRow);
+            setSavedLooksOpen(false);
+          }}
+          onClose={() => setSavedLooksOpen(false)}
+        />
+      )}
 
       {/* SAVE — the inline naming sheet. */}
       {saveOpen && (

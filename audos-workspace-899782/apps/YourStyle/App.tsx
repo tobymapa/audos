@@ -81,8 +81,11 @@ import {
 import {
   CLOTHES_SIZE_SYSTEMS,
   EMPTY_DOSSIER_MEASUREMENTS,
+  GARMENT_SIZE_CATEGORIES,
   fetchDossierMeasurements,
+  parseGarmentSizes,
   saveDossierMeasurements,
+  serializeGarmentSizes,
   type DossierMeasurements,
 } from '../BeauHome/dossier-measurements';
 
@@ -691,8 +694,8 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
     position: 'absolute',
     top: '50%',
     transform: 'translateY(-50%)',
-    width: '36px',
-    height: '36px',
+    width: '28px',
+    height: '28px',
     border: 'none',
     outline: 'none',
     borderRadius: '50%',
@@ -700,7 +703,7 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
     color: '#241a12',
     boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
     fontFamily: 'var(--space-font-heading)',
-    fontSize: '20px',
+    fontSize: '16px',
     lineHeight: 1,
     padding: 0,
     display: 'flex',
@@ -711,8 +714,11 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
   return (
     <div className="bg-[var(--color-paper,#fbf8f1)] flex flex-col" style={{ padding: '24px 24px 26px', gap: '14px' }}>
       {photo ? (
-        <span className="block">
-          <span className="block border border-[var(--color-neutral-300,#dccdb2)]" style={{ padding: '8px' }}>
+        /* REFERENCE-SIZED (UI corrections pass): the photograph is capped
+           well below the cell's width — a reference image beside the label
+           and description, never the dominant element. */
+        <span className="block" style={{ maxWidth: '210px' }}>
+          <span className="block border border-[var(--color-neutral-300,#dccdb2)]" style={{ padding: '6px' }}>
             <span className="block relative w-full overflow-hidden bg-[#eadfcb]" style={{ aspectRatio: '3 / 4' }}>
               {photos.map((ph, i) =>
                 visited.has(i) ? (
@@ -776,7 +782,7 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
           )}
         </span>
       ) : (
-        <span className="block border border-[var(--color-neutral-300,#dccdb2)] bg-[#eadfcb] overflow-hidden">
+        <span className="block border border-[var(--color-neutral-300,#dccdb2)] bg-[#eadfcb] overflow-hidden" style={{ maxWidth: '210px' }}>
           <ArchetypeIllo id={id} title={label.archetype(id)} variant="photo" className="w-full" />
         </span>
       )}
@@ -1304,6 +1310,9 @@ export default function YourStyle() {
   const [clothingSizeDraft, setClothingSizeDraft] = useState('');
   const [clothesSystemDraft, setClothesSystemDraft] = useState('alpha');
   const [clothesBrandDraft, setClothesBrandDraft] = useState('');
+  /** Per-garment-category size labels — shirt / trouser / jacket / knitwear /
+   * suit, each its own field (dossier_measurements.garment_sizes). */
+  const [garmentSizeDrafts, setGarmentSizeDrafts] = useState<Record<string, string>>({});
   const [garmentDrafts, setGarmentDrafts] = useState<Record<string, MeasureDraft>>({});
   const [savingSizes, setSavingSizes] = useState(false);
   /** Remount key for the two BrandSizeRows editors when fresh data lands. */
@@ -1579,6 +1588,7 @@ export default function YourStyle() {
   useEffect(() => {
     setFootDraft(parseMeasure(dm.foot_length));
     if (dm.clothes_size_system) setClothesSystemDraft(dm.clothes_size_system);
+    setGarmentSizeDrafts(parseGarmentSizes(dm.garment_sizes));
   }, [dm]);
 
   // Concise what-suits-your-frame bullets — AI-generated, deterministic fallback.
@@ -1802,7 +1812,10 @@ export default function YourStyle() {
         shoulder_cm: g('shoulder'),
       });
       const freshExtras = await saveMeasurementExtras({ arm_length: g('arm') });
-      const freshDm = await saveDossierMeasurements({ clothes_size_system: clothesSystemDraft || null });
+      const freshDm = await saveDossierMeasurements({
+        clothes_size_system: clothesSystemDraft || null,
+        garment_sizes: serializeGarmentSizes(garmentSizeDrafts),
+      });
       setMeasurements(freshMeasurements);
       setExtras(freshExtras);
       setDm(freshDm);
@@ -1857,6 +1870,54 @@ export default function YourStyle() {
           nameLoaded={detailsLoaded || !!details.displayName}
           onSave={(next) => void patchDetails({ displayName: next }).then(() => flashSaved('name'))}
         />
+
+        {/* ================= MISSING, AND IT COSTS YOU NOW (M10) =================
+            Shoe size and waist are the two facts The Hunt's fit-for-you rows
+            need — while either is missing, the callout LEADS the Dossier
+            (never buried mid-page) and names the cost. It disappears the
+            moment both are set. */}
+        {detailsLoaded && (!measurements?.shoe_size || !measurements?.waist_cm) && (
+          <div
+            className="mt-6 p-4 sm:p-5"
+            style={{ border: '1.5px solid var(--color-accent-2,#7d2a24)', background: 'var(--color-paper,#fbf8f1)' }}
+            role="note"
+            aria-label="Missing measurements the Hunt needs"
+          >
+            <p className="uppercase" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', color: 'var(--color-accent-2,#7d2a24)' }}>
+              Missing, and it costs you now
+            </p>
+            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.25, marginTop: '6px' }}>
+              {!measurements?.shoe_size && !measurements?.waist_cm
+                ? 'He doesn\u2019t have your shoe size or your waist.'
+                : !measurements?.shoe_size
+                  ? 'He doesn\u2019t have your shoe size.'
+                  : 'He doesn\u2019t have your waist.'}
+            </p>
+            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, marginTop: '6px', maxWidth: '54ch' }}>
+              Every fit-for-you row in The Hunt is guesswork until these are set — shoes judged without a size, trousers
+              without a waist. {!measurements?.shoe_size && !measurements?.waist_cm ? 'Two fields fix it.' : 'One field fixes it.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isOpen('sizes')) toggleSection('sizes');
+                window.setTimeout(() => {
+                  document.querySelector('[data-dossier-section="sizes"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 60);
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 min-h-[44px] px-4 border transition-colors"
+              style={{
+                fontFamily: 'var(--space-font-family)',
+                fontSize: '14px',
+                borderColor: 'var(--color-accent-2,#7d2a24)',
+                color: 'var(--color-accent-2,#7d2a24)',
+                borderRadius: 0,
+              }}
+            >
+              {!measurements?.shoe_size && !measurements?.waist_cm ? 'Add shoe size and waist ›' : !measurements?.shoe_size ? 'Add your shoe size ›' : 'Add your waist ›'}
+            </button>
+          </div>
+        )}
 
         {/* ================= 1 · PHYSICAL PROFILE =================
             Four compact fields, each sized to what it holds, each unit
@@ -2069,6 +2130,7 @@ export default function YourStyle() {
             The sizing LABELS the user wears — distinct from the physical
             measurements above. Two subsections: shoe sizes and clothes
             sizes, each with brand-by-brand exceptions. */}
+        <div data-dossier-section="sizes" />
         <Section
           title="Sizes"
           value={
@@ -2101,18 +2163,20 @@ export default function YourStyle() {
               </span>
               <div>
                 <span style={FIELD_LABEL}>Shoe size</span>
-                <div className="flex items-center" style={{ gap: '8px' }}>
+                {/* Every common standard — UK · EU · US · JP (cm) · IT · FR ·
+                    AU/NZ: pick the system you buy in, enter the size in it. */}
+                <div className="flex items-center flex-wrap" style={{ gap: '8px' }}>
                   <input
                     type="text"
                     value={shoeSizeDraft}
                     onChange={(e) => setShoeSizeDraft(e.target.value)}
-                    placeholder={shoeSystemDraft === 'EU' ? '43' : '9'}
+                    placeholder={({ UK: '9', EU: '43', US: '10', JP: '27', IT: '43', FR: '43', 'AU/NZ': '9' } as Record<string, string>)[shoeSystemDraft] || '9'}
                     aria-label={`Shoe size (${shoeSystemDraft})`}
                     style={{ ...FIELD_INPUT, width: FIELD_WIDTH }}
                   />
                   <InlineSwitch
                     label="Shoe sizing system"
-                    options={SHOE_SIZE_SYSTEMS.map((sys) => ({ id: sys, label: sys }))}
+                    options={SHOE_SIZE_SYSTEMS.map((sys) => ({ id: sys, label: sys === 'JP' ? 'JP (cm)' : sys }))}
                     active={shoeSystemDraft}
                     onSelect={setShoeSystemDraft}
                   />
@@ -2174,6 +2238,32 @@ export default function YourStyle() {
                     active={clothesSystemDraft}
                     onSelect={setClothesSystemDraft}
                   />
+                </div>
+              </div>
+              {/* SIZES BY GARMENT (UI corrections pass) — one clearly
+                  labelled field per garment category, independent of the
+                  general size above; each takes whatever system the user
+                  buys that category in. */}
+              <div>
+                <span style={FIELD_LABEL}>Sizes by garment</span>
+                <p className={`${typography.size.xs} ${typography.color.muted} italic`} style={{ marginBottom: '8px' }}>
+                  Where one number doesn’t cover you — each garment category takes its own size, in whatever system
+                  you buy it in.
+                </p>
+                <div className="flex flex-wrap items-start" style={{ columnGap: '18px', rowGap: '14px' }}>
+                  {GARMENT_SIZE_CATEGORIES.map((cat) => (
+                    <div key={cat.id}>
+                      <span style={FIELD_LABEL}>{cat.label}</span>
+                      <input
+                        type="text"
+                        value={garmentSizeDrafts[cat.id] || ''}
+                        onChange={(e) => setGarmentSizeDrafts((cur) => ({ ...cur, [cat.id]: e.target.value }))}
+                        placeholder={cat.placeholder}
+                        aria-label={`${cat.label} size`}
+                        style={{ ...FIELD_INPUT, width: '164px' }}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
               {/* The six garment measurements — compact, labels above, each
