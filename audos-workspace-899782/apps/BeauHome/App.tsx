@@ -28,10 +28,13 @@ import {
   feetInchesToCm,
   fetchCategoryBudgets,
   fetchMaterials,
+  MATERIAL_OPTIONS,
   fetchPieceAttributes,
   fetchPieceDetails,
   fetchPrefs,
   fetchProfile,
+  fetchStyleMeasurements,
+  saveMeasurements,
   heightRangeFromCm,
   homeCity,
   migrateLegacyItems,
@@ -50,6 +53,12 @@ import {
 } from './profile-data';
 import { HAIR_COLOURS, fetchDossierDetails, saveDossierDetails } from './dossier-details';
 import { fetchDossierMeasurements, saveDossierMeasurements } from './dossier-measurements';
+import {
+  REGISTER_FREQUENCY_LABELS,
+  fetchRegisterFrequencies,
+  writeRegisterFrequency,
+  type RegisterFrequency,
+} from './coverage-prefs';
 import {
   flatLayAssetForShelf,
   peekFlatLayAsset,
@@ -244,23 +253,36 @@ function BuildFigure({ id }: { id: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Onboarding — 5 steps (Dossier sync): the flow follows the Dossier's
-// top-to-bottom order using only the essentials — name → physical profile
-// (height, weight, foot length; body type optional) → skin tone + hair
-// colour → style archetypes → budget comfort range. Everything else — the
-// full Sizes section, lifestyle, materials, secondhand, free text — lives
-// in The Dossier, fillable any time.
+// Onboarding — FOUR screens, ~90 seconds (feature pass · 18a · M11), each
+// one filling the Dossier at the source:
+//   1 · BODY      — name · build · skin colouring · height + weight
+//   2 · SIZES     — the labels worn: general size · trouser waist · shoe
+//   3 · LIFESTYLE — register frequency + up to THREE style directions
+//                   (three is the cap on purpose — seven overlapping tags
+//                   tell him nothing); "Not for me" mutes a register
+//   4 · BUDGET & MATERIALS — comfort range per piece · material stance
+// Everything else — foot length, hair colour, brand-size exceptions, the
+// rest — lives in The Dossier, fillable any time. After onboarding Beau
+// holds his full read until FIVE pieces are logged (beau-assessment.ts).
 // ---------------------------------------------------------------------------
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 const STEP_META: Array<{ title: string; sub: string }> = [
-  { title: 'What should Beau call you?', sub: 'The name on your dossier — a first name is plenty.' },
-  { title: 'Your measurements', sub: 'Height, weight and foot length — the proportions that decide what flatters. Body type if you know it.' },
-  { title: 'Your colouring', sub: 'Skin tone and hair colour decide which colours actually work on you, long term.' },
-  { title: 'Which of these feel like you?', sub: 'Pick every one that resonates — most men are a blend.' },
-  { title: 'Budget comfort range', sub: 'Per piece — a signal Beau works with, never a hard ceiling.' },
+  { title: 'Your body', sub: 'A first name, your build and colouring, and the two figures that decide what flatters. Nothing here is compulsory.' },
+  { title: 'Your sizes', sub: 'The labels you actually wear — general size, trouser waist, shoe. Beau judges fit with these; skip any you don\u2019t know.' },
+  { title: 'How do you actually dress?', sub: 'How often each register comes up, and up to three style directions. Muting one now is why he\u2019ll never nag you about a dinner jacket.' },
+  { title: 'Budget & materials', sub: 'A comfort range per piece — a signal, never a hard ceiling — and where you stand on synthetics.' },
 ];
+
+/** The three dress registers the coverage map reads — same ids everywhere. */
+const ONBOARDING_REGISTERS: Array<{ id: string; label: string }> = [
+  { id: 'smart-casual', label: 'Smart casual' },
+  { id: 'casual', label: 'Casual' },
+  { id: 'formal', label: 'Formal' },
+];
+
+const DIRECTIONS_CAP = 3;
 
 /** The budget comfort bands — style_profile.budget_range's documented
  * values, the symbol following the chosen display currency. */
@@ -310,6 +332,19 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
   const [hairColour, setHairColour] = useState<string | null>(null);
   const [budgetRange, setBudgetRange] = useState<string | null>(profile?.budget_range ?? null);
   const [currency, setCurrency] = useState<string>(prefs?.currency ?? 'GBP');
+  // SCREEN 2 — SIZES: the labels worn, pre-populated from anything already
+  // known (style_measurements) in the resume effect below.
+  const [clothingSize, setClothingSize] = useState('');
+  const [waistStr, setWaistStr] = useState('');
+  const [waistUnit, setWaistUnit] = useState<'cm' | 'in'>('cm');
+  const [shoeSize, setShoeSize] = useState('');
+  const [shoeSystem, setShoeSystem] = useState('UK');
+  // SCREEN 3 — LIFESTYLE: how often each register comes up ("Not for me"
+  // mutes it — coverage-prefs.ts), plus a typed custom direction.
+  const [registerFreqs, setRegisterFreqs] = useState<Record<string, string>>({});
+  const [customDirection, setCustomDirection] = useState('');
+  // SCREEN 4 — MATERIALS: preference or exclusion (style_profile.materials).
+  const [materialsPref, setMaterialsPref] = useState<string | null>(profile?.materials ?? null);
 
   /** The specific height in cm, whichever way it was typed. */
   const heightCm = ((): number | null => {
@@ -352,6 +387,29 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
         }
       })
       .catch(() => undefined);
+    // SIZES pre-populate from anything already detectable.
+    fetchStyleMeasurements()
+      .then((m) => {
+        if (cancelled || !m) return;
+        if (m.clothing_size) setClothingSize((cur) => cur || m.clothing_size || '');
+        if (m.shoe_size) {
+          setShoeSize((cur) => cur || m.shoe_size || '');
+          if (m.shoe_size_system) setShoeSystem(m.shoe_size_system);
+        }
+        if (m.waist_cm) {
+          const digits = String(m.waist_cm).match(/[\d.]+/);
+          if (digits) {
+            setWaistUnit(/(\bin\b|inch|″|")/i.test(String(m.waist_cm)) ? 'in' : 'cm');
+            setWaistStr((cur) => cur || digits[0]);
+          }
+        }
+      })
+      .catch(() => undefined);
+    fetchRegisterFrequencies()
+      .then((freqs) => {
+        if (!cancelled && freqs && Object.keys(freqs).length > 0) setRegisterFreqs((cur) => ({ ...freqs, ...cur }));
+      })
+      .catch(() => undefined);
     fetchAvatarInputs()
       .then((inputs) => {
         if (cancelled) return;
@@ -378,14 +436,13 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
     (s: number): Record<string, unknown> => {
       switch (s) {
         // The band is derived from the specific height, never asked for.
-        case 1: return { height_range: heightRangeFromCm(heightCm), build };
-        case 2: return { skin_tone: skinTone };
-        case 3: return { archetypes };
-        case 4: return { budget_range: budgetRange };
+        case 0: return { height_range: heightRangeFromCm(heightCm), build, skin_tone: skinTone };
+        case 2: return { archetypes };
+        case 3: return { budget_range: budgetRange, materials: materialsPref };
         default: return {};
       }
     },
-    [heightCm, build, skinTone, archetypes, budgetRange],
+    [heightCm, build, skinTone, archetypes, budgetRange, materialsPref],
   );
 
   // Persist the current step's answers; onboarding resumes here if they
@@ -398,10 +455,10 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
       setSaving(true);
       try {
         if (s === 0) {
+          // BODY — the name onto the dossier; the exact height, weight and
+          // body type also feed the Fitting figure.
           if (name.trim()) await saveDossierDetails({ displayName: name.trim() }).catch(() => undefined);
-        } else if (s === 1) {
-          // The exact height, weight and body type also feed the Fitting
-          // figure.
+          if (hairColour) await saveDossierDetails({ hairColour }).catch(() => undefined);
           if (heightCm || weightKg || build) {
             await saveAvatarInputs({
               heightCm: heightCm ?? null,
@@ -417,9 +474,26 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
               foot_length: /^\d+(\.\d+)?$/.test(foot) ? `${foot} ${footUnit}` : foot,
             }).catch(() => undefined);
           }
+        } else if (s === 1) {
+          // SIZES — straight onto style_measurements, the same rows The
+          // Hunt's fit-for-you column and the Dossier read.
+          const waist = waistStr.trim();
+          const patch: Record<string, string | null> = {};
+          if (clothingSize.trim()) patch.clothing_size = clothingSize.trim();
+          if (shoeSize.trim()) {
+            patch.shoe_size = shoeSize.trim();
+            patch.shoe_size_system = shoeSystem;
+          }
+          if (waist) patch.waist_cm = /^\d+(\.\d+)?$/.test(waist) ? `${waist} ${waistUnit}` : waist;
+          if (Object.keys(patch).length > 0) await saveMeasurements(patch).catch(() => undefined);
         } else if (s === 2) {
-          if (hairColour) await saveDossierDetails({ hairColour }).catch(() => undefined);
-        } else if (s === 4) {
+          // LIFESTYLE — each register's frequency lands in coverage_prefs;
+          // "Not for me" also mutes the register at the source.
+          for (const { id } of ONBOARDING_REGISTERS) {
+            const freq = registerFreqs[id];
+            if (freq) writeRegisterFrequency(id, freq as RegisterFrequency);
+          }
+        } else if (s === 3) {
           await savePrefs({ currency }).catch(() => undefined);
         }
         const fresh = await saveProfile({ ...patchForStep(s), onboarding_step: Math.min(s + 1, TOTAL_STEPS - 1), ...extra });
@@ -481,17 +555,32 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 
   const stepDone = (() => {
     switch (step) {
-      case 0: return name.trim() !== '';
-      case 1: return heightCm != null || weightKg != null || build != null;
-      case 2: return skinTone != null; // hair colour is optional
-      case 3: return archetypes.length > 0;
-      case 4: return true; // the range is a signal, never a gate
+      case 0: return name.trim() !== '' || heightCm != null || weightKg != null || build != null || skinTone != null;
+      case 1: return true; // sizes are skippable — the Dossier nags instead
+      case 2: return archetypes.length > 0 || Object.keys(registerFreqs).length > 0;
+      case 3: return true; // the range is a signal, never a gate
       default: return false;
     }
   })();
 
-  const toggle = (list: string[], id: string, set: (v: string[]) => void) => {
-    set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  // UP TO THREE directions (18a · M11) — the cap is the point: seven
+  // overlapping tags tell him nothing.
+  const toggleDirection = (id: string) => {
+    setArchetypes(
+      archetypes.includes(id)
+        ? archetypes.filter((x) => x !== id)
+        : archetypes.length >= DIRECTIONS_CAP
+          ? archetypes
+          : [...archetypes, id],
+    );
+  };
+
+  const addCustomDirection = () => {
+    const custom = customDirection.trim();
+    if (!custom || archetypes.length >= DIRECTIONS_CAP) return;
+    if (archetypes.some((a) => a.toLowerCase() === custom.toLowerCase())) return;
+    setArchetypes([...archetypes, custom]);
+    setCustomDirection('');
   };
 
   const meta = STEP_META[step];
@@ -537,10 +626,52 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
           <p className={`${typography.size.sm} ${typography.color.secondary} mt-1.5`}>{meta.sub}</p>
 
           <div className="mt-6">
-            {/* 4 · STYLE ARCHETYPES — the same visual chip cards the
-                Dossier's Style profile section uses. */}
-            {step === 3 && (
+            {/* 3 · LIFESTYLE — register frequency first (the dossier's
+                registers; "Not for me" mutes one at the source), then up to
+                THREE style directions on the same visual cards the Dossier
+                uses. */}
+            {step === 2 && (
               <>
+                <div className="mb-7">
+                  <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary} mb-2`}>
+                    The registers you dress for
+                  </p>
+                  <div className="divide-y divide-[var(--space-border-default)] border-t border-b border-[var(--space-border-default)]">
+                    {ONBOARDING_REGISTERS.map(({ id, label: regLabel }) => (
+                      <div key={id} className="flex items-center gap-2 flex-wrap py-2.5">
+                        <span className={`${typography.size.sm} ${typography.weight.medium} ${typography.color.primary} w-28 flex-shrink-0`}>
+                          {regLabel}
+                        </span>
+                        <span className="flex gap-1.5 flex-wrap">
+                          {(Object.keys(REGISTER_FREQUENCY_LABELS) as RegisterFrequency[]).map((f) => {
+                            const active = registerFreqs[id] === f;
+                            return (
+                              <button
+                                key={f}
+                                type="button"
+                                onClick={() => setRegisterFreqs((cur) => ({ ...cur, [id]: f }))}
+                                aria-pressed={active}
+                                className={`px-3 py-1.5 rounded-full ${typography.size.xs} border transition-colors ${
+                                  active
+                                    ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
+                                    : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
+                                }`}
+                              >
+                                {REGISTER_FREQUENCY_LABELS[f]}
+                              </button>
+                            );
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5 italic`}>
+                    “Not for me” mutes the register — The Edit stops counting its gaps and Beau holds no opinion about it.
+                  </p>
+                </div>
+                <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary} mb-2`}>
+                  Directions you like · up to {DIRECTIONS_CAP} — {archetypes.length}/{DIRECTIONS_CAP} chosen
+                </p>
                 {/* Archetype cards (Pass Forty-Four): a photorealistic
                     reference PHOTOGRAPH on top — full-body or torso-down, no
                     portraits, the outfit is the subject — name and short
@@ -553,7 +684,7 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
                       <ChoiceButton
                         key={a.id}
                         selected={selected}
-                        onClick={() => toggle(archetypes, a.id, setArchetypes)}
+                        onClick={() => toggleDirection(a.id)}
                         className="p-3 flex flex-col"
                       >
                         <span className="relative block">
@@ -577,8 +708,52 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
                   })}
                 </div>
                 <p className={`${typography.size.xs} ${typography.color.muted} mt-3 italic`}>
-                  Select all that feel like you — contradictions welcome.
+                  Three is the cap on purpose — seven overlapping tags tell him nothing.
                 </p>
+                {/* OR TYPE YOUR OWN — a custom direction counts against the
+                    same cap and rides the same archetypes field. */}
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <input
+                    type="text"
+                    value={customDirection}
+                    onChange={(e) => setCustomDirection(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomDirection();
+                      }
+                    }}
+                    placeholder='Or type your own — e.g. “Italian casual”'
+                    aria-label="Type your own style direction"
+                    disabled={archetypes.length >= DIRECTIONS_CAP}
+                    className={`flex-1 min-w-[200px] ${tw.input.base} ${tw.input.default} ${typography.size.sm} disabled:opacity-50`}
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomDirection}
+                    disabled={!customDirection.trim() || archetypes.length >= DIRECTIONS_CAP}
+                    className={`px-3 py-2 rounded-lg ${typography.size.sm} ${tw.button.secondary} disabled:opacity-40`}
+                  >
+                    Add it
+                  </button>
+                </div>
+                {archetypes.filter((id) => !ARCHETYPES.some((a) => a.id === id)).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {archetypes
+                      .filter((id) => !ARCHETYPES.some((a) => a.id === id))
+                      .map((custom) => (
+                        <button
+                          key={custom}
+                          type="button"
+                          onClick={() => setArchetypes(archetypes.filter((x) => x !== custom))}
+                          className={`px-3 py-1.5 rounded-full ${typography.size.xs} border bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]`}
+                          title="Remove this direction"
+                        >
+                          {custom} ×
+                        </button>
+                      ))}
+                  </div>
+                )}
               </>
             )}
 
@@ -601,11 +776,10 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
               </div>
             )}
 
-            {/* 2 · PHYSICAL PROFILE — height, weight, foot length; body
-                type if known. The same order as the Dossier's own Physical
-                profile section. */}
-            {step === 1 && (
-              <div className="space-y-6">
+            {/* 1 · BODY (continued) — height and weight, then build and
+                colouring below. Foot length moved to The Dossier. */}
+            {step === 0 && (
+              <div className="space-y-6 mt-6">
                 {/* SPECIFIC height (Part 1) — everyone knows their own height,
                     so nobody is asked to pick a band. Imperial or metric. */}
                 <div>
@@ -713,46 +887,6 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
                     <span className={`${typography.size.sm} ${typography.color.muted}`}>{weightUnit === 'kg' ? 'kg' : 'lb'}</span>
                   </div>
                 </div>
-                {/* Foot length — the PHYSICAL measurement of the foot, not a
-                    shoe-size label (sizing labels live in The Dossier). */}
-                <div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                    <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary}`}>
-                      Foot length
-                    </p>
-                    <UnitSwitch
-                      value={footUnit}
-                      options={[
-                        { id: 'in' as const, label: 'in' },
-                        { id: 'cm' as const, label: 'cm' },
-                      ]}
-                      onChange={(next) => {
-                        const n = parseFloat(footStr);
-                        if (isFinite(n) && n > 0 && next !== footUnit) {
-                          const converted = next === 'in' ? n / 2.54 : n * 2.54;
-                          const rounded = Math.round(converted * 10) / 10;
-                          setFootStr(String(rounded % 1 === 0 ? Math.round(rounded) : rounded));
-                        }
-                        setFootUnit(next);
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={footStr}
-                      onChange={(e) => setFootStr(e.target.value)}
-                      placeholder={footUnit === 'cm' ? '27' : '10.6'}
-                      aria-label={`Foot length in ${footUnit === 'cm' ? 'centimetres' : 'inches'}`}
-                      className={`w-28 ${tw.input.base} ${tw.input.default} ${typography.size.sm}`}
-                    />
-                    <span className={`${typography.size.sm} ${typography.color.muted}`}>{footUnit}</span>
-                  </div>
-                  <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5 italic`}>
-                    Heel to longest toe — the measurement, not a shoe size.
-                  </p>
-                </div>
                 {/* Body type — visual cards, never a dropdown. Optional. */}
                 <div>
                   <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary} mb-2`}>
@@ -792,10 +926,9 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
               </div>
             )}
 
-            {/* 3 · SKIN TONE + HAIR COLOUR — brief, two fields, mirroring
-                the Dossier's own section. */}
-            {step === 2 && (
-              <div className="space-y-6">
+            {/* 1 · BODY (colouring) — skin tone; hair colour optional. */}
+            {step === 0 && (
+              <div className="space-y-6 mt-6">
                 <div>
                   <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary} mb-2`}>
                     Skin tone
@@ -849,9 +982,107 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
               </div>
             )}
 
-            {/* 5 · BUDGET COMFORT RANGE — a signal Beau works with, never a
+            {/* 2 · SIZES — the labels worn: general size · trouser waist ·
+                shoe size, straight onto style_measurements (the rows The
+                Hunt's fit-for-you column reads). All skippable. */}
+            {step === 1 && (
+              <div className="space-y-6">
+                <div>
+                  <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary} mb-2`}>
+                    General size — shirts & jackets
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setClothingSize(clothingSize === s ? '' : s)}
+                        aria-pressed={clothingSize === s}
+                        className={`px-3.5 py-1.5 rounded-full ${typography.size.sm} border transition-colors ${
+                          clothingSize === s
+                            ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
+                            : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                    <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary}`}>
+                      Trouser waist
+                    </p>
+                    <UnitSwitch
+                      value={waistUnit}
+                      options={[
+                        { id: 'in' as const, label: 'in' },
+                        { id: 'cm' as const, label: 'cm' },
+                      ]}
+                      onChange={(next) => {
+                        const n = parseFloat(waistStr);
+                        if (isFinite(n) && n > 0 && next !== waistUnit) {
+                          const converted = next === 'in' ? n * 2.54 : n / 2.54;
+                          setWaistStr(String(Math.round(converted)));
+                        }
+                        setWaistUnit(next);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={waistStr}
+                      onChange={(e) => setWaistStr(e.target.value)}
+                      placeholder={waistUnit === 'cm' ? '86' : '34'}
+                      aria-label={`Trouser waist in ${waistUnit === 'cm' ? 'centimetres' : 'inches'}`}
+                      className={`w-28 ${tw.input.base} ${tw.input.default} ${typography.size.sm}`}
+                    />
+                    <span className={`${typography.size.sm} ${typography.color.muted}`}>{waistUnit}</span>
+                  </div>
+                  <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5 italic`}>
+                    The Hunt judges every trouser against this — without it the fit row is guesswork.
+                  </p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                    <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary}`}>
+                      Shoe size
+                    </p>
+                    <UnitSwitch
+                      value={shoeSystem}
+                      options={[
+                        { id: 'UK', label: 'UK' },
+                        { id: 'EU', label: 'EU' },
+                        { id: 'US', label: 'US' },
+                      ]}
+                      onChange={setShoeSystem}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={shoeSize}
+                      onChange={(e) => setShoeSize(e.target.value)}
+                      placeholder={shoeSystem === 'EU' ? '43' : '9'}
+                      aria-label={`Shoe size (${shoeSystem})`}
+                      className={`w-28 ${tw.input.base} ${tw.input.default} ${typography.size.sm}`}
+                    />
+                    <span className={`${typography.size.sm} ${typography.color.muted}`}>{shoeSystem}</span>
+                  </div>
+                  <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5 italic`}>
+                    Every shoe in The Hunt is judged against this. Brand-by-brand exceptions live in The Dossier.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 4 · BUDGET & MATERIALS — a signal Beau works with, never a
                 hard ceiling; the currency sets the symbol everywhere. */}
-            {step === 4 && (
+            {step === 3 && (
               <div className="space-y-6">
                 <div>
                   <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary} mb-2`}>
@@ -900,9 +1131,41 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
                     ))}
                   </div>
                 </div>
+                {/* MATERIALS — preference or exclusion, the same options the
+                    Dossier holds (style_profile.materials). */}
+                <div>
+                  <p className={`${typography.size.xs} uppercase tracking-wide ${typography.weight.medium} ${typography.color.secondary} mb-2`}>
+                    Materials
+                  </p>
+                  <div className="grid gap-2">
+                    {MATERIAL_OPTIONS.map((m) => {
+                      const selected = materialsPref === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setMaterialsPref(selected ? null : m.id)}
+                          aria-pressed={selected}
+                          className={`text-left px-3.5 py-2.5 rounded-xl border transition-colors ${
+                            selected
+                              ? 'bg-[var(--space-surface-accent-soft)] border-[var(--space-brand-primary)]'
+                              : 'border-[var(--space-border-default)] hover:border-[var(--space-border-strong)]'
+                          }`}
+                        >
+                          <span className={`block ${typography.size.sm} ${typography.weight.medium} ${typography.color.primary}`}>{m.label}</span>
+                          {m.sub && <span className={`block ${typography.size.xs} ${typography.color.muted} mt-0.5`}>{m.sub}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5 italic`}>
+                    Whether nylon can ever answer a gap — exclusions hold everywhere Beau recommends.
+                  </p>
+                </div>
                 {/* The gentle close — one line, muted, not a prompt. */}
                 <p className={`${typography.size.xs} ${typography.color.muted}`}>
-                  You can fill in the rest of your profile any time — sizing, lifestyle, and more.
+                  Add five pieces after this and Beau's full read opens up — below five he'll tell you he needs more to
+                  work with. The rest of the Dossier — foot length, hair colour, brand sizes — fills in any time.
                 </p>
               </div>
             )}
@@ -2330,7 +2593,7 @@ export default function BeauHome() {
 
             {/* THE LEDGER LAYOUT (Recommendation Engine overhaul, Part 7) —
                 strict order: 1 Build a look · 2 Beau · Today · 3 Plan for a
-                trip · 4 Log a piece · 5 Your pieces. VISUAL RULE: dark card =
+                trip · 4 Add a piece · 5 Your pieces. VISUAL RULE: dark card =
                 Beau-initiated TIME-SENSITIVE prompt (Today only); plain
                 hairline row = user-initiated or contextual action (Build a
                 look, Plan for a trip). This distinction holds everywhere. */}
@@ -2368,14 +2631,11 @@ export default function BeauHome() {
               </div>
             </div>
 
-            {/* 4 — "Log a piece": a small section header above the two-pill
-                [ Photograph ] [ Search ] tab switcher. Photograph shows the
-                camera interface; Search shows the keyword/URL input. */}
+            {/* 4 — "Add a piece": the full 23a surface — its own "Add a
+                piece" header with the [ Photograph ] [ Search ] pills at the
+                right edge, the photo-led card flow beneath (add-piece.tsx). */}
             <div className="px-6 sm:px-10 pt-10">
               <div className="max-w-[1180px] mx-auto">
-                <div className="pb-2.5 border-b border-[var(--color-text,#3b2b1d)] mb-4">
-                  <h3 className={`hab-section-head ${typography.color.primary}`}>Log a piece</h3>
-                </div>
                 <AddPieceSection pieces={pieces} onAdded={refreshAll} />
               </div>
             </div>

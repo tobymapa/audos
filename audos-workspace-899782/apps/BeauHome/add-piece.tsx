@@ -1,63 +1,105 @@
 /**
- * Unified wardrobe logging (Pass Twelve, rebuilt in Pass Fourteen; photo
- * REQUIRED since Pass Thirty-Three; photo-ONLY since Pass Forty-Four — no
- * text entry, no pile scan, no list import) — ONE photograph-led flow
- * feeding wardrobe_pieces:
+ * ADD A PIECE — rebuilt to the corrected design handoff, screen 23a
+ * ("Adding a piece · read from the code, not the screenshots"). ONE
+ * photograph-led flow feeding wardrobe_pieces:
  *
- *  - Photograph (REQUIRED): the tap-to-confirm flow. Take or upload a photo,
- *    Beau pre-fills Category, Colour(s), Pattern, Material and Item Type from
- *    it, and the user taps to confirm or correct each field from structured
- *    selectors — never a blank form. The name is machine-generated from the
- *    confirmed fields ([Colour] [Material] [Item Type]); brand gets ONE
- *    targeted “Which brand is this?” prompt only when it isn't visible in the
- *    photo. Photo shows instantly (local preview), uploads in the background
- *    and is kept as the piece's permanent anchor; client-side background
- *    removal swaps the canonical white-card version in silently when it lands.
+ *  · The HEADER row: "Add a piece" (Cormorant 42px) + the one-line brief,
+ *    with the [ Photograph ] [ Search ] pills at the right edge, all closed
+ *    by a walnut hairline.
+ *  · The PHOTO column (300px): the photo on an #e6d9c4 mat — a dashed
+ *    "browse files" placeholder until one is chosen — with the
+ *    YOUR PHOTO · UPLOADED / RETAKE line and the accent-ruled best-results
+ *    note beneath.
+ *  · The CARD: opens the MOMENT a photo is chosen; the upload and Beau's
+ *    read fill in behind it and nothing already corrected is overwritten.
+ *    The read-back is a SENTENCE, not a form — "Beau reads it as a light
+ *    blue cotton oxford button-down shirt", three underlined tappable
+ *    phrases (colour · material · type), each correction opening inline.
+ *    Only THREE fields surface prominently (type · colour · maker); the
+ *    other five read as one line behind "Show all eight fields". Nothing
+ *    left the data model — this only changes what surfaces here.
+ *  · The MAKER is the one explicit question — the only field Beau cannot
+ *    see in the photo — with explicit permission to skip.
+ *  · SAVE IT · SAVE AND ADD ANOTHER · DISCARD, with "appears in The Ledger
+ *    immediately" at the right; the duplicate check reads back as its own
+ *    hairline bar beneath.
+ *  · THE COUNTER STOPS AT FIVE: "Three logged — two more and the map turns
+ *    on", a 3px progress rule, visible from the first piece and gone at
+ *    five. A wardrobe is never a percentage.
  *
- * Pass Forty-Eight (speed + photo fix):
- *  - The photo is COMPRESSED client-side (max 1200px, JPEG 0.85) before
- *    anything touches the network — sub-second uploads on every device.
- *  - The confirmation card appears the MOMENT a photo is chosen; the upload
- *    and Beau's AI read run behind it and the fields fill in as they land —
- *    fields the user has already corrected are never overwritten. Save works
- *    immediately with the original image; Photoroom runs after save.
- *  - The Photograph tab no longer auto-fires the picker and the file input
- *    carries NO capture attribute: the tab shows a camera icon, a “Take
- *    Photo or Upload from Library” descriptor and a “Choose Photo” button —
- *    tapping THAT opens the standard system sheet (Take Photo / Photo
- *    Library / Browse on iOS; the file picker on desktop).
- *
- * The text-only quick add and the manual detailed form were retired in Pass
- * Thirty-Three — logging an owned piece now requires a photo of the garment.
- * Editing and deleting already-logged pieces is unchanged.
+ * Mechanics preserved from the previous passes: client-side compression
+ * (max 1200px, JPEG 0.85) before anything touches the network; the upload
+ * and AI read run behind the open card and never overwrite a corrected
+ * field; Save is optimistic and returns at once; Photoroom runs after save.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
+import type React from 'react';
+import { Image as ImageIcon, Loader2 } from 'lucide-react';
 import { tw, typography } from '../../lib/colors';
 import { SearchPieceFlow } from './search-piece';
 import {
   OCCASION_TAGS,
+  PATTERN_OPTIONS,
   SEASON_OPTIONS,
   WARDROBE_CATEGORIES,
   categoryById,
   defaultOccasions,
   defaultSeasons,
   findLikelyDuplicate,
+  formatColorName,
   generatePieceName,
   insertPieces,
+  swatchFor,
   type NewPiece,
   type WardrobePiece,
 } from './profile-data';
 import { BrandField, ColorSelector, MaterialSelector, PatternSelector, SizeSelector } from './input-fields';
-import { CanonicalGarment } from './canonical-garment';
 import { queueWardrobeReassessment } from './reassess-queue';
 import { identifyGarmentFromUrl } from './wardrobe-ai';
 import { attachPreparedProductPhoto, compressImage, prepareProductPhoto, uploadGarmentPhotoFast } from './photo-enhance';
+import { MONO, capWord, numberWord, sentenceCase, usePlexMono } from './mono-type';
 
 // ---------------------------------------------------------------------------
-// Photo tap-to-confirm flow (Track C) — the photo drives the form, the user
-// only confirms or corrects. The blank form never appears.
+// The 23a type registers — Cormorant for names and buttons, Lora for prose,
+// IBM Plex Mono small caps for every working label.
 // ---------------------------------------------------------------------------
+
+const SERIF = 'var(--space-font-heading)';
+const BODY = 'var(--space-font-family)';
+const WALNUT = '#241a12';
+const INK = '#3b2b1d';
+const SECONDARY = '#634e38';
+const MUTED = '#856c51';
+const FAINT = '#a68e70';
+const ACCENT = '#a8712c';
+const ACCENT_DEEP = '#7c4a17';
+const PAPER = '#fbf8f1';
+
+function monoLabel(size = 9): React.CSSProperties {
+  return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.06em', textTransform: 'uppercase' };
+}
+
+const pillBase: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: '9.5px',
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase',
+  padding: '6px 12px',
+  whiteSpace: 'nowrap',
+};
+const pillDark: React.CSSProperties = { ...pillBase, background: WALNUT, color: PAPER, border: `1px solid ${WALNUT}` };
+const pillOutline: React.CSSProperties = {
+  ...pillBase,
+  background: 'transparent',
+  color: SECONDARY,
+  border: '1px solid rgba(59,43,29,0.3)',
+};
+
+/** The emphasised value inside the "he also filled in" line — regular
+ * weight, walnut, exactly as the reference sets its <strong>. */
+function V({ children }: { children: React.ReactNode }) {
+  return <strong style={{ fontWeight: 400, color: WALNUT }}>{children}</strong>;
+}
 
 interface ConfirmDraft {
   category: string;
@@ -73,13 +115,12 @@ interface ConfirmDraft {
   occasions: string[];
   name: string;
   nameIsCustom: boolean;
-  /** Free-text notes — provenance, fit, condition (“bought in Pamplona,
-   * collar wears at the fold”). Stored in piece_details.notes. */
+  /** Free-text notes — provenance, fit, condition. Stored in piece_details.notes. */
   description: string;
 }
 
-/** One tappable, underlined phrase of the read-back sentence (23a) — tap it
- * and the correction opens inline under the sentence. */
+/** One tappable phrase of the read-back sentence (23a) — underlined with
+ * the accent rule; tapping opens the inline correction beneath. */
 function ReadbackPhrase({
   label,
   active,
@@ -99,13 +140,11 @@ function ReadbackPhrase({
       aria-expanded={active}
       className="hover:opacity-80 transition-opacity align-baseline"
       style={{
-        fontFamily: 'var(--space-font-family)',
+        fontFamily: BODY,
         fontSize: '14.5px',
-        lineHeight: 1.7,
-        color: active ? 'var(--color-accent-700,#7c4a17)' : 'var(--space-text-primary)',
-        textDecoration: 'underline',
-        textDecorationColor: 'var(--color-accent,#a8712c)',
-        textUnderlineOffset: '3px',
+        lineHeight: 1.55,
+        color: active ? ACCENT_DEEP : INK,
+        borderBottom: `1px solid ${ACCENT}`,
         background: 'transparent',
         padding: 0,
       }}
@@ -124,20 +163,19 @@ export function PhotoConfirmFlow({
   onAdded: () => void;
   categoryId?: string;
 }) {
+  usePlexMono();
   const inputRef = useRef<HTMLInputElement>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [analysing, setAnalysing] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
   const [draft, setDraft] = useState<ConfirmDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dupeDismissed, setDupeDismissed] = useState(false);
-  // THE CONFIRMATION SURFACE, SIMPLIFIED (23a): the read-back is a SENTENCE,
-  // not a form — three underlined phrases (colour · material · type), each
-  // tappable, with the correction opening INLINE under the sentence. The
-  // remaining five fields (material, pattern, size, seasons, occasions) are
-  // stated in one readable line behind "+ 5 more". Nothing left the data
-  // model — this only changes what surfaces here.
+  // THE REST IS STATED, NOT SHOWN (23a): eight fields on the record, three
+  // surfaced prominently (type · colour · maker); the other five read as one
+  // line behind "Show all eight fields".
   const [showAll, setShowAll] = useState(false);
   // Which phrase of the read-back sentence is being corrected, if any.
   const [correcting, setCorrecting] = useState<'type' | 'colour' | 'material' | null>(null);
@@ -166,10 +204,9 @@ export function PhotoConfirmFlow({
     description: '',
   });
 
-  // Pass Forty-Eight: the confirmation card appears the MOMENT the photo is
-  // chosen — compression is instant, and the upload + Beau's AI read run
-  // BEHIND the open card, filling fields in as they land. Nothing blocks the
-  // form, and nothing blocks Save.
+  // The card appears the MOMENT the photo is chosen — compression is
+  // instant, and the upload + Beau's AI read run BEHIND the open card,
+  // filling fields in as they land. Nothing blocks the form or Save.
   const onPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (inputRef.current) inputRef.current.value = '';
@@ -179,6 +216,8 @@ export function PhotoConfirmFlow({
     setSavedFlash(null);
     setDupeDismissed(false);
     setCorrecting(null);
+    setShowAll(false);
+    setUploaded(false);
     photoUrlRef.current = '';
     uploadRef.current = null;
 
@@ -197,15 +236,18 @@ export function PhotoConfirmFlow({
     // `compressed` already went through compressImage above — say so, or it
     // gets decoded, redrawn and JPEG-encoded a second time for nothing.
     const upload = uploadGarmentPhotoFast(compressed, true).then(({ url }) => {
-      if (seq === pickSeqRef.current) photoUrlRef.current = url;
+      if (seq === pickSeqRef.current) {
+        photoUrlRef.current = url;
+        setUploaded(true);
+      }
       return url;
     });
     uploadRef.current = upload.catch(() => '');
 
     // 4. Beau's AI read — merged into the open card when it lands, but NEVER
     //    over a field the user has already corrected. When Beau can't read
-    //    the garment (AI error, timeout, malformed JSON) the blank form
-    //    simply stays — no crash, no error message (Pass Twenty-Eight rule).
+    //    the garment (AI error, timeout, malformed JSON) the blank card
+    //    simply stays — no crash, no error message.
     try {
       const url = await upload;
       const piece = await identifyGarmentFromUrl(url);
@@ -236,13 +278,14 @@ export function PhotoConfirmFlow({
         return next;
       });
     } catch (err) {
-      console.warn('[Ethaion] photo read failed — the blank form stays:', err);
+      console.warn('[Ethaion] photo read failed — the blank card stays:', err);
     } finally {
       if (seq === pickSeqRef.current) setAnalysing(false);
     }
   };
 
-  // The machine-generated name follows the confirmed fields until overridden.
+  // The machine-generated name follows the confirmed fields — "named from
+  // the fields below" (23a); there is no name input on the card.
   const autoName = useMemo(
     () =>
       draft
@@ -265,6 +308,12 @@ export function PhotoConfirmFlow({
         : null,
     [draft?.name, draft?.category, draft?.slot, draft?.colors, pieces],
   );
+  const duplicateMonth = useMemo(() => {
+    const stamp = (duplicateOf as (WardrobePiece & { created_at?: string }) | null)?.created_at;
+    if (!stamp) return '';
+    const date = new Date(stamp);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('en-GB', { month: 'long' });
+  }, [duplicateOf]);
 
   const reset = () => {
     pickSeqRef.current += 1; // invalidate any in-flight AI merge
@@ -275,6 +324,7 @@ export function PhotoConfirmFlow({
     setShowAll(false);
     setCorrecting(null);
     setAnalysing(false);
+    setUploaded(false);
     photoUrlRef.current = '';
     uploadRef.current = null;
   };
@@ -283,15 +333,15 @@ export function PhotoConfirmFlow({
     if (!draft || !draft.name.trim() || saving) return;
     setSaving(true);
     setError(null);
-    // Auto-uppercase on save (Pass Forty-Six) — free-typed fields only.
+    // Auto-uppercase on save — free-typed fields only.
     const finalName = draft.name.trim().toUpperCase();
     const finalBrand = draft.brand.trim().toUpperCase();
     let fastUrl = photoUrlRef.current;
     // Keep the upload promise even if the four-second optimistic race loses;
     // the inserted row can still receive and clean the image when it lands.
     const pendingUpload = uploadRef.current;
-    // Optimistic UI (Pass Forty-Six): the new piece appears in the wardrobe
-    // immediately, faint, while the write is in flight.
+    // Optimistic UI: the new piece appears in the wardrobe immediately,
+    // faint, while the write is in flight.
     const tempId = -Math.floor(Date.now() % 2147480000);
     window.dispatchEvent(
       new CustomEvent('ethaion:piece-add-optimistic', {
@@ -362,8 +412,7 @@ export function PhotoConfirmFlow({
       window.dispatchEvent(new CustomEvent('ethaion:piece-add-settled', { detail: { tempId } }));
       // The write has landed — that is the whole of what the user waited on.
       // Beau's re-read of the wardrobe is a SEPARATE operation: queued here,
-      // never awaited, and reported by its own status while it runs
-      // (reassess-queue.ts). The Save button returns at once.
+      // never awaited (reassess-queue.ts). The Save button returns at once.
       queueWardrobeReassessment('piece logged');
       setSavedFlash(finalName);
       reset();
@@ -377,19 +426,21 @@ export function PhotoConfirmFlow({
       // the draft stays so one more tap retries.
       console.error('[Ethaion] photo-flow save failed:', err);
       window.dispatchEvent(new CustomEvent('ethaion:piece-add-failed', { detail: { tempId } }));
-      setError('That didn\u2019t save — check your connection and tap Save again.');
+      setError('That didn’t save — check your connection and tap Save again.');
     } finally {
       setSaving(false);
     }
   };
 
+  const openPicker = () => inputRef.current?.click();
+
   const labelCls = `${typography.size.xs} ${typography.color.muted}`;
   const slots = draft ? categoryById(draft.category)?.slots || [] : [];
+  const currentSlot = draft ? slots.find((s) => s.id === draft.slot) || null : null;
   // The type phrase of the read-back sentence — the slot's label first, the
   // category as the honest fallback, blank while Beau hasn't read one yet.
   const slotLabel = draft
-    ? slots.find((s) => s.id === draft.slot)?.label ||
-      (draft.category !== 'other' ? categoryById(draft.category)?.label || '' : '')
+    ? currentSlot?.label || (draft.category !== 'other' ? categoryById(draft.category)?.label || '' : '')
     : '';
   const chip = (active: boolean) =>
     `px-2 py-1 rounded-full border transition-colors ${typography.size.xs} ${
@@ -398,374 +449,464 @@ export function PhotoConfirmFlow({
         : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
     }`;
 
+  // The card title — named from the fields below (23a), sentence case.
+  const cardName = draft
+    ? (autoName || draft.name).trim()
+      ? sentenceCase(autoName || draft.name)
+      : analysing
+        ? 'Reading your photo…'
+        : 'Your new piece'
+    : '';
+
+  const seasonsText =
+    draft && draft.seasons.length === 4
+      ? 'all four seasons'
+      : draft && draft.seasons.length > 0
+        ? draft.seasons.length === 1
+          ? 'one season'
+          : `${numberWord(draft.seasons.length)} seasons`
+        : 'the seasons';
+  const occasionsText =
+    draft && draft.occasions.length > 0
+      ? draft.occasions
+          .map((id) => OCCASION_TAGS.find((o) => o.id === id)?.label || id)
+          .join(' · ')
+          .toLowerCase()
+      : 'the occasions';
+  const patternText = draft && draft.pattern
+    ? (PATTERN_OPTIONS.find((o) => o.id === draft.pattern)?.label || draft.pattern).toLowerCase()
+    : 'the pattern';
+
+  // The inline correction panel — one at a time, opening under its row.
+  const correctionPanel = (content: React.ReactNode) => (
+    <div style={{ gridColumn: '1 / -1' }}>
+      <div style={{ border: '1px solid rgba(59,43,29,0.28)', padding: '10px 12px' }}>{content}</div>
+    </div>
+  );
+
   return (
-    // The "Photograph a piece" PANEL (HTML reference): --paper ground, square
-    // corners, heading + one-line brief left, the accent-ruled "Best results"
-    // aside right.
-    <div className="bg-[var(--color-paper,#fbf8f1)] border border-[var(--color-divider,rgba(59,43,29,0.18))]" style={{ padding: '30px 32px 32px' }}>
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_300px] items-start gap-6 md:gap-[52px]">
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-8 md:gap-[44px] items-start" style={{ marginTop: '28px' }}>
+        {/* ------------------------------------------------ the photo column */}
         <div>
-          {/* No "Photograph a piece" header — the Photograph pill the user
-              just tapped already communicates the context. */}
-          <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.6, maxWidth: '58ch' }}>
-            Snap it — Beau pre-fills the card. Your photo is the anchor: the background is stripped and the real
-            garment sits on a clean card — same photo, just cleaned up — in one consistent crop.
-          </p>
-        </div>
-        <p
-          className="text-[var(--color-neutral-800,#453325)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.6, paddingLeft: '18px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
-        >
-          <em
-            className="block uppercase not-italic text-[var(--color-accent-700,#7c4a17)]"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em', marginBottom: '5px' }}
-          >
-            Best results
-          </em>
-          One piece at a time, laid flat on a clean surface, daylight if you have it.
-        </p>
-      </div>
-
-      {savedFlash && (
-        <p className={`${typography.size.xs} text-[var(--space-semantic-success)] mt-2`}>
-          “{savedFlash}” logged — in The Ledger, under Your pieces. Cleaning up your photo…
-        </p>
-      )}
-
-      {/* The Photograph interface (Pass Forty-Eight): a camera icon, the
-          “Take Photo or Upload from Library” descriptor (Lora 14px), and the
-          tappable “Choose Photo” button. NOTHING fires until the user taps
-          the button — then iOS shows its standard sheet (Take Photo / Photo
-          Library / Browse) and desktop opens the file picker. */}
-      {!draft && (
-        <div className="mt-5 flex items-center gap-4 flex-wrap">
-          <span className="inline-flex items-center gap-2.5">
-            <Camera className="w-5 h-5 text-[var(--color-accent-700,#7c4a17)]" aria-hidden="true" />
-            <span
-              className="text-[var(--color-neutral-700,#634e38)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.5 }}
-            >
-              Take a photo or upload from your library
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="px-4 min-h-[44px] rounded text-[15px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors"
-          >
-            Choose photo
-          </button>
-        </div>
-      )}
-
-      {error && <p className={`${typography.size.xs} text-[var(--space-semantic-warning)] mt-2`}>{error}</p>}
-
-      {draft && (
-        <div className="mt-3">
-          {/* The pre-filled confirmation card — tap to confirm or correct */}
-          <div className="rounded-xl border border-[var(--space-border-default)] bg-[var(--space-surface-card)] p-3">
-            <div className="flex items-start gap-3">
-              <CanonicalGarment
-                fields={{ name: draft.name, category: draft.category, slot: draft.slot, colors: draft.colors, pattern: draft.pattern, brand: draft.brand }}
-                photoUrl={localPreview}
-                title={draft.name || 'Garment preview'}
-                showConfirmation
-                showOriginal
-                className="w-20 aspect-[3/4] rounded-xl border border-[var(--space-border-default)] flex-shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                {analysing ? (
-                  <p className={`${typography.size.xs} ${typography.color.secondary}`}>
-                    <Loader2 className="w-3 h-3 inline mr-1 -mt-0.5 animate-spin text-[var(--space-text-brand)]" />
-                    Beau is reading your garment — the details fill in as he goes. Correct anything, any time.
-                  </p>
-                ) : (
-                  <p className={`${typography.size.xs} ${typography.color.secondary}`}>
-                    <Sparkles className="w-3 h-3 inline mr-1 -mt-0.5 text-[var(--space-text-brand)]" />
-                    Here’s how Beau read it — tap anything to correct it.
-                  </p>
-                )}
-                <input
-                  value={draft.name}
-                  onChange={(e) => patch({ name: e.target.value, nameIsCustom: e.target.value.trim().toUpperCase() !== autoName.trim().toUpperCase() })}
-                  onBlur={() => patch({ name: draft.name.toUpperCase() })}
-                  placeholder="Name"
-                  className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} ${typography.weight.semibold} mt-1.5`}
-                  aria-label="Piece name"
+          <div style={{ background: '#e6d9c4', padding: '14px' }}>
+            <div style={{ aspectRatio: '3 / 4' }}>
+              {localPreview ? (
+                <img
+                  src={localPreview}
+                  alt="Your photo of the piece"
+                  className="w-full h-full object-cover"
+                  style={{ display: 'block' }}
                 />
-                <span className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={labelCls} style={{ fontSize: '10px' }}>
-                    {draft.nameIsCustom ? 'Your own name — kept as typed.' : 'Auto-named from the confirmed fields.'}
+              ) : (
+                <button
+                  type="button"
+                  onClick={openPicker}
+                  className="w-full h-full flex flex-col items-center justify-center gap-2 transition-colors hover:opacity-90"
+                  style={{ border: '1px dashed rgba(59,43,29,0.45)', background: 'transparent', padding: '16px' }}
+                  aria-label="Take a photo or browse files"
+                >
+                  <ImageIcon className="w-5 h-5" style={{ color: MUTED }} aria-hidden="true" />
+                  <span style={{ fontFamily: BODY, fontSize: '14px', lineHeight: 1.45, color: SECONDARY, textAlign: 'center' }}>
+                    Your photo of the piece
                   </span>
-                  {draft.nameIsCustom && autoName && (
-                    <button
-                      type="button"
-                      onClick={() => patch({ name: autoName, nameIsCustom: false })}
-                      className={`inline-flex items-center gap-1 ${typography.color.brand} hover:underline`}
-                      style={{ fontSize: '10px' }}
-                    >
-                      <RotateCcw className="w-2.5 h-2.5" /> Use “{autoName}”
-                    </button>
-                  )}
-                </span>
-              </div>
+                  <span style={{ fontFamily: BODY, fontSize: '12.5px', color: ACCENT_DEEP, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+                    or browse files
+                  </span>
+                </button>
+              )}
             </div>
+          </div>
+          {draft && (
+            <div className="flex items-baseline justify-between gap-2.5" style={{ marginTop: '9px' }}>
+              <span style={{ ...monoLabel(9), color: MUTED }}>
+                Your photo · {uploaded ? 'uploaded' : 'uploading…'}
+              </span>
+              <button type="button" onClick={openPicker} className="hover:underline" style={{ ...monoLabel(9), color: ACCENT_DEEP, background: 'transparent' }}>
+                Retake
+              </button>
+            </div>
+          )}
+          <p
+            style={{
+              margin: '10px 0 0',
+              paddingLeft: '12px',
+              borderLeft: `2px solid ${ACCENT}`,
+              fontFamily: BODY,
+              fontSize: '12.5px',
+              lineHeight: 1.5,
+              color: SECONDARY,
+            }}
+          >
+            One piece at a time, laid flat, daylight if you have it. The background comes off after you save — this
+            photograph stays as the piece’s anchor either way.
+          </p>
+          {savedFlash && (
+            <p className={`${typography.size.xs} text-[var(--space-semantic-success)]`} style={{ marginTop: '10px' }}>
+              “{savedFlash}” logged — in The Ledger, under Your pieces. Cleaning up your photo…
+            </p>
+          )}
+        </div>
 
-            <div className="mt-3 space-y-2.5">
-              {/* THE READ-BACK IS A SENTENCE, NOT A FORM (23a): "Beau reads
-                  it as a light blue cotton oxford button-down shirt." Three
-                  underlined phrases — colour · material · type — each
-                  tappable, its correction opening inline right below. It is
-                  faster to check one sentence than to scan eight labelled
-                  controls, and it reads like him. */}
-              <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14.5px', lineHeight: 1.7 }}>
-                Beau reads it as a{' '}
-                <ReadbackPhrase
-                  label={draft.colors.length > 0 ? draft.colors.join(' and ').toLowerCase() : 'colour — tap to set'}
-                  active={correcting === 'colour'}
-                  onTap={() => setCorrecting((c) => (c === 'colour' ? null : 'colour'))}
-                  ariaLabel="Correct the colour"
-                />{' '}
-                <ReadbackPhrase
-                  label={draft.material ? draft.material.toLowerCase() : 'material — tap to set'}
-                  active={correcting === 'material'}
-                  onTap={() => setCorrecting((c) => (c === 'material' ? null : 'material'))}
-                  ariaLabel="Correct the material"
-                />{' '}
-                <ReadbackPhrase
-                  label={slotLabel ? slotLabel.toLowerCase() : 'piece — tap to set'}
-                  active={correcting === 'type'}
-                  onTap={() => setCorrecting((c) => (c === 'type' ? null : 'type'))}
-                  ariaLabel="Correct the piece type"
-                />
-                .{' '}
-                <span className={labelCls} style={{ fontSize: '11px' }}>Tap any of those three to correct it.</span>
+        {/* ------------------------------------------------- the card column */}
+        <div>
+          {!draft ? (
+            /* Before a photo: the card's ground, waiting — the flow never
+               shows a blank form. */
+            <div style={{ border: '1px dashed rgba(59,43,29,0.3)', padding: '22px 24px' }}>
+              <span style={{ fontFamily: SERIF, fontSize: '26px', lineHeight: 1.1, color: FAINT }}>Beau’s card opens here</span>
+              <p style={{ margin: '9px 0 0', maxWidth: '62ch', fontFamily: BODY, fontSize: '14.5px', lineHeight: 1.55, color: SECONDARY }}>
+                Choose a photo on the left and the card opens the moment you do — the upload and his read fill in
+                behind it, and nothing you have already corrected is overwritten.
               </p>
+            </div>
+          ) : (
+            <>
+              <div style={{ border: '1px solid rgba(59,43,29,0.28)', background: PAPER, padding: '22px 24px' }}>
+                <div className="flex items-baseline justify-between gap-4 flex-wrap">
+                  <span style={{ fontFamily: SERIF, fontSize: '26px', lineHeight: 1.1, color: (autoName || draft.name).trim() ? WALNUT : FAINT }}>
+                    {cardName}
+                  </span>
+                  <span style={{ ...monoLabel(9), color: FAINT }}>
+                    {analysing ? 'Beau is reading the photo…' : 'Named from the fields below'}
+                  </span>
+                </div>
 
-              {/* The inline corrections — one at a time, under the sentence. */}
-              {correcting === 'colour' && (
-                <div className="rounded-lg border border-[var(--space-border-default)] px-2.5 py-2">
-                  <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
-                  <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
-                </div>
-              )}
-              {correcting === 'material' && (
-                <div className="rounded-lg border border-[var(--space-border-default)] px-2.5 py-2">
-                  <p className={`${labelCls} mb-1`}>Material</p>
-                  <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
-                </div>
-              )}
-              {correcting === 'type' && (
-                <div className="rounded-lg border border-[var(--space-border-default)] px-2.5 py-2 space-y-2">
-                  <div>
-                    <p className={`${labelCls} mb-1`}>Category</p>
-                    <div className="flex flex-wrap gap-1">
-                      {WARDROBE_CATEGORIES.map((c) => (
-                        <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: '10px' }}>
-                          {c.label}
+                {/* THE READ-BACK IS A SENTENCE, NOT A FORM (23a). */}
+                <p style={{ margin: '9px 0 0', maxWidth: '62ch', fontFamily: BODY, fontSize: '14.5px', lineHeight: 1.55, color: INK }}>
+                  Beau reads it as a{' '}
+                  <ReadbackPhrase
+                    label={draft.colors.length > 0 ? draft.colors.map((c) => formatColorName(c)).join(' and ').toLowerCase() : 'colour — tap to set'}
+                    active={correcting === 'colour'}
+                    onTap={() => setCorrecting((c) => (c === 'colour' ? null : 'colour'))}
+                    ariaLabel="Correct the colour"
+                  />{' '}
+                  <ReadbackPhrase
+                    label={draft.material ? draft.material.toLowerCase() : 'material — tap to set'}
+                    active={correcting === 'material'}
+                    onTap={() => setCorrecting((c) => (c === 'material' ? null : 'material'))}
+                    ariaLabel="Correct the material"
+                  />{' '}
+                  <ReadbackPhrase
+                    label={slotLabel ? slotLabel.toLowerCase() : 'piece — tap to set'}
+                    active={correcting === 'type'}
+                    onTap={() => setCorrecting((c) => (c === 'type' ? null : 'type'))}
+                    ariaLabel="Correct the piece type"
+                  />
+                  . Tap any of those three to correct it.
+                </p>
+
+                {/* THREE FIELDS SURFACE PROMINENTLY — type · colour · maker. */}
+                <div
+                  style={{
+                    marginTop: '18px',
+                    display: 'grid',
+                    gridTemplateColumns: '110px minmax(0,1fr)',
+                    gap: '14px 18px',
+                    alignItems: 'baseline',
+                  }}
+                >
+                  <div><span style={{ ...monoLabel(9), color: FAINT }}>Type</span></div>
+                  <div className="flex flex-wrap items-center" style={{ gap: '7px' }}>
+                    {currentSlot && (
+                      <button type="button" style={pillDark} onClick={() => setCorrecting((c) => (c === 'type' ? null : 'type'))}>
+                        {currentSlot.label}
+                      </button>
+                    )}
+                    {slots
+                      .filter((s) => s.id !== draft.slot)
+                      .slice(0, 3)
+                      .map((s) => (
+                        <button key={s.id} type="button" style={pillOutline} onClick={() => patch({ slot: s.id })} className="hover:opacity-80 transition-opacity">
+                          {s.label}
                         </button>
                       ))}
-                    </div>
-                  </div>
-                  <label className={labelCls}>Piece type
-                    <select
-                      value={draft.slot || ''}
-                      onChange={(e) => patch({ slot: e.target.value || null })}
-                      className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1`}
+                    <button
+                      type="button"
+                      style={pillOutline}
+                      className="hover:opacity-80 transition-opacity"
+                      onClick={() => setCorrecting((c) => (c === 'type' ? null : 'type'))}
+                      aria-expanded={correcting === 'type'}
                     >
-                      <option value="">Other / not specified</option>
-                      {slots.map((s) => (
-                        <option key={s.id} value={s.id}>{s.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              )}
-
-              {/* THE MAKER IS THE ONE QUESTION (23a): the only field Beau
-                  genuinely cannot see, and the one that changes what he
-                  recommends — a real question, with explicit permission to
-                  skip. ONE targeted prompt only when it isn't in the photo. */}
-              {draft.brandFromPhoto ? (
-                <label className={labelCls}>Brand — read off the photo, correct it if wrong
-                  <div className="mt-1">
-                    <BrandField value={draft.brand} onChange={(b) => patch({ brand: b })} ariaLabel="Brand" />
+                      Something else
+                    </button>
                   </div>
-                </label>
-              ) : (
-                <div className="rounded-lg bg-[var(--space-surface-accent-soft)] px-2.5 py-2">
-                  <p className={`${typography.size.xs} ${typography.color.primary} ${typography.weight.medium}`}>
-                    No label in the photo — who made it?
-                  </p>
-                  <p className={labelCls} style={{ fontSize: '10px' }}>
-                    Leave it blank if you’d rather not say. It only changes which makers he puts up.
-                  </p>
-                  <div className="mt-1.5">
-                    <BrandField value={draft.brand} onChange={(b) => patch({ brand: b })} ariaLabel="No label in the photo — who made it?" />
+                  {correcting === 'type' &&
+                    correctionPanel(
+                      <div className="space-y-2">
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Category</p>
+                          <div className="flex flex-wrap gap-1">
+                            {WARDROBE_CATEGORIES.map((c) => (
+                              <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: '10px' }}>
+                                {c.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <label className={labelCls}>Piece type
+                          <select
+                            value={draft.slot || ''}
+                            onChange={(e) => patch({ slot: e.target.value || null })}
+                            className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1`}
+                          >
+                            <option value="">Other / not specified</option>
+                            {slots.map((s) => (
+                              <option key={s.id} value={s.id}>{s.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>,
+                    )}
+
+                  <div><span style={{ ...monoLabel(9), color: FAINT }}>Colour</span></div>
+                  <div className="flex flex-wrap items-center" style={{ gap: '9px' }}>
+                    {draft.colors.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setCorrecting((cur) => (cur === 'colour' ? null : 'colour'))}
+                        className="inline-flex items-center hover:opacity-90 transition-opacity"
+                        style={{
+                          gap: '7px',
+                          padding: '5px 11px',
+                          background: WALNUT,
+                          color: PAPER,
+                          fontFamily: MONO,
+                          fontSize: '9.5px',
+                          letterSpacing: '0.05em',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: '9px',
+                            height: '9px',
+                            borderRadius: '50%',
+                            background: swatchFor(c),
+                            border: '1px solid rgba(246,240,229,0.5)',
+                            display: 'inline-block',
+                          }}
+                        />
+                        {formatColorName(c)}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCorrecting((cur) => (cur === 'colour' ? null : 'colour'))}
+                      className="hover:underline"
+                      style={{ ...monoLabel(9), color: ACCENT_DEEP, background: 'transparent' }}
+                      aria-expanded={correcting === 'colour'}
+                    >
+                      {draft.colors.length === 0 ? 'Pick a colour' : draft.colors.length === 1 ? 'Add a second' : 'Change'}
+                    </button>
                   </div>
-                </div>
-              )}
+                  {correcting === 'colour' &&
+                    correctionPanel(
+                      <div>
+                        <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
+                        <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
+                      </div>,
+                    )}
 
-              {/* THE FREE-TEXT LINE — anything worth noting; Beau reads it. */}
-              <label className={labelCls}>Anything worth noting (optional)
-                <textarea
-                  value={draft.description}
-                  onChange={(e) => patch({ description: e.target.value })}
-                  placeholder="e.g. bought in Pamplona · collar wears at the fold · runs slim"
-                  rows={2}
-                  className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1 resize-none`}
-                  aria-label="Anything worth noting about this piece"
-                />
-              </label>
-
-              {/* THE REST IS STATED, NOT SHOWN (23a): eight fields became
-                  three plus a sentence. Beau filled the others from the
-                  photo — right in almost every case, and correctable later
-                  from the piece itself. */}
-              {/* THE REST IS STATED, NOT SHOWN (23a): eight fields on the
-                  record, three surfaced above (type · colour · maker). The
-                  other five read as one sentence, with the editors behind
-                  "+ 5 more". Right in almost every case, and correctable
-                  later from the piece itself. */}
-              {!showAll ? (
-                <p className={labelCls} style={{ fontSize: '11px', lineHeight: 1.6 }}>
-                  He also filled in {draft.pattern ? draft.pattern.toLowerCase() : 'the pattern'},{' '}
-                  {draft.seasons.length === 4
-                    ? 'all four seasons'
-                    : draft.seasons.length > 0
-                      ? `${draft.seasons.length} season${draft.seasons.length === 1 ? '' : 's'}`
-                      : 'the seasons'}{' '}
-                  and{' '}
-                  {draft.occasions.length > 0
-                    ? draft.occasions
-                        .map((id) => OCCASION_TAGS.find((o) => o.id === id)?.label || id)
-                        .join(' · ')
-                        .toLowerCase()
-                    : 'the occasions'}{' '}
-                  — right in almost every case, and correctable later from the piece itself.{' '}
-                  <button type="button" onClick={() => setShowAll(true)} className={`${typography.color.brand} hover:underline`}>
-                    + 5 more
-                  </button>
-                </p>
-              ) : (
-                <>
-                  <div className="grid sm:grid-cols-2 gap-2.5">
-                    <label className={labelCls}>Material
-                      <div className="mt-1">
+                  {correcting === 'material' && (
+                    <>
+                      <div><span style={{ ...monoLabel(9), color: FAINT }}>Material</span></div>
+                      <div style={{ maxWidth: '340px' }}>
                         <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
                       </div>
-                    </label>
-                    <label className={labelCls}>Size
-                      <div className="mt-1">
-                        <SizeSelector value={draft.size} onChange={(s) => patch({ size: s })} ariaLabel="Size" />
-                      </div>
-                    </label>
-                  </div>
-                  {/* Colour edits live on the read-back sentence above — the
-                      five here are material · pattern · size · seasons ·
-                      occasions. */}
-                  <div>
-                    <p className={`${labelCls} mb-1`}>Pattern</p>
-                    <PatternSelector value={draft.pattern} onChange={(p) => patch({ pattern: p })} ariaLabel="Pattern" />
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <div>
-                      <p className={`${labelCls} mb-1`}>Season</p>
-                      <div className="flex flex-wrap gap-1">
-                        {SEASON_OPTIONS.map((o) => (
-                          <button
-                            key={o.id}
-                            type="button"
-                            onClick={() => patch({ seasons: draft.seasons.includes(o.id) ? draft.seasons.filter((s) => s !== o.id) : [...draft.seasons, o.id] })}
-                            className={chip(draft.seasons.includes(o.id))}
-                            style={{ fontSize: '10px' }}
-                          >
-                            {o.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className={`${labelCls} mb-1`}>Occasion</p>
-                      <div className="flex flex-wrap gap-1">
-                        {OCCASION_TAGS.map((o) => (
-                          <button
-                            key={o.id}
-                            type="button"
-                            onClick={() => patch({ occasions: draft.occasions.includes(o.id) ? draft.occasions.filter((s) => s !== o.id) : [...draft.occasions, o.id] })}
-                            className={chip(draft.occasions.includes(o.id))}
-                            style={{ fontSize: '10px' }}
-                          >
-                            {o.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAll(false)}
-                    className={`${labelCls} hover:underline`}
-                    style={{ fontSize: '11px' }}
-                  >
-                    ‹ Hide the extra fields
-                  </button>
-                </>
-              )}
+                    </>
+                  )}
 
+                  {/* THE MAKER IS THE ONE QUESTION (23a): the only field Beau
+                      genuinely cannot see, with permission to skip. */}
+                  <div><span style={{ ...monoLabel(9), color: FAINT }}>Maker</span></div>
+                  <div>
+                    <div style={{ maxWidth: '340px' }}>
+                      <BrandField
+                        value={draft.brand}
+                        onChange={(b) => patch({ brand: b })}
+                        placeholder={draft.brandFromPhoto ? 'Read off the photo — correct it if wrong' : 'No label in the photo — who made it?'}
+                        inputClassName="w-full bg-transparent border border-[rgba(59,43,29,0.34)] px-3 py-[9px] text-[14px] uppercase placeholder:normal-case placeholder:text-[#856c51] focus:outline-none focus:border-[var(--color-accent,#a8712c)]"
+                        ariaLabel="Maker — who made it?"
+                      />
+                    </div>
+                    <div style={{ marginTop: '5px', fontFamily: BODY, fontSize: '12.5px', color: MUTED }}>
+                      Leave it blank if you’d rather not say. It only changes which makers he puts up.
+                    </div>
+                  </div>
+                </div>
+
+                {/* THE REST IS STATED, NOT SHOWN — one line, eight fields a
+                    link away. Right in almost every case. */}
+                <div style={{ marginTop: '20px', paddingTop: '14px', borderTop: '1px solid rgba(59,43,29,0.18)' }}>
+                  {!showAll ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-baseline" style={{ gap: '10px 24px' }}>
+                      <div style={{ fontFamily: BODY, fontSize: '13px', lineHeight: 1.55, color: SECONDARY }}>
+                        He also filled in <V>{draft.material ? draft.material.toLowerCase() : 'the material'}</V>,{' '}
+                        <V>{patternText}</V>, <V>{seasonsText}</V> and <V>{occasionsText}</V>. Right in almost every
+                        case, and correctable later from the piece itself.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAll(true)}
+                        className="justify-self-start sm:justify-self-end hover:underline whitespace-nowrap"
+                        style={{ ...monoLabel(9.5), color: ACCENT_DEEP, background: 'transparent' }}
+                      >
+                        Show all eight fields
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid sm:grid-cols-2 gap-2.5">
+                        <label className={labelCls}>Material
+                          <div className="mt-1">
+                            <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
+                          </div>
+                        </label>
+                        <label className={labelCls}>Size
+                          <div className="mt-1">
+                            <SizeSelector value={draft.size} onChange={(s) => patch({ size: s })} ariaLabel="Size" />
+                          </div>
+                        </label>
+                      </div>
+                      <div>
+                        <p className={`${labelCls} mb-1`}>Pattern</p>
+                        <PatternSelector value={draft.pattern} onChange={(p) => patch({ pattern: p })} ariaLabel="Pattern" />
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Season</p>
+                          <div className="flex flex-wrap gap-1">
+                            {SEASON_OPTIONS.map((o) => (
+                              <button
+                                key={o.id}
+                                type="button"
+                                onClick={() => patch({ seasons: draft.seasons.includes(o.id) ? draft.seasons.filter((s) => s !== o.id) : [...draft.seasons, o.id] })}
+                                className={chip(draft.seasons.includes(o.id))}
+                                style={{ fontSize: '10px' }}
+                              >
+                                {o.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className={`${labelCls} mb-1`}>Occasion</p>
+                          <div className="flex flex-wrap gap-1">
+                            {OCCASION_TAGS.map((o) => (
+                              <button
+                                key={o.id}
+                                type="button"
+                                onClick={() => patch({ occasions: draft.occasions.includes(o.id) ? draft.occasions.filter((s) => s !== o.id) : [...draft.occasions, o.id] })}
+                                className={chip(draft.occasions.includes(o.id))}
+                                style={{ fontSize: '10px' }}
+                              >
+                                {o.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <label className={labelCls}>Anything worth noting (optional)
+                        <textarea
+                          value={draft.description}
+                          onChange={(e) => patch({ description: e.target.value })}
+                          placeholder="e.g. bought in Pamplona · collar wears at the fold · runs slim"
+                          rows={2}
+                          className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1 resize-none`}
+                          aria-label="Anything worth noting about this piece"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAll(false)}
+                        className="hover:underline"
+                        style={{ ...monoLabel(9.5), color: MUTED, background: 'transparent' }}
+                      >
+                        Hide the extra fields
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Save it · Save and add another · Discard — appears in The
+                  Ledger immediately. */}
+              <div className="flex items-center flex-wrap" style={{ marginTop: '14px', gap: '18px' }}>
+                <button
+                  type="button"
+                  onClick={() => void save()}
+                  disabled={!draft.name.trim() || saving}
+                  className="inline-flex items-center gap-1.5 hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+                  style={{ padding: '11px 24px', border: `1px solid ${ACCENT}`, color: ACCENT_DEEP, fontFamily: SERIF, fontSize: '16px', whiteSpace: 'nowrap', background: 'transparent' }}
+                >
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Save it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void save(true)}
+                  disabled={!draft.name.trim() || saving}
+                  className="inline-flex items-center transition-colors hover:border-[var(--space-border-strong)] disabled:opacity-40"
+                  style={{ padding: '11px 20px', border: '1px solid rgba(59,43,29,0.3)', color: SECONDARY, fontFamily: SERIF, fontSize: '16px', whiteSpace: 'nowrap', background: 'transparent' }}
+                  title="Save this piece and photograph the next one straight away"
+                >
+                  Save and add another
+                </button>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="hover:underline"
+                  style={{ ...monoLabel(9.5), color: MUTED, background: 'transparent' }}
+                >
+                  Discard
+                </button>
+                <span className="ml-auto hidden sm:inline" style={{ ...monoLabel(9), color: MUTED }}>
+                  Appears in The Ledger immediately
+                </span>
+              </div>
+
+              {error && <p className={`${typography.size.xs} text-[var(--space-semantic-warning)]`} style={{ marginTop: '8px' }}>{error}</p>}
+
+              {/* The duplicate check — its own hairline bar (23a). */}
               {duplicateOf && !dupeDismissed && (
-                <div className="rounded-lg bg-[var(--space-surface-accent-soft)] px-2.5 py-2">
-                  <p className={`${typography.size.xs} ${typography.color.secondary}`}>
-                    This looks like “{duplicateOf.name}”, already logged — same piece?
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    <button type="button" onClick={reset} className={`px-2 py-1 rounded-lg ${typography.size.xs} ${tw.button.secondary}`}>
-                      Yes — keep the existing one
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center"
+                  style={{ marginTop: '16px', padding: '13px 16px', border: '1px solid rgba(59,43,29,0.3)', gap: '10px 20px' }}
+                >
+                  <div style={{ fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.5, color: INK }}>
+                    This looks like <em>{duplicateOf.name}</em>
+                    {duplicateMonth ? `, logged in ${duplicateMonth}` : ', already logged'} — same piece?
+                  </div>
+                  <div className="flex flex-wrap" style={{ gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={reset}
+                      className="hover:opacity-80 transition-opacity"
+                      style={{ ...pillOutline }}
+                    >
+                      Yes — keep that one
                     </button>
-                    <button type="button" onClick={() => setDupeDismissed(true)} className={`px-2 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}>
-                      No — it’s different
+                    <button
+                      type="button"
+                      onClick={() => setDupeDismissed(true)}
+                      className="hover:opacity-80 transition-opacity"
+                      style={{ ...pillOutline }}
+                    >
+                      No, it’s different
                     </button>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* One final Save tap */}
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={!draft.name.trim() || saving}
-              className={`px-4 py-2 rounded-lg ${typography.size.sm} inline-flex items-center gap-1.5 ${tw.button.primary} disabled:opacity-40`}
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              Save to my wardrobe
-            </button>
-            <button
-              type="button"
-              onClick={() => void save(true)}
-              disabled={!draft.name.trim() || saving}
-              className={`px-3 py-2 rounded-lg ${typography.size.sm} ${tw.button.ghost} border border-[var(--space-border-default)] disabled:opacity-40`}
-              title="Save this piece and photograph the next one straight away"
-            >
-              Save and add another
-            </button>
-            <button
-              type="button"
-              onClick={reset}
-              className={`px-3 py-2 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)] inline-flex items-center gap-1`}
-            >
-              <X className="w-3.5 h-3.5" /> Discard
-            </button>
-          </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* NO capture attribute (Pass Forty-Eight): capture="environment" was
-          auto-launching the camera AND locking out the photo library. With
-          accept="image/*" alone, iOS shows its standard sheet (Take Photo /
-          Photo Library / Browse) and desktop opens the file picker. */}
+      {/* NO capture attribute: with accept="image/*" alone, iOS shows its
+          standard sheet (Take Photo / Photo Library / Browse) and desktop
+          opens the file picker. */}
       <input
         ref={inputRef}
         type="file"
@@ -779,28 +920,12 @@ export function PhotoConfirmFlow({
 }
 
 // ---------------------------------------------------------------------------
-// The hub — ONE entry point, photo REQUIRED (Pass Thirty-Three). Every owned
-// piece is logged from a photograph: Beau reads the garment, pre-fills the
-// details, and the user confirms or corrects before saving. The text-only
-// quick add and the manual detailed form are retired.
+// "Add a piece" — the whole 23a surface: header + pills, the selected flow,
+// and the five-piece counter with the "other way in" aside. Used verbatim on
+// the Wardrobe screen, The Rail tab, and (via AddPieceHub) category views.
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// "Add a piece" two-pill tab switcher (Pass Forty-Seven) — replaces the Pass
-// Forty-Six grouped header + indented sub-rows EVERYWHERE pieces can be
-// added: the Wardrobe screen, The Rail tab, and each category view. Two
-// pills side by side, no "Add a piece" header above (the pills are
-// self-explanatory):
-//   · active pill — walnut fill #241a12, Cormorant 16px white label
-//   · inactive pill — no fill, 1px divider hairline, Cormorant 16px ink
-//   · 4px radius (the sanctioned pill/button radius)
-// Pass Forty-Eight: the Photograph tab shows its INTERFACE (camera icon +
-// descriptor + "Choose Photo" button) — the picker fires only when the user
-// taps "Choose Photo", never on the tab click itself. Search shows the
-// search/URL input immediately. Tapping the active pill again collapses it.
-// ---------------------------------------------------------------------------
-
-function AddPiecePill({
+function ModePill({
   label,
   active,
   onClick,
@@ -816,20 +941,15 @@ function AddPiecePill({
       aria-pressed={active}
       className="transition-colors"
       style={{
-        fontFamily: 'var(--space-font-heading)',
+        fontFamily: SERIF,
         fontSize: '16px',
         fontWeight: 400,
         lineHeight: 1,
-        borderRadius: '4px',
         padding: '13px 26px',
-        minHeight: '44px',
+        whiteSpace: 'nowrap',
         ...(active
-          ? { background: '#241a12', color: '#ffffff', border: '1px solid #241a12' }
-          : {
-              background: 'transparent',
-              color: 'var(--color-text,#3b2b1d)',
-              border: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
-            }),
+          ? { background: WALNUT, color: PAPER, border: `1px solid ${WALNUT}` }
+          : { background: 'transparent', color: INK, border: '1px solid rgba(59,43,29,0.3)' }),
       }}
     >
       {label}
@@ -837,11 +957,6 @@ function AddPiecePill({
   );
 }
 
-/**
- * The "Add a piece" tab switcher — [ Photograph ] [ Search ] pills with the
- * selected flow unfolding beneath. Used verbatim on the Wardrobe screen,
- * The Rail tab, and (via AddPieceHub) every category view.
- */
 export function AddPieceSection({
   pieces,
   onAdded,
@@ -852,54 +967,73 @@ export function AddPieceSection({
   /** Category views pass their id so the photo flow files unplaced pieces there. */
   categoryId?: string;
 }) {
-  const [mode, setMode] = useState<'photograph' | 'search' | null>(null);
+  usePlexMono();
+  const [mode, setMode] = useState<'photograph' | 'search'>('photograph');
+  const logged = pieces.length;
+  const remaining = 5 - logged;
+
   return (
     <section aria-label="Add a piece">
-      {/* The two pills — no section header above them */}
-      <div className="flex items-center gap-3 flex-wrap" role="tablist" aria-label="How to add a piece">
-        <AddPiecePill
-          label="Photograph"
-          active={mode === 'photograph'}
-          onClick={() => setMode((m) => (m === 'photograph' ? null : 'photograph'))}
-        />
-        <AddPiecePill
-          label="Search"
-          active={mode === 'search'}
-          onClick={() => setMode((m) => (m === 'search' ? null : 'search'))}
-        />
+      {/* The 23a header — title + brief left, the two pills right, closed by
+          a walnut hairline. */}
+      <div
+        className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-5 md:gap-10 md:items-end"
+        style={{ paddingBottom: '20px', borderBottom: '1px solid var(--color-text,#3b2b1d)' }}
+      >
+        <div>
+          <h3 style={{ margin: 0, fontFamily: SERIF, fontSize: 'clamp(32px, 4.5vw, 42px)', fontWeight: 400, lineHeight: 1.08, letterSpacing: '-0.012em', color: WALNUT }}>
+            Add a piece
+          </h3>
+          <p style={{ margin: '11px 0 0', maxWidth: '70ch', fontFamily: BODY, fontSize: '15.5px', lineHeight: 1.58, color: INK }}>
+            Photograph it and Beau reads it. The card opens the moment you choose a photo — the upload and his read
+            fill in behind it, and nothing you have already corrected is overwritten.
+          </p>
+        </div>
+        <div className="flex gap-3" role="tablist" aria-label="How to add a piece">
+          <ModePill label="Photograph" active={mode === 'photograph'} onClick={() => setMode('photograph')} />
+          <ModePill label="Search" active={mode === 'search'} onClick={() => setMode('search')} />
+        </div>
       </div>
 
-      {/* THE COUNTER STOPS AT FIVE (23a): the only progress indicator in the
-          flow — it appears from the first piece logged, names the one real
-          threshold (five is where The Edit can say something honest), and it
-          disappears at five and never returns. A wardrobe is never a
-          percentage. */}
-      {pieces.length > 0 && pieces.length < 5 && (
-        <p
-          className="mt-3 text-[var(--color-neutral-700,#634e38)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5 }}
-        >
-          <span className="tabular-nums" style={{ color: 'var(--color-accent-700,#7c4a17)' }}>
-            {pieces.length} of 5 pieces
-          </span>
-          {' — '}
-          {5 - pieces.length === 1 ? 'one more' : `${5 - pieces.length} more`} and Beau can tell you what’s
-          missing. Before that he’d only be guessing.
-        </p>
-      )}
-
-      {/* Photograph — shows its interface; the user taps "Choose Photo" and
-          only THEN does the system picker fire (Pass Forty-Eight). */}
-      {mode === 'photograph' && (
-        <div className="pt-5">
-          <PhotoConfirmFlow pieces={pieces} onAdded={onAdded} categoryId={categoryId} />
+      {mode === 'photograph' ? (
+        <PhotoConfirmFlow pieces={pieces} onAdded={onAdded} categoryId={categoryId} />
+      ) : (
+        <div style={{ marginTop: '28px' }}>
+          <SearchPieceFlow pieces={pieces} onAdded={onAdded} />
         </div>
       )}
 
-      {/* Search — the input shows immediately below the pills */}
-      {mode === 'search' && (
-        <div className="pt-5">
-          <SearchPieceFlow pieces={pieces} onAdded={onAdded} />
+      {/* THE COUNTER STOPS AT FIVE (23a): visible from the first piece,
+          named for the one real threshold, gone at five and never back. */}
+      {logged > 0 && logged < 5 && (
+        <div
+          className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] gap-7 md:gap-[44px] md:items-center"
+          style={{ marginTop: '38px', paddingTop: '20px', borderTop: '1px solid rgba(59,43,29,0.18)' }}
+        >
+          <div>
+            <div className="flex items-baseline flex-wrap" style={{ gap: '14px' }}>
+              <span style={{ fontFamily: SERIF, fontSize: '20px', color: WALNUT }}>
+                {capWord(numberWord(logged))} logged
+              </span>
+              <span style={{ ...monoLabel(9), color: ACCENT_DEEP }}>
+                {remaining === 1 ? 'One more' : `${capWord(numberWord(remaining))} more`} and the map turns on
+              </span>
+            </div>
+            <div style={{ marginTop: '10px', height: '3px', background: 'rgba(59,43,29,0.16)' }}>
+              <div style={{ width: `${(logged / 5) * 100}%`, height: '3px', background: ACCENT }} />
+            </div>
+            <p style={{ margin: '10px 0 0', maxWidth: '74ch', fontFamily: BODY, fontSize: '13px', lineHeight: 1.55, color: SECONDARY }}>
+              The only counter in the flow, and it exists because five is the threshold where The Edit can say
+              something honest. It is not a completion score — it disappears at five and never returns.
+            </p>
+          </div>
+          <div style={{ borderLeft: '1px solid rgba(59,43,29,0.18)', paddingLeft: '24px' }}>
+            <div style={{ ...monoLabel(9), color: FAINT }}>The other way in</div>
+            <div style={{ marginTop: '7px', fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.55, color: INK }}>
+              The <em>Search</em> pill takes a name or a product link and finds the maker’s own photography — for
+              pieces you own but can’t easily photograph.
+            </div>
+          </div>
         </div>
       )}
     </section>
@@ -907,11 +1041,8 @@ export function AddPieceSection({
 }
 
 /**
- * The category-view add area (Pass Forty-Seven) — the SAME two-pill tab
- * switcher as the Wardrobe screen and The Rail: Photograph shows its
- * interface (the picker fires on "Choose Photo", never automatically),
- * Search shows the keyword/URL input. No "Add a piece" header row — the
- * pills are self-explanatory.
+ * The category-view add area — the SAME 23a surface as the Wardrobe screen
+ * and The Rail, pointed at one category.
  */
 export function AddPieceHub({
   pieces = [],
