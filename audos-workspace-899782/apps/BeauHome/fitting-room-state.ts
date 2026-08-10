@@ -1,53 +1,35 @@
 /**
- * Fitting Room engine — the shared state behind the Fitting Room tab and
- * every "Try this on" entry point across the app (Curated picks, Radar rows,
- * What-to-wear suggestions, owned pieces).
+ * Fitting engine — the shared state behind the Fitting tab and every "Try
+ * this on" entry point across the app (Hunt candidates, owned pieces,
+ * What-to-wear suggestions).
  *
- *  - requestFittingRoomTryOn(piece): the ONE way any surface starts a try-on.
- *    It kicks the render off IMMEDIATELY (so it is already cooking while the
- *    tab opens) and navigates to the Fitting Room, which picks the piece up
- *    as its active render. The old inline try-on modal is retired — the
- *    Fitting Room tab is the single home for all try-on activity.
- *  - ensureRender(person, garment): renders through lib/tryon (the swappable
- *    provider seam — Fashn today) with a THREE-layer cache: in-flight dedupe,
- *    in-memory, and the tryon_renders WorkspaceDB table, so a piece rendered
- *    once (by a tap or the shelf pre-loader) reappears near-instantly.
- *  - The PERSON image is the cached AVATAR (lib/tryon/avatar.ts) — the
- *    masculine figure built once from profile data, already wearing men's
- *    pyjamas in its default state. No render is needed until a piece is
- *    actually tapped, and the avatar URL is stable, so every piece rendered
- *    onto it caches cleanly per user.
+ *  - requestFittingRoomTryOn(piece): the ONE way any surface hands a piece
+ *    to The Fitting — it navigates there and the piece lands on the
+ *    flat-lay board.
+ *  - Board handoffs (manual / today / trip) and the module-level canvas
+ *    memory that makes tab switches free.
  *
- * Screens never import a provider: everything goes through lib/tryon.
+ * THE AVATAR PATH IS DELETED (design handoff §dead-code): the flat lay
+ * replaced the try-on figure. lib/tryon (the Fashn provider seam, the
+ * avatar builder) and the tryon_renders cache reads are gone with it —
+ * dead weight, not a flag.
  */
-import { tryOn } from '../../lib/tryon/index';
-import { ensureAvatar } from '../../lib/tryon/avatar';
 import { fetchProductImage } from './og-image';
 import { goToTab } from './profile-data';
 
-/**
- * THE AVATAR FEATURE FLAG — parked, not deleted.
- *
- * The whole avatar path (the figure, the body render, the pinned-piece layer,
- * the Avatar/Flat switcher and the avatar profile block in The Dossier) is
- * left in the codebase and switched off from this one place. With it false,
- * The Fitting opens directly onto the flat-lay board, “Try this on” lays the
- * piece out on that board, and nothing avatar-related is fetched, built or
- * rendered. Flip it to true to bring the idea back.
- */
-export const AVATAR_ENABLED: boolean = false;
-
 // ---------------------------------------------------------------------------
-// The piece being fitted — everything the Fitting Room needs to speak about
-// it, resolve its garment image, and link back to the listing.
+// The piece being fitted — everything The Fitting needs to speak about it,
+// resolve its garment image, and link back to the listing.
 // ---------------------------------------------------------------------------
 
 export interface FittingPiece {
-  /** Stable identity for caching and pinning, e.g. 'curated-drakes-ocbd'. */
+  /** Stable identity for caching and board keys, e.g. 'curated-drakes-ocbd'.
+   * Owned wardrobe pieces carry `owned-<id>` — everything else draws DASHED
+   * on the board (not yours yet) and saves as a proposal. */
   key: string;
   name: string;
   brand?: string | null;
-  /** Wardrobe category — used to place pinned pieces around the figure. */
+  /** Wardrobe category — used to place pieces in their flat-lay zone. */
   category?: string | null;
   /** Catalog slot id (e.g. 'ocbd', 'derbies') — picks the garment
    * illustration used when no product photo can be resolved. */
@@ -67,12 +49,6 @@ export interface FittingPiece {
   ctaUrl?: string | null;
 }
 
-// window.__workspaceDb is auto-injected by the platform compiler when it sees
-// this literal token in app source.
-function db(): any {
-  return (window as any).__workspaceDb;
-}
-
 // ---------------------------------------------------------------------------
 // Garment image resolution — direct image first, og:image from the product
 // page second (cached in og-image.tsx). '' when nothing usable exists.
@@ -85,100 +61,6 @@ export async function resolveGarmentImage(piece: FittingPiece): Promise<string> 
 }
 
 // ---------------------------------------------------------------------------
-// Render cache — memory + tryon_renders (WorkspaceDB), keyed person::garment.
-// Fashn result URLs are not permanent, so DB rows are only trusted for a
-// couple of days; a broken image calls forgetRender() and re-renders.
-// ---------------------------------------------------------------------------
-
-const RENDER_TTL_MS = 48 * 60 * 60 * 1000;
-
-const memoryRenders = new Map<string, string>();
-const inflightRenders = new Map<string, Promise<string>>();
-let dbCachePromise: Promise<void> | null = null;
-
-const renderKey = (personUrl: string, garmentUrl: string) => `${personUrl}::${garmentUrl}`;
-
-/** Warm the memory cache from tryon_renders once per session. */
-function loadDbRenderCache(): Promise<void> {
-  if (!dbCachePromise) {
-    dbCachePromise = (async () => {
-      try {
-        const { data } = await db().from('tryon_renders').orderBy('created_at', 'desc').limit(100).get();
-        const cutoff = Date.now() - RENDER_TTL_MS;
-        for (const row of data || []) {
-          if (!row?.person_url || !row?.garment_url || !row?.render_url) continue;
-          const age = row.created_at ? new Date(row.created_at).getTime() : 0;
-          if (age < cutoff) continue; // too old — the Fashn URL may be gone
-          const key = renderKey(row.person_url, row.garment_url);
-          if (!memoryRenders.has(key)) memoryRenders.set(key, row.render_url);
-        }
-      } catch (e) {
-        console.warn('[Ethaion] reading the try-on render cache failed:', e);
-      }
-    })();
-  }
-  return dbCachePromise;
-}
-
-/** Synchronous cache peek — for "appears near-instantly" checks. */
-export function cachedRender(personUrl: string, garmentUrl: string): string | null {
-  return memoryRenders.get(renderKey(personUrl, garmentUrl)) || null;
-}
-
-/** Drop a cached render whose URL went stale (image failed to load). */
-export function forgetRender(personUrl: string, garmentUrl: string): void {
-  memoryRenders.delete(renderKey(personUrl, garmentUrl));
-  void (async () => {
-    try {
-      const { data } = await db().from('tryon_renders').limit(100).get();
-      for (const row of data || []) {
-        if (row?.person_url === personUrl && row?.garment_url === garmentUrl) {
-          await db().from('tryon_renders').delete(row.id);
-        }
-      }
-    } catch { /* cache hygiene only — never blocks a re-render */ }
-  })();
-}
-
-/**
- * Render `garmentUrl` onto `personUrl` — cached, deduplicated, provider-
- * agnostic (lib/tryon). Resolves with the rendered image URL; rejects with a
- * plain-English error the Fitting Room shows quietly.
- */
-export async function ensureRender(
-  personUrl: string,
-  garmentUrl: string,
-  { pieceName, onPhase }: { pieceName?: string | null; onPhase?: (phase: string) => void } = {},
-): Promise<string> {
-  const key = renderKey(personUrl, garmentUrl);
-  await loadDbRenderCache();
-  const cached = memoryRenders.get(key);
-  if (cached) return cached;
-  const running = inflightRenders.get(key);
-  if (running) {
-    // Re-attach this caller's phase copy to the shared render.
-    onPhase?.('Beau is putting this together for you\u2026');
-    return running;
-  }
-  const job = (async () => {
-    try {
-      const url = await tryOn(personUrl, garmentUrl, { onPhase });
-      memoryRenders.set(key, url);
-      // Persist for next visit — fire and forget.
-      void db()
-        .from('tryon_renders')
-        .insert({ person_url: personUrl, garment_url: garmentUrl, render_url: url, piece_name: pieceName || null })
-        .catch(() => undefined);
-      return url;
-    } finally {
-      inflightRenders.delete(key);
-    }
-  })();
-  inflightRenders.set(key, job);
-  return job;
-}
-
-// ---------------------------------------------------------------------------
 // Cross-surface handoff — "Try this on" anywhere lands HERE.
 // ---------------------------------------------------------------------------
 
@@ -186,7 +68,7 @@ export const FITTING_PIECE_EVENT = 'ethaion:fitting-piece';
 
 let pendingPiece: FittingPiece | null = null;
 
-/** The Fitting Room reads (and clears) the piece it was opened with. */
+/** The Fitting reads (and clears) the piece it was opened with. */
 export function consumePendingFittingPiece(): FittingPiece | null {
   const piece = pendingPiece;
   pendingPiece = null;
@@ -194,28 +76,11 @@ export function consumePendingFittingPiece(): FittingPiece | null {
 }
 
 /**
- * The ONE entry point for every "Try this on" button: starts the render
- * immediately (so it is already in progress when the tab opens) and
- * navigates to the Fitting Room with the piece as the active render. The
- * person image is the cached avatar — built here on demand if this is the
- * very first interaction.
+ * The ONE entry point for every "Try this on" button: navigates to The
+ * Fitting with the piece, which lays it out on the flat-lay board.
  */
 export function requestFittingRoomTryOn(piece: FittingPiece): void {
   pendingPiece = piece;
-  // Head start: kick the render before the tab even mounts. Failures are
-  // quiet here — the Fitting Room re-runs the flow and surfaces the error.
-  // Avatar parked: no figure is built and no render is started; The Fitting
-  // simply lays the piece out on the board.
-  if (AVATAR_ENABLED) {
-    void (async () => {
-      try {
-        const avatar = await ensureAvatar();
-        const garment = await resolveGarmentImage(piece);
-        if (!garment) return;
-        await ensureRender(avatar.url, garment, { pieceName: piece.name });
-      } catch { /* the Fitting Room's own flow handles and shows errors */ }
-    })();
-  }
   goToTab('fitting-room');
   window.dispatchEvent(new CustomEvent(FITTING_PIECE_EVENT, { detail: { piece } }));
 }
@@ -226,6 +91,8 @@ export function requestFittingRoomTryOn(piece: FittingPiece): void {
 //   · manual ("Build a Look" on The Ledger)   → empty board
 //   · today  ("Beau · Today" on The Ledger)   → AI-composed board + reasoning
 //   · trip   ("Beau · Trip" form on The Ledger) → multi-day boards + packing
+// Entering with NO handoff at all also lands on today's look — the board
+// opens dressed (design handoff 10a).
 // ---------------------------------------------------------------------------
 
 export type FittingBoardSource = 'manual' | 'today' | 'trip';

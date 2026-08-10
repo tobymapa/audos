@@ -361,11 +361,13 @@ export function BeauTab({
   // returning to this tab paints the cached read instantly.
   const { result, loading, reassessing, busy, phase, error, ensure, reassess } = useBeauAssessment();
   const [dismissed, setDismissed] = useState<DismissedRecommendation[]>([]);
-  // Both accordions are closed on arrival. `briefingOpened` latches on the
-  // first expand: it is what mounts the Briefing (and so starts Beau
-  // writing), and it stays true afterwards so collapsing never throws the
+  // NOTHING IS COLLAPSED (build brief rule 7): “What to acquire next” — the
+  // payoff of the whole screen — arrives OPEN. The Briefing alone stays
+  // closed because expanding it is what asks Beau to write it.
+  // `briefingOpened` latches on the first expand: it is what mounts the
+  // Briefing, and it stays true afterwards so collapsing never throws the
   // document away.
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ 'acquire-next': true });
   const [briefingOpened, setBriefingOpened] = useState(false);
   const toggleAccordion = (id: string) => setOpenSections((cur) => ({ ...cur, [id]: !cur[id] }));
 
@@ -522,17 +524,17 @@ export function BeauTab({
             <EditAccordion
               id="acquire-next"
               title="What to acquire next"
-              standfirst="In priority order, from the same reasoning pass. For live product picks with links, prices and try-on, take these onto The Rail."
+              standfirst="In priority order, from the same reasoning pass. Each one leads into The Hunt, where the candidates that answer it live."
               open={!!openSections['acquire-next']}
               onToggle={() => toggleAccordion('acquire-next')}
               aside={
                 <button
                   type="button"
-                  onClick={() => goToTab('curated')}
+                  onClick={() => goToTab('scout')}
                   className="inline-flex items-center gap-1.5 group whitespace-nowrap"
                   style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', color: 'var(--color-accent,#a8712c)' }}
                 >
-                  See Beau’s picks on The Rail
+                  Take these to The Hunt
                   <span className="group-hover:translate-x-0.5 transition-transform" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1 }} aria-hidden="true">
                     ›
                   </span>

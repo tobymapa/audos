@@ -78,6 +78,7 @@ import { BrandDetailSheet, DiscoverSubTab } from './hunt-discover';
 import { CompareSubTab, MatrixSubTab } from './hunt-tools';
 import { SubTabs } from './sub-tabs';
 import { FindSubTab, UnifiedResultView, parseUnifiedResult, unifiedRowMeta } from './hunt-find';
+import { HuntStages } from './hunt-stages';
 
 function formatDate(iso?: string) {
   if (!iso) return '';
@@ -1305,8 +1306,8 @@ export function ScoutTab({
           <div className="min-w-0">
             <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>The Hunt</h3>
             <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '54ch' }}>
-              The brand and piece intelligence hub — find it, judge it, discover the makers worth your money, and
-              compare them head to head.
+              Everything you’re considering, in the order you’re considering it — spotted, weighed, held. Nothing
+              here is yours yet; the research tools below help you decide.
             </p>
           </div>
           <div className="flex flex-col items-start sm:items-end gap-1.5 flex-shrink-0">
@@ -1340,6 +1341,15 @@ export function ScoutTab({
                 : 'General knowledge only — nothing personal is read.'}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* THE PIPELINE — Spotted · Weighed · Held on ONE screen (7a): the
+          Rail / Hunt / Reserve funnel consolidated. A candidate is one
+          record at one stage; every count below derives from it. */}
+      <div className="px-6 sm:px-10 py-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+        <div className="max-w-[1180px] mx-auto">
+          <HuntStages />
         </div>
       </div>
 

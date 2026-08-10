@@ -12,10 +12,17 @@
  * style. An item either renders in its zone correctly or it doesn't; no
  * subjective judgement, no interpretation required.
  *
- * The zones, top to bottom on a portrait 480 × 600 board:
- *   · HEAD — hats and eyewear. Small, centred, at the very top, floating
+ * The zones, top to bottom on a portrait 480 × 600 board — ELEVEN of them
+ * (design handoff §7 zone expansion): head · eyewear · neck · outer layer ·
+ * mid layer · top · waist · bottom · feet · carry · wrist. A zone accepts
+ * more than one piece and stacks outward from the body:
+ *   · HEAD — hats and caps. Small, centred, at the very top, floating
  *     with a small clear gap above the torso stack (the invisible head) —
  *     never overlapping the torso zone.
+ *   · EYEWEAR — glasses and sunglasses, a small box at the top-left corner
+ *     beside the head slot.
+ *   · NECK — ties, scarves, cravats: a narrow strip laid over the top of
+ *     the torso stack, frontmost, the way neckwear sits when worn.
  *   · TORSO — outerwear + tops, LAYERED the way they are WORN: the base top
  *     sits rightmost at the BACK, and each layer worn over it shifts LEFT
  *     and renders IN FRONT (base top → knitwear → jacket → outerwear), so
@@ -136,6 +143,10 @@ export interface FlatLayPiece {
    * uncut photographs — those keep the zone's full width. */
   croppedWidth?: number | null;
   croppedHeight?: number | null;
+  /** DASHED MEANS NOT YOURS (build brief rule 2): true when the piece is a
+   * candidate — something the wearer doesn't own — so the board draws it
+   * with a dashed accent outline. A board holding one saves as a proposal. */
+  notOwned?: boolean;
 }
 
 export interface FlatLayPlacedItem<T extends FlatLayPiece = FlatLayPiece> {
@@ -203,6 +214,11 @@ function aspectWidthPct(piece: FlatLayPiece, heightPct: number): number | null {
  * zone split the zone's width evenly, side by side — still deterministic,
  * still zero rotation. */
 const ZONE_HEAD: ZoneBox = { top: 0, left: 32, width: 36, z: 7 };
+/** Eyewear — a small box at the top-left corner, beside the head slot. */
+const ZONE_EYEWEAR: ZoneBox = { top: 2, left: 6, width: 20, z: 8 };
+/** Neckwear — a narrow strip over the TOP of the torso stack, frontmost,
+ * the way a tie or scarf sits when worn. Its top anchors to the torso. */
+const ZONE_NECK = { left: 41, width: 18, z: 9 };
 /** The belt — the FRONTMOST layer at the waist, over every torso layer. */
 const ZONE_WAIST: ZoneBox = { top: 38, left: 38, width: 24, z: 7 };
 /** Trousers render BEHIND the torso stack at the overlap and BEHIND the
@@ -238,12 +254,28 @@ const TORSO_LAYER_SHIFT = 7.2;
 const ACCESSORY_COLUMN = { left: 80, width: 18, itemHeight: 12, gap: 3, z: 8 };
 
 const EYEWEAR_WORDS = /\b(sunglasses|glasses|eyewear|spectacles)\b/i;
+const NECK_WORDS = /\b(tie|ties|neck\s?tie|bow\s?tie|scarf|scarves|cravat|ascot|neckerchief|bandana|muffler|snood)\b/i;
 const BELT_WORDS = /\bbelts?\b/i;
 const SOCK_WORDS = /\bsocks?\b/i;
-const WATCH_WORDS = /\b(watch|watches|bracelet|cufflinks?)\b/i;
+const WATCH_WORDS = /\b(watch|watches|bracelet|cufflinks?|wrist)\b/i;
 const BAG_ZONE_WORDS = /\b(bag|briefcase|backpack|tote|holdall|satchel|weekender|rucksack)\b/i;
 
-type ZoneId = 'head' | 'torso' | 'waist' | 'legs' | 'feet' | 'socks' | 'accessories';
+/** THE ELEVEN ZONES (design handoff §7) — plus 'socks' as an internal
+ * helper slot and 'torso' carrying the outer/mid/top LAYER stack (the
+ * outer-layer / mid-layer / top distinction is the stack's back-to-front
+ * order, computed from body rank — see the torso placement below). */
+type ZoneId =
+  | 'head'
+  | 'eyewear'
+  | 'neck'
+  | 'torso'
+  | 'waist'
+  | 'legs'
+  | 'feet'
+  | 'socks'
+  | 'carry'
+  | 'wrist'
+  | 'accessories';
 
 function pieceText(piece: FlatLayPiece): string {
   return `${piece.slot || ''} ${piece.name || ''}`.toLowerCase();
@@ -255,12 +287,16 @@ function pieceText(piece: FlatLayPiece): string {
 function zoneFor(piece: FlatLayPiece): ZoneId {
   const text = pieceText(piece);
   if (SOCK_WORDS.test(text)) return 'socks';
+  if (EYEWEAR_WORDS.test(text)) return 'eyewear';
+  if (NECK_WORDS.test(text)) return 'neck';
+  if (WATCH_WORDS.test(text)) return 'wrist';
   const rank = bodyOrderRank({ category: piece.category, slot: piece.slot, name: piece.name });
-  if (rank === 0 || EYEWEAR_WORDS.test(text)) return 'head';
+  if (rank === 0) return 'head';
   if (BELT_WORDS.test(text)) return 'waist';
   if (rank >= 1 && rank <= 4) return 'torso';
   if (rank === 5) return 'legs';
   if (rank === 6) return 'feet';
+  if (rank === 7 || BAG_ZONE_WORDS.test(text)) return 'carry';
   return 'accessories';
 }
 
@@ -312,11 +348,15 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
 
   const groups: Record<ZoneId, T[]> = {
     head: [],
+    eyewear: [],
+    neck: [],
     torso: [],
     waist: [],
     legs: [],
     feet: [],
     socks: [],
+    carry: [],
+    wrist: [],
     accessories: [],
   };
   for (const piece of ordered) groups[zoneFor(piece)].push(piece);
@@ -358,6 +398,7 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
   };
 
   placeRow(groups.head, ZONE_HEAD);
+  placeRow(groups.eyewear, ZONE_EYEWEAR);
 
   // RESERVED CAP SLOT (founder's fix): the headwear slot at the top of the
   // column is ALWAYS held, hat or no hat — when empty nothing renders there
@@ -400,6 +441,9 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
   const torsoBottom =
     torsoLayers.length > 0 ? torsoTop + Math.max(...torsoLayers.map((p) => referenceHeightPct(p))) : null;
 
+  // NECK — laid over the top of the torso stack, frontmost (zone expansion).
+  placeRow(groups.neck, { ...ZONE_NECK, top: torsoTop + 1 });
+
   // TIGHT VERTICAL SPACING (founder's fix): the trousers anchor to the torso
   // stack's hem rather than a fixed board position — the waistband tucks
   // slightly under the shirt (TORSO_LEGS_OVERLAP; legs render behind the
@@ -437,11 +481,16 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
   placeRow(groups.socks, { top: sockTop, left: ZONE_SOCKS.left, width: ZONE_SOCKS.width, z: ZONE_SOCKS.z });
   placeRow(groups.feet, { top: feetTop, left: ZONE_FEET.left, width: ZONE_FEET.width, z: ZONE_FEET.z });
 
-  // SIDE ACCESSORY COLUMN — each item anchored near its body zone, walked
-  // top to bottom with collisions resolved downward so items never overlap.
-  const column = groups.accessories
-    .map((piece) => ({ piece, anchor: accessoryAnchorTop(piece) }))
-    .sort((a, b) => a.anchor - b.anchor);
+  // SIDE ACCESSORY COLUMN — three zones share the right edge, each anchored
+  // near the body zone it corresponds to (zone expansion §7): WRIST at torso
+  // height, CARRY (bags) at waist/hip height, other accessories between —
+  // walked top to bottom with collisions resolved downward so items never
+  // overlap.
+  const column = [
+    ...groups.wrist.map((piece) => ({ piece, anchor: 8 })),
+    ...groups.accessories.map((piece) => ({ piece, anchor: accessoryAnchorTop(piece) })),
+    ...groups.carry.map((piece) => ({ piece, anchor: 40 })),
+  ].sort((a, b) => a.anchor - b.anchor);
   let cursor = 0;
   column.forEach(({ piece, anchor }) => {
     const top = clamp(Math.max(anchor, cursor), 0, 100 - ACCESSORY_COLUMN.itemHeight);
@@ -726,8 +775,25 @@ export function FlatLayBoard<T extends FlatLayPiece>({
             justifyContent: 'center',
             ...dragStyle,
           }}
-          title={item.piece.name}
+          title={item.piece.notOwned ? `${item.piece.name} — not yours yet` : item.piece.name}
         >
+          {/* DASHED MEANS NOT YOURS — the 1px dashed accent outline on any
+              piece the wearer doesn't own, on every surface the flat-lay
+              fronts (build brief rule 2). Outline, not border: the tray's
+              CSS forces border:none on every piece. */}
+          {item.piece.notOwned && (
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                outline: '1.5px dashed var(--color-accent,#a8712c)',
+                outlineOffset: '-1px',
+                pointerEvents: 'none',
+                zIndex: 2,
+              }}
+            />
+          )}
           {item.piece.image && isTransparentCutout(item.piece.image) ? (
             /* The stored transparent PNG: it lies straight on the board with
                nothing behind it and nothing done to it. */

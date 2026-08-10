@@ -66,8 +66,7 @@ import { BudgetFilters } from '../BeauHome/wardrobe';
 import { ARCHETYPE_PHOTOS, ARCHETYPE_PHOTO_SETS, ArchetypeIllo } from '../BeauHome/illustrations';
 import { HowToMeasureButton } from '../BeauHome/measure-guide';
 import { SaveProfileButton } from '../BeauHome/save-profile';
-import { TryOnPhotoSection } from '../BeauHome/tryon';
-import { fetchAvatarInputs, saveAvatarInputs } from '../../lib/tryon/avatar';
+import { fetchAvatarInputs, saveAvatarInputs } from '../BeauHome/body-profile';
 import {
   CLIMATE_OPTIONS,
   EMPTY_DOSSIER_DETAILS,
@@ -2756,7 +2755,9 @@ export default function YourStyle() {
 
         {/* Your Fitting Room photo — the base photo Beau renders try-ons
             onto. Kept below the brief; not one of its sections. */}
-        <TryOnPhotoSection className="mt-6" />
+        {/* The avatar builder is deleted (design handoff §dead-code) — the
+            flat lay replaced the try-on figure. Height, weight and build
+            stay above, in “Body — sizes & measurements”. */}
 
         {/* Reset */}
         <div className={`${tw.card.flat} rounded-2xl p-4 mt-5`}>

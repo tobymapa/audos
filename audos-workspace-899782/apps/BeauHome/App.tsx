@@ -8,6 +8,7 @@ import {
   Folder,
   Hourglass,
   LayoutGrid,
+  Library,
   Loader2,
   PersonStanding,
   Sparkles,
@@ -63,7 +64,7 @@ import { HairlineRowsSkeleton, HomeSkeleton, ShimmerDefs } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { CategoryGrid, CategoryPage, SeeAllPieces, WardrobeSearch } from './wardrobe';
 import { AddPieceHub, AddPieceSection } from './add-piece';
-import { fetchAvatarInputs, saveAvatarInputs } from '../../lib/tryon/avatar';
+import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
 import { sweepSemanticTags } from './semantic-tags';
 import { sweepPieceWarmth } from './warmth-model';
 import { BeauAssessmentProvider } from './beau-assessment-context';
@@ -94,6 +95,7 @@ const SavedTab = lazy(() => import('./discovery').then((m) => ({ default: memo(m
 const WardrobeStore = lazy(() => import('./store').then((m) => ({ default: memo(m.WardrobeStore) })));
 const StyleMeToday = lazy(() => import('./style-today').then((m) => ({ default: memo(m.StyleMeToday) })));
 const YourStyle = lazy(() => import('../YourStyle/App').then((m) => ({ default: memo(m.default) })));
+const IndexTab = lazy(() => import('./index-tab').then((m) => ({ default: memo(m.IndexTab) })));
 
 /** Module-scoped so the housekeeping audits run at most ONCE per page load.
  * A StrictMode double-mount, or the app being closed and reopened from the
@@ -952,32 +954,31 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level navigation (Milestones overhaul, Part 1): SEVEN tabs, in this
-// exact order, each with a hairline stroke icon:
-//   The Ledger (was Wardrobe) · The Edit · The Rail (was Curated) ·
-//   The Hunt (was Scout) · The Reserve (was Radar) · The Fitting (was
-//   Fitting Room) · The Dossier (was Your Style / Profile).
-// The Reads tab is HIDDEN from the nav — all its code and content stays
-// intact and routable (deep links) — and the OLD Rail tab (the photo
-// record) lost its slot too: its contents merged into The Ledger as the
-// "On the Rail" section. The internal tab ids are unchanged ('wardrobe',
-// 'beau', 'curated', 'scout', 'radar', 'fitting-room', 'your-style') so
-// chat deep links keep working. The pipeline is unchanged: The Rail (Beau
-// suggests) → Saved (bookmarked) → The Reserve (watching) → The Ledger
-// (owned). "Build a Look" stays a routable card on The Ledger.
+// Top-level navigation (design handoff — the five-tab backbone): FIVE tabs,
+// in this exact order, each with a hairline stroke icon:
+//   The Ledger · The Edit · The Fitting · The Hunt · The Index.
+// The Rail / Hunt / Reserve funnel is consolidated into The Hunt as three
+// stages on one screen (hunt-stages.tsx); The Index houses the two
+// reference works (the piece taxonomy + the maker directory); The Dossier
+// leaves the nav for the ACCOUNT CORNER — it is settings Beau reads, the
+// same weight as sign-out. The internal tab ids are unchanged ('wardrobe',
+// 'beau', 'scout', 'fitting-room', …) so chat deep links keep working, and
+// the retired tab surfaces ('curated', 'radar', 'your-style') stay fully
+// routable as hidden views.
+// On a phone the five tabs move to a BOTTOM bar at thumb height with 52pt
+// targets, same order (Mobile spec M1); the top strip keeps the account
+// corner.
 // ---------------------------------------------------------------------------
 
-type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
+type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed' | 'index';
 
 /** Hairline, stroke-only tab icons — no fills (Part 1's icon column). */
-const TABS: Array<{ id: TabId; label: string; icon: 'book' | 'grid' | 'hanger' | 'compass' | 'hourglass' | 'figure' | 'folder' }> = [
-  { id: 'wardrobe', label: 'The Ledger', icon: 'book' },
-  { id: 'beau', label: 'The Edit', icon: 'grid' },
-  { id: 'curated', label: 'The Rail', icon: 'hanger' },
-  { id: 'scout', label: 'The Hunt', icon: 'compass' },
-  { id: 'radar', label: 'The Reserve', icon: 'hourglass' },
-  { id: 'fitting-room', label: 'The Fitting', icon: 'figure' },
-  { id: 'your-style', label: 'The Dossier', icon: 'folder' },
+const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'compass' | 'hourglass' | 'figure' | 'folder' | 'library' }> = [
+  { id: 'wardrobe', label: 'The Ledger', short: 'Ledger', icon: 'book' },
+  { id: 'beau', label: 'The Edit', short: 'Edit', icon: 'grid' },
+  { id: 'fitting-room', label: 'The Fitting', short: 'Fitting', icon: 'figure' },
+  { id: 'scout', label: 'The Hunt', short: 'Hunt', icon: 'compass' },
+  { id: 'index', label: 'The Index', short: 'Index', icon: 'library' },
 ];
 
 /** A small clothes-hanger glyph — stroke-only, inherits the tab's colour. */
@@ -1011,68 +1012,136 @@ function TabIcon({ icon }: { icon: string }) {
     case 'hourglass': return <Hourglass className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'figure': return <PersonStanding className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'folder': return <Folder className={cls} strokeWidth={1.5} fill="none" aria-hidden="true" />;
+    case 'library': return <Library className={cls} strokeWidth={1.5} aria-hidden="true" />;
     default: return null;
   }
 }
 
 /** Views without a tab-bar entry — still routable from chat and in-app links.
  * 'dressed' is the Build a Look outfit builder, opened from The Ledger's card;
- * 'saved' is the pipeline's bookmark stage, opened from The Rail;
+ * 'saved' is the old bookmark stage, opened from The Rail;
  * 'reads' is the editorial layer — HIDDEN from the nav, code and content
  * fully intact (Milestones overhaul, Part 6);
  * 'rail' is the OLD Rail photo-record screen — no tab-bar slot, still
- * routable by deep link. */
-const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail'];
+ * routable by deep link;
+ * 'curated' is the old Rail tab — its reference half lives in The Index,
+ * its funnel half in The Hunt's Spotted stage;
+ * 'radar' is the old Reserve — now The Hunt's Held stage;
+ * 'your-style' is The Dossier — reached from the account corner, the same
+ * weight as sign-out (design handoff 14a). */
+const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar', 'your-style'];
 
 function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void }) {
-  // Warm Editorial nav: Lora uppercase labels, each led by a hairline
-  // stroke icon (Milestones overhaul — the icon column of Part 1's table),
-  // 47px tall (comfortably above the 44px touch floor), centred on --paper.
-  // The active tab reads unmistakably: ink text at a heavier weight over a
-  // 2px accent underline; a 1px ink rule closes the bar. The strip scrolls
-  // with momentum on mobile, no jank.
+  // Warm Editorial nav, two placements (design handoff §Navigation · M1):
+  //  · DESKTOP — the five tabs as a centred header strip, 47px tall, plus
+  //    THE ACCOUNT CORNER on the right: the Dossier, the same weight as
+  //    sign-out — it left the primary nav (14a).
+  //  · PHONE — the five tabs move to a fixed BOTTOM bar at thumb height,
+  //    52pt targets, same order; the slim top strip keeps the wordmark and
+  //    the account corner.
+  const tourAnchorFor = (id: TabId) =>
+    id === 'wardrobe' ? 'tour-ledger'
+    : id === 'scout' ? 'tour-hunt'
+    : id === 'fitting-room' ? 'tour-fitting'
+    : id === 'index' ? 'tour-index'
+    : undefined;
+
+  const dossierActive = tab === 'your-style';
+  const accountCorner = (
+    <button
+      type="button"
+      onClick={() => onChange('your-style')}
+      className={`flex items-center flex-shrink-0 px-2.5 min-h-[44px] whitespace-nowrap uppercase transition-colors ${
+        dossierActive ? 'text-[var(--space-text-primary)]' : 'text-[var(--color-neutral-600,#856c51)] hover:text-[var(--space-text-primary)]'
+      }`}
+      style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', letterSpacing: '0.1em', fontWeight: dossierActive ? 600 : 400 }}
+      aria-current={dossierActive ? 'page' : undefined}
+      title="The Dossier — what Beau knows about you, and your account"
+    >
+      <Folder className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" strokeWidth={1.5} fill="none" aria-hidden="true" />
+      Dossier
+    </button>
+  );
+
   return (
-    <div className="sticky top-0 z-30 bg-[var(--space-surface-card)] border-b border-[var(--space-text-primary)] flex-shrink-0">
-      {/* The strip scrolls horizontally when it must, but never shows a
-          scrollbar track — scrollbar-width: none (Firefox), -ms-overflow-style
-          (legacy Edge) and ::-webkit-scrollbar (Chrome/Safari) all hidden. */}
-      <style>{'.ethaion-tabnav{scrollbar-width:none;-ms-overflow-style:none}.ethaion-tabnav::-webkit-scrollbar{display:none;width:0;height:0}'}</style>
+    <>
+      <div className="sticky top-0 z-30 bg-[var(--space-surface-card)] border-b border-[var(--space-text-primary)] flex-shrink-0">
+        {/* The strip scrolls horizontally when it must, but never shows a
+            scrollbar track — scrollbar-width: none (Firefox), -ms-overflow-style
+            (legacy Edge) and ::-webkit-scrollbar (Chrome/Safari) all hidden. */}
+        <style>{'.ethaion-tabnav{scrollbar-width:none;-ms-overflow-style:none}.ethaion-tabnav::-webkit-scrollbar{display:none;width:0;height:0}'}</style>
+        <div className="relative flex items-center justify-between sm:justify-center px-3 sm:px-12">
+          {/* Phone: the wordmark holds the strip; the tabs live at the bottom. */}
+          <span
+            className="sm:hidden uppercase text-[var(--space-text-primary)] py-3"
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', letterSpacing: '0.22em' }}
+          >
+            Ethaion
+          </span>
+          <nav
+            className="ethaion-tabnav hidden sm:flex justify-center gap-1 overflow-x-auto"
+            style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            aria-label="Ethaion sections"
+          >
+            {TABS.map(({ id, label: tabLabel, icon }) => {
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  data-tour={tourAnchorFor(id)}
+                  onClick={() => onChange(id)}
+                  className={`flex items-center flex-shrink-0 px-3.5 sm:px-5 h-[47px] border-b-2 -mb-px whitespace-nowrap uppercase transition-colors ${
+                    active
+                      ? 'border-[var(--space-brand-primary)] text-[var(--space-text-primary)]'
+                      : 'border-transparent text-[var(--color-neutral-600,#856c51)] hover:text-[var(--space-text-primary)]'
+                  }`}
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', letterSpacing: '0.1em', fontWeight: active ? 600 : 400 }}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <TabIcon icon={icon} />
+                  {tabLabel}
+                </button>
+              );
+            })}
+          </nav>
+          {/* THE ACCOUNT CORNER — the Dossier lives here now (14a). */}
+          <span className="sm:absolute sm:right-3 sm:top-1/2 sm:-translate-y-1/2">{accountCorner}</span>
+        </div>
+      </div>
+
+      {/* PHONE — the five tabs at the bottom, thumb height, 52pt targets,
+          same order as the desktop header (Mobile spec M1). */}
       <nav
-        className="ethaion-tabnav flex justify-start sm:justify-center gap-0.5 sm:gap-1 px-2 sm:px-5 overflow-x-auto"
-        style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex bg-[var(--space-surface-card)] border-t border-[var(--space-text-primary)]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Ethaion sections"
       >
-        {TABS.map(({ id, label: tabLabel, icon }) => {
+        {TABS.map(({ id, short, icon }) => {
           const active = tab === id;
-          // The first-run tour's anchors — the coach marks ring these buttons.
-          const tourAnchor =
-            id === 'wardrobe' ? 'tour-ledger'
-            : id === 'curated' ? 'tour-rail'
-            : id === 'radar' ? 'tour-reserve'
-            : id === 'scout' ? 'tour-hunt'
-            : id === 'fitting-room' ? 'tour-fitting'
-            : undefined;
           return (
             <button
               key={id}
               type="button"
-              data-tour={tourAnchor}
+              data-tour={tourAnchorFor(id) ? `${tourAnchorFor(id)}-m` : undefined}
               onClick={() => onChange(id)}
-              className={`flex items-center flex-shrink-0 px-3.5 sm:px-5 h-[47px] border-b-2 -mb-px whitespace-nowrap uppercase transition-colors ${
+              className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 uppercase transition-colors ${
                 active
-                  ? 'border-[var(--space-brand-primary)] text-[var(--space-text-primary)]'
-                  : 'border-transparent text-[var(--color-neutral-600,#856c51)] hover:text-[var(--space-text-primary)]'
+                  ? 'text-[var(--space-text-primary)] border-t-2 border-[var(--space-brand-primary)] -mt-px'
+                  : 'text-[var(--color-neutral-600,#856c51)]'
               }`}
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', letterSpacing: '0.1em', fontWeight: active ? 600 : 400 }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: '9.5px', letterSpacing: '0.1em', fontWeight: active ? 600 : 400 }}
               aria-current={active ? 'page' : undefined}
             >
-              <TabIcon icon={icon} />
-              {tabLabel}
+              {/* TabIcon carries a right margin for the inline header row —
+                  cancel it here so the stacked icon stays centred. */}
+              <span className="-mr-1.5"><TabIcon icon={icon} /></span>
+              {short}
             </button>
           );
         })}
       </nav>
-    </div>
+    </>
   );
 }
 
@@ -2199,9 +2268,9 @@ export default function BeauHome() {
   return (
     <BeauAssessmentProvider profile={profile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
-      {/* Persistent top navigation — The Ledger · The Edit · The Rail ·
-          The Hunt · The Reserve · The Fitting · The Dossier (7 tabs;
-          Reads hidden, old Rail merged into The Ledger). */}
+      {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
+          The Hunt · The Index (five tabs; the Dossier in the account
+          corner; on a phone the five tabs sit in the bottom bar). */}
       <TabBar
         tab={tab}
         onChange={(t) => {
@@ -2216,7 +2285,7 @@ export default function BeauHome() {
           background removal + white-card normalization without blocking the
           wardrobe. */}
       {photoSweep?.active && (
-        <div className="fixed bottom-4 right-4 z-40 rounded-full bg-[var(--space-surface-card)] border border-[var(--space-border-default)] shadow-md px-3.5 py-2 flex items-center gap-2">
+        <div className="fixed bottom-[72px] sm:bottom-4 right-4 z-40 rounded-full bg-[var(--space-surface-card)] border border-[var(--space-border-default)] shadow-md px-3.5 py-2 flex items-center gap-2">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--space-text-brand)]" />
           <span className={`${typography.size.xs} ${typography.color.secondary}`}>
             Refreshing wardrobe images… {Math.min(photoSweep.done + 1, photoSweep.total)} of {photoSweep.total}
@@ -2224,7 +2293,8 @@ export default function BeauHome() {
         </div>
       )}
 
-      <div className="flex-1">
+      {/* Bottom padding on phones clears the fixed bottom tab bar. */}
+      <div className="flex-1 pb-[68px] sm:pb-0">
         {/* Tab panels stay mounted once visited (KeepMounted) — switching
             tabs hides them with display:none instead of unmounting, so
             their state and data survive and switching back is instant. */}
@@ -2471,7 +2541,16 @@ export default function BeauHome() {
           </Suspense>
         </KeepMounted>
 
-        {/* Radar — active monitoring: price drops & restocks on chosen pieces */}
+        {/* The Index — the reference wing: the piece taxonomy + the maker
+            directory (design handoff 13a · 9a). */}
+        <KeepMounted active={tab === 'index'}>
+          <Suspense fallback={<TabLoadingSkeleton />}>
+            <IndexTab pieces={pieces} profile={profile} />
+          </Suspense>
+        </KeepMounted>
+
+        {/* Radar — the old Reserve, HIDDEN from the nav (its records are The
+            Hunt's Held stage) — still routable by deep link. */}
         <KeepMounted active={tab === 'radar'}>
           <Suspense fallback={<TabLoadingSkeleton />}>
             <RadarTab />

@@ -10,8 +10,8 @@
  * sub-page / bottom-sheet overlay pattern is retired; nothing slides in,
  * nothing overlays the board. Top to bottom:
  *   1 a slim header row (tab kicker, the SHARED location + weather line,
- *     the trip day carousel, the Avatar/Flat toggle, the trip-level gap
- *     note) · 2 THE BOARD — the avatar figure or the flat-lay canvas,
+ *     the trip day carousel, the trip-level gap
+ *     note) · 2 THE BOARD — the flat-lay canvas,
  *     always fully visible · 3 the action bar (Save · Add to Reserve ·
  *     Share · View saved) · 4 the reasoning strip (AI boards only —
  *     oxblood, dismissible) · 5 quick-adjust chips (AI boards only) ·
@@ -53,23 +53,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Pin, X } from 'lucide-react';
 import { typography } from '../../lib/colors';
 import {
-  AVATAR_EVENT,
-  avatarNeedsFirstBuild,
-  cachedAvatarSync,
-  ensureAvatar,
-  fetchAvatarInputs,
-  rebuildAvatarInBackground,
-  type Avatar,
-} from '../../lib/tryon/avatar';
-import { fetchTryOnPhoto } from '../../lib/tryon/index';
-import {
   RESERVE_CHANGED_EVENT,
   WARDROBE_CATEGORIES,
   buildCuratedFeed,
   categoryLabel,
   fetchMaterials,
-  goToTab,
-  insertRadarItem,
   type CategoryBudget,
   type RadarItem,
   type StylePrefs,
@@ -79,15 +67,11 @@ import {
 import { hierarchyGate, itemPassesGate } from './wardrobe-model';
 import { pieceBrandType, pieceNameType } from './piece-typography';
 import {
-  AVATAR_ENABLED,
   FITTING_BOARD_EVENT,
   FITTING_PIECE_EVENT,
-  cachedRender,
   cachedTripBoards,
   consumePendingFittingBoard,
   consumePendingFittingPiece,
-  ensureRender,
-  forgetRender,
   loadFittingCanvas,
   rememberTripBoards,
   resolveGarmentImage,
@@ -128,18 +112,19 @@ import {
   type TripBoards,
 } from './fitting-ai';
 import { getTodayBoard, peekTodayBoard, rememberTodayBoard } from './today-board';
+import { fileCandidate } from './hunt-stages';
 import { TripBriefForm } from './trip-card';
 import { useBeauReveal } from './beau-reveal';
 import { WeatherLine, sharedWeatherPromptLine } from './weather-context';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 
+/** THE AVATAR PATH IS DELETED (design handoff §dead-code): the flat lay
+ * replaced the try-on figure — lib/tryon, the render lifecycle, the pinned-
+ * piece layer, the Avatar/Flat switcher and the tryon_renders cache are all
+ * gone. The mode TYPE survives as a constant so the shelf-card prop shape
+ * is unchanged. */
 type FitMode = 'avatar' | 'flat';
-const MODE_KEY = 'ethaion_fitting_mode';
-
-// The avatar is PARKED, not killed: every avatar path below — the figure, the
-// render lifecycle, the pinned-piece layer, the Avatar/Flat switcher — is left
-// intact behind AVATAR_ENABLED (fitting-room-state.ts). With it false The
-// Fitting opens straight onto the flat-lay board.
+const FITTING_MODE: FitMode = 'flat';
 
 /** Beau's voice colour — everything Beau-initiated on this screen. */
 const OXBLOOD = 'var(--color-accent-2,#7d2a24)';
@@ -155,98 +140,7 @@ function db(): any {
 const FITTING_RESERVE_STALE_MS = 60_000;
 let fittingReserveFetchedAt = 0;
 
-// Soft edge removal — a feathered elliptical mask plus a multiply blend onto
-// the oatmeal ground: the figure melts into #efe7d9 instead of sitting on a
-// hard-cut white card. Editorial and warm, not a product shot.
-const SOFT_EDGE_MASK =
-  'radial-gradient(ellipse 62% 78% at 50% 44%, rgba(0,0,0,1) 55%, rgba(0,0,0,0.6) 74%, rgba(0,0,0,0) 94%)';
 
-const FIGURE_STYLE: React.CSSProperties = {
-  mixBlendMode: 'multiply',
-  WebkitMaskImage: SOFT_EDGE_MASK,
-  maskImage: SOFT_EDGE_MASK,
-  filter: 'sepia(0.05) saturate(0.98)',
-};
-
-// ---------------------------------------------------------------------------
-// Pinned pieces (Avatar mode) — clean garment thumbnails placed around the
-// figure by category (the v1 hybrid: they are NOT body-rendered).
-// ---------------------------------------------------------------------------
-
-type PinSlot = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-
-function pinSlotFor(category?: string | null): PinSlot {
-  const cat = (category || '').toLowerCase();
-  if (cat === 'outerwear' || cat === 'formalwear') return 'top-left';
-  if (cat === 'bottoms') return 'bottom-left';
-  if (cat === 'shoes') return 'bottom-right';
-  return 'top-right'; // tops, knitwear, accessories, unknown
-}
-
-function PinCard({ piece, onRemove }: { piece: FittingPiece; onRemove: () => void }) {
-  const [img, setImg] = useState('');
-  useEffect(() => {
-    let active = true;
-    void resolveGarmentImage(piece)
-      .then((url) => {
-        if (!active) return;
-        if (url) {
-          setImg(url);
-          return;
-        }
-        // Same fallback the shelf uses: the REAL product's image, web-
-        // resolved from the brand's own site or a quality retailer
-        // (product-images.ts) — a pinned pick never sits blank.
-        return resolveProductImage({ name: piece.name, brand: piece.brand, productUrl: piece.productUrl }).then((photo) => {
-          if (active && photo) setImg(photo);
-        });
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [piece]);
-  return (
-    <div className="relative w-[56px] sm:w-[76px] bg-[var(--color-paper,#fbf8f1)] border border-[var(--color-divider,rgba(59,43,29,0.18))] p-1">
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Unpin ${piece.name}`}
-        title="Unpin from the look"
-        className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[var(--color-paper,#fbf8f1)] border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)] rounded-full"
-      >
-        <X className="w-3 h-3" />
-      </button>
-      {/* A stored cutout lies straight on the ground with nothing behind it.
-          A photograph that has no cutout yet is NEVER shown raw or plated on
-          a white box (the universal transparency rule): the quiet tile holds
-          its place until the genuine cutout lands. */}
-      {/* Absolutely positioned image: a percentage-height child inside an
-          aspect-ratio box collapses on some desktop engines (older
-          Safari/WebKit) — the pin's image must render at every viewport. */}
-      <span className="relative block w-full aspect-[3/4] overflow-hidden">
-        {img && isTransparentCutout(img) ? (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <img
-              src={img}
-              alt={piece.name}
-              loading="eager"
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
-            />
-          </span>
-        ) : (
-          <span className="absolute inset-0 bg-[#eadfcb]" aria-hidden="true" />
-        )}
-      </span>
-      <span
-        className="block mt-1 text-[var(--color-text,#241a12)] leading-tight break-words"
-        style={{ fontFamily: 'var(--space-font-family)', fontSize: '9px' }}
-      >
-        {piece.name}
-      </span>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // The three-level shelf — What you own · In your Reserve · Beau's picks.
@@ -954,6 +848,10 @@ interface SavedOutfitRow {
   id: number;
   name: string;
   pieces: unknown;
+  /** 'proposal' when the board held a piece the user doesn't own (10a/22a)
+   * — a proposal is never an answer to “what shall I wear”. Legacy rows
+   * carry 'flat' and are re-derived from their pieces at render. */
+  mode?: string | null;
   created_at?: string;
 }
 
@@ -989,7 +887,7 @@ export function FittingRoomTab({
   prefs: StylePrefs | null;
 }) {
   // One-shot read of the piece another surface opened the tab with — a
-  // "Try this on" handoff always lands in AVATAR mode with it rendering.
+  // "Try this on" handoff lands the piece straight on the flat-lay board.
   const pendingRef = useRef<FittingPiece | null | undefined>(undefined);
   if (pendingRef.current === undefined) pendingRef.current = consumePendingFittingPiece();
 
@@ -997,60 +895,8 @@ export function FittingRoomTab({
   // tabs and coming back paints the exact same board with zero API calls.
   const restoredRef = useRef(loadFittingCanvas());
 
-  // ------------------------------------------------------------------
-  // Mode — Avatar (Beta) or Flat view. Flat is the default until the
-  // avatar profile is complete; a manual toggle choice is remembered.
-  // ------------------------------------------------------------------
-  const modeChosen = useRef<boolean>(false);
-  const [mode, setMode] = useState<FitMode>(() => {
-    // Avatar parked: the board is the only view, whatever was remembered.
-    if (!AVATAR_ENABLED) return 'flat';
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem(MODE_KEY);
-    } catch { /* storage unavailable — fall through to the default */ }
-    modeChosen.current = saved === 'avatar' || saved === 'flat';
-    if (pendingRef.current) return 'avatar';
-    return saved === 'avatar' || saved === 'flat' ? (saved as FitMode) : 'flat';
-  });
-  const chooseMode = (next: FitMode) => {
-    if (!AVATAR_ENABLED) return;
-    modeChosen.current = true;
-    try {
-      localStorage.setItem(MODE_KEY, next);
-    } catch { /* remembered for this session regardless */ }
-    setMode(next);
-  };
-  useEffect(() => {
-    if (!AVATAR_ENABLED) return;
-    if (modeChosen.current || pendingRef.current) return;
-    let cancelled = false;
-    void Promise.all([fetchAvatarInputs(), fetchTryOnPhoto()])
-      .then(([inputs, photo]) => {
-        if (cancelled || modeChosen.current) return;
-        const complete = !!(inputs.heightCm && inputs.weightKg && inputs.skinTone && photo?.photo_url);
-        if (complete) setMode('avatar');
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // The avatar — instantly from cache, revalidated in the background.
-  const [avatar, setAvatar] = useState<Avatar>(() => cachedAvatarSync());
-  const [building, setBuilding] = useState<boolean>(() => avatarNeedsFirstBuild());
-
-  // The active (body-rendered) piece and its render lifecycle (Avatar mode).
-  const [active, setActive] = useState<FittingPiece | null>(pendingRef.current);
-  const [renderState, setRenderState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const [renderUrl, setRenderUrl] = useState<string | null>(null);
-  const [activeGarment, setActiveGarment] = useState<string | null>(null);
-  const [phase, setPhase] = useState('Beau is putting this together for you\u2026');
-  const [attempt, setAttempt] = useState(0);
-
-  // Pinned pieces — the Avatar mode "build a look" layer around the figure.
-  const [pins, setPins] = useState<FittingPiece[]>([]);
+  // The one view — the flat-lay board (the avatar path is deleted).
+  const mode: FitMode = FITTING_MODE;
 
   // ------------------------------------------------------------------
   // The shared canvas state — source, board, reasoning, trip. Seeded from
@@ -1188,7 +1034,6 @@ export function FittingRoomTab({
       setReasoningDismissed(false);
       setGapNote(null);
       setGapDismissed(false);
-      setMode('flat');
     } else if (applied.source === 'today') {
       setTripFormOpen(false);
       void composeToday();
@@ -1199,7 +1044,6 @@ export function FittingRoomTab({
       } else {
         // "Plan for a trip" row — no brief yet: show the form on the board.
         setTripFormOpen(true);
-        setMode('flat');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1216,7 +1060,6 @@ export function FittingRoomTab({
     setReasoningDismissed(false);
     setGapNote(null);
     setGapDismissed(false);
-    setMode('flat');
     const cached = peekTodayBoard(pieces);
     if (cached) {
       setBoard(boardFromIds(cached.pieceIds));
@@ -1257,7 +1100,6 @@ export function FittingRoomTab({
     setReasoning(null);
     setGapNote(null);
     setGapDismissed(false);
-    setMode('flat');
     const cached = cachedTripBoards(brief, wardrobeIds) as TripBoards | null;
     if (cached) {
       setTrip(tripStateFrom(brief, cached));
@@ -1293,84 +1135,19 @@ export function FittingRoomTab({
     setGapDismissed(false);
   };
 
-  // ------------------------------------------------------------------
-  // Avatar lifecycle — unchanged.
-  // ------------------------------------------------------------------
-  useEffect(() => {
-    if (!AVATAR_ENABLED) return;
-    let cancelled = false;
-    void ensureAvatar()
-      .then((fresh) => {
-        if (!cancelled) setAvatar(fresh);
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (!cancelled) setBuilding(false);
-      });
-    const onAvatar = (event: Event) => {
-      const fresh = (event as CustomEvent).detail?.avatar as Avatar | undefined;
-      if (!fresh) return;
-      setAvatar(fresh);
-      setBuilding(false);
-    };
-    window.addEventListener(AVATAR_EVENT, onAvatar);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(AVATAR_EVENT, onAvatar);
-    };
-  }, []);
-
-  // "Try this on" fired from another surface while this tab is mounted.
+  // "Try this on" fired from another surface while this tab is mounted —
+  // the piece lands straight on the flat-lay board.
   useEffect(() => {
     const onPiece = (event: Event) => {
       const piece = (event as CustomEvent).detail?.piece as FittingPiece | undefined;
       consumePendingFittingPiece();
       if (!piece) return;
-      if (!AVATAR_ENABLED) {
-        // “Try this on” now lands the piece on the flat-lay board instead of
-        // the figure — the handoff still works, it just has one destination.
-        toggleOnBoardRef.current(piece);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-      setActive(piece);
-      setMode('avatar');
+      toggleOnBoardRef.current(piece);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     window.addEventListener(FITTING_PIECE_EVENT, onPiece);
     return () => window.removeEventListener(FITTING_PIECE_EVENT, onPiece);
   }, []);
-
-  // The active render (Avatar mode).
-  useEffect(() => {
-    if (!active || mode !== 'avatar') return;
-    let cancelled = false;
-    setRenderState('loading');
-    setPhase('Beau is putting this together for you\u2026');
-    void (async () => {
-      try {
-        const garment = await resolveGarmentImage(active);
-        if (!garment) throw new Error('no clean garment image for this piece');
-        if (cancelled) return;
-        setActiveGarment(garment);
-        const url = await ensureRender(avatar.url, garment, {
-          pieceName: active.name,
-          onPhase: (p) => {
-            if (!cancelled) setPhase(p);
-          },
-        });
-        if (!cancelled) {
-          setRenderUrl(url);
-          setRenderState('ready');
-        }
-      } catch (e) {
-        console.warn('[Ethaion] fitting room render failed:', e);
-        if (!cancelled) setRenderState('error');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [avatar.url, active, attempt, mode]);
 
   // ------------------------------------------------------------------
   // The shelf — owned pieces + Beau's picks, merged.
@@ -1493,37 +1270,11 @@ export function FittingRoomTab({
   const shelfPicks = filterShelf(beauPicks);
 
   // ------------------------------------------------------------------
-  // Pre-loading (Avatar mode only) — unchanged.
-  // ------------------------------------------------------------------
-  const preloadedFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (mode !== 'avatar' || building || beauPicks.length === 0 || preloadedFor.current === avatar.url) return;
-    preloadedFor.current = avatar.url;
-    const person = avatar.url;
-    void (async () => {
-      for (const pick of beauPicks.slice(0, 3)) {
-        try {
-          const garment = await resolveGarmentImage(pick);
-          if (!garment || cachedRender(person, garment)) continue;
-          await ensureRender(person, garment, { pieceName: pick.name });
-        } catch {
-          /* pre-loading is best-effort — a tap re-runs it with real feedback */
-        }
-      }
-    })();
-  }, [mode, building, avatar.url, beauPicks]);
-
-  // ------------------------------------------------------------------
   // Interactions
   // ------------------------------------------------------------------
-  const tryOnPiece = (piece: FittingPiece) => {
-    setActive(piece);
-    setAttempt((a) => a + 1);
-  };
-  const pinPiece = (piece: FittingPiece) => {
-    setPins((cur) => (cur.some((p) => p.key === piece.key) ? cur : [...cur, piece]));
-  };
-  const unpin = (key: string) => setPins((cur) => cur.filter((p) => p.key !== key));
+  /** Pin-to-look belonged to the deleted avatar path — a quiet no-op keeps
+   * the shelf-card prop shape (the pin button never renders in flat mode). */
+  const pinPiece = (_piece?: FittingPiece) => {};
 
   /** The board the canvas is currently editing — the active trip day's, or
    * the single board. */
@@ -1666,18 +1417,38 @@ export function FittingRoomTab({
   };
   const removeFromBoard = (key: string) => setActiveBoard((cur) => cur.filter((p) => p.key !== key));
 
-  // The “Try this on” handoff, avatar-parked: the piece another surface sent
-  // us goes straight onto the board. Held in a ref because the event listener
+  // The “Try this on” handoff: the piece another surface sent us goes
+  // straight onto the board. Held in a ref because the event listener
   // above is registered once, before toggleOnBoard exists.
   const toggleOnBoardRef = useRef(toggleOnBoard);
   toggleOnBoardRef.current = toggleOnBoard;
   const pendingPlaced = useRef(false);
   useEffect(() => {
-    if (AVATAR_ENABLED || pendingPlaced.current || !pendingRef.current) return;
+    if (pendingPlaced.current || !pendingRef.current) return;
     pendingPlaced.current = true;
     toggleOnBoardRef.current(pendingRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // THE BOARD OPENS DRESSED (design handoff 10a — the single highest-value
+  // change in the product): entering The Fitting with NO handoff, NO
+  // remembered canvas and NO try-on piece lands on TODAY'S LOOK, already
+  // assembled — never an empty board with instructions floating in it.
+  // today-board.ts's per-day cache makes the repeat visit free; “Start an
+  // empty board” (the manual entry) is still one tap away. A wardrobe too
+  // small to dress a day falls back to the manual board.
+  const defaultDressed = useRef(false);
+  useEffect(() => {
+    if (defaultDressed.current || handoff || trip || tripFormOpen || pendingRef.current) return;
+    if (board.length > 0 || boardSource !== 'manual') {
+      defaultDressed.current = true; // a restored or loaded canvas wins
+      return;
+    }
+    if (pieces.length < 3) return; // not enough wardrobe to compose from yet
+    defaultDressed.current = true;
+    void composeToday();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff, pieces.length]);
 
   // THE CUTOUT SWEEP — the one place that guarantees every piece ON the board
   // is a transparent cutout, whichever route put it there: a shelf tap, a
@@ -1696,10 +1467,7 @@ export function FittingRoomTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBoard]);
 
-  const onShelfTap = (piece: FittingPiece) => {
-    if (mode === 'avatar') tryOnPiece(piece);
-    else toggleOnBoard(piece);
-  };
+  const onShelfTap = (piece: FittingPiece) => toggleOnBoard(piece);
 
   /** Which shelf cards read as “on the board” right now. */
   const selectedKeys = useMemo(() => new Set(activeBoard.map((p) => p.key)), [activeBoard]);
@@ -1776,12 +1544,21 @@ export function FittingRoomTab({
     if (saving || activeBoardPieces.length === 0) return;
     setSaving(true);
     try {
+      // PROPOSAL VS WEARABLE LOOK (10a/22a): a board holding a piece you
+      // don't own saves as a PROPOSAL, never as an outfit — the flag is
+      // stored on the record's mode field, and the dashed border rule
+      // follows it everywhere the look shows.
+      const isProposal = activeBoardPieces.some((p) => !p.key.startsWith('owned-'));
       await db()
         .from('saved_outfits')
-        .insert({ name: name.trim() || 'Beau\u2019s suggestion', pieces: JSON.stringify(activeBoardPieces), mode: 'flat' });
+        .insert({ name: name.trim() || 'Beau\u2019s suggestion', pieces: JSON.stringify(activeBoardPieces), mode: isProposal ? 'proposal' : 'flat' });
       setSaveOpen(false);
       setSaveName('');
-      setActionFlash('Saved — it\u2019s under \u201cView saved\u201d.');
+      setActionFlash(
+        isProposal
+          ? 'Saved as a proposal — it holds a piece you don\u2019t own yet. It\u2019s under \u201cView saved\u201d.'
+          : 'Saved — it\u2019s under \u201cView saved\u201d.',
+      );
       refreshSaved();
     } catch (e) {
       console.warn('[Ethaion] saving the outfit failed:', e);
@@ -1803,7 +1580,8 @@ export function FittingRoomTab({
           .insert({
             name: `${trip.brief.destination} — ${day.label}`,
             pieces: JSON.stringify(dayPieces),
-            mode: 'flat',
+            // Same proposal rule as a single board (10a/22a).
+            mode: dayPieces.some((p) => !p.key.startsWith('owned-')) ? 'proposal' : 'flat',
           });
       }
       setActionFlash('Trip saved — every day is under \u201cView saved\u201d.');
@@ -1816,7 +1594,10 @@ export function FittingRoomTab({
     }
   };
 
-  const addBoardToReserve = async () => {
+  /** File the board's unowned pieces into The Hunt as Spotted (the Reserve
+   * is retired as a destination — candidates live in ONE place, at one
+   * stage, with their board history as evidence). */
+  const fileBoardInHunt = async () => {
     if (reserveBusy) return;
     const candidates = activeBoardPieces.filter((p) => !p.key.startsWith('owned-'));
     if (candidates.length === 0) {
@@ -1826,25 +1607,23 @@ export function FittingRoomTab({
     setReserveBusy(true);
     try {
       for (const p of candidates) {
-        await insertRadarItem({
+        await fileCandidate({
           name: p.name,
           brand: p.brand,
-          color: null,
-          size: null,
-          notes: 'Added from The Fitting',
-          price_seen: null,
-          product_url: null,
           category: p.category,
-          watch_price: false,
+          origin: 'From a board',
+          reason: 'A look in The Fitting needed a piece you don\u2019t own.',
           source: 'fitting',
         });
       }
       setActionFlash(
-        candidates.length === 1 ? 'One piece added to The Reserve.' : `${candidates.length} pieces added to The Reserve.`,
+        candidates.length === 1
+          ? 'One piece filed in The Hunt as Spotted.'
+          : `${candidates.length} pieces filed in The Hunt as Spotted.`,
       );
     } catch (e) {
-      console.warn('[Ethaion] adding to The Reserve failed:', e);
-      setActionFlash('Couldn\u2019t add to The Reserve — try again.');
+      console.warn('[Ethaion] filing into The Hunt failed:', e);
+      setActionFlash('Couldn\u2019t file that into The Hunt — try again.');
     } finally {
       setReserveBusy(false);
     }
@@ -1886,7 +1665,6 @@ export function FittingRoomTab({
     // A saved outfit keeps ONE seed forever — it re-opens laid out
     // identically every time (flat-lay overhaul, 5.4).
     setBoardSeed(`saved-${row.id}`);
-    setMode('flat');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1906,39 +1684,6 @@ export function FittingRoomTab({
   // ------------------------------------------------------------------
   // Derived bits
   // ------------------------------------------------------------------
-  const showingRender = renderState === 'ready' && !!renderUrl;
-  const figureUrl = showingRender ? (renderUrl as string) : avatar.url;
-
-  const onFigureError = () => {
-    if (showingRender && activeGarment) {
-      forgetRender(avatar.url, activeGarment);
-      setRenderUrl(null);
-      setAttempt((a) => a + 1);
-    } else {
-      rebuildAvatarInBackground();
-    }
-  };
-
-  const pinsBySlot = useMemo(() => {
-    const slots: Record<PinSlot, FittingPiece[]> = {
-      'top-left': [],
-      'top-right': [],
-      'bottom-left': [],
-      'bottom-right': [],
-    };
-    for (const pin of pins) slots[pinSlotFor(pin.category)].push(pin);
-    return slots;
-  }, [pins]);
-
-  const pinStack = (slot: PinSlot, positionCls: string) =>
-    pinsBySlot[slot].length > 0 ? (
-      <div className={`absolute ${positionCls} flex flex-col gap-2 z-10`}>
-        {pinsBySlot[slot].map((pin) => (
-          <PinCard key={pin.key} piece={pin} onRemove={() => unpin(pin.key)} />
-        ))}
-      </div>
-    ) : null;
-
   // Trip packing list — every piece used across ALL days, deduplicated.
   const packingList = useMemo<BoardPiece[]>(() => {
     if (!trip) return [];
@@ -1967,44 +1712,6 @@ export function FittingRoomTab({
     }
   };
 
-  // Avatar parked — with one view there is nothing to toggle between, so the
-  // switcher is not rendered at all.
-  const modeToggle = !AVATAR_ENABLED ? null : (
-    <div className="flex flex-shrink-0" role="group" aria-label="Fitting modes">
-      {([
-        { id: 'avatar' as const, label: 'Avatar', beta: true },
-        { id: 'flat' as const, label: 'Flat view', beta: false },
-      ]).map(({ id, label, beta }, i) => {
-        const activeMode = mode === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            onClick={() => chooseMode(id)}
-            aria-pressed={activeMode}
-            className={`uppercase min-h-[36px] px-3 inline-flex items-center gap-1.5 whitespace-nowrap transition-colors ${
-              activeMode
-                ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
-                : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
-            } ${i > 0 ? 'border-l-0' : ''}`}
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.1em' }}
-          >
-            {label}
-            {beta && (
-              <span
-                className="border border-current px-1 py-px leading-none"
-                style={{ fontFamily: 'var(--space-font-family)', fontSize: '8.5px', letterSpacing: '0.1em' }}
-                title="Avatar rendering is in beta — drape and colour read true; exact fit still needs the size chart."
-              >
-                Beta
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-
   const actionDot = (
     <span aria-hidden="true" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-neutral-500,#a68e70)' }}>
       ·
@@ -2012,10 +1719,23 @@ export function FittingRoomTab({
   );
   const actionBtnStyle: React.CSSProperties = { fontFamily: 'var(--space-font-family)', fontSize: '13px', borderRadius: 0 };
 
+  const unownedOnBoard = activeBoardPieces.filter((p) => !p.key.startsWith('owned-'));
+
   const actionBar = (
     // data-tour: the first-run walkthrough's Fitting-board stop rings this
     // action row (onboarding-tour.tsx).
-    <div className="flex items-center gap-2 flex-wrap py-1 border-t border-b border-[var(--color-divider,rgba(59,43,29,0.18))] mt-3" data-tour="tour-fitting-board">
+    <div className="mt-3" data-tour="tour-fitting-board">
+      {unownedOnBoard.length > 0 && !trip && (
+        /* DASHED MEANS NOT YOURS (build brief rule 2): the board states the
+           count and names the consequence — saving files a proposal. */
+        <p className="pb-1" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-accent-700,#7c4a17)' }}>
+          {unownedOnBoard.length === 1
+            ? 'One piece on this board isn\u2019t yours'
+            : `${unownedOnBoard.length} pieces on this board aren\u2019t yours`}
+          {' '}— drawn dashed. Saved, this look files as a proposal, not an outfit.
+        </p>
+      )}
+    <div className="flex items-center gap-2 flex-wrap py-1 border-t border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
       {trip ? (
         <button
           type="button"
@@ -2043,14 +1763,14 @@ export function FittingRoomTab({
       {actionDot}
       <button
         type="button"
-        onClick={() => void addBoardToReserve()}
+        onClick={() => void fileBoardInHunt()}
         disabled={reserveBusy || activeBoardPieces.length === 0}
         className="min-h-[40px] px-1.5 hover:underline disabled:opacity-40 text-[var(--color-text,#241a12)] inline-flex items-center gap-1.5"
         style={actionBtnStyle}
-        title="Add the unowned pieces on this board to The Reserve"
+        title="File the unowned pieces on this board into The Hunt as Spotted"
       >
         {reserveBusy && <Loader2 className="w-3 h-3 animate-spin" />}
-        Add to Reserve
+        File in The Hunt
       </button>
       {actionDot}
       <button
@@ -2074,10 +1794,11 @@ export function FittingRoomTab({
         onClick={() => savedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         className="min-h-[40px] px-1.5 hover:underline"
         style={{ ...actionBtnStyle, color: 'var(--color-accent,#a8712c)' }}
-        title="Saved outfits and your Reserve — further down this page"
+        title="Saved looks and proposals — further down this page"
       >
         View saved ›
       </button>
+    </div>
     </div>
   );
 
@@ -2094,13 +1815,18 @@ export function FittingRoomTab({
                 style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em' }}
               >
                 The Fitting
-                {trip
-                  ? ` · ${trip.brief.destination}`
-                  : boardSource === 'today'
-                    ? ' · Beau · today'
-                    : ''}
+                {trip ? ` · ${trip.brief.destination}` : ''}
               </span>
-              {modeToggle}
+              {!trip && boardSource === 'today' && (
+                /* “Beau · Today” reads visually distinct (design handoff §2):
+                   the one accent chip on this header. */
+                <span
+                  className="uppercase px-2 py-0.5 border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)] whitespace-nowrap flex-shrink-0"
+                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.14em' }}
+                >
+                  Beau · Today
+                </span>
+              )}
             </div>
 
             {/* The shared location + weather context — ONE state with the
@@ -2193,8 +1919,8 @@ export function FittingRoomTab({
           </div>
         </div>
 
-        {/* THE BOARD — avatar figure or the flat-lay canvas, in normal
-            document flow: always visible, never overlaid or dismissed. */}
+        {/* THE BOARD — the flat-lay canvas, in normal document flow:
+            always visible, never overlaid or dismissed. */}
         <div className="relative">
           {/* TRIP BRIEF FORM (Part 10) — shown IN PLACE of the board when
               Trip mode was entered without a brief (no overlay). */}
@@ -2209,124 +1935,7 @@ export function FittingRoomTab({
               />
             </div>
           )}
-          {!tripFormOpen && (AVATAR_ENABLED && mode === 'avatar' ? (
-            <section aria-label="Your fitting room mirror" className="relative" style={{ height: 'min(70vh, 620px)' }}>
-              <div className="h-full w-full flex items-center justify-center px-4">
-                <img
-                  src={figureUrl}
-                  alt={
-                    showingRender && active
-                      ? `Your avatar, wearing ${active.name}`
-                      : 'Your avatar, in the fitting room'
-                  }
-                  className="block max-h-full w-auto max-w-[80vw] object-contain select-none"
-                  style={FIGURE_STYLE}
-                  onError={onFigureError}
-                />
-              </div>
-
-              {showingRender && active && (
-                <p
-                  className="absolute inset-x-0 bottom-1 text-center px-4"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-text,#241a12)' }}
-                >
-                  {active.name}
-                  {active.brand ? (
-                    <span style={{ color: 'var(--color-accent,#a8712c)' }}> · {active.brand}</span>
-                  ) : null}
-                </p>
-              )}
-
-              {pinStack('top-left', 'top-2 left-3 sm:left-8')}
-              {pinStack('top-right', 'top-2 right-3 sm:right-8')}
-              {pinStack('bottom-left', 'bottom-2 left-3 sm:left-8')}
-              {pinStack('bottom-right', 'bottom-2 right-3 sm:right-8')}
-
-              {building && renderState !== 'loading' && (
-                <div
-                  className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
-                  style={{ background: 'rgba(239,231,217,0.66)' }}
-                  aria-live="polite"
-                >
-                  <span className="block w-12 h-[3px] bg-[var(--color-accent,#a8712c)] animate-pulse" aria-hidden="true" />
-                  <p
-                    className={`${typography.color.primary} mt-4`}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.3, maxWidth: '26ch' }}
-                  >
-                    Beau is getting The Fitting ready…
-                  </p>
-                  <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontFamily: 'var(--space-font-family)' }}>
-                    Only this once — it opens instantly from here on.
-                  </p>
-                </div>
-              )}
-
-              {renderState === 'loading' && (
-                <div
-                  className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
-                  style={{ background: 'rgba(239,231,217,0.66)' }}
-                  aria-live="polite"
-                >
-                  <span className="block w-12 h-[3px] bg-[var(--color-accent,#a8712c)] animate-pulse" aria-hidden="true" />
-                  <p
-                    className={`${typography.color.primary} mt-4`}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.3, maxWidth: '26ch' }}
-                  >
-                    {phase}
-                  </p>
-                  <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontFamily: 'var(--space-font-family)' }}>
-                    A first look takes a few seconds — pieces you’ve tried before reappear instantly. Prefer zero wait?
-                    Flat view lays the outfit out instantly.
-                  </p>
-                </div>
-              )}
-
-              {renderState === 'error' && active && (
-                <div
-                  className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center text-center gap-2 px-8 py-4"
-                  style={{ background: 'rgba(239,231,217,0.88)' }}
-                >
-                  <p
-                    className={typography.color.primary}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1.3, maxWidth: '34ch' }}
-                  >
-                    Beau couldn’t get a preview this time. Try again, view the piece directly — or lay it out in Flat view.
-                  </p>
-                  <div className="flex items-center gap-3 flex-wrap justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setAttempt((a) => a + 1)}
-                      className="px-3.5 min-h-[40px] rounded text-[13px] bg-transparent border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-text,#241a12)] hover:border-[var(--space-border-strong)] transition-colors"
-                    >
-                      Try again
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (active) toggleOnBoard(active);
-                        chooseMode('flat');
-                      }}
-                      className="min-h-[40px] text-[13px] hover:underline"
-                      style={{ fontFamily: 'var(--space-font-family)', color: 'var(--color-accent,#a8712c)' }}
-                    >
-                      Open it in Flat view ›
-                    </button>
-                    {active.ctaUrl && (
-                      <a
-                        href={active.ctaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="min-h-[40px] inline-flex items-center text-[13px] hover:underline"
-                        style={{ fontFamily: 'var(--space-font-family)', color: 'var(--color-accent,#a8712c)' }}
-                      >
-                        {active.ctaLabel || 'View the piece'} ›
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-            </section>
-          ) : (
+          {!tripFormOpen && (
             <section
               aria-label={trip ? `${activeDayState?.label || 'Trip day'} outfit board` : 'Your outfit board'}
               className="relative"
@@ -2353,11 +1962,11 @@ export function FittingRoomTab({
                 </div>
               )}
             </section>
-          ))}
+          )}
         </div>
 
         {/* Action bar — directly below the board, in the same scroll:
-            Save · Add to Reserve · Share · View saved (scrolls to the
+            Save · File in The Hunt · Share · View saved (scrolls to the
             inline Saved section further down). */}
         <div className="px-4 sm:px-8 bg-[var(--color-bg,#efe7d9)]">
           <div className="max-w-[1180px] mx-auto">{actionBar}</div>
@@ -2642,27 +2251,10 @@ export function FittingRoomTab({
             )}
 
             <p className={`${typography.size.xs} ${typography.color.muted} mt-6`} style={{ fontSize: '10px' }}>
-              {AVATAR_ENABLED && mode === 'avatar' ? (
-                <>
-                  Tap a piece and Beau renders it on your avatar (Beta) — drape and colour read true; exact fit is still
-                  worth checking against the size chart. “Pin to the look” places a piece around the figure instead.{' '}
-                  <button
-                    type="button"
-                    onClick={() => goToTab('your-style')}
-                    className="hover:underline"
-                    style={{ color: 'var(--color-accent,#a8712c)' }}
-                  >
-                    Tune the figure — height, build, skin tone and your photo — in The Dossier ›
-                  </button>
-                </>
-              ) : (
-                <>
-                  Tap pieces and they gather on the board together, laid out in dressing order — tap one again to take it
-                  off. The section toggles decide which shelves show; the smaller chips filter within them. Pieces without
-                  a “Beau’s pick” tag are yours; the tagged ones are his recommendations for the gaps, and their product
-                  photography is cut out of its background before it lands on the board.
-                </>
-              )}
+              Tap pieces and they gather on the board together, laid out in dressing order — tap one again to take it
+              off. The section toggles decide which shelves show; the smaller chips filter within them. Pieces without
+              a “Beau’s pick” tag are yours; anything not yours lands dashed — a board holding one saves as a
+              proposal — and product photography is cut out of its background before it lands on the board.
             </p>
 
             {/* SAVED OUTFITS — inline at the foot of the same scroll (the
@@ -2673,52 +2265,90 @@ export function FittingRoomTab({
                 Saved
               </p>
 
-              {/* Saved outfits — tap to load back onto the board. */}
-              <p
-                className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))] mt-3"
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
-              >
-                Saved outfits
-              </p>
-              {(savedRows || []).length > 0 ? (
-                <div className="divide-y divide-[var(--color-divider,rgba(59,43,29,0.18))] border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-                  {(savedRows || []).map((row) => {
-                    const rowPieces = parsePieces(row.pieces);
-                    return (
-                      <div key={row.id} className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => loadSavedOutfit(row)}
-                          className="flex-1 min-w-0 min-h-[44px] py-2.5 text-left group"
-                          title={`Load “${row.name}” onto the board`}
-                        >
-                          <span className="block truncate" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 500, color: 'var(--color-text,#241a12)' }}>
-                            {row.name}
-                          </span>
-                          <span className="block truncate group-hover:underline" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-600,#856c51)' }}>
-                            {rowPieces.length > 0 ? rowPieces.map((p) => p.name).join(' · ') : 'Empty board'}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void removeSavedOutfit(row.id)}
-                          disabled={deletingId === row.id}
-                          aria-label={`Delete the saved outfit ${row.name}`}
-                          title="Delete this saved outfit"
-                          className="flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-accent-700,#7c4a17)] disabled:opacity-40"
-                          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}
-                        >
-                          {deletingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '×'}
-                        </button>
+              {/* LOOKS AND PROPOSALS, SEPARATED (22a): a look is wearable
+                  tomorrow — every piece yours; a proposal holds a piece you
+                  don't own and draws dashed, so “what shall I wear” never
+                  returns a shopping list. Legacy rows without the stored
+                  flag are re-derived from their pieces. */}
+              {(() => {
+                const allRows = savedRows || [];
+                const isProposalRow = (row: SavedOutfitRow) =>
+                  row.mode === 'proposal' ||
+                  parsePieces(row.pieces).some((p) => !(p.key || '').startsWith('owned-'));
+                const savedLooks = allRows.filter((r) => !isProposalRow(r));
+                const savedProposals = allRows.filter(isProposalRow);
+                const renderRow = (row: SavedOutfitRow, proposal: boolean) => {
+                  const rowPieces = parsePieces(row.pieces);
+                  const waitingOn = proposal ? rowPieces.filter((p) => !(p.key || '').startsWith('owned-')).length : 0;
+                  return (
+                    <div
+                      key={row.id}
+                      className="flex items-center gap-3"
+                      style={proposal ? { borderLeft: '2px dashed var(--color-accent,#a8712c)', paddingLeft: '10px' } : undefined}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => loadSavedOutfit(row)}
+                        className="flex-1 min-w-0 min-h-[44px] py-2.5 text-left group"
+                        title={`Load “${row.name}” onto the board`}
+                      >
+                        <span className="block truncate" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 500, color: 'var(--color-text,#241a12)' }}>
+                          {row.name}
+                        </span>
+                        <span className="block truncate group-hover:underline" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-600,#856c51)' }}>
+                          {proposal && waitingOn > 0 ? `Waiting on ${waitingOn} piece${waitingOn === 1 ? '' : 's'} · ` : ''}
+                          {rowPieces.length > 0 ? rowPieces.map((p) => p.name).join(' · ') : 'Empty board'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void removeSavedOutfit(row.id)}
+                        disabled={deletingId === row.id}
+                        aria-label={`Delete the saved ${proposal ? 'proposal' : 'look'} ${row.name}`}
+                        title={proposal ? 'Delete this proposal' : 'Delete this saved look'}
+                        className="flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-accent-700,#7c4a17)] disabled:opacity-40"
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}
+                      >
+                        {deletingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '×'}
+                      </button>
+                    </div>
+                  );
+                };
+                return (
+                  <>
+                    <p
+                      className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))] mt-3"
+                      style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
+                    >
+                      Looks · {savedLooks.length} — every piece yours · wearable tomorrow
+                    </p>
+                    {savedLooks.length > 0 ? (
+                      <div className="divide-y divide-[var(--color-divider,rgba(59,43,29,0.18))] border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+                        {savedLooks.map((row) => renderRow(row, false))}
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
-                  Nothing saved yet — build a board and tap Save.
-                </p>
-              )}
+                    ) : (
+                      <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+                        Nothing saved yet — build a board and tap Save.
+                      </p>
+                    )}
+                    <p
+                      className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))] mt-6"
+                      style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
+                    >
+                      Proposals · {savedProposals.length} — each holds a piece you don’t own · dashed
+                    </p>
+                    {savedProposals.length > 0 ? (
+                      <div className="divide-y divide-[var(--color-divider,rgba(59,43,29,0.18))] border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+                        {savedProposals.map((row) => renderRow(row, true))}
+                      </div>
+                    ) : (
+                      <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+                        No proposals — a board holding a piece you don’t own saves here, and becomes a look the day you buy it.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
 
             </div>
           </div>

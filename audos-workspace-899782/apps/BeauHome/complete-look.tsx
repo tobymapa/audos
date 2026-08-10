@@ -20,7 +20,7 @@ import { typography } from '../../lib/colors';
 import { type WardrobePiece } from './profile-data';
 import { fetchSemanticTags, type SemanticTags } from './semantic-tags';
 import { type BeauAssessment } from './beau-assessment';
-import { openRailForGap, registerOf, rowFor, type RegisterId } from './coverage-map';
+import { gapLabel, openHuntForGap, registerOf, rowFor, type RegisterId } from './coverage-map';
 import { TicketFrame, dashedBoxStyle, solidBoxStyle } from './ticket-frame';
 import { sortByCategoryOrder } from './category-order';
 
@@ -160,7 +160,7 @@ export function CompleteTheLook({
             className="text-[var(--color-neutral-600,#856c51)]"
             style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, marginBottom: '12px' }}
           >
-            Nothing owned in these slots — tap any to see The Rail’s picks.
+            An open slot is a real gap — tap it and The Hunt opens on exactly that hole.
           </p>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -184,21 +184,29 @@ export function CompleteTheLook({
               ) : (
                 <button
                   type="button"
-                  onClick={() => openRailForGap(slot.row, register)}
+                  onClick={() => openHuntForGap(slot.row, register)}
                   className="block w-full text-left group"
                   style={{ ...dashedBoxStyle, padding: '10px 12px', minHeight: '78px', background: 'transparent' }}
-                  title={`See Beau's recommendations for this ${slot.label.toLowerCase()} on The Rail`}
+                  title={`${gapLabel(slot.row, register)} — see candidates in The Hunt`}
                 >
+                  {/* THE GAP IS NAMED (6a) — never a bare “Gap ›”. */}
                   <span
-                    className="uppercase"
+                    className="block group-hover:underline"
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.4, color: 'var(--color-neutral-700,#634e38)' }}
+                  >
+                    {gapLabel(slot.row, register)}
+                  </span>
+                  <span
+                    className="block uppercase"
                     style={{
                       fontFamily: 'var(--space-font-heading)',
                       fontSize: '10px',
                       letterSpacing: '0.14em',
                       color: 'var(--color-accent-2,#7d2a24)',
+                      marginTop: '4px',
                     }}
                   >
-                    Gap ›
+                    See The Hunt ›
                   </span>
                 </button>
               )}

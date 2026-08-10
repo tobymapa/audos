@@ -5,12 +5,11 @@
  * bottom-left corner of the shell (bottom-right is the photo-migration
  * pill's spot).
  *
- * Twelve stops, in the order a new customer meets the product — the main
- * tabs AND their key sub-tabs / sections (walkthrough extension):
+ * Ten stops, in the order a new customer meets the product — the five
+ * primary tabs AND their key sub-tabs / sections (five-tab IA):
  *   The Ledger · Beau · Today · Your pieces (category sections)
- *   The Reserve · its Watching list · The Rail
- *   The Hunt · its Find sub-tab · its Discover sub-tab
- *   The Fitting · the outfit board's actions · the shelf sections
+ *   The Hunt (spotted · weighed · held) · its Find and Discover tools
+ *   The Index · The Fitting · the board's actions · the shelf sections
  *
  * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
  * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
@@ -68,25 +67,9 @@ const STEPS: TourStep[] = [
     navigate: { tab: 'wardrobe' },
   },
   {
-    anchor: 'tour-reserve',
-    kicker: 'The Reserve',
-    body: 'Pieces you\u2019re weighing up wait here while you decide.',
-  },
-  {
-    anchor: 'tour-reserve-watch',
-    kicker: 'The Reserve · Watching',
-    body: 'Add a piece to the watch list and Beau re-checks price, stock and size on every visit — drops surface at the top.',
-    navigate: { tab: 'radar' },
-  },
-  {
-    anchor: 'tour-rail',
-    kicker: 'The Rail',
-    body: 'The Rail hangs Beau\u2019s picks for your gaps — pieces move from here to the Reserve, then into the Ledger.',
-  },
-  {
     anchor: 'tour-hunt',
     kicker: 'The Hunt',
-    body: 'Ask for anything — Beau hunts it down: real listings, brand dossiers, quality verdicts.',
+    body: 'Everything you\u2019re considering, one screen, three stages — spotted, weighed, held. Paste a product link and it files itself.',
   },
   {
     anchor: 'tour-hunt-find',
@@ -101,20 +84,25 @@ const STEPS: TourStep[] = [
     navigate: { tab: 'scout', huntSubTab: 'discover' },
   },
   {
+    anchor: 'tour-index',
+    kicker: 'The Index',
+    body: 'The reference wing — every garment type worth knowing, and the makers on your radar. It never says buy.',
+  },
+  {
     anchor: 'tour-fitting',
     kicker: 'The Fitting',
-    body: 'Build the look flat and try it on — your pieces, head to toe.',
+    body: 'The board opens on today\u2019s look, already dressed — a swap is one tap.',
   },
   {
     anchor: 'tour-fitting-board',
     kicker: 'The Fitting · The board',
-    body: 'Compose an outfit on the board, then save it, share it, or send unowned pieces to the Reserve.',
+    body: 'Compose an outfit on the board, then save it or share it — a board holding a piece you don\u2019t own saves as a proposal.',
     navigate: { tab: 'fitting-room' },
   },
   {
     anchor: 'tour-fitting-shelf',
     kicker: 'The Fitting · The shelf',
-    body: 'Everything you can put on the board — what you own, your Reserve and Beau\u2019s picks, each its own shelf.',
+    body: 'Everything you can put on the board — what you own, what you\u2019re weighing and Beau\u2019s picks; anything not yours lands dashed.',
     navigate: { tab: 'fitting-room' },
   },
 ];
@@ -344,7 +332,7 @@ export function OnboardingTour() {
           onClick={() => setOpen(true)}
           aria-label="Take the tour"
           title="Take the tour"
-          className="fixed bottom-4 left-4 z-40 flex items-center justify-center"
+          className="fixed bottom-[72px] sm:bottom-4 left-4 z-40 flex items-center justify-center"
           style={{
             width: '34px',
             height: '34px',

@@ -73,6 +73,9 @@ interface ConfirmDraft {
   occasions: string[];
   name: string;
   nameIsCustom: boolean;
+  /** Free-text notes — provenance, fit, condition (“bought in Pamplona,
+   * collar wears at the fold”). Stored in piece_details.notes. */
+  description: string;
 }
 
 export function PhotoConfirmFlow({
@@ -92,6 +95,11 @@ export function PhotoConfirmFlow({
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dupeDismissed, setDupeDismissed] = useState(false);
+  // THE CONFIRMATION SURFACE, SIMPLIFIED (23a): three fields on screen —
+  // photo, type, maker — plus a free-text line. Everything else Beau read
+  // off the photo is STATED, not shown, behind this toggle. Nothing left
+  // the data model.
+  const [showAll, setShowAll] = useState(false);
   // The uploaded photo URL — kept in a ref because the background clean-up
   // can swap it while the user is still confirming fields.
   const photoUrlRef = useRef<string>('');
@@ -114,6 +122,7 @@ export function PhotoConfirmFlow({
     occasions: defaultOccasions(null),
     name: '',
     nameIsCustom: false,
+    description: '',
   });
 
   // Pass Forty-Eight: the confirmation card appears the MOMENT the photo is
@@ -221,12 +230,13 @@ export function PhotoConfirmFlow({
     setLocalPreview(null);
     setError(null);
     setDupeDismissed(false);
+    setShowAll(false);
     setAnalysing(false);
     photoUrlRef.current = '';
     uploadRef.current = null;
   };
 
-  const save = async () => {
+  const save = async (addAnother = false) => {
     if (!draft || !draft.name.trim() || saving) return;
     setSaving(true);
     setError(null);
@@ -283,6 +293,7 @@ export function PhotoConfirmFlow({
         pattern: draft.pattern || null,
         material: draft.material.trim() || null,
         size: draft.size.trim() || null,
+        notes: draft.description.trim() || null,
         seasons: draft.seasons,
         occasions: draft.occasions,
         // The upload stays visible while settleProductPhoto preserves it as
@@ -315,6 +326,9 @@ export function PhotoConfirmFlow({
       reset();
       onAdded();
       window.setTimeout(() => setSavedFlash(null), 3000);
+      // SAVE AND ADD ANOTHER (23a): wardrobes are logged in sittings, not
+      // one piece at a time — the second button re-opens the picker at once.
+      if (addAnother) window.setTimeout(() => inputRef.current?.click(), 200);
     } catch (err) {
       // Failed save: remove the optimistic row and surface an inline error —
       // the draft stays so one more tap retries.
@@ -459,33 +473,19 @@ export function PhotoConfirmFlow({
                   ))}
                 </div>
               </div>
-              <div className="grid sm:grid-cols-2 gap-2.5">
-                <label className={labelCls}>Item type
-                  <select
-                    value={draft.slot || ''}
-                    onChange={(e) => patch({ slot: e.target.value || null })}
-                    className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1`}
-                  >
-                    <option value="">Other / not specified</option>
-                    {slots.map((s) => (
-                      <option key={s.id} value={s.id}>{s.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className={labelCls}>Material
-                  <div className="mt-1">
-                    <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
-                  </div>
-                </label>
-              </div>
-              <div>
-                <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
-                <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
-              </div>
-              <div>
-                <p className={`${labelCls} mb-1`}>Pattern</p>
-                <PatternSelector value={draft.pattern} onChange={(p) => patch({ pattern: p })} ariaLabel="Pattern" />
-              </div>
+              {/* FIELD 2 — the piece type, from the taxonomy (23a). */}
+              <label className={labelCls}>Piece type
+                <select
+                  value={draft.slot || ''}
+                  onChange={(e) => patch({ slot: e.target.value || null })}
+                  className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1`}
+                >
+                  <option value="">Other / not specified</option>
+                  {slots.map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              </label>
 
               {/* Brand — ONE targeted prompt only when it isn't in the photo */}
               {draft.brandFromPhoto ? (
@@ -508,46 +508,98 @@ export function PhotoConfirmFlow({
                 </div>
               )}
 
-              <label className={labelCls}>Size (optional)
-                <div className="mt-1">
-                  <SizeSelector value={draft.size} onChange={(s) => patch({ size: s })} ariaLabel="Size" />
-                </div>
+              {/* THE FREE-TEXT LINE — anything worth noting; Beau reads it. */}
+              <label className={labelCls}>Anything worth noting (optional)
+                <textarea
+                  value={draft.description}
+                  onChange={(e) => patch({ description: e.target.value })}
+                  placeholder="e.g. bought in Pamplona · collar wears at the fold · runs slim"
+                  rows={2}
+                  className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} mt-1 resize-none`}
+                  aria-label="Anything worth noting about this piece"
+                />
               </label>
 
-              <div className="flex flex-wrap gap-3">
-                <div>
-                  <p className={`${labelCls} mb-1`}>Season</p>
-                  <div className="flex flex-wrap gap-1">
-                    {SEASON_OPTIONS.map((o) => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        onClick={() => patch({ seasons: draft.seasons.includes(o.id) ? draft.seasons.filter((s) => s !== o.id) : [...draft.seasons, o.id] })}
-                        className={chip(draft.seasons.includes(o.id))}
-                        style={{ fontSize: '10px' }}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
+              {/* THE REST IS STATED, NOT SHOWN (23a): eight fields became
+                  three plus a sentence. Beau filled the others from the
+                  photo — right in almost every case, and correctable later
+                  from the piece itself. */}
+              {!showAll ? (
+                <p className={labelCls} style={{ fontSize: '11px', lineHeight: 1.6 }}>
+                  He also filled in {draft.material ? draft.material.toLowerCase() : 'the material'},{' '}
+                  {draft.colors.length > 0 ? draft.colors.join(' and ').toLowerCase() : 'the colour'},{' '}
+                  {draft.pattern ? draft.pattern.toLowerCase() : 'the pattern'}, the seasons and the occasions —
+                  correctable now or any time from the piece.{' '}
+                  <button type="button" onClick={() => setShowAll(true)} className={`${typography.color.brand} hover:underline`}>
+                    Show all fields ›
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    <label className={labelCls}>Material
+                      <div className="mt-1">
+                        <MaterialSelector value={draft.material} onChange={(m) => patch({ material: m })} ariaLabel="Material" />
+                      </div>
+                    </label>
+                    <label className={labelCls}>Size
+                      <div className="mt-1">
+                        <SizeSelector value={draft.size} onChange={(s) => patch({ size: s })} ariaLabel="Size" />
+                      </div>
+                    </label>
                   </div>
-                </div>
-                <div>
-                  <p className={`${labelCls} mb-1`}>Occasion</p>
-                  <div className="flex flex-wrap gap-1">
-                    {OCCASION_TAGS.map((o) => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        onClick={() => patch({ occasions: draft.occasions.includes(o.id) ? draft.occasions.filter((s) => s !== o.id) : [...draft.occasions, o.id] })}
-                        className={chip(draft.occasions.includes(o.id))}
-                        style={{ fontSize: '10px' }}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
+                  <div>
+                    <p className={`${labelCls} mb-1`}>Colour(s) — up to 3, first is primary</p>
+                    <ColorSelector value={draft.colors} onChange={(c) => patch({ colors: c })} ariaLabel="Colours" />
                   </div>
-                </div>
-              </div>
+                  <div>
+                    <p className={`${labelCls} mb-1`}>Pattern</p>
+                    <PatternSelector value={draft.pattern} onChange={(p) => patch({ pattern: p })} ariaLabel="Pattern" />
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <div>
+                      <p className={`${labelCls} mb-1`}>Season</p>
+                      <div className="flex flex-wrap gap-1">
+                        {SEASON_OPTIONS.map((o) => (
+                          <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => patch({ seasons: draft.seasons.includes(o.id) ? draft.seasons.filter((s) => s !== o.id) : [...draft.seasons, o.id] })}
+                            className={chip(draft.seasons.includes(o.id))}
+                            style={{ fontSize: '10px' }}
+                          >
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className={`${labelCls} mb-1`}>Occasion</p>
+                      <div className="flex flex-wrap gap-1">
+                        {OCCASION_TAGS.map((o) => (
+                          <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => patch({ occasions: draft.occasions.includes(o.id) ? draft.occasions.filter((s) => s !== o.id) : [...draft.occasions, o.id] })}
+                            className={chip(draft.occasions.includes(o.id))}
+                            style={{ fontSize: '10px' }}
+                          >
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAll(false)}
+                    className={`${labelCls} hover:underline`}
+                    style={{ fontSize: '11px' }}
+                  >
+                    ‹ Hide the extra fields
+                  </button>
+                </>
+              )}
 
               {duplicateOf && !dupeDismissed && (
                 <div className="rounded-lg bg-[var(--space-surface-accent-soft)] px-2.5 py-2">
@@ -577,6 +629,15 @@ export function PhotoConfirmFlow({
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               Save to my wardrobe
+            </button>
+            <button
+              type="button"
+              onClick={() => void save(true)}
+              disabled={!draft.name.trim() || saving}
+              className={`px-3 py-2 rounded-lg ${typography.size.sm} ${tw.button.ghost} border border-[var(--space-border-default)] disabled:opacity-40`}
+              title="Save this piece and photograph the next one straight away"
+            >
+              Save and add another
             </button>
             <button
               type="button"
