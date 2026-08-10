@@ -8,15 +8,14 @@
  * use (Button-front · Jersey & knitted · Town coats · …). Names sit on
  * their own line so the eye can find one, not read a paragraph.
  *
- *  · OWNERSHIP BECAME COLOUR — an owned type carries small swatches of the
- *    colours you own of it, set in the row after the name. No accent dots,
- *    no counts on the rows.
+ *  · OWNERSHIP reads through the row's ink alone — no dots, no swatches,
+ *    no counts on the rows (UI cleanup pass: the colour circles are gone).
  *  · FIND — one search bar over the whole index; typing narrows every
  *    category at once. Nothing is removed from the taxonomy, only from view.
  *  · THE THREE READINGS — Everything · The core · You own, as view chips.
  *  · FOUR FILTERS — archetype · occasion · essentialness · flexibility, so
  *    the count isn't the only reading. One filter per row; tap again to
- *    clear; the “Reading the list” rail shows what's on.
+ *    clear; a quiet count + Clear line under the rows shows what's on.
  *  · THE JUMP RAIL — category names + counts between the filters and the
  *    list; tapping one scrolls its section into view.
  *  · Tapping a type WITH an entry opens its full World of Menswear page;
@@ -209,19 +208,6 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function Swatches({ colors }: { colors: string[] }) {
-  return (
-    <span className="inline-flex" style={{ gap: '3px', marginLeft: '7px', verticalAlign: '1px' }} aria-label="Colours you own of this type">
-      {colors.map((c, i) => (
-        <span
-          key={`${c}-${i}`}
-          style={{ width: '7px', height: '7px', borderRadius: '50%', background: c, border: '1px solid rgba(59,43,29,0.4)', display: 'inline-block' }}
-        />
-      ))}
-    </span>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // The list itself.
 // ---------------------------------------------------------------------------
@@ -233,8 +219,6 @@ export function PieceIndexList({
   profile,
   onSeeForYou,
   toggle,
-  onShowMap,
-  onShowQuadrant,
 }: {
   pieces: WardrobePiece[];
   profile: StyleProfile | null;
@@ -244,8 +228,6 @@ export function PieceIndexList({
    * switcher (which lives once, at The Index's top — never duplicated
    * here). */
   toggle: React.ReactNode;
-  onShowMap: () => void;
-  onShowQuadrant: () => void;
 }) {
   usePlexMono();
   const narrow = useIsNarrow();
@@ -347,7 +329,6 @@ export function PieceIndexList({
     );
   })();
 
-  const activeFilterNames = [archetype, occasion, essential, flexibility].filter(Boolean) as string[];
   const columns = narrow ? 2 : 4;
 
   return (
@@ -374,7 +355,7 @@ export function PieceIndexList({
               The Index; this header carries only the sub-view toggle. */}
           {toggle}
           <span style={{ ...mono(10, MUTED), letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
-            · Swatches are the colours you own · {totals.own} type{totals.own === 1 ? '' : 's'} of {totals.all}
+            You own {totals.own} type{totals.own === 1 ? '' : 's'} of {totals.all}
           </span>
         </div>
       </div>
@@ -403,8 +384,8 @@ export function PieceIndexList({
         </div>
       </div>
 
-      {/* ------------------------------------ the four filters + the rail */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] items-start" style={{ gap: '20px 44px', padding: '6px 0 16px' }}>
+      {/* ------------------------------------------------ the four filters */}
+      <div style={{ padding: '6px 0 16px' }}>
         <div>
           {([
             ['Archetype', ARCHETYPES as readonly string[], archetype, setArchetype],
@@ -426,47 +407,17 @@ export function PieceIndexList({
             </div>
           ))}
         </div>
-        <div className="lg:border-l lg:pl-[22px]" style={{ borderColor: 'rgba(59,43,29,0.18)' }}>
-          <div style={mono(9, FAINT)}>Reading the list</div>
-          <div className="flex flex-col" style={{ marginTop: '11px', gap: '9px', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.5, color: INK }}>
-            <div className="flex items-center" style={{ gap: '9px' }}>
-              <span className="inline-flex" style={{ gap: '3px' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#c9d8e8', border: '1px solid rgba(59,43,29,0.4)' }} />
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#c3c9ae', border: '1px solid rgba(59,43,29,0.4)' }} />
-              </span>
-              <span>The colours you own of that type</span>
-            </div>
-            {activeFilterNames.length > 0 || viewChip !== 'all' || q ? (
-              <div className="flex items-center flex-wrap" style={{ gap: '9px' }}>
-                <span style={mono(9, ACCENT_DEEP)}>
-                  {activeFilterNames[0] || (viewChip === 'core' ? 'The core' : viewChip === 'own' ? 'You own' : `“${query.trim()}”`)}
-                </span>
-                <span>
-                  {activeFilterNames.length + (viewChip !== 'all' ? 1 : 0) + (q ? 1 : 0) === 1 ? 'One filter on' : 'Filters on'} · {visibleCount} type{visibleCount === 1 ? '' : 's'}
-                </span>
-              </div>
-            ) : (
-              <div style={{ color: MUTED }}>No filters on — the whole index, {totals.all} types.</div>
-            )}
-            <div style={{ color: MUTED }}>Filters narrow the whole index at once; nothing is removed from the taxonomy, only from view.</div>
-          </div>
-          <div
-            className="flex flex-wrap"
-            style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(59,43,29,0.16)', gap: '16px' }}
-          >
-            <button type="button" onClick={onShowMap} className="hover:underline" style={{ ...mono(9, ACCENT_DEEP), background: 'transparent' }}>
-              See these on a map →
+        {/* The quiet status line — what's on and the way out. */}
+        {filtersOn && (
+          <div className="flex items-center flex-wrap" style={{ gap: '14px', paddingTop: '10px' }}>
+            <span style={mono(9, ACCENT_DEEP)}>
+              {visibleCount} type{visibleCount === 1 ? '' : 's'} shown
+            </span>
+            <button type="button" onClick={clearFilters} className="hover:underline" style={{ ...mono(9, MUTED), background: 'transparent' }}>
+              Clear filters
             </button>
-            <button type="button" onClick={onShowQuadrant} className="hover:underline" style={{ ...mono(9, ACCENT_DEEP), background: 'transparent' }}>
-              As a quadrant →
-            </button>
-            {filtersOn && (
-              <button type="button" onClick={clearFilters} className="hover:underline" style={{ ...mono(9, MUTED), background: 'transparent' }}>
-                Clear
-              </button>
-            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* -------------------------------------------------- the jump rail */}
@@ -534,12 +485,7 @@ export function PieceIndexList({
                       {types.map((type) => {
                         const key = typeKey(cat.id, type.name);
                         const owned = ownership.get(key);
-                        const nameNode = (
-                          <span style={{ display: 'block' }}>
-                            {type.name}
-                            {owned && <Swatches colors={owned} />}
-                          </span>
-                        );
+                        const nameNode = <span style={{ display: 'block' }}>{type.name}</span>;
                         const rowStyle: React.CSSProperties = {
                           display: 'grid',
                           gridTemplateColumns: '11px minmax(0,1fr)',

@@ -2579,11 +2579,14 @@ export default function BeauHome() {
             {/* Page heading: "The Ledger" (was "Your wardrobe") — Cormorant
                 52px, closed by a hairline. Beneath it, and ONLY while a
                 queued pass is actually running, the re-assessment mark. */}
-            <div className="px-6 sm:px-10 pt-[52px] pb-11 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+            <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
               <div className="max-w-[1180px] mx-auto">
-                <h2 className={`hab-page-title ${typography.color.primary}`}>
+                <h2 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
                   The Ledger
                 </h2>
+                <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
+                  Everything you own, in your own words.
+                </p>
                 <ReassessMark />
               </div>
             </div>
@@ -2715,8 +2718,16 @@ export default function BeauHome() {
             what to acquire next and per-direction essentials coverage, all
             from one cached live reasoning pass with a quiet Re-assess. */}
         <KeepMounted active={tab === 'beau'}>
-          <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-            <Suspense fallback={<HairlineRowsSkeleton rows={6} />}>
+          {/* BeauTab carries its own standard masthead (title + standfirst,
+              full-width hairline) — the wrapper only holds the bottom pad. */}
+          <div className="pb-28">
+            <Suspense
+              fallback={
+                <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
+                  <HairlineRowsSkeleton rows={6} />
+                </div>
+              }
+            >
               <BeauTab profile={profile} budgets={budgets} pieces={pieces} prefs={prefs} />
             </Suspense>
           </div>

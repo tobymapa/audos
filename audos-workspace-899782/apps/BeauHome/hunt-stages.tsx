@@ -44,7 +44,6 @@ import { MONO, capWord, numberWord, usePlexMono } from './mono-type';
 import { ViewToggle } from './view-toggle';
 import { HuntWeighedMap, type HuntMapCandidate } from './hunt-map';
 import { requestFittingRoomTryOn } from './fitting-room-state';
-import { peekBeauAssessment } from './beau-assessment';
 
 // window.__workspaceDb is auto-injected by the platform compiler when it sees
 // this literal token in app source.
@@ -823,10 +822,8 @@ function WeighedTable({
 
 // ---------------------------------------------------------------------------
 // THE STAGES — the 7a left rail: the funnel as a vertical list of filters
-// (Spotted · Weighed · Held with live counts), FILTERING FOR (what the
-// hunt is answering, carried in from The Edit's first priority), and OUT
-// OF THE WAY (Passed · Archived — the way into the decision history).
-// Desktop only; narrow screens keep the chip rail.
+// (Spotted · Weighed · Held with live counts). Desktop only; narrow screens
+// keep the chip rail.
 // ---------------------------------------------------------------------------
 
 const railMono: React.CSSProperties = {
@@ -842,25 +839,13 @@ function StageSidebar({
   byStage,
   activeStage,
   onStage,
-  onOpenExits,
 }: {
   stages: Array<{ id: CandidateStage; label: string; sub: string }>;
   byStage: Record<CandidateStage, Candidate[]>;
   activeStage: CandidateStage;
   onStage: (id: CandidateStage) => void;
-  onOpenExits: () => void;
 }) {
   usePlexMono();
-  // WHAT THE HUNT IS ANSWERING — carried in from The Edit's last stored
-  // assessment (never a fresh model call); honestly empty without one.
-  const carried = (() => {
-    const peeked = peekBeauAssessment();
-    const rec = peeked?.assessment?.recommendations?.[0];
-    if (!rec) return [] as string[];
-    return [rec.pieceName, categoryLabel(rec.category || '') || null]
-      .filter((v): v is string => !!v && v.trim().length > 0)
-      .slice(0, 3);
-  })();
   return (
     <aside className="hidden lg:block" aria-label="The Hunt — stages and history">
       <div style={railMono}>The stages</div>
@@ -895,145 +880,6 @@ function StageSidebar({
           );
         })}
       </div>
-
-      <div style={{ ...railMono, marginTop: '22px' }}>Filtering for</div>
-      <div style={{ marginTop: '8px' }}>
-        {carried.length > 0 ? (
-          <>
-            {carried.map((label) => (
-              <div key={label} className="flex items-center gap-2" style={{ padding: '3px 0' }}>
-                <span aria-hidden="true" style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--color-accent,#a8712c)', display: 'inline-block' }} />
-                <span style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-text,#241a12)' }}>{label}</span>
-              </div>
-            ))}
-            <p style={{ ...bodyFont, fontSize: '11px', color: 'var(--color-neutral-600,#856c51)', marginTop: '7px', lineHeight: 1.5 }}>
-              Carried in from The Edit’s first priority — the gap this hunt is answering.
-            </p>
-          </>
-        ) : (
-          <p style={{ ...bodyFont, fontSize: '11.5px', color: 'var(--color-neutral-600,#856c51)', lineHeight: 1.5 }}>
-            Nothing carried in — the shelf shows everything you’ve spotted. Run The Edit and its first priority
-            lands here.
-          </p>
-        )}
-      </div>
-
-      <div style={{ ...railMono, marginTop: '22px' }}>Out of the way</div>
-      <div className="flex flex-col" style={{ marginTop: '6px' }}>
-        {([
-          ['Passed', byStage.passed.length, 'Beau won’t put these up again'],
-          ['Archived', byStage.archived.length, 'Untouched ninety days — off the Fitting shelf'],
-        ] as Array<[string, number, string]>).map(([label, count, sub]) => (
-          <button
-            key={label}
-            type="button"
-            onClick={onOpenExits}
-            className="text-left hover:bg-[var(--color-paper,#fbf8f1)] transition-colors"
-            style={{ padding: '9px 12px 10px', margin: '0 -12px', borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.14))' }}
-            title="Open the decision history — reasons, dates, and the way back"
-          >
-            <span className="flex items-baseline justify-between gap-3">
-              <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '15px', fontWeight: 400, color: 'var(--color-neutral-700,#634e38)' }}>{label}</span>
-              <span className="tabular-nums" style={{ fontFamily: MONO, fontSize: '11px', color: 'var(--color-neutral-600,#856c51)' }}>{count}</span>
-            </span>
-            <span className="block" style={{ ...bodyFont, fontSize: '10.5px', color: 'var(--color-neutral-600,#856c51)', marginTop: '2px' }}>
-              {sub}
-            </span>
-          </button>
-        ))}
-      </div>
-    </aside>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// THE BEAU PANEL — the 7a right column: his standing explanation of the
-// screen, plus the live read of the current comparison. On the map view it
-// becomes 19a's "Two views, two questions". Wide screens only.
-// ---------------------------------------------------------------------------
-
-function BeauPanelSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.14))' }}>
-      <p style={{ fontFamily: 'var(--space-font-heading)', fontSize: '14px', fontWeight: 400, fontStyle: 'italic', color: 'var(--color-accent-700,#7c4a17)', margin: 0 }}>
-        {title}
-      </p>
-      <p style={{ ...bodyFont, fontSize: '12px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', margin: '5px 0 0' }}>{children}</p>
-    </div>
-  );
-}
-
-function BeauPanel({
-  activeStage,
-  weighedView,
-  weighedFacts,
-  heldCount,
-}: {
-  activeStage: CandidateStage;
-  weighedView: 'table' | 'map';
-  weighedFacts: WeighedFacts[];
-  heldCount: number;
-}) {
-  usePlexMono();
-  const pick = weighedFacts.find((f) => /beau/i.test(f.candidate.origin));
-  const mapView = activeStage === 'weighed' && weighedView === 'map' && weighedFacts.length > 0;
-  return (
-    <aside
-      className="hidden xl:block"
-      aria-label="Beau, on this screen"
-      style={{ background: 'var(--color-paper,#fbf8f1)', border: '1px solid var(--color-divider,rgba(59,43,29,0.18))', padding: '16px 18px 18px' }}
-    >
-      <div style={railMono}>Beau, on this screen</div>
-      <p style={{ fontFamily: 'var(--space-font-heading)', fontSize: '19px', fontWeight: 400, lineHeight: 1.2, color: 'var(--color-text,#241a12)', margin: '8px 0 0' }}>
-        {mapView ? 'Two views, two questions' : 'One rail, three stages'}
-      </p>
-      {mapView ? (
-        <>
-          <BeauPanelSection title="The table answers “what”">
-            Per candidate, per criterion, in prose where prose is needed: the fit note, what it finishes, my verdict.
-            It’s the reading view.
-          </BeauPanelSection>
-          <BeauPanelSection title="The map answers “how they relate”">
-            Two axes, one dot each — the finding is spatial: which candidates sit in a band doing the same job, and
-            no table can put that in one look.
-          </BeauPanelSection>
-          <BeauPanelSection title="The axes are the control">
-            Price against what-it-finishes today. Changing the question is changing an axis, not opening another
-            screen.
-          </BeauPanelSection>
-          <BeauPanelSection title="The outlier becomes obvious">
-            Whatever sits alone at the bottom was never in the same conversation — on the map you read that at a
-            glance instead of row by row.
-          </BeauPanelSection>
-        </>
-      ) : (
-        <>
-          <BeauPanelSection title="The stage is a filter, not a place">
-            Spotted, weighed, held live in one rail with counts. You never navigate to finish a thought, and a
-            candidate keeps my reasoning attached the whole way through.
-          </BeauPanelSection>
-          <BeauPanelSection title="Four is the ceiling, and it holds">
-            A real comparison fits inside a stage: tier and fit note first, because those are what most people
-            decide on. A fifth candidate would break the table, so a fifth isn’t allowed.
-          </BeauPanelSection>
-          {pick ? (
-            <BeauPanelSection title="He picks one, and says why">
-              {pick.candidate.item.brand || pick.candidate.item.name}: {pick.tierNote || pick.candidate.reason || 'the safe answer — nothing here is a mistake.'}{' '}
-              The other columns get a sentence each, including the ones that talk you out of them.
-            </BeauPanelSection>
-          ) : (
-            <BeauPanelSection title="He picks one, and says why">
-              When one of these is my pick, its column carries the reason and the caveat — a recommendation without
-              a reason is an advert.
-            </BeauPanelSection>
-          )}
-          {heldCount > 0 && (
-            <BeauPanelSection title="Held sits under the comparison">
-              The thing you’ve already decided on is context for the thing you’re deciding now — not another tab.
-            </BeauPanelSection>
-          )}
-        </>
-      )}
     </aside>
   );
 }
@@ -1503,14 +1349,13 @@ export function HuntStages({
     <section aria-label="The Hunt — the candidate pipeline">
       {!hideAdd && <AddCandidate onAdded={refreshAll} />}
 
-      <div className="lg:grid lg:items-start lg:grid-cols-[176px_minmax(0,1fr)] xl:grid-cols-[176px_minmax(0,1fr)_246px] lg:gap-x-9 xl:gap-x-8 mt-1">
+      <div className="lg:grid lg:items-start lg:grid-cols-[176px_minmax(0,1fr)] lg:gap-x-9 mt-1">
 
       <StageSidebar
         stages={stages}
         byStage={byStage}
         activeStage={activeStage}
         onStage={setActiveStage}
-        onOpenExits={() => setExitsOpen(true)}
       />
 
       <div className="min-w-0">
@@ -1756,9 +1601,8 @@ export function HuntStages({
         </p>
       )}
 
-      {/* OUT OF THE WAY — the way into the decision history (12a · M12) on
-          narrow screens; the sidebar carries it from lg up. */}
-      <div className="mt-6 border-t border-[var(--color-divider,rgba(59,43,29,0.18))] pt-3 lg:hidden">
+      {/* The way into the decision history (12a · M12) — all widths. */}
+      <div className="mt-6 border-t border-[var(--color-divider,rgba(59,43,29,0.18))] pt-3">
         <button
           type="button"
           onClick={() => setExitsOpen(true)}
@@ -1774,13 +1618,6 @@ export function HuntStages({
       </div>
 
       </div>
-
-      <BeauPanel
-        activeStage={activeStage}
-        weighedView={weighedView}
-        weighedFacts={weighedFacts}
-        heldCount={byStage.held.length}
-      />
 
       </div>
 

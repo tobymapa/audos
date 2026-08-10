@@ -77,6 +77,7 @@ import { Check, ChevronDown, Loader2, Star, Trash2, Upload, X } from 'lucide-rea
 import { typography } from '../../lib/colors';
 import {
   BRAND_INDEX_CHANGED_EVENT,
+  RESERVE_CHANGED_EVENT,
   addBrandIndexEntry,
   fetchBrandIndex,
   updateBrandIndexEntry,
@@ -84,6 +85,7 @@ import {
   type BrandIndexStatus,
   type StyleProfile,
 } from './profile-data';
+import { EMPTY_PASS_SIGNALS, MAKER_DEMOTION_PASSES, fetchPassSignals, type PassSignals } from './pass-signals';
 import { TicketFrame } from './ticket-frame';
 import {
   ARCHETYPE_LABELS,
@@ -122,12 +124,14 @@ import { DISCOVER_BRANDS_EVENT, addDirectoryBrandStubs, addUserDirectoryBrand, g
 import {
   faviconFor,
   fetchSiteMeta,
+  looksAmbiguousMakerName,
   looksLikeUrl,
   normalizeSiteUrl,
   parseBrandImportFile,
   type BrandImportEntry,
 } from './hunt-brand-import';
 import { useProgressiveReveal } from './progressive-list';
+import { MONO, usePlexMono } from './mono-type';
 
 /** One-shot guard for the retroactive logo backfill — module-level so tab
  * remounts within a session never restart a sweep already under way. */
@@ -138,33 +142,33 @@ let logoBackfillStarted = false;
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// FILTER CHIPS (Discover filter overhaul) — ONE chip look everywhere: the
-// same height and padding on every row, square corners, no colour surprises.
-//   active   = walnut fill, paper text
-//   inactive = paper fill, walnut hairline border, walnut text
+// FILTER CHIPS — restyled to the Piece index's filter language (13a), so
+// the Makers reading of The Index matches the Pieces reading exactly: small
+// uppercase mono chips, walnut fill when active, hairline border when not.
 // Each filter category is a two-tier row: the label in its own left column,
 // the chips indented in a second column — so a chip that wraps to a new line
 // aligns to the chip column, never back to the label.
 // ---------------------------------------------------------------------------
 
 const CHIP_BASE: React.CSSProperties = {
-  fontFamily: 'var(--space-font-family)',
-  fontSize: '12.5px',
-  lineHeight: 1,
+  fontFamily: MONO,
+  fontSize: '9px',
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase',
+  lineHeight: 1.35,
   borderRadius: 0,
-  padding: '0 12px',
-  height: '32px',
+  padding: '4px 10px',
   whiteSpace: 'nowrap',
 };
 
 function chipStyle(active: boolean): React.CSSProperties {
   return active
-    ? { ...CHIP_BASE, background: '#241a12', color: '#fbf8f1', border: '1px solid #241a12' }
+    ? { ...CHIP_BASE, background: '#241a12', color: '#f6f0e5', border: '1px solid #241a12' }
     : {
         ...CHIP_BASE,
-        background: 'var(--color-paper,#fbf8f1)',
-        color: 'var(--color-text,#3b2b1d)',
-        border: '1px solid var(--color-divider,rgba(59,43,29,0.35))',
+        background: 'transparent',
+        color: '#634e38',
+        border: '1px solid rgba(59,43,29,0.3)',
       };
 }
 
@@ -193,17 +197,18 @@ function FilterChip({
   );
 }
 
-/** One filter category: label tier on the left, chip tier indented right. */
+/** One filter category: label tier on the left, chip tier indented right —
+ * the same row grid, label register and hairline the Piece index uses. */
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[92px_minmax(0,1fr)] sm:grid-cols-[132px_minmax(0,1fr)] gap-x-4 items-start" style={{ paddingTop: '7px', paddingBottom: '7px' }}>
-      <span
-        className="uppercase text-[var(--color-neutral-600,#856c51)]"
-        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em', lineHeight: '32px' }}
-      >
+    <div
+      className="grid grid-cols-[86px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)] items-baseline"
+      style={{ gap: '14px', padding: '9px 0', borderBottom: '1px solid rgba(59,43,29,0.14)' }}
+    >
+      <span style={{ fontFamily: MONO, fontSize: '9px', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#a68e70' }}>
         {label}
       </span>
-      <div className="flex flex-wrap gap-1.5 min-w-0">{children}</div>
+      <div className="flex flex-wrap min-w-0" style={{ gap: '7px' }}>{children}</div>
     </div>
   );
 }
@@ -348,7 +353,7 @@ function SingleSelectDropdown({
       onChange={(e) => onChange(e.target.value)}
       aria-label={`${label} filter`}
       className="hab-input"
-      style={{ height: '32px', paddingTop: 0, paddingBottom: 0, fontSize: '12.5px', width: 'min(100%, 220px)' }}
+      style={{ height: '26px', paddingTop: 0, paddingBottom: 0, fontSize: '12px', width: 'min(100%, 220px)' }}
     >
       <option value="">Any</option>
       {options.map((o) => (
@@ -1085,6 +1090,7 @@ function BrandTable({
   matrixList,
   onToggleMatrix,
   onDeleteBrand,
+  passCounts,
 }: {
   entries: DirectoryEntry[];
   /** brand (lowercase) → the personal brand_index row (favourite, logo, note). */
@@ -1097,6 +1103,9 @@ function BrandTable({
   onToggleMatrix?: (brand: string) => void;
   /** Per-row delete (founder's fix) — removes the maker from the list. */
   onDeleteBrand: (brand: string) => void;
+  /** Lower-cased maker → pass count — rows at two-plus carry the demotion
+   * note under their name (build brief rule 9). */
+  passCounts?: Record<string, number>;
 }) {
   // The identity of THIS set of rows: a filter change (or the profile toggle
   // re-splitting the directory) starts the reveal over; Beau filing a new
@@ -1206,6 +1215,13 @@ function BrandTable({
                     >
                       {BRAND_SOURCE_LABELS[source]}
                     </span>
+                    {/* DEMOTED (rule 9): two passes on a maker move it down
+                        the index — the row says so, and why. */}
+                    {passCounts && (passCounts[b.brand.trim().toLowerCase()] || 0) >= MAKER_DEMOTION_PASSES && (
+                      <span className="block mt-0.5 text-[var(--color-accent-2,#7d2a24)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px' }}>
+                        Moved down — you’ve passed on {passCounts[b.brand.trim().toLowerCase()]} of theirs
+                      </span>
+                    )}
                   </span>
                 </span>
               </td>
@@ -1320,6 +1336,8 @@ export function DiscoverSubTab({
   matrixList?: string[];
   onToggleMatrix?: (brand: string) => void;
 }) {
+  // The Piece-index mono register the filter rows are set in (13a).
+  usePlexMono();
   // Persisted directory additions (user-added / Beau-recommended / imported).
   const { data: addedRows, refresh } = window.useWorkspaceDB<DirectoryBrandRow>('hunt_directory_brands', {
     orderBy: { column: 'created_at', direction: 'desc' },
@@ -1480,12 +1498,26 @@ export function DiscoverSubTab({
   const [addError, setAddError] = useState<string | null>(null);
   const inputIsUrl = looksLikeUrl(formInput.trim());
 
-  // File import state.
+  // File import state — KNOWN and NEW rows process silently; only the
+  // AMBIGUOUS rows wait on the user (import resolution).
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [importEntries, setImportEntries] = useState<BrandImportEntry[] | null>(null);
+  const [ambiguousEntries, setAmbiguousEntries] = useState<Array<{ entry: BrandImportEntry; why: string }>>([]);
   const [importFileName, setImportFileName] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   const [importReport, setImportReport] = useState<string | null>(null);
+  const [ambiguousBusy, setAmbiguousBusy] = useState<string | null>(null);
+
+  // PASS SIGNALS (build brief rule 9): two passes on a maker demote it —
+  // it sorts to the foot of its group with the reason stated on the row.
+  const [passSignals, setPassSignals] = useState<PassSignals>(EMPTY_PASS_SIGNALS);
+  useEffect(() => {
+    const load = () => {
+      void fetchPassSignals().then(setPassSignals).catch(() => undefined);
+    };
+    load();
+    window.addEventListener(RESERVE_CHANGED_EVENT, load);
+    return () => window.removeEventListener(RESERVE_CHANGED_EVENT, load);
+  }, []);
 
   const resetForm = () => {
     setFormInput('');
@@ -1567,58 +1599,84 @@ export function DiscoverSubTab({
     }
   };
 
-  /** File mode: parse the picked .txt / .xlsx into entries for review. */
+  /** File a batch of parsed entries silently — directory stubs, hidden-row
+   * restores, and a Curious ledger row for URL entries (site + favicon). */
+  const fileImportEntries = async (entries: BrandImportEntry[]) => {
+    const { added, skipped } = await addDirectoryBrandStubs(entries.map((entry) => entry.name));
+    // Imported names also restore makers previously removed from the table
+    // (catalog rows land in `skipped`, so the stub call alone would leave
+    // them hidden).
+    for (const entry of entries) await unhideBrand(entry.name);
+    for (const entry of entries) {
+      if (!entry.url) continue;
+      const key = entry.name.toLowerCase();
+      if ((metaRows || []).some((r) => (r.name || '').trim().toLowerCase() === key)) continue;
+      try {
+        await addBrandIndexEntry({ name: entry.name, url: entry.url, logo_url: entry.logoUrl, status: 'curious', note: null, known_for: null, specialisations: null, signature_pieces: null });
+      } catch { /* one row never blocks the rest */ }
+    }
+    return { added, skipped };
+  };
+
+  /** File mode (import resolution): parse the picked .txt / .csv / .xlsx,
+   * AUTO-CATEGORISE each row — KNOWN (already in the maker database) and
+   * NEW (a confident name, auto-created) process silently; only AMBIGUOUS
+   * rows are held for the user to confirm, with the reason stated. */
   const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = (e.target.files || [])[0];
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
     setAddError(null);
     setImportReport(null);
-    setImportEntries(null);
+    setAmbiguousEntries([]);
     setImportFileName(file.name || '');
+    setImportBusy(true);
     try {
       const entries = await parseBrandImportFile(file);
       if (entries.length === 0) {
-        setAddError('Nothing readable in that file — one brand name or URL per line (.txt) or in the first column (.xlsx).');
+        setAddError('Nothing readable in that file — one brand name or URL per line (.txt), or in the first column (.csv / .xlsx).');
         return;
       }
-      setImportEntries(entries);
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'That file couldn\u2019t be read.');
-    }
-  };
-
-  const runImport = async () => {
-    if (!importEntries || importBusy) return;
-    setImportBusy(true);
-    setAddError(null);
-    try {
-      const { added, skipped } = await addDirectoryBrandStubs(importEntries.map((entry) => entry.name));
-      // Imported names also restore makers previously removed from the
-      // table (catalog rows land in `skipped`, so the stub call alone
-      // would leave them hidden).
-      for (const entry of importEntries) await unhideBrand(entry.name);
-      // URL rows also get a ledger row (status Curious) carrying the site
-      // and its favicon logo, so the mark shows in the table immediately.
-      for (const entry of importEntries) {
-        if (!entry.url) continue;
-        const key = entry.name.toLowerCase();
-        if ((metaRows || []).some((r) => (r.name || '').trim().toLowerCase() === key)) continue;
-        try {
-          await addBrandIndexEntry({ name: entry.name, url: entry.url, logo_url: entry.logoUrl, status: 'curious', note: null, known_for: null, specialisations: null, signature_pieces: null });
-        } catch { /* one row never blocks the rest */ }
+      const confident: BrandImportEntry[] = [];
+      const held: Array<{ entry: BrandImportEntry; why: string }> = [];
+      for (const entry of entries) {
+        const check = looksAmbiguousMakerName(entry);
+        if (check.ambiguous) held.push({ entry, why: check.why });
+        else confident.push(entry);
       }
-      setImportReport(
-        `${added.length} maker${added.length === 1 ? '' : 's'} added as Curious${skipped.length > 0 ? ` · ${skipped.length} already listed` : ''}. Beau files each full dossier the first time you open it.`,
-      );
-      setImportEntries(null);
+      const { added, skipped } =
+        confident.length > 0 ? await fileImportEntries(confident) : { added: [] as string[], skipped: [] as string[] };
+      const bits: string[] = [`Added ${added.length} maker${added.length === 1 ? '' : 's'}.`];
+      if (skipped.length > 0) bits.push(`${skipped.length} already in the directory.`);
+      if (held.length > 0) bits.push(`${held.length} need${held.length === 1 ? 's' : ''} your confirmation.`);
+      setImportReport(bits.join(' '));
+      setAmbiguousEntries(held);
       refresh();
       refreshMeta();
-    } catch (e) {
-      setAddError(e instanceof Error ? e.message : 'The import failed — try again.');
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'That file couldn\u2019t be read.');
     } finally {
       setImportBusy(false);
     }
+  };
+
+  /** Confirm one held row as a maker — it files exactly like a confident
+   * one; Skip simply drops it from the review list. */
+  const confirmAmbiguous = async (entry: BrandImportEntry) => {
+    if (ambiguousBusy) return;
+    setAmbiguousBusy(entry.name);
+    try {
+      await fileImportEntries([entry]);
+      setAmbiguousEntries((cur) => cur.filter((row) => row.entry.name !== entry.name));
+      refresh();
+      refreshMeta();
+    } catch { /* leave it in the list — the user can retry */ } finally {
+      setAmbiguousBusy(null);
+    }
+  };
+
+  const skipAmbiguous = (entry: BrandImportEntry) => {
+    setAmbiguousEntries((cur) => cur.filter((row) => row.entry.name !== entry.name));
   };
 
   // Filters — the labelled rows. The FIRST block mirrors the table's column
@@ -1686,8 +1744,17 @@ export function DiscoverSubTab({
   );
 
   const { matched, beyond } = useMemo(() => {
+    // MAKER DEMOTION (build brief rule 9 · 9a): two passes on a maker move
+    // it to the foot of its group — a stable partition, so everything else
+    // keeps its ranking. Bringing a pass back undoes it automatically.
+    const demoted = (entry: DirectoryEntry) =>
+      (passSignals.makerPassCounts[entry.profile.brand.trim().toLowerCase()] || 0) >= MAKER_DEMOTION_PASSES;
+    const withDemotion = (list: DirectoryEntry[]) => [...list.filter((e) => !demoted(e)), ...list.filter(demoted)];
     if (userArchetypes.size === 0) {
-      return { matched: [...filtered].sort((a, b) => a.profile.brand.localeCompare(b.profile.brand)), beyond: [] as DirectoryEntry[] };
+      return {
+        matched: withDemotion([...filtered].sort((a, b) => a.profile.brand.localeCompare(b.profile.brand))),
+        beyond: [] as DirectoryEntry[],
+      };
     }
     const inMatch: DirectoryEntry[] = [];
     const outMatch: DirectoryEntry[] = [];
@@ -1709,8 +1776,8 @@ export function DiscoverSubTab({
       return a.profile.brand.localeCompare(b.profile.brand);
     });
     outMatch.sort((a, b) => a.profile.brand.localeCompare(b.profile.brand));
-    return { matched: inMatch, beyond: outMatch };
-  }, [filtered, userArchetypes]);
+    return { matched: withDemotion(inMatch), beyond: withDemotion(outMatch) };
+  }, [filtered, userArchetypes, passSignals]);
 
   const anyFilter =
     nameQuery.trim() !== '' ||
@@ -1821,9 +1888,10 @@ export function DiscoverSubTab({
           /* FILE MODE — a .txt (one entry per line) or .xlsx (first column). */
           <div className="mt-4">
             <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.6, maxWidth: '58ch' }}>
-              A <strong>.txt</strong> reads one brand per line; a <strong>.xlsx</strong> reads the first column. Names
-              add as they are; anything that reads as a URL gets its logo fetched. Everything lands as <em>Curious</em>
-              — Beau files each full dossier the first time you open it.
+              A <strong>.txt</strong> reads one brand per line; a <strong>.csv</strong> or <strong>.xlsx</strong> reads
+              the first column. Makers already known and confident new names file <em>silently</em> — only rows that
+              don&rsquo;t clearly read as a maker wait for your confirmation. Everything lands as <em>Curious</em>;
+              Beau files each full dossier the first time you open it.
             </p>
             <div className="flex items-center gap-2.5 mt-3 flex-wrap">
               <button
@@ -1838,37 +1906,64 @@ export function DiscoverSubTab({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,.xlsx,.xls,text/plain"
+                accept=".txt,.csv,.xlsx,.xls,text/plain,text/csv"
                 onChange={(e) => void onFilePicked(e)}
                 className="hidden"
-                aria-label="Upload a brand list (.txt or .xlsx)"
+                aria-label="Upload a maker list (.txt, .csv or .xlsx)"
               />
-              {importFileName && !importEntries && !importReport && (
+              {importBusy && (
+                <span className={`${typography.size.xs} ${typography.color.muted} inline-flex items-center gap-1.5`}>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading {importFileName || 'the file'}…
+                </span>
+              )}
+              {importFileName && !importBusy && !importReport && (
                 <span className={`${typography.size.xs} ${typography.color.muted}`}>{importFileName}</span>
               )}
             </div>
-            {importEntries && (
-              <div className="mt-3">
-                <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px' }}>
-                  {importEntries.length} entr{importEntries.length === 1 ? 'y' : 'ies'} read from {importFileName || 'the file'}
-                  {importEntries.some((row) => row.url) ? ` — ${importEntries.filter((row) => row.url).length} with a site URL` : ''}.
+            {importReport && <p className={`${typography.size.xs} text-[var(--color-accent-700,#7c4a17)] mt-2.5`}>{importReport}</p>}
+            {ambiguousEntries.length > 0 && (
+              /* THE REVIEW PANEL (import resolution): only the rows the
+                 categoriser couldn't confidently file — each with the reason
+                 it was held, and a one-tap way either way. */
+              <div className="mt-3 border border-[var(--color-divider,rgba(59,43,29,0.18))]">
+                <p className="uppercase text-[var(--color-neutral-700,#634e38)] px-3 py-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.14em' }}>
+                  Needs your eye · {ambiguousEntries.length}
                 </p>
-                <p className={`${typography.size.xs} ${typography.color.muted} mt-1`} style={{ maxWidth: '62ch' }}>
-                  {importEntries.slice(0, 8).map((row) => row.name).join(' · ')}
-                  {importEntries.length > 8 ? ` · +${importEntries.length - 8} more` : ''}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void runImport()}
-                  disabled={importBusy}
-                  className="mt-2.5 px-4 min-h-[44px] rounded text-[14px] inline-flex items-center gap-1.5 bg-transparent border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
-                >
-                  {importBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {importBusy ? 'Filing the makers…' : `Add ${importEntries.length} maker${importEntries.length === 1 ? '' : 's'}`}
-                </button>
+                {ambiguousEntries.map(({ entry, why }) => (
+                  <div key={entry.name} className="flex items-center gap-3 flex-wrap px-3 py-2.5 border-b border-[var(--color-divider,rgba(59,43,29,0.12))] last:border-b-0">
+                    <span className="min-w-0 flex-1">
+                      <span className={`block ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '15px', lineHeight: 1.25 }}>
+                        {entry.name}
+                      </span>
+                      <span className="block text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px' }}>
+                        {why}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void confirmAmbiguous(entry)}
+                        disabled={ambiguousBusy != null}
+                        className="min-h-[38px] px-3 inline-flex items-center gap-1.5 border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', borderRadius: 0 }}
+                      >
+                        {ambiguousBusy === entry.name && <Loader2 className="w-3 h-3 animate-spin" />}
+                        It’s a maker — add it
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => skipAmbiguous(entry)}
+                        disabled={ambiguousBusy != null}
+                        className="min-h-[38px] px-2 hover:underline text-[var(--color-neutral-600,#856c51)] disabled:opacity-40"
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px' }}
+                      >
+                        Skip
+                      </button>
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
-            {importReport && <p className={`${typography.size.xs} text-[var(--color-accent-700,#7c4a17)] mt-2.5`}>{importReport}</p>}
           </div>
         )}
         {addError && <p className={`${typography.size.xs} text-[var(--space-semantic-warning)] mt-2`}>{addError}</p>}
@@ -1892,7 +1987,7 @@ export function DiscoverSubTab({
               type="button"
               onClick={clearFilters}
               className="inline-flex items-center gap-1 text-[var(--color-neutral-600,#856c51)] hover:underline"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}
+              style={{ fontFamily: MONO, fontSize: '9px', letterSpacing: '0.05em', textTransform: 'uppercase' }}
             >
               <X className="w-3 h-3" /> Clear filters
             </button>
@@ -1945,7 +2040,7 @@ export function DiscoverSubTab({
               onChange={(e) => setKnownForQuery(e.target.value)}
               placeholder="e.g. Oxford shirts, loafers…"
               className="hab-input"
-              style={{ height: '32px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12.5px' }}
+              style={{ height: '26px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12px' }}
               aria-label="Filter by what a maker is known for"
             />
           </FilterRow>
@@ -1977,16 +2072,14 @@ export function DiscoverSubTab({
               onChange={(e) => setNoteQuery(e.target.value)}
               placeholder="Search your own notes…"
               className="hab-input"
-              style={{ height: '32px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12.5px' }}
+              style={{ height: '26px', paddingTop: 0, paddingBottom: 0, width: 'min(100%, 260px)', fontSize: '12px' }}
               aria-label="Filter by your note"
             />
           </FilterRow>
         </div>
 
-        {/* The row separator — one subtle hairline. */}
-        <div style={{ borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))', marginTop: '8px', marginBottom: '8px' }} aria-hidden="true" />
-
-        {/* Facets without a column of their own — dropdowns too. */}
+        {/* Facets without a column of their own — dropdowns too. (Every row
+            carries its own hairline now, so no extra separator.) */}
         <div>
           <FilterRow label="Category">
             <SingleSelectDropdown
@@ -2058,6 +2151,7 @@ export function DiscoverSubTab({
               matrixList={matrixList}
               onToggleMatrix={onToggleMatrix}
               onDeleteBrand={(b) => void deleteBrand(b)}
+              passCounts={passSignals.makerPassCounts}
             />
           ) : (
             userArchetypes.size > 0 && (
@@ -2085,6 +2179,7 @@ export function DiscoverSubTab({
                 matrixList={matrixList}
                 onToggleMatrix={onToggleMatrix}
                 onDeleteBrand={(b) => void deleteBrand(b)}
+                passCounts={passSignals.makerPassCounts}
               />
             </section>
           )}

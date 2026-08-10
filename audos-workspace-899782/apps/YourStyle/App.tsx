@@ -1842,18 +1842,18 @@ export default function YourStyle() {
     <div ref={rootRef} className="min-h-full bg-transparent relative">
       {/* Masthead — heading + standfirst, with the ALWAYS-VISIBLE "Save your
           profile" button top right. */}
-      <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--space-border-default)]">
+      <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
         <div className="max-w-[1180px] mx-auto">
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <h2 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>
+            <h2 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
               The Dossier
             </h2>
             <div className="flex-shrink-0 pt-2">
               <SaveProfileButton surface="your-style" />
             </div>
           </div>
-          <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '56ch' }}>
-            Everything Beau knows about you. Correct any of it and he uses the change immediately.
+          <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
+            Everything Beau knows about you — correct it and he uses it immediately.
           </p>
         </div>
       </div>

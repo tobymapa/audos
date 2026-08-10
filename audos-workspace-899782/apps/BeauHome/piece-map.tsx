@@ -667,8 +667,6 @@ export function PiecesIndex({
         // points at the funnel.
         onSeeForYou={(sub) => promoteToScout(sub.label)}
         toggle={toggle}
-        onShowMap={() => setView('map')}
-        onShowQuadrant={() => setView('quadrant')}
       />
     );
   }

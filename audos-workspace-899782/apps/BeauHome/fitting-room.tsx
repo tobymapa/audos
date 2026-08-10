@@ -2270,21 +2270,20 @@ export function FittingRoomTab({
     <div style={{ background: 'var(--color-bg,#efe7d9)' }}>
       {/* ONE natural vertical scroll — no fixed zones, no bottom sheet, no
           overlays: the board is always visible and the page just scrolls. */}
-        {/* THE 10a HEADER — “The Fitting” set as a page title with the
-            intro line beneath; the shared location + weather context (ONE
-            state with the What-to-Wear card on The Ledger) at the right
-            edge, where the reference sets it. */}
-        <div className="px-4 sm:px-8 pt-7 pb-5 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+        {/* THE 10a HEADER — “The Fitting” set as the standard tab masthead
+            (title + one-line standfirst, shared height, type and indentation
+            with every other primary tab); the shared location + weather
+            context at the right edge, where the reference sets it. */}
+        <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
           <div className="max-w-[1180px] mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 md:gap-10 md:items-end">
               <div className="min-w-0">
-                <h3 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: 'clamp(30px, 4.5vw, 44px)', lineHeight: 1.06, letterSpacing: '-0.012em', color: 'var(--color-text,#241a12)' }}>
+                <h3 className={`hab-page-title ${typography.color.primary}`} style={{ margin: '0 0 10px' }}>
                   The Fitting
                   {trip ? ` · ${trip.brief.destination}` : ''}
                 </h3>
-                <p style={{ margin: '10px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', maxWidth: '58ch' }}>
-                  The board opens on what you’re wearing today and you change it from there. Everything on it, and
-                  everything offered beside it, is a piece you own — anything not yours lands dashed.
+                <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
+                  Build the day’s look on the board, from the pieces you own.
                 </p>
               </div>
               <div className="flex flex-col items-start md:items-end gap-2 flex-shrink-0 md:text-right">
@@ -2421,7 +2420,7 @@ export function FittingRoomTab({
         {/* THE BOARD (10a) — “Today's look” with its edge labels at the
             left, “Complete the look” beside it — swaps and additions from
             pieces you own. One scroll, no overlays. */}
-        <div className="px-4 sm:px-8 pt-6">
+        <div className="px-6 sm:px-10 pt-6">
           <div className="max-w-[1180px] mx-auto lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-[44px] lg:items-start">
             <div className="relative min-w-0">
               {/* The section head — TODAY'S LOOK · carried over from The
@@ -2518,7 +2517,7 @@ export function FittingRoomTab({
 
       {/* ============ THE SHELF — plain sections in the same scroll ====== */}
       <div className="bg-[var(--color-paper,#fbf8f1)] border-t border-[var(--color-divider,rgba(59,43,29,0.18))] mt-3">
-        <div className="px-4 sm:px-8 pb-10">
+        <div className="px-6 sm:px-10 pb-10">
           <div className="max-w-[1180px] mx-auto">
             {/* 2 · Reasoning strip — AI-originated boards only (oxblood on
                 the light sheet ground). Manual boards skip straight to the

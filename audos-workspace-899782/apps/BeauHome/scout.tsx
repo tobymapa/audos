@@ -1187,10 +1187,9 @@ export function ScoutTab({
             edge, always reachable. Intake is a field, not a destination. */}
         <div className="max-w-[1180px] mx-auto lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12 lg:items-start">
           <div>
-            <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>The Hunt</h3>
-            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '54ch' }}>
-              Everything you’re considering, in the order you’re considering it — spotted, weighed, held. Nothing
-              here is yours yet, and nothing you own appears except where it argues against a candidate.
+            <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>The Hunt</h3>
+            <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
+              Everything you’re considering — spotted, weighed, held.
             </p>
           </div>
           <div className="mt-6 lg:mt-1">

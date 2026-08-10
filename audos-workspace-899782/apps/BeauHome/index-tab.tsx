@@ -37,10 +37,9 @@ export function IndexTab({
     <div className="pb-24">
       <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
         <div className="max-w-[1180px] mx-auto">
-          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>The Index</h3>
-          <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '58ch' }}>
-            The reference wing — every garment type worth knowing, and the makers on your radar. Nothing here is a
-            shortlist and nothing here says buy: the picks live in The Hunt, where you went looking for them.
+          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>The Index</h3>
+          <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
+            The reference wing — every garment type, and every maker worth knowing.
           </p>
         </div>
       </div>

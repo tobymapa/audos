@@ -408,14 +408,20 @@ export function BeauTab({
 
   return (
     <div>
-      <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>
-        The Edit
-      </h3>
-      <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, maxWidth: '62ch', marginBottom: '18px' }}>
-        Beau’s live read of your wardrobe — not a checklist, a judgement. He reasons over every piece you’ve
-        logged, your style directions and your profile, in strict foundation order, and tells you exactly where you
-        stand and what deserves your money next.
-      </p>
+      {/* The standard tab masthead — title + one-line standfirst, sharing
+          height, type and indentation with every other primary tab. */}
+      <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+        <div className="max-w-[1180px] mx-auto">
+          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
+            The Edit
+          </h3>
+          <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
+            Beau’s live read of your wardrobe — and what deserves your money next.
+          </p>
+        </div>
+      </div>
+
+      <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
 
       {/* Status line + the explicit Re-assess — the ONLY manual trigger.
 
@@ -586,6 +592,7 @@ export function BeauTab({
           </p>
         </div>
       )}
+      </div>
     </div>
   );
 }

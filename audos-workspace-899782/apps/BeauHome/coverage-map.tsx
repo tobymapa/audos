@@ -579,12 +579,15 @@ export function CoverageMap({
           <div className="overflow-x-auto">
             <table
               className="w-full border-collapse"
-              style={{ tableLayout: 'fixed', minWidth: `${150 + columns.length * 140}px` }}
+              style={{ tableLayout: 'fixed', minWidth: `${130 + columns.length * 140}px` }}
             >
+              {/* The Category column hugs its labels (a fixed 130px) instead of
+                  claiming a share of the width — the data columns split the
+                  rest evenly, so no single column dominates in either view. */}
               <colgroup>
-                <col style={{ width: '22%' }} />
+                <col style={{ width: '130px' }} />
                 {columns.map((col) => (
-                  <col key={col.id} style={{ width: `${(78 / Math.max(columns.length, 1)).toFixed(3)}%` }} />
+                  <col key={col.id} />
                 ))}
               </colgroup>
               <thead>
