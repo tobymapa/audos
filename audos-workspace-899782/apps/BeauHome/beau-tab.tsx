@@ -47,12 +47,14 @@ import { ChevronRight, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { tw, typography } from '../../lib/colors';
 import {
   goToTab,
+  promoteToScout,
   type CategoryBudget,
   type StylePrefs,
   type StyleProfile,
   type WardrobePiece,
 } from './profile-data';
-import { type AssessmentRecommendation } from './beau-assessment';
+import { capWord, numberWord } from './mono-type';
+import { type ArchetypeCoverage, type AssessmentRecommendation } from './beau-assessment';
 import { useBeauAssessment } from './beau-assessment-context';
 import { useBeauReveal } from './beau-reveal';
 import { HairlineRowsSkeleton } from './skeleton';
@@ -68,7 +70,22 @@ import {
 } from './taste-memory';
 
 // ---------------------------------------------------------------------------
-// The accordion — shared by "What to acquire next" and the Briefing below it.
+// The numbered section kicker (Edit cleanup, reference screens) — every
+// major section of The Edit states its place in the read: 01 the coverage
+// map · 02 the alternate state by archetype · 03 what to acquire next ·
+// 04 the Briefing. One register, one accent.
+// ---------------------------------------------------------------------------
+
+const sectionKicker: React.CSSProperties = {
+  fontFamily: 'var(--space-font-heading)',
+  fontSize: '11px',
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent-700,#7c4a17)',
+};
+
+// ---------------------------------------------------------------------------
+// The accordion — the Briefing's chrome (expand is the trigger).
 // ---------------------------------------------------------------------------
 
 /**
@@ -83,6 +100,7 @@ import {
  */
 function EditAccordion({
   id,
+  kicker,
   title,
   standfirst,
   open,
@@ -91,6 +109,8 @@ function EditAccordion({
   children,
 }: {
   id: string;
+  /** The numbered section label, e.g. "04 — The Briefing". */
+  kicker?: string;
   title: string;
   standfirst: React.ReactNode;
   open: boolean;
@@ -116,6 +136,11 @@ function EditAccordion({
             style={{ marginTop: '8px' }}
           />
           <span className="min-w-0">
+            {kicker && (
+              <span className="block" style={{ ...sectionKicker, marginBottom: '7px' }}>
+                {kicker}
+              </span>
+            )}
             <span className={`block hab-section-head ${typography.color.primary}`} style={{ marginBottom: '6px' }}>
               {title}
             </span>
@@ -228,61 +253,105 @@ function DismissControl({ rec, onDismissed }: { rec: AssessmentRecommendation; o
   );
 }
 
-function RecommendationRow({ rec, onDismissed }: { rec: AssessmentRecommendation; onDismissed: () => void }) {
+/** One acquisition, as the reference sets it (Edit cleanup): rank · the
+ * piece · the reasoning in one tight column · the way into The Hunt. The
+ * "Not for me" dismissal stays on every row — the taste memory is a
+ * first-class behaviour, not chrome. */
+function RecommendationRow({ rec, index, onDismissed }: { rec: AssessmentRecommendation; index: number; onDismissed: () => void }) {
   return (
-    <div className="py-6">
-      {rec.replacesDismissed && (
-        <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em', marginBottom: '6px' }}>
-          Instead of the {rec.replacesDismissed} you passed on
+    <div className="grid grid-cols-[34px_minmax(0,1fr)] sm:grid-cols-[34px_minmax(0,230px)_minmax(0,1fr)] items-start gap-x-5 gap-y-2 py-6">
+      <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em', paddingTop: '7px' }}>
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <div className="min-w-0">
+        {rec.replacesDismissed && (
+          <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.12em', marginBottom: '4px' }}>
+            Instead of the {rec.replacesDismissed} you passed on
+          </p>
+        )}
+        <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '21px', lineHeight: 1.2 }}>
+          {rec.pieceName}
         </p>
-      )}
-      <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 500, fontSize: '23px', lineHeight: 1.2 }}>
-        {rec.pieceName}
-      </p>
-      {(rec.subType || rec.category) && (
-        <p className="uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', letterSpacing: '0.14em', marginTop: '4px' }}>
-          {rec.subType || rec.category}
-        </p>
-      )}
-      {rec.whyNow && (
-        <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.6, maxWidth: '58ch', marginTop: '10px' }}>
+        {(rec.subType || rec.category) && (
+          <p className="uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '10.5px', letterSpacing: '0.14em', marginTop: '4px' }}>
+            {rec.subType || rec.category}
+          </p>
+        )}
+      </div>
+      <div className="min-w-0 col-span-2 sm:col-span-1">
+        <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14.5px', lineHeight: 1.6, maxWidth: '64ch' }}>
           {rec.whyNow}
+          {rec.exampleBrand ? ` ${rec.exampleBrand} does this well at your budget.` : ''}
         </p>
-      )}
-      {rec.qualitySignals && (
-        <p
-          className="text-[var(--color-neutral-800,#453325)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '58ch', paddingLeft: '16px', borderLeft: '2px solid var(--color-accent,#a8712c)', marginTop: '12px' }}
-        >
-          <em
-            className="block uppercase not-italic text-[var(--color-accent-700,#7c4a17)]"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.12em', marginBottom: '5px' }}
+        {(rec.qualitySignals || rec.fitNote) && (
+          <p className="text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, maxWidth: '64ch', marginTop: '6px' }}>
+            {[rec.qualitySignals, rec.fitNote].filter(Boolean).join(' ')}
+          </p>
+        )}
+        <div className="flex items-center gap-4 flex-wrap" style={{ marginTop: '10px' }}>
+          {rec.archetypesServed.length > 0 && (
+            <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em' }}>
+              {rec.archetypesServed.join(' · ')}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => promoteToScout(rec.pieceName)}
+            className="uppercase hover:underline text-[var(--color-accent-700,#7c4a17)]"
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em' }}
+            title="Open The Hunt on this piece"
           >
-            What to look for
-          </em>
-          {rec.qualitySignals}
-        </p>
-      )}
-      {rec.fitNote && (
-        <p className={typography.color.secondary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '58ch', marginTop: '10px' }}>
-          {rec.fitNote}
-        </p>
-      )}
-      <div className="flex items-center gap-4 flex-wrap" style={{ marginTop: '12px' }}>
-        {rec.exampleBrand && (
-          <span className="text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', fontStyle: 'italic' }}>
-            One maker who does this well: {rec.exampleBrand}
-          </span>
-        )}
-        {rec.archetypesServed.length > 0 && (
-          <span className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', fontStyle: 'italic' }}>
-            Serves your {rec.archetypesServed.join(' and ')} side{rec.archetypesServed.length > 1 ? 's' : ''}
-          </span>
-        )}
-        <span className="flex-1" />
-        <DismissControl rec={rec} onDismissed={onDismissed} />
+            In The Hunt →
+          </button>
+          <span className="flex-1" />
+          <DismissControl rec={rec} onDismissed={onDismissed} />
+        </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 02 · ALTERNATE STATE — BY ARCHETYPE (Edit cleanup, reference screens):
+// eight archetypes will never be eight legible columns, so the same coverage
+// reads DOWN instead of across — one line per chosen direction, coverage as
+// a figure and the gap named. Data: the live assessment's archetypeCoverage.
+// AI AUDIT (profile fields read): the user's selected archetypes drive which
+// rows exist; covered/missing derive from the wardrobe's semantic tags.
+// ---------------------------------------------------------------------------
+
+function ArchetypeCoverageSection({ coverage }: { coverage: ArchetypeCoverage[] }) {
+  if (coverage.length === 0) return null;
+  return (
+    <section aria-label="Coverage by archetype" className="mt-10">
+      <p style={{ ...sectionKicker, marginBottom: '8px' }}>02 · Alternate state — by archetype</p>
+      <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '62ch', marginBottom: '4px' }}>
+        The same wardrobe read down instead of across — one line per direction, coverage as a figure and the gap
+        named.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ columnGap: '56px' }}>
+        {coverage.map((cov) => {
+          const total = cov.covered.length + cov.missing.length;
+          return (
+            <div
+              key={cov.archetype}
+              className="grid grid-cols-[minmax(0,auto)_auto_minmax(0,1.4fr)] items-baseline"
+              style={{ gap: '18px', padding: '13px 0', borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}
+            >
+              <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 400 }}>
+                {cov.archetype}
+              </span>
+              <span className="uppercase whitespace-nowrap text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em' }}>
+                {cov.covered.length} of {total}
+              </span>
+              <span className="text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5 }}>
+                {cov.missing.length === 0 ? 'Fully expressed — nothing missing' : `Missing ${cov.missing.slice(0, 2).join(', ')}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -415,8 +484,10 @@ export function BeauTab({
           <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
             The Edit
           </h3>
+          {/* One line, distinct from The Ledger's standfirst (which now
+              carries "Beau's live read…" per the founder's tab one-liners). */}
           <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
-            Beau’s live read of your wardrobe — and what deserves your money next.
+            The coverage map, the gaps that matter, and this season’s briefing.
           </p>
         </div>
       </div>
@@ -515,44 +586,44 @@ export function BeauTab({
             </section>
           )}
 
-          {/* THE COVERAGE MAP — registers × foundation categories, built
-              from the Layer 1 semantic tags (no extra model call). The
-              archetype layer sits inside the same map. */}
+          {/* 01 · THE COVERAGE MAP — registers × foundation categories,
+              built from the Layer 1 semantic tags (no extra model call). */}
           <CoverageMap profile={profile} pieces={pieces} />
+
+          {/* 02 · ALTERNATE STATE — BY ARCHETYPE: the assessment's
+              per-direction essentials coverage, read down as rows. */}
+          <ArchetypeCoverageSection coverage={assessment.archetypeCoverage} />
 
           {/* COMPLETE THE LOOK — occasion outfit slots over the same
               semantic data + the cached assessment. Not a separate AI call. */}
           <CompleteTheLook pieces={pieces} assessment={assessment} />
 
-          {/* WHAT TO ACQUIRE NEXT — an accordion: the header always reads,
-              the list itself opens on a tap. */}
+          {/* 03 — WHAT TO ACQUIRE NEXT (Edit cleanup): a flat numbered
+              ledger — "Three, in order" — replacing the accordion. */}
           {assessment.recommendations.length > 0 && (
-            <EditAccordion
-              id="acquire-next"
-              title="What to acquire next"
-              standfirst="In priority order, from the same reasoning pass. Each one leads into The Hunt, where the candidates that answer it live."
-              open={!!openSections['acquire-next']}
-              onToggle={() => toggleAccordion('acquire-next')}
-              aside={
+            <section aria-label="What to acquire next" className="mt-12">
+              <div className="flex items-end justify-between gap-3 flex-wrap pb-3 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+                <div>
+                  <p style={{ ...sectionKicker, marginBottom: '8px' }}>03 — What to acquire next</p>
+                  <h3 className={`hab-section-head ${typography.color.primary}`} style={{ margin: 0 }}>
+                    {capWord(numberWord(assessment.recommendations.length))}, in order
+                  </h3>
+                </div>
                 <button
                   type="button"
                   onClick={() => goToTab('scout')}
-                  className="inline-flex items-center gap-1.5 group whitespace-nowrap"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', color: 'var(--color-accent,#a8712c)' }}
+                  className="px-4 min-h-[44px] border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors whitespace-nowrap"
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}
                 >
-                  Take these to The Hunt
-                  <span className="group-hover:translate-x-0.5 transition-transform" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1 }} aria-hidden="true">
-                    ›
-                  </span>
+                  Take all {numberWord(assessment.recommendations.length)} to The Hunt
                 </button>
-              }
-            >
+              </div>
               <div className="divide-y divide-[var(--space-border-default)] border-b border-[var(--space-border-default)]">
                 {assessment.recommendations.map((rec, i) => (
-                  <RecommendationRow key={`${rec.pieceName}-${i}`} rec={rec} onDismissed={onTasteMemoryChanged} />
+                  <RecommendationRow key={`${rec.pieceName}-${i}`} rec={rec} index={i} onDismissed={onTasteMemoryChanged} />
                 ))}
               </div>
-            </EditAccordion>
+            </section>
           )}
 
           {/* THE BRIEFING — the synthesis pass over the same gaps, with
@@ -562,7 +633,8 @@ export function BeauTab({
               shows the Briefing he has already written or writes one. */}
           <EditAccordion
             id="briefing"
-            title="Briefing"
+            kicker="04 — The Briefing"
+            title="A season of focus"
             standfirst="The list above is the gaps, one at a time. The Briefing is what they add up to — written once a season, and measured against the last one."
             open={!!openSections.briefing}
             onToggle={() => {
@@ -583,12 +655,11 @@ export function BeauTab({
             <p className={`${typography.size.xs} text-[var(--space-semantic-warning)] mt-4`}>{error}</p>
           )}
 
-          <p className={`${typography.size.xs} ${typography.color.muted} mt-6`} style={{ fontSize: '10px' }}>
-            Beau assesses live — no fixed formulas. He reads your measurements, your complexion, your budget and your
-            life alongside every piece you own, and he re-assesses automatically when you log or remove a piece, change
-            your style directions, update your profile or pass on a recommendation; Re-assess forces a fresh pass any
-            time. Pieces keep the exact names you gave them — Beau classifies each one behind the scenes (its type, the
-            directions it serves, its formality, colour and season) and reasons from that, but never renames anything.
+          {/* The one-line footer (reference screens) — the whole page's
+              re-read contract, said once, quietly. */}
+          <p className={`${typography.size.sm} ${typography.color.muted} mt-8 pt-4 border-t border-[var(--color-divider,rgba(59,43,29,0.18))]`} style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px' }}>
+            Beau re-reads all of this when you log or remove a piece, change a register, or mute one. Pieces keep the
+            names you gave them.
           </p>
         </div>
       )}

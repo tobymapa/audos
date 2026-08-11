@@ -322,6 +322,10 @@ export function PieceIndexList({
         nextName={index < shelf.length - 1 ? shelf[index + 1].name.replace(/\(.*?\)/g, '').trim() : null}
         pieceTotal={totals.all}
         makerTotal={catalogDirectoryEntries().length}
+        // The entry's brand recommendation is ranked against the dossier and
+        // what the wearer already owns — both live here already.
+        profile={profile}
+        pieces={pieces}
         onPrev={() => setOpenType({ catId: cat.id, index: Math.max(0, index - 1) })}
         onNext={() => setOpenType({ catId: cat.id, index: Math.min(shelf.length - 1, index + 1) })}
         onClose={() => setOpenType(null)}
@@ -342,12 +346,6 @@ export function PieceIndexList({
           <h3 style={{ margin: 0, fontFamily: SERIF, fontSize: 'clamp(32px, 4.5vw, 46px)', fontWeight: 400, lineHeight: 1.08, letterSpacing: '-0.012em', color: WALNUT }}>
             The piece index
           </h3>
-          <p style={{ margin: '12px 0 0', maxWidth: '74ch', fontFamily: BODY, fontSize: '15.5px', lineHeight: 1.58, color: INK }}>
-            {totals.all} garment types in the app’s own eleven categories — the Teba and the Sahariana next to the
-            blazer, the donkey jacket next to the overcoat. A category and its description on the left; its types on
-            the right in columns you read down, grouped by the runs a tailor would use. Names sit on their own line
-            so the eye can find one, not read a paragraph.
-          </p>
         </div>
         <div className="flex flex-col items-start md:items-end" style={{ gap: '10px' }}>
           {/* The duplicate Pieces · N | Makers chip is GONE (UI corrections

@@ -13,13 +13,16 @@
  */
 import type React from 'react';
 
-/** Tier 1 — the piece name: Cormorant, walnut, dominant. */
+/** Tier 1 — the piece name: Cormorant, dominant. The ink is deliberately
+ * LIGHTER than a section/category header's walnut (founder's hierarchy fix):
+ * shifted roughly half-way toward the paper ground, so piece names read
+ * clearly beneath their category headers without competing with them. */
 export const pieceNameType: React.CSSProperties = {
   fontFamily: 'var(--space-font-heading)',
   fontSize: '16px',
   fontWeight: 500,
   lineHeight: 1.25,
-  color: '#241a12',
+  color: 'color-mix(in srgb, #241a12 55%, #f6f0e5)',
 };
 
 /** Tier 2 — the brand: Lora, tobacco gold, clearly distinct from the name. */

@@ -452,6 +452,9 @@ async function generateOutfits(
   // (prompt caching, Part 3.3); the volatile bits (weather, occasion, the
   // shuffle history) stay in the user message.
   const wardrobeBlock = [
+    // AI AUDIT (profile fields read): today's look is steered by the user's
+    // own profile.archetypes (his chosen directions) alongside the live
+    // weather and the wardrobe itself — never a fixed house style.
     profile && Array.isArray(profile.archetypes) && profile.archetypes.length > 0
       ? `HIS DIRECTION: ${profile.archetypes.join(', ')}`
       : null,

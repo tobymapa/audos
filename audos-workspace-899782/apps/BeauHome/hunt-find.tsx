@@ -37,11 +37,15 @@ import type { ScoutHuntRow } from './scout-ai';
 import { HairlineRowsSkeleton } from './skeleton';
 import { TicketFrame } from './ticket-frame';
 import {
+  assessPastedCandidate,
   recordBeauRecommendedBrands,
   runUnifiedFind,
   type UnifiedFindMode,
   type UnifiedFindResult,
 } from './hunt-ai';
+import { fileCandidate } from './hunt-stages';
+import { parseCandidateUrl } from './candidate-url';
+import { looksLikeUrl } from './hunt-brand-import';
 import { describeParams, type ListingResult, type ListingSearchOutcome } from './listing-search';
 import { ArchetypeTag, BeauRatingTag, CompareAction } from './hunt-discover';
 import { useBeauReveal } from './beau-reveal';
@@ -599,6 +603,8 @@ export function FindSubTab({
   const [phase, setPhase] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState<{ query: string; profileOn: boolean; result: UnifiedFindResult } | null>(null);
+  /** The quiet confirmation that candidates landed in Spotted above. */
+  const [filedNote, setFiledNote] = useState<string | null>(null);
   const busyRef = useRef(false);
   const boxRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -625,6 +631,7 @@ export function FindSubTab({
     setBusy(true);
     setPhase('');
     setError(null);
+    setFiledNote(null);
     let rowId: number | null = null;
     const db = (window as any).__workspaceDb;
     try {
@@ -656,6 +663,15 @@ export function FindSubTab({
         });
       }
       setAnswer({ query: q, profileOn, result });
+
+      // TYPE-TO-SEARCH IS THE PRIMARY INTAKE (Hunt flow redesign): what Beau
+      // brings back for a piece hunt doesn't just display — the best-matched
+      // options FILE THEMSELVES as Spotted candidates, landing in the
+      // pipeline directly above this search.
+      try {
+        const filed = await fileResultsToSpotted(result, q);
+        setFiledNote(filed > 0 ? `${filed} candidate${filed === 1 ? '' : 's'} filed into Spotted above — judge them there.` : null);
+      } catch { /* filing is an enrichment — the answer stands */ }
 
       // A structured hunt still teaches the brand log what he is drawn to,
       // even though the answer was listings rather than makers.
@@ -696,9 +712,111 @@ export function FindSubTab({
     }
   };
 
-  // No mode selection — Beau reads the intent from the words themselves.
+  /** File the best-matched results as Spotted candidates — deduped against
+   * what's already in the pipeline by product URL and by name + maker. Each
+   * card carries the piece, the maker, the seen price and Beau's
+   * profile-based reason; the fit note and tier rows come from the
+   * pipeline's own reads. */
+  const fileResultsToSpotted = async (result: UnifiedFindResult, q: string): Promise<number> => {
+    const db = (window as any).__workspaceDb;
+    let existing: Array<{ name?: string | null; brand?: string | null; product_url?: string | null }> = [];
+    try {
+      const { data } = await db.from('radar_items').orderBy('created_at', 'desc').limit(200).get();
+      existing = data || [];
+    } catch { /* dedupe is best-effort */ }
+    const seenUrl = new Set(existing.map((r) => (r.product_url || '').trim()).filter(Boolean));
+    const seenNameBrand = new Set(
+      existing.map((r) => `${(r.name || '').trim().toLowerCase()}\u241f${(r.brand || '').trim().toLowerCase()}`),
+    );
+    let filed = 0;
+    const fileOne = async (input: { name: string; brand?: string | null; price?: string | null; productUrl?: string | null; reason?: string | null }) => {
+      const key = `${input.name.trim().toLowerCase()}\u241f${(input.brand || '').trim().toLowerCase()}`;
+      if (!input.name.trim() || seenNameBrand.has(key)) return;
+      if (input.productUrl && seenUrl.has(input.productUrl.trim())) return;
+      seenNameBrand.add(key);
+      if (input.productUrl) seenUrl.add(input.productUrl.trim());
+      await fileCandidate({ ...input, origin: 'Beau found it', source: 'beau-find' });
+      filed += 1;
+    };
+    if (result.type === 'listings') {
+      const brief = describeParams(result.search.params);
+      for (const listing of result.search.listings.slice(0, 4)) {
+        await fileOne({
+          name: listing.title,
+          brand: result.search.params.brand || null,
+          price: listing.priceDisplay || null,
+          productUrl: listing.url || null,
+          reason: brief ? `Matched your brief — ${brief}` : `Matched “${q}”`,
+        });
+      }
+    } else if (result.type === 'recommendations') {
+      for (const rec of result.results.slice(0, 4)) {
+        if (!rec.brandName) continue;
+        await fileOne({
+          name: smartTitle(q) || q,
+          brand: rec.brandName,
+          price: rec.priceRange || null,
+          productUrl: rec.buyLinks && rec.buyLinks[0] ? rec.buyLinks[0].url : null,
+          reason: rec.profileNote || rec.whyItFits || null,
+        });
+      }
+    }
+    return filed;
+  };
+
+  // A PASTED PRODUCT URL is the secondary road into the SAME box: it files
+  // straight into Spotted, auto-filled — maker, piece type, price and Beau's
+  // read off one web-search pass — with the URL parse as the fallback.
+  const fileUrl = async (raw: string) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    setFiledNote(null);
+    setPhase('Reading the product page…');
+    try {
+      const parsed = parseCandidateUrl(raw);
+      const assessed = await assessPastedCandidate({
+        url: parsed.url || raw,
+        guessName: parsed.name,
+        guessBrand: parsed.brand,
+        profile,
+        budgets,
+        pieces,
+        prefs,
+      });
+      await fileCandidate({
+        name: assessed?.name || parsed.name || parsed.brand || 'Unnamed piece',
+        brand: assessed?.brand || parsed.brand || null,
+        price: assessed?.price || null,
+        productUrl: parsed.url || raw,
+        category: assessed?.category || null,
+        origin: 'You pasted it',
+        reason: assessed?.note || null,
+        source: 'pasted-link',
+      });
+      setFiledNote(
+        `Filed as Spotted above — ${[assessed?.brand || parsed.brand, assessed?.name || parsed.name].filter(Boolean).join(' · ') || 'the piece from that link'}. Correct anything on the card.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That link couldn\u2019t be read — try again.');
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+      setPhase('');
+    }
+  };
+
+  // No mode selection — Beau reads the intent from the words themselves;
+  // a URL in the box routes to the paste intake instead.
   const submit = () => {
-    void runQuery(query, 'auto');
+    const q = query.trim();
+    if (!q) return;
+    if (looksLikeUrl(q)) {
+      void fileUrl(q);
+    } else {
+      void runQuery(q, 'auto');
+    }
     setQuery('');
   };
 
@@ -721,16 +839,15 @@ export function FindSubTab({
             Find
           </p>
           <h3 className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 500, fontSize: '24px', lineHeight: 1.2, marginBottom: '8px' }}>
-            Ask Beau anything
+            What are you hunting?
           </h3>
-          {/* A brief orienter, never an explainer (Part 3.1): four short
+          {/* A brief orienter, never an explainer (Part 3.1): three short
               lines, no paragraph copy — the input below is the surface. */}
           <ul className="text-[var(--color-neutral-800,#453325)] space-y-1" style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.5, maxWidth: '54ch' }}>
             {[
-              'Name a piece with a size, condition or ceiling — Beau returns real listings',
-              'Assess a brand or maker',
-              'Get an “is it worth the money?” verdict',
-              'Describe what you need — Beau reads the intent',
+              'Describe it in your own words — “tan suede loafers”, “slim cotton chinos under £200” — and Beau reads your dossier and files best-matched candidates into Spotted',
+              'Paste a product URL — it lands in Spotted with maker, piece, price and Beau’s read filled in',
+              'Assess a maker, or get an “is it worth the money?” verdict',
             ].map((line) => (
               <li key={line} className="flex items-start gap-2">
                 <span className="w-1 h-1 rounded-full mt-2 flex-shrink-0 bg-[var(--color-accent,#a8712c)]" aria-hidden="true" />
@@ -749,7 +866,7 @@ export function FindSubTab({
                 submit();
               }
             }}
-            placeholder="What are you hunting for? Ask Beau anything."
+            placeholder="Describe what you’re hunting — or paste a product link."
             rows={1}
             disabled={busy}
             className="hab-input w-full resize-none mt-4 overflow-hidden"
@@ -786,6 +903,12 @@ export function FindSubTab({
       </div>
 
       {error && <p className={`${typography.size.xs} text-[var(--space-semantic-danger)] mt-2`}>{error}</p>}
+
+      {filedNote && !busy && (
+        <p className="mt-2" aria-live="polite" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', color: 'var(--color-accent-700,#7c4a17)' }}>
+          {filedNote}
+        </p>
+      )}
 
       {busy && (
         <div className="mt-5">

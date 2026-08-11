@@ -332,7 +332,13 @@ export interface MatchRecommendation {
 
 const MATCH_MODEL = CLAUDE_SONNET;
 
-const MATCH_SYSTEM_PROFILE_ON = `You are Beau — a personal wardrobe advisor. The user is searching for something specific. You have their full profile: measurements, skin tone (light brown / Southeast Asian — warm tones work well, cool greys and icy pastels less so), budget (mid-range), style archetypes, and existing wardrobe.
+// AI AUDIT (profile personalisation): this surface reads the dossier through
+// buildProfileContext — style archetypes, occasions, height/build/fit notes,
+// skin tone, materials rule, per-category budgets, owned pieces and the
+// secondhand preference. The system prompt stays GENERIC: the user's actual
+// colouring and budget arrive in the HIS PROFILE block, never hardcoded here,
+// so two users with different dossiers can never receive identical reasoning.
+const MATCH_SYSTEM_PROFILE_ON = `You are Beau — a personal wardrobe advisor. The user is searching for something specific. You have their full profile in the HIS PROFILE block: measurements, skin tone, budget, style archetypes, and existing wardrobe. Read the ACTUAL values there — reason about which colours complement the stated skin tone (never assume a complexion that is not stated), and keep every pick inside the stated budget range (when no budget is stated, prefer quality independent makers over luxury houses).
 
 Return 3–5 brand or piece recommendations. For each:
 - Brand name and what they make
@@ -512,7 +518,18 @@ export async function generateBrandProfile(brandName: string): Promise<BrandProf
     return cached.profile;
   }
 
-  const user = `Brand: ${name}`;
+  // WEB-GROUNDED DOSSIER (auto-fill pass): one platform web search rides
+  // along so obscure or brand-new makers land with real facts — origin,
+  // price tier, materials, archetype — instead of best-effort guesses or
+  // empty cells. A failed search never blocks the generation.
+  let snippets = '';
+  try {
+    const hits = await searchWeb(`${name} brand menswear quality construction price country`, 5);
+    snippets = hits.map((h, i) => `${i + 1}. ${h.title}\n${h.snippet}\n${h.link}`).join('\n\n');
+  } catch { /* knowledge-only generation still stands */ }
+  const user = snippets
+    ? `Brand: ${name}\n\nWEB SEARCH RESULTS (ground your facts in these where they help — never invent beyond them):\n${snippets}`
+    : `Brand: ${name}`;
   let text = await callClaude({ model: BRAND_GEN_MODEL, system: cachedSystem(BRAND_GEN_SYSTEM, null), user, maxTokens: 1400 });
   if (!text) text = await callGptFallback(BRAND_GEN_SYSTEM, user, 1400);
   if (!text) throw new Error('Beau couldn\u2019t reach his references just now — try again in a moment.');
@@ -635,7 +652,12 @@ export async function runCompareVerdict(input: VerdictInput): Promise<string> {
 
 const UNIFIED_FIND_MODEL = CLAUDE_SONNET;
 
-const UNIFIED_FIND_SYSTEM_PROFILE_ON = `You are Beau — a personal wardrobe advisor. The user is asking for something specific. You have their full profile: measurements (use to flag sizing considerations), skin tone (light brown / Southeast Asian — warm tones: olive, camel, tan, burgundy, rust work well; cool greys and icy pastels less so), budget (mid-range — quality independent brands, not luxury houses), style archetypes, and existing wardrobe.
+// AI AUDIT (profile personalisation): the unified Find reads the dossier
+// through buildProfileContext — archetypes, occasions, frame (height, build,
+// fit notes), skin tone, materials rule, per-category budgets, owned pieces
+// and the secondhand preference. The prompt must stay generic: the user's
+// real colouring and budget arrive in THE USER'S PROFILE block per call.
+const UNIFIED_FIND_SYSTEM_PROFILE_ON = `You are Beau — a personal wardrobe advisor. The user is asking for something specific. You have their full profile in THE USER'S PROFILE block: measurements (use to flag sizing considerations), skin tone, budget, style archetypes, and existing wardrobe. Read the ACTUAL values there — reason from the stated skin tone about which colours complement it (never assume a complexion that is not stated), and keep recommendations inside the stated budget range (when none is stated, prefer quality independent makers over luxury houses).
 
 Read the user's intent. If they're looking for a piece or brand recommendation, return 3–5 structured options. If they're asking for a brand assessment, return a structured dossier. If they're asking a quality question, return a quality judgement with rationale.
 
@@ -927,6 +949,36 @@ export async function addUserDirectoryBrand(brandName: string): Promise<BrandPro
 }
 
 /**
+ * REMOVE A MAKER from the wearer's index (founder's per-row delete). One
+ * helper, so the directory table and the maker's own entry panel remove a
+ * maker identically:
+ *   · a user-added / Beau-recommended maker loses its hunt_directory_brands
+ *     row outright;
+ *   · a CATALOG maker cannot leave the static seed, so a hunt_hidden_brands
+ *     row holds it out of every reading instead — the list, the map and the
+ *     quadrant alike. Re-adding it by name, URL or file clears that row.
+ * Fires DISCOVER_BRANDS_EVENT so every live surface re-reads.
+ */
+export async function removeDirectoryBrand(brandName: string): Promise<void> {
+  const clean = (brandName || '').trim();
+  if (!clean) return;
+  const key = clean.toLowerCase();
+  if (findCatalogBrand(clean)) {
+    const { data: already } = await db().from('hunt_hidden_brands').eq('brand', clean).limit(5).get();
+    if (!already || already.length === 0) {
+      await db().from('hunt_hidden_brands').insert({ brand: clean });
+    }
+  } else {
+    const { data } = await db().from('hunt_directory_brands').eq('brand', clean).limit(10).get();
+    for (const row of (data || []) as Array<{ id: number; brand?: string | null }>) {
+      if ((row.brand || '').trim().toLowerCase() !== key) continue;
+      await db().from('hunt_directory_brands').delete(row.id);
+    }
+  }
+  window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
+}
+
+/**
  * Fold makers Beau surfaced in a Find result into Discover (source 'beau').
  * Fire-and-forget: each new maker costs one cached haiku dossier so its
  * table row carries real columns; failures never block the Find result.
@@ -1002,4 +1054,85 @@ export async function addDirectoryBrandStubs(names: string[]): Promise<{ added: 
   }
   if (added.length > 0) window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
   return { added, skipped };
+}
+
+/**
+ * AUTO-FILL IMPORTED STUB ROWS (founder's change — no blank cells Beau can
+ * reasonably fill): sweep hunt_directory_brands rows that still carry no
+ * profile_json (file-imported stubs) and file each full dossier — the same
+ * web-grounded generation a typed name gets — so user-added rows read like
+ * catalog rows: origin, price tier, material signal, known-for, archetype
+ * fit and Beau's rating. Sequential and capped per sweep to bound cost;
+ * safe to call repeatedly (it no-ops once nothing is missing).
+ */
+let stubBackfillRunning = false;
+export async function backfillDirectoryBrandStubs(limit = 8): Promise<void> {
+  if (stubBackfillRunning) return;
+  stubBackfillRunning = true;
+  try {
+    const { data } = await db().from('hunt_directory_brands').orderBy('created_at', 'desc').limit(200).get();
+    const stubs = ((data || []) as Array<{ id: number; brand?: string | null; profile_json?: string | null }>)
+      .filter((row) => (row.brand || '').trim() && !(row.profile_json || '').trim())
+      .slice(0, limit);
+    for (const row of stubs) {
+      try {
+        const profile = await generateBrandProfile((row.brand || '').trim());
+        await db().from('hunt_directory_brands').update(row.id, {
+          profile_json: JSON.stringify(profile),
+          rating: beauRatingFromQuality(profile.constructionQuality, profile.qualityScore),
+          rating_note: profile.constructionNote || null,
+        });
+        // Each filled row repaints live tables as it lands.
+        window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
+      } catch { /* one stubborn maker never blocks the sweep */ }
+    }
+  } catch { /* non-fatal — the stubs stay until the next visit */ } finally {
+    stubBackfillRunning = false;
+  }
+}
+
+/**
+ * PASTED-URL AUTO-FILL (Hunt intake): read the product page's own words via
+ * one platform web search and distill maker · piece type · price · a short
+ * profile-based assessment, so a pasted link lands in Spotted with its card
+ * already filled in. Profile fields read: archetypes, occasions, frame,
+ * skin tone, materials rule, budgets, owned pieces and the secondhand
+ * preference (via buildProfileContext). Never throws — a failed read
+ * returns null and the URL files with what the URL itself said.
+ */
+export async function assessPastedCandidate(input: {
+  url: string;
+  guessName?: string | null;
+  guessBrand?: string | null;
+  profile: StyleProfile | null;
+  budgets: Record<string, CategoryBudget>;
+  pieces: WardrobePiece[];
+  prefs: StylePrefs | null;
+}): Promise<{ name: string; brand: string | null; category: string | null; price: string | null; note: string | null } | null> {
+  try {
+    const hits = await searchWeb(input.url, 5);
+    const guess = [input.guessBrand, input.guessName].filter(Boolean).join(' ');
+    const extra = guess ? await searchWeb(`${guess} price review`, 4).catch(() => []) : [];
+    const all = [...hits, ...extra].slice(0, 8);
+    if (all.length === 0) return null;
+    const system = `You are Beau — a menswear valet. The user pasted a product URL into The Hunt. From the search snippets ONLY, identify the product and assess it against the profile provided. Return STRICT JSON: {"name": string, "brand": string|null, "category": string|null (one of tops, bottoms, shoes, outerwear, knitwear, sweatshirts, formalwear, accessories), "price": string|null (with currency symbol, ONLY if the snippets state it), "note": string} — "note" is 1–2 short sentences: your read of this piece for THIS user (fit for their frame, colouring, budget and directions). Never invent a price. JSON only, no markdown.`;
+    const profileContext = `THE USER'S PROFILE:\n${buildProfileContext(input.profile, input.budgets, input.pieces, input.prefs)}`;
+    const user = `URL: ${input.url}${input.guessBrand ? `\nLikely maker: ${input.guessBrand}` : ''}${input.guessName ? `\nLikely piece: ${input.guessName}` : ''}\n\nSEARCH SNIPPETS:\n${all.map((h, i) => `${i + 1}. ${h.title}\n${h.snippet}\n${h.link}`).join('\n\n')}`;
+    let text = await callClaude({ model: CLAUDE_HAIKU, system: cachedSystem(system, profileContext), user, maxTokens: 500 });
+    if (!text) text = await callGptFallback(system, `${profileContext}\n\n${user}`, 500);
+    if (!text) return null;
+    const parsed = extractJson(text);
+    const name = str(parsed?.name);
+    if (!name) return null;
+    return {
+      name,
+      brand: str(parsed?.brand) || input.guessBrand || null,
+      category: str(parsed?.category) || null,
+      price: str(parsed?.price) || null,
+      note: str(parsed?.note) || null,
+    };
+  } catch (e) {
+    console.warn('[Ethaion] pasted-candidate read failed (non-fatal):', e);
+    return null;
+  }
 }

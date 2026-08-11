@@ -54,7 +54,7 @@ import {
 import { HairlineRowsSkeleton, ShimmerDefs, Skeleton } from './skeleton';
 import { BrandDetailSheet } from './hunt-discover';
 import { FindSubTab, UnifiedResultView, parseUnifiedResult, unifiedRowMeta } from './hunt-find';
-import { AddCandidate, HuntStages } from './hunt-stages';
+import { HuntStages } from './hunt-stages';
 
 function formatDate(iso?: string) {
   if (!iso) return '';
@@ -1183,32 +1183,15 @@ export function ScoutTab({
       {/* Page heading — NO profile toggle (founder's correction): Beau
           reads the dossier automatically; there is nothing to switch. */}
       <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        {/* THE 7a HEADER — title + intro left, ADD A CANDIDATE at the right
-            edge, always reachable. Intake is a field, not a destination. */}
-        <div className="max-w-[1180px] mx-auto lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12 lg:items-start">
-          <div>
-            <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>The Hunt</h3>
-            <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
-              Everything you’re considering — spotted, weighed, held.
-            </p>
-          </div>
-          <div className="mt-6 lg:mt-1">
-            <div className="flex items-baseline justify-between gap-4" style={{ marginBottom: '8px' }}>
-              <span
-                className="uppercase"
-                style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: '8.5px', letterSpacing: '0.1em', color: 'var(--color-neutral-500,#a68e70)' }}
-              >
-                Add a candidate
-              </span>
-              <span
-                className="uppercase"
-                style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: '8.5px', letterSpacing: '0.1em', color: 'var(--color-neutral-500,#a68e70)' }}
-              >
-                Beau’s profile · on
-              </span>
-            </div>
-            <AddCandidate onAdded={refresh} />
-          </div>
+        {/* THE HEADER — title and intro alone (founder's correction): the ADD
+            A CANDIDATE field, its kicker and its profile chip are GONE from
+            The Hunt. Intake happens through Find, which files what it
+            surfaces straight into Spotted. */}
+        <div className="max-w-[1180px] mx-auto">
+          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>The Hunt</h3>
+          <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
+            Everything you’re considering — spotted, weighed, held.
+          </p>
         </div>
       </div>
 
@@ -1222,26 +1205,30 @@ export function ScoutTab({
           <HuntStages
             pieces={pieces}
             hideAdd
+            spottedLead={
+              /* TYPE-TO-SEARCH LEADS SPOTTED (Hunt flow redesign): the one
+                 natural-language input — describe a piece in your own words
+                 or paste a product URL — is the primary way candidates enter
+                 the pipeline, so it sits at the TOP of the stage its results
+                 land in. Beau reads the full dossier against every query. */
+              <div data-tour="tour-hunt-find">
+                <FindSubTab
+                  profileOn={profileOn}
+                  profile={profile}
+                  budgets={budgets}
+                  pieces={pieces}
+                  prefs={prefs}
+                  prefill={findPrefill}
+                  rerun={rerunReq}
+                  onLogged={refresh}
+                  onOpenBrand={setOpenBrandName}
+                />
+              </div>
+            }
             spottedExtras={
               <>
-                {/* FIND — the unified search: one input, Beau routes the
-                    intent; every result can file candidates to Spotted. */}
-                <div data-tour="tour-hunt-find">
-                  <FindSubTab
-                    profileOn={profileOn}
-                    profile={profile}
-                    budgets={budgets}
-                    pieces={pieces}
-                    prefs={prefs}
-                    prefill={findPrefill}
-                    rerun={rerunReq}
-                    onLogged={refresh}
-                    onOpenBrand={setOpenBrandName}
-                  />
-                </div>
-
                 {/* YOUR HUNT HISTORY — the full filterable, RE-RUNNABLE
-                    record, right beneath the search it feeds. */}
+                    record, beneath the pipeline the search feeds. */}
                 <section aria-label="Your Hunt History" className="mt-10">
                   {rowsLoading && huntCount === 0 ? (
                     <HairlineRowsSkeleton rows={4} />

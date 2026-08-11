@@ -277,6 +277,9 @@ export function CoverageMap({
     });
   };
 
+  // AI AUDIT (profile fields read): the archetype view's columns come from
+  // profile.archetypes — the user's own chosen directions — so the map's
+  // secondary reading differs per user by construction.
   const archetypes = useMemo(
     () => (profile?.archetypes || []).filter(Boolean).map(archetypeName),
     [profile],
@@ -481,6 +484,11 @@ export function CoverageMap({
     <section aria-label="Coverage map" className="mt-10">
       <div className="flex items-end justify-between gap-3 flex-wrap pb-3 border-b border-[var(--color-text,#3b2b1d)]">
         <div>
+          {/* The numbered kicker (Edit cleanup) — the map opens the page's
+              01–04 sequence. */}
+          <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.18em', marginBottom: '8px' }}>
+            01 · Registers × categories
+          </p>
           <h3 className={`hab-section-head ${typography.color.primary}`} style={{ marginBottom: '6px' }}>The coverage map</h3>
           <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '62ch' }}>
             Rows are parts of the wardrobe; columns are registers. A filled cell names what covers it — in your

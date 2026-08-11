@@ -1150,15 +1150,20 @@ function PassedArchivedScreen({
 
 export function HuntStages({
   pieces = [],
+  spottedLead,
   spottedExtras,
   hideAdd = false,
 }: {
   /** The owned wardrobe — feeds the “what it finishes” row. */
   pieces?: WardrobePiece[];
+  /** THE PRIMARY ENTRY POINT (type-to-search overhaul): the natural-language
+   * search — describe a piece or paste a product URL — rendered ABOVE the
+   * Spotted cards, so finding candidates leads the stage and what Beau
+   * brings back lands directly beneath it. */
+  spottedLead?: React.ReactNode;
   /** FIND & DISCOVER LIVE INSIDE SPOTTED (founder's correction — the
    * standalone Find / Discover sub-tabs are gone): rendered beneath the
-   * Spotted cards, so searching and adding candidates happens where the
-   * candidates land. */
+   * Spotted cards — the hunt history and secondary tools. */
   spottedExtras?: React.ReactNode;
   /** True when the host page renders <AddCandidate> in its own header
    * (7a: the field sits opposite the page title). */
@@ -1409,6 +1414,11 @@ export function HuntStages({
         </p>
       )}
 
+      {/* TYPE-TO-SEARCH LEADS SPOTTED: the one input — a natural-language
+          brief or a pasted product URL — sits at the top of the stage its
+          results land in. */}
+      {activeStage === 'spotted' && spottedLead && <div className="mt-5 lg:mt-4">{spottedLead}</div>}
+
       {/* THE STAGE HEADING (7a) — “Weighed · four candidates” with the
           AS A TABLE · ON A MAP toggle at the right edge. The table answers
           “what is true of each”; the map “how do they relate” (19a). */}
@@ -1419,11 +1429,6 @@ export function HuntStages({
             {activeStage === 'weighed' && `Weighed · ${byStage.weighed.length === 0 ? 'nothing yet' : `${numberWord(byStage.weighed.length)} candidate${byStage.weighed.length === 1 ? '' : 's'}`}`}
             {activeStage === 'held' && `Held · ${byStage.held.length === 0 ? 'nothing yet' : numberWord(byStage.held.length)}`}
           </h4>
-          <p style={{ ...bodyFont, fontSize: '13px', color: 'var(--color-neutral-700,#634e38)', margin: '6px 0 0' }}>
-            {activeStage === 'spotted' && 'Saved, unjudged — weighing one starts the comparison; finding new candidates lives below, where they land.'}
-            {activeStage === 'weighed' && 'All answering the same question, so the only decision is which. Beau’s tier and the fit note from your sizes are the two rows most people decide on — they’re first.'}
-            {activeStage === 'held' && 'Decided, watching price — Beau re-checks price and stock each visit.'}
-          </p>
         </div>
         {activeStage === 'weighed' && byStage.weighed.length > 0 && (
           <ViewToggle
@@ -1577,12 +1582,12 @@ export function HuntStages({
             )}
           </div>
         ))}
-        {shown.length === 0 && (
-          /* ONE register for every descriptive/empty-state line in the
-             pipeline — the same face, size and colour as the line under the
-             stage heading, with the tighter rhythm used elsewhere. */
+        {shown.length === 0 && activeStage !== 'spotted' && (
+          /* ONE register for every empty-state line in the pipeline — the
+             same face, size and colour as the body copy elsewhere. Spotted
+             carries no empty-state line: the search that fills it renders
+             directly above, so the way in is already on screen. */
           <p className="sm:col-span-2 py-3 text-[var(--color-neutral-700,#634e38)]" style={{ ...bodyFont, fontSize: '13px' }}>
-            {activeStage === 'spotted' && 'Nothing spotted yet — paste a product link above, search below, or put a piece up from a board or the index.'}
             {activeStage === 'weighed' && 'Nothing being weighed — move a spotted candidate in and compare up to four at once.'}
             {activeStage === 'held' && 'Nothing held — a held candidate is one you\u2019ve decided on and are waiting to buy.'}
           </p>

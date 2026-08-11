@@ -126,7 +126,7 @@ For each recommendation, return:
 - material: the cloth or material specification (e.g. "8oz waxed cotton", "loopwheeled 12oz cotton", "full-grain calf leather")
 - origin: where the best versions are typically made (e.g. "Northampton, England", "Japan", "Portugal")
 - register: exactly one of "Casual", "Smart-Casual", "Formal" — the register this piece serves
-- colorwayNote: ONE sentence on why the recommended colourway works for the user's skin tone specifically (e.g. for light brown / Southeast Asian skin — warm tones like olive, camel, tan and rust complement; cool greys and icy pastels less so)
+- colorwayNote: ONE sentence on why the recommended colourway works for the user's skin tone specifically — read the profile.skinTone value provided and reason from THAT (warm complexions generally suit warm tones like olive, camel, tan and rust; cool complexions suit cooler, clearer colours). If no skin tone is provided, tie the note to palette coherence with what they own instead — never assume a complexion
 
 Return 5–8 recommendations maximum. Quality over quantity. These should feel like a smart friend who knows me`;
 
@@ -218,6 +218,13 @@ export interface BeauPicksInput {
 
 // ---------------------------------------------------------------------------
 // User payload — the wardrobe + archetypes + essentials + profile, as JSON.
+//
+// AI AUDIT (profile personalisation): Beau's picks read these dossier fields
+// per call — heightRange/heightCm, weightKg, bodyType, skinTone, materials
+// rule, home city, dressesFor occasions, fit notes, full measurements,
+// secondhand openness, the user's own free text, and the trusted / avoided
+// maker signals. All personal facts travel in this payload — the system
+// prompt holds only generic reasoning rules.
 // ---------------------------------------------------------------------------
 
 function buildUserMessage(

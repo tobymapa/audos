@@ -59,12 +59,18 @@
  * text, inactive = paper fill with a walnut hairline. No sustainability
  * filter, no colour surprises.
  *
- * PROFILE TOGGLE behaviour (fixed — it used to only nudge the sort):
- *   ON  — the table filters to makers serving the user's selected
- *         archetypes, ranked by relevance to the profile (archetype
- *         overlap, budget fit, quality); everything else stays reachable
- *         in a "Beyond your archetypes" section below.
+ * PROFILE TOGGLE behaviour (profile-adjusted table — the founder's change:
+ * the "Beyond your archetypes" split is retired):
+ *   ON  — ONE table: makers serving the user's selected archetypes lead it,
+ *         ranked by relevance to the profile (archetype overlap, budget
+ *         fit, quality); everything else follows alphabetically in the SAME
+ *         table, its own directions shown in the Archetype fit column so
+ *         the context is preserved.
  *   OFF — the full directory, alphabetical, no personalisation.
+ * AI AUDIT (profile fields read here): profile.archetypes drives the split
+ * and the ranking; budget fit reads the price band against a mid-leaning
+ * preference; two users with different archetype selections get different
+ * orderings by construction.
  *
  * BrandDetailSheet is the SHARED dossier surface used across Find,
  * Discover, Compare and Matrix: a full-screen page in the ticket-frame /
@@ -74,6 +80,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Loader2, Star, Trash2, Upload, X } from 'lucide-react';
+// The per-row remove rule lives in one place (hunt-ai) so the maker's own
+// entry panel and this table can never diverge.
+import { removeDirectoryBrand } from './hunt-ai';
 import { typography } from '../../lib/colors';
 import {
   BRAND_INDEX_CHANGED_EVENT,
@@ -120,7 +129,7 @@ import {
   type PriceBand,
   type Register,
 } from './brands';
-import { DISCOVER_BRANDS_EVENT, addDirectoryBrandStubs, addUserDirectoryBrand, getBrandProfile } from './hunt-ai';
+import { DISCOVER_BRANDS_EVENT, addDirectoryBrandStubs, addUserDirectoryBrand, backfillDirectoryBrandStubs, getBrandProfile } from './hunt-ai';
 import {
   faviconFor,
   fetchSiteMeta,
@@ -1077,8 +1086,8 @@ function toggleIn<T extends string>(list: T[], value: T, set: (v: T[]) => void) 
  * page renders, and the next appends a viewport ahead of the scroll — which
  * looks identical and costs one page instead of all of them.
  *
- * The reveal lives INSIDE the table rather than at its two call sites, so
- * "matched to you" and "beyond your archetypes" cannot drift apart.
+ * The reveal lives INSIDE the table rather than at its call site, so every
+ * reading of the directory pages identically.
  */
 function BrandTable({
   entries,
@@ -1090,6 +1099,9 @@ function BrandTable({
   matrixList,
   onToggleMatrix,
   onDeleteBrand,
+  armedBrand,
+  onArmDelete,
+  deletingBrand,
   passCounts,
 }: {
   entries: DirectoryEntry[];
@@ -1103,6 +1115,12 @@ function BrandTable({
   onToggleMatrix?: (brand: string) => void;
   /** Per-row delete (founder's fix) — removes the maker from the list. */
   onDeleteBrand: (brand: string) => void;
+  /** The ONE row currently asking for its confirming tap, if any. */
+  armedBrand: string | null;
+  /** Arms a row (null disarms) — the light in-place confirm, never a modal. */
+  onArmDelete: (brand: string | null) => void;
+  /** The row mid-removal, so its confirm reads “Removing…”. */
+  deletingBrand: string | null;
   /** Lower-cased maker → pass count — rows at two-plus carry the demotion
    * note under their name (build brief rule 9). */
   passCounts?: Record<string, number>;
@@ -1279,21 +1297,56 @@ function BrandTable({
                       comparison surface now. */}
                   <CompareAction brand={b.brand} compareList={compareList} onToggleCompare={onToggleCompare} />
                   <MatrixAction brand={b.brand} matrixList={matrixList} onToggleMatrix={onToggleMatrix} />
-                  {/* DELETE (founder's fix) — a quiet trash action per row;
-                      confirmation happens in the handler, so a stray tap
-                      never silently drops a maker. */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteBrand(b.brand);
-                    }}
-                    className="inline-flex items-center justify-center min-w-[36px] min-h-[36px] rounded transition-colors text-[var(--color-neutral-600,#856c51)] hover:text-[#8B3A3A]"
-                    title={`Remove ${b.brand} from your directory`}
-                    aria-label={`Remove ${b.brand} from your directory`}
-                  >
-                    <Trash2 className="w-4 h-4" aria-hidden="true" />
-                  </button>
+                  {/* DELETE (founder's fix) — a quiet trash action per row.
+                      The confirmation is ONE TAP, in place: the trash turns
+                      into “Remove? · Keep” on the row itself, so a stray tap
+                      never drops a maker and nothing opens over the table. */}
+                  {armedBrand && armedBrand.trim().toLowerCase() === b.brand.trim().toLowerCase() ? (
+                    <span
+                      className="inline-flex items-baseline justify-end gap-2.5 whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteBrand(b.brand);
+                        }}
+                        disabled={deletingBrand !== null}
+                        className="min-h-[36px] hover:underline disabled:opacity-50"
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-accent-700,#7c4a17)' }}
+                        aria-label={`Confirm — remove ${b.brand} from your index`}
+                      >
+                        {deletingBrand ? 'Removing…' : 'Remove?'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onArmDelete(null);
+                        }}
+                        disabled={deletingBrand !== null}
+                        className="min-h-[36px] hover:underline disabled:opacity-50"
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-600,#856c51)' }}
+                        aria-label={`Keep ${b.brand}`}
+                      >
+                        Keep
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onArmDelete(b.brand);
+                      }}
+                      className="inline-flex items-center justify-center min-w-[36px] min-h-[36px] rounded transition-colors text-[var(--color-neutral-600,#856c51)] hover:text-[#8B3A3A]"
+                      title={`Remove ${b.brand} from your index`}
+                      aria-label={`Remove ${b.brand} from your index`}
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  )}
                 </span>
               </td>
             </tr>
@@ -1401,6 +1454,16 @@ export function DiscoverSubTab({
     })();
   }, [metaRows]);
 
+  // AUTO-FILL IMPORTED MAKERS (founder's change — no blank cells Beau can
+  // reasonably fill): rows that landed as stubs (file imports) get their
+  // full web-grounded dossier in the background — origin, price tier,
+  // material signal, known-for, archetype fit and Beau's rating — so
+  // user-added rows read exactly like catalog rows. Re-runs when the row
+  // set changes (a fresh import) and no-ops once nothing is missing.
+  useEffect(() => {
+    void backfillDirectoryBrandStubs().catch(() => undefined);
+  }, [addedRows]);
+
   // Optimistic status overrides — a tapped chip recolours instantly while
   // the ledger write settles.
   const [statusOverrides, setStatusOverrides] = useState<Record<string, BrandIndexStatus>>({});
@@ -1445,28 +1508,31 @@ export function DiscoverSubTab({
     void setBrandStatus(brand, fav ? 'curious' : 'trusted');
   };
 
-  /** DELETE A ROW (founder's fix): remove a maker from the directory table,
-   * behind a confirmation prompt so a stray tap never drops one. A
-   * user-added / Beau-recommended maker deletes its hunt_directory_brands
-   * row; a catalog maker is hidden via a hunt_hidden_brands row instead
-   * (the static seed itself cannot lose entries). */
+  // The light in-place confirm: ONE row is armed at a time, and arming a
+  // different one disarms the last.
+  const [armedBrand, setArmedBrand] = useState<string | null>(null);
+  const [deletingBrand, setDeletingBrand] = useState<string | null>(null);
+
+  /** DELETE A ROW (founder's fix): remove a maker from the index. The
+   * confirmation is ONE TAP on the row itself (armedBrand) — no browser
+   * dialog, nothing opening over the table. A user-added / Beau-recommended
+   * maker deletes its hunt_directory_brands row; a catalog maker is hidden
+   * via a hunt_hidden_brands row instead (the static seed itself cannot lose
+   * entries) — removeDirectoryBrand owns that rule, so the maker's own entry
+   * panel removes it exactly the same way. */
   const deleteBrand = async (brand: string) => {
     const clean = brand.trim();
-    if (!clean) return;
-    if (!window.confirm(`Remove ${clean} from your Discover directory?`)) return;
+    if (!clean || deletingBrand) return;
+    setDeletingBrand(clean);
     try {
-      const key = clean.toLowerCase();
-      const row = (addedRows || []).find((r) => (r.brand || '').trim().toLowerCase() === key);
-      if (row) {
-        await (window as any).__workspaceDb.from('hunt_directory_brands').delete(row.id);
-        window.dispatchEvent(new CustomEvent(DISCOVER_BRANDS_EVENT));
-        refresh();
-      } else {
-        await (window as any).__workspaceDb.from('hunt_hidden_brands').insert({ brand: clean });
-        refreshHidden();
-      }
+      await removeDirectoryBrand(clean);
+      refresh();
+      refreshHidden();
     } catch (e) {
       console.warn('[Ethaion] brand removal failed:', e);
+    } finally {
+      setDeletingBrand(null);
+      setArmedBrand(null);
     }
   };
 
@@ -1993,11 +2059,15 @@ export function DiscoverSubTab({
             </button>
           </div>
         ) : null}
-        {/* COLUMN FILTERS — dropdowns, never inline chip rows (founder's
-            fix). Top→bottom mirrors the table's columns left→right:
-            Favourite · Origin · Price · Material · Known for · Style ·
-            Rating · Your note (LAST, matching the rightmost column). */}
-        <div>
+        {/* THE FILTER GRID (founder's restructure): every filter category in
+            ONE two-column grid — dropdowns, never inline chip rows. Reading
+            order runs left-to-right, row by row: the table's column filters
+            first (Favourite · Origin · Price · Material · Known for · Style ·
+            Rating · Your note), then the column-less facets (Category ·
+            Construction · Register). Every row shares the same label-column
+            grid as the Pieces index's filters, so the left edges align
+            exactly — no ragged indents. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 items-start" style={{ columnGap: '40px' }}>
           <FilterRow label="Favourite">
             <FilterChip
               active={favesOnly}
@@ -2076,11 +2146,7 @@ export function DiscoverSubTab({
               aria-label="Filter by your note"
             />
           </FilterRow>
-        </div>
-
-        {/* Facets without a column of their own — dropdowns too. (Every row
-            carries its own hairline now, so no extra separator.) */}
-        <div>
+          {/* Facets without a column of their own — same grid, same indent. */}
           <FilterRow label="Category">
             <SingleSelectDropdown
               label="Category"
@@ -2110,17 +2176,25 @@ export function DiscoverSubTab({
       </div>
 
       {/* —— THE MAKER SEARCH — its own input, DIRECTLY above the table
-          (founder's fix): find a brand by name without touching filters. */}
+          (founder's fix), set as the exact bordered FIND bar the Pieces
+          index uses (pixel-parity pass): same label register, border,
+          padding and width. */}
       <div>
-        <input
-          type="search"
-          value={nameQuery}
-          onChange={(e) => setNameQuery(e.target.value)}
-          placeholder="Search makers by name…"
-          className="hab-input w-full"
-          style={{ paddingTop: '10px', paddingBottom: '10px', maxWidth: '360px' }}
-          aria-label="Search makers by name"
-        />
+        <label
+          className="flex items-center focus-within:border-[var(--color-accent,#a8712c)] transition-colors"
+          style={{ gap: '14px', border: '1px solid rgba(59,43,29,0.35)', padding: '9px 14px', maxWidth: '520px' }}
+        >
+          <span style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#a68e70' }}>Find</span>
+          <input
+            type="search"
+            value={nameQuery}
+            onChange={(e) => setNameQuery(e.target.value)}
+            placeholder='a maker — try “Drake’s”, “Loake”, “Orslow”'
+            aria-label="Find a maker in the index"
+            className="w-full bg-transparent focus:outline-none placeholder:text-[#856c51]"
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', color: '#3b2b1d' }}
+          />
+        </label>
       </div>
 
       {/* —— RATING LEGEND — Beau's four tiers, DIRECTLY above the table and
@@ -2136,53 +2210,33 @@ export function DiscoverSubTab({
       ) : (
         <>
           {userArchetypes.size > 0 && (
+            /* PROFILE-ADJUSTED TABLE (founder's change): ONE table — the
+               "Beyond your archetypes" split is retired. Makers serving the
+               user's selected archetypes lead, ranked for the profile
+               (archetype overlap · budget fit · build quality — the fields
+               read from the dossier); the rest follow alphabetically, their
+               own directions shown in the Archetype fit column so the
+               context is never lost. */
             <p className={`${typography.size.xs} ${typography.color.muted}`}>
-              Matched to your archetypes and ranked for your profile — budget fit and build quality first.
+              Makers matching your archetypes lead the table, ranked for your profile — budget fit and build
+              quality first. The rest follow alphabetically; the Archetype fit column says where each belongs.
             </p>
           )}
-          {matched.length > 0 ? (
-            <BrandTable
-              entries={matched}
-              metaMap={metaMap}
-              onToggleFavourite={toggleFavourite}
-              onOpenBrand={onOpenBrand}
-              compareList={compareList}
-              onToggleCompare={onToggleCompare}
-              matrixList={matrixList}
-              onToggleMatrix={onToggleMatrix}
-              onDeleteBrand={(b) => void deleteBrand(b)}
-              passCounts={passSignals.makerPassCounts}
-            />
-          ) : (
-            userArchetypes.size > 0 && (
-              <p className={`${typography.size.sm} ${typography.color.muted} py-4 text-center`}>
-                Nothing inside your archetypes matches those filters — the wider directory is below.
-              </p>
-            )
-          )}
-
-          {beyond.length > 0 && (
-            <section aria-label="Beyond your archetypes" className="pt-2">
-              <div className="pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))] mb-3">
-                <h4 className={`hab-section-head ${typography.color.primary}`} style={{ fontSize: '18px' }}>Beyond your archetypes</h4>
-                <p className={`${typography.size.xs} ${typography.color.muted} mt-0.5`}>
-                  Makers outside your selected directions — still worth knowing, ranked alphabetically.
-                </p>
-              </div>
-              <BrandTable
-                entries={beyond}
-                metaMap={metaMap}
-                onToggleFavourite={toggleFavourite}
-                onOpenBrand={onOpenBrand}
-                compareList={compareList}
-                onToggleCompare={onToggleCompare}
-                matrixList={matrixList}
-                onToggleMatrix={onToggleMatrix}
-                onDeleteBrand={(b) => void deleteBrand(b)}
-                passCounts={passSignals.makerPassCounts}
-              />
-            </section>
-          )}
+          <BrandTable
+            entries={[...matched, ...beyond]}
+            metaMap={metaMap}
+            onToggleFavourite={toggleFavourite}
+            onOpenBrand={onOpenBrand}
+            compareList={compareList}
+            onToggleCompare={onToggleCompare}
+            matrixList={matrixList}
+            onToggleMatrix={onToggleMatrix}
+            onDeleteBrand={(b) => void deleteBrand(b)}
+            armedBrand={armedBrand}
+            onArmDelete={setArmedBrand}
+            deletingBrand={deletingBrand}
+            passCounts={passSignals.makerPassCounts}
+          />
         </>
       )}
     </div>

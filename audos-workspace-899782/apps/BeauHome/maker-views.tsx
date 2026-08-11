@@ -25,7 +25,7 @@
  * plot keeps eight points, the axes and the dashed band stay, and the rest
  * is pinch-to-zoom (plot-zoom.ts).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
 import {
   PRICE_BAND_ORDER,
@@ -35,7 +35,10 @@ import {
   type DirectoryBrandRow,
   type DirectoryEntry,
 } from './brands';
-import { BrandDetailSheet, DiscoverSubTab } from './hunt-discover';
+import { DiscoverSubTab } from './hunt-discover';
+import { DISCOVER_BRANDS_EVENT } from './hunt-ai';
+import { MakerDetailPanel } from './index-detail-panel';
+import { PIECE_INDEX_CATEGORIES } from './piece-index-data';
 import type { StyleProfile, WardrobePiece } from './profile-data';
 import { useIsNarrow, usePinchZoom } from './plot-zoom';
 import { MONO, capWord, numberWord, usePlexMono } from './mono-type';
@@ -161,9 +164,11 @@ function usePlotted(
   pieces: WardrobePiece[],
   radarRows: RadarRowLite[],
   metaRows: MetaRowLite[],
+  /** Makers removed from the index — they leave the plots, not just the list. */
+  hidden: Set<string>,
 ): PlottedMaker[] {
   return useMemo(() => {
-    const entries = mergeDirectory(rows || []);
+    const entries = mergeDirectory(rows || []).filter((e) => !hidden.has(e.profile.brand.trim().toLowerCase()));
     const pipeline = pipelineStatusByMaker(radarRows, metaRows);
     const ownedMakers = new Set(
       pieces.map((p) => (p.brand || '').trim().toLowerCase()).filter(Boolean),
@@ -182,7 +187,7 @@ function usePlotted(
         status,
       };
     });
-  }, [rows, archetypes, pieces, radarRows, metaRows]);
+  }, [rows, archetypes, pieces, radarRows, metaRows, hidden]);
 }
 
 // ---------------------------------------------------------------------------
@@ -484,7 +489,13 @@ export function MakersIndex({ profile, pieces = [] }: { profile: StyleProfile | 
   const [view, setView] = useState<MakerView>('list');
   const [openBrandName, setOpenBrandName] = useState<string | null>(null);
   const narrow = useIsNarrow();
-  const { data: addedRows } = (window as any).useWorkspaceDB('hunt_directory_brands', {
+  const { data: addedRows, refresh: refreshAdded } = (window as any).useWorkspaceDB('hunt_directory_brands', {
+    orderBy: { column: 'created_at', direction: 'desc' },
+    limit: 200,
+  });
+  // The wearer's own notes ride the shared brand ledger — the 8a unrated
+  // panel quotes them under YOUR NOTE.
+  const { data: ledgerRows } = (window as any).useWorkspaceDB('brand_index', {
     orderBy: { column: 'created_at', direction: 'desc' },
     limit: 200,
   });
@@ -498,6 +509,31 @@ export function MakersIndex({ profile, pieces = [] }: { profile: StyleProfile | 
     orderBy: { column: 'created_at', direction: 'desc' },
     limit: 200,
   });
+  // REMOVED MAKERS (the per-row delete in the list): a catalog maker can't
+  // leave the static seed, so a hunt_hidden_brands row holds it out — and it
+  // must hold it out of the MAP and the QUADRANT too, not just the table.
+  const { data: hiddenRows, refresh: refreshHidden } = (window as any).useWorkspaceDB('hunt_hidden_brands', {
+    orderBy: { column: 'created_at', direction: 'desc' },
+    limit: 500,
+  });
+  const hidden = useMemo(
+    () =>
+      new Set(
+        ((hiddenRows || []) as Array<{ brand?: string | null }>)
+          .map((r) => (r.brand || '').trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    [hiddenRows],
+  );
+  // A delete (or an addition) anywhere re-reads the copies these plots use.
+  useEffect(() => {
+    const onChanged = () => {
+      refreshAdded?.();
+      refreshHidden?.();
+    };
+    window.addEventListener(DISCOVER_BRANDS_EVENT, onChanged);
+    return () => window.removeEventListener(DISCOVER_BRANDS_EVENT, onChanged);
+  }, [refreshAdded, refreshHidden]);
   const archetypes = (profile?.archetypes || []).filter(Boolean);
   const plotted = usePlotted(
     (addedRows || []) as DirectoryBrandRow[],
@@ -505,6 +541,7 @@ export function MakersIndex({ profile, pieces = [] }: { profile: StyleProfile | 
     pieces,
     (radarRows || []) as RadarRowLite[],
     (metaRows || []) as MetaRowLite[],
+    hidden,
   );
 
   // THE PLOT IS THE MAKERS YOU'VE INTERACTED WITH (21a: "eighteen of the
@@ -527,12 +564,69 @@ export function MakersIndex({ profile, pieces = [] }: { profile: StyleProfile | 
 
   const corners = useMemo(() => makerCorners(shown), [shown]);
 
+  // THE MAKER ENTRY PANEL (8a) — every reading opens the same panel: the
+  // list rows and the plotted dots alike. ← → walk the maker's own shelf
+  // (its country for a catalog maker · "Added by you" for an addition).
+  const detailPanel = (() => {
+    if (!openBrandName) return null;
+    const entriesAll = mergeDirectory((addedRows || []) as DirectoryBrandRow[]).filter(
+      (e) => !hidden.has(e.profile.brand.trim().toLowerCase()),
+    );
+    const key = openBrandName.trim().toLowerCase();
+    const open = entriesAll.find((e) => e.profile.brand.trim().toLowerCase() === key);
+    if (!open) return null;
+    const isAddition = open.source !== 'catalog';
+    const pool = isAddition
+      ? entriesAll.filter((e) => e.source !== 'catalog')
+      : entriesAll
+          .filter((e) => e.source === 'catalog' && e.profile.country === open.profile.country)
+          .sort((a, b) => a.profile.brand.localeCompare(b.profile.brand));
+    const index = Math.max(0, pool.findIndex((e) => e.profile.brand.trim().toLowerCase() === key));
+    const scopeLabel = isAddition
+      ? 'Added by you'
+      : open.profile.country && open.profile.country !== '—'
+        ? open.profile.country
+        : 'The directory';
+    const rawRow =
+      ((addedRows || []) as DirectoryBrandRow[]).find((r) => (r.brand || '').trim().toLowerCase() === key) || null;
+    const ledger = ((ledgerRows || []) as Array<{ name?: string | null; note?: string | null }>).find(
+      (r) => (r.name || '').trim().toLowerCase() === key,
+    );
+    const pieceTotal = PIECE_INDEX_CATEGORIES.reduce(
+      (n, cat) => n + cat.groups.reduce((m, g) => m + g.types.length, 0),
+      0,
+    );
+    return (
+      <MakerDetailPanel
+        entry={open}
+        rawRow={rawRow}
+        userNote={(ledger?.note || rawRow?.context || '').trim() || null}
+        scopeLabel={scopeLabel}
+        position={{ index, total: pool.length }}
+        prevName={index > 0 ? pool[index - 1].profile.brand : null}
+        nextName={index < pool.length - 1 ? pool[index + 1].profile.brand : null}
+        pieceTotal={pieceTotal}
+        makerTotal={entriesAll.length}
+        pieces={pieces}
+        onPrev={() => index > 0 && setOpenBrandName(pool[index - 1].profile.brand)}
+        onNext={() => index < pool.length - 1 && setOpenBrandName(pool[index + 1].profile.brand)}
+        onClose={() => setOpenBrandName(null)}
+        onReRead={() => refreshAdded?.()}
+        onRemoved={() => {
+          setOpenBrandName(null);
+          refreshAdded?.();
+          refreshHidden?.();
+        }}
+      />
+    );
+  })();
+
   const toggle = (
     <ViewToggle
       items={[
-        { id: 'list' as const, label: 'As a list' },
-        { id: 'map' as const, label: 'On a map' },
-        { id: 'quadrant' as const, label: 'As a quadrant' },
+        { id: 'list' as const, label: 'List' },
+        { id: 'map' as const, label: 'Map' },
+        { id: 'quadrant' as const, label: 'Quadrant' },
       ]}
       active={view}
       onChange={(id) => setView(id)}
@@ -592,13 +686,33 @@ export function MakersIndex({ profile, pieces = [] }: { profile: StyleProfile | 
   );
 
   if (view === 'list') {
+    const ownedMakers = plotted.filter((m) => m.status === 'owned').length;
     return (
       <div>
-        <div className="flex justify-end" style={{ marginBottom: '10px' }}>{toggle}</div>
+        {/* THE MAKERS HEADER (pixel-parity pass) — set to the exact grid,
+            type scale and registers the Pieces index header uses: the serif
+            title left; the view toggle and the mono count line stacked at
+            the right edge. The two indexes must read as one system. */}
+        <div
+          className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-5 md:gap-12 md:items-end"
+          style={{ paddingBottom: '20px' }}
+        >
+          <div>
+            <h3 style={{ margin: 0, fontFamily: SERIF, fontSize: 'clamp(32px, 4.5vw, 46px)', fontWeight: 400, lineHeight: 1.08, letterSpacing: '-0.012em', color: WALNUT }}>
+              The makers index
+            </h3>
+          </div>
+          <div className="flex flex-col items-start md:items-end" style={{ gap: '10px' }}>
+            {toggle}
+            <span style={{ fontFamily: MONO, fontSize: '10px', letterSpacing: '0.05em', textTransform: 'uppercase', color: MUTED, whiteSpace: 'nowrap' }}>
+              You own pieces from {ownedMakers} of {plotted.length} makers
+            </span>
+          </div>
+        </div>
         {/* The FULL directory — catalog + added makers, favourites and notes
             folded in. */}
         <DiscoverSubTab profileOn profile={profile} onOpenBrand={setOpenBrandName} />
-        {openBrandName && <BrandDetailSheet brandName={openBrandName} onClose={() => setOpenBrandName(null)} />}
+        {detailPanel}
       </div>
     );
   }
@@ -685,7 +799,7 @@ export function MakersIndex({ profile, pieces = [] }: { profile: StyleProfile | 
         </div>
       )}
 
-      {openBrandName && <BrandDetailSheet brandName={openBrandName} onClose={() => setOpenBrandName(null)} />}
+      {detailPanel}
     </div>
   );
 }

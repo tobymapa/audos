@@ -2585,7 +2585,7 @@ export default function BeauHome() {
                   The Ledger
                 </h2>
                 <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
-                  Everything you own, in your own words.
+                  Beau’s live read of your wardrobe — and what deserves your money next.
                 </p>
                 <ReassessMark />
               </div>
