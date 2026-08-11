@@ -37,7 +37,7 @@ export function IndexFirstRun({ model, nav, onReadAnyway }: { model: IndexModel;
         {/* GEN · G12 — the one slot with a fallback string; no other has one. */}
         <GenSlot slot="G12" scope="first-run" fallback={G12_FALLBACK} style={{ margin: '14px 0 0', maxWidth: '68ch' }} />
         <div className="flex flex-wrap" style={{ gap: '10px 14px', marginTop: '18px' }}>
-          <OutlinedControl onClick={() => window.dispatchEvent(new CustomEvent('ethaion:open-dossier'))}>Answer four questions →</OutlinedControl>
+          <OutlinedControl onClick={() => window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab: 'your-style' } }))}>Answer four questions →</OutlinedControl>
           <OutlinedControl onClick={onReadAnyway}>Read it anyway →</OutlinedControl>
         </div>
         <div style={{ ...mono(8, FAINT), marginTop: '10px' }}>City, registers, skin tone, and what you already own. All four have defaults.</div>

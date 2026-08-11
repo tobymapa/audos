@@ -2255,6 +2255,20 @@ export default function BeauHome() {
     return () => window.removeEventListener('ethaion:navigate', onNavigate);
   }, []);
 
+  // The Index's "Log one I own" / "Add to the Ledger" (ethaion:add-piece):
+  // land on The Ledger — the Add a piece surface listens for the SAME event
+  // (add-piece.tsx) and opens its Search flow seeded with the type name.
+  useEffect(() => {
+    const onAddPiece = () => {
+      setTab('wardrobe');
+      setOpenCategory(null);
+      setOpenStyleToday(false);
+      setOpenSeeAll(false);
+    };
+    window.addEventListener('ethaion:add-piece', onAddPiece);
+    return () => window.removeEventListener('ethaion:add-piece', onAddPiece);
+  }, []);
+
   // Keep-mounted tabs: announce each activation so panels that stay mounted
   // in the background (The Reserve, The Fitting) can refresh their own data
   // the moment they come forward — the freshness a remount used to provide.

@@ -943,6 +943,23 @@ export function AddPieceSection({
   const [searchOpen, setSearchOpen] = useState(false);
   // The token bump tells the search flow to focus as it appears.
   const [searchFocusToken, setSearchFocusToken] = useState(0);
+  // The Index's "Log one I own" / "Add to the Ledger" (ethaion:add-piece)
+  // carries the type name: open the Search flow seeded with it. App.tsx
+  // switches to The Ledger on the same event; this surface stays mounted,
+  // so both land.
+  const [searchSeed, setSearchSeed] = useState('');
+  const sectionRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const onAddPiece = (e: Event) => {
+      const name = String((e as CustomEvent).detail?.name || '').trim();
+      if (name) setSearchSeed(name);
+      setSearchOpen(true);
+      setSearchFocusToken((t) => t + 1);
+      window.setTimeout(() => sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+    };
+    window.addEventListener('ethaion:add-piece', onAddPiece);
+    return () => window.removeEventListener('ethaion:add-piece', onAddPiece);
+  }, []);
   const logged = pieces.length;
   const remaining = 5 - logged;
 
@@ -956,7 +973,7 @@ export function AddPieceSection({
   };
 
   return (
-    <section aria-label="Add a piece">
+    <section ref={sectionRef} aria-label="Add a piece">
       {/* The header — title + brief left, the two DIRECT action buttons
           right, closed by a walnut hairline. Tapping either one starts the
           action itself: no tabs, no sub-boxes, no second click. */}
@@ -985,7 +1002,7 @@ export function AddPieceSection({
       <PhotoConfirmFlow pieces={pieces} onAdded={onAdded} categoryId={categoryId} openPickerRef={openPhotoPicker} />
       {searchOpen && (
         <div style={{ marginTop: '28px' }}>
-          <SearchPieceFlow pieces={pieces} onAdded={onAdded} focusToken={searchFocusToken} />
+          <SearchPieceFlow pieces={pieces} onAdded={onAdded} focusToken={searchFocusToken} initialQuery={searchSeed} />
         </div>
       )}
 

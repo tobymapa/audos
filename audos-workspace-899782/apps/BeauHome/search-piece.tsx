@@ -747,15 +747,23 @@ export function SearchPieceFlow({
   pieces,
   onAdded,
   focusToken = 0,
+  initialQuery = '',
 }: {
   pieces: WardrobePiece[];
   onAdded: () => void;
   /** Bumped by the header's [ Search ] button — the input focuses at once,
    * ready to type into. No sub-box, no second click. */
   focusToken?: number;
+  /** Seeds the search box — the Index's "Log one I own" carries the type
+   * name here. Only lands when it changes; it never overwrites what the
+   * user is typing mid-flow. */
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (initialQuery) setQuery(initialQuery);
+  }, [initialQuery]);
   useEffect(() => {
     searchInputRef.current?.focus();
   }, [focusToken]);
