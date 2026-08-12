@@ -26,6 +26,7 @@ import { capWord, numberWord } from './mono-type';
 import { archetypeLabel, type DirectoryEntry } from './brands';
 import { INDEX_GARMENT_TYPES, type GarmentCategoryId, type GarmentType } from './garment-types';
 import {
+  computeCategoryPieceFacts,
   daysInSpan,
   spanOf,
   verdictFor,
@@ -133,9 +134,15 @@ interface CategoryFacts {
   owned: number;
   ownedNames: string[];
   gapNames: string[];
+  /** Ledger pieces in this category — the SAME categorisation the band
+   * strip counts with (index-model computeCategoryPieceFacts), so the copy
+   * can never say "nothing on your ledger" while a band counts a piece. */
+  piecesLogged: number;
+  pieceNames: string[];
 }
 
-function categoryFactsOf(model: IndexModel): CategoryFacts[] {
+function categoryFactsOf(model: IndexModel, pieces: WardrobePiece[]): CategoryFacts[] {
+  const pieceFacts = computeCategoryPieceFacts(pieces);
   return model.categories.map((cat) => {
     const ids = cat.runs.flatMap((r) => r.typeIds);
     const ownedNames: string[] = [];
@@ -148,7 +155,17 @@ function categoryFactsOf(model: IndexModel): CategoryFacts[] {
         if (t) gapNames.push(t.name);
       }
     }
-    return { id: cat.id, name: cat.name, total: cat.total, owned: cat.ownedCount, ownedNames, gapNames };
+    const logged = pieceFacts[cat.id] || { count: 0, names: [] };
+    return {
+      id: cat.id,
+      name: cat.name,
+      total: cat.total,
+      owned: cat.ownedCount,
+      ownedNames,
+      gapNames,
+      piecesLogged: logged.count,
+      pieceNames: logged.names,
+    };
   });
 }
 
@@ -165,11 +182,12 @@ export interface CategoryVerdicts {
 function categoryVerdictFallback(facts: CategoryFacts[], city: string | null): CategoryVerdicts {
   const verdicts: Record<string, string> = {};
   for (const cat of facts) {
-    const carrier = (cat.ownedNames[0] || '').toLowerCase();
+    const carrier = (cat.pieceNames[0] || cat.ownedNames[0] || '').toLowerCase();
     const gap = (cat.gapNames[0] || '').toLowerCase();
-    if (cat.owned > 0) {
+    if (cat.piecesLogged > 0) {
+      const count = cat.piecesLogged > 99 ? String(cat.piecesLogged) : numberWord(cat.piecesLogged);
       verdicts[cat.id] =
-        `You own ${numberWord(cat.owned)} of the ${cat.total} types here` +
+        `${capWord(count)} piece${cat.piecesLogged === 1 ? '' : 's'} of ${cat.name.toLowerCase()} on your ledger` +
         (carrier ? ` — your ${carrier} carries the run` : '') +
         (gap
           ? `. The ${gap} is the hole worth filling${city ? ` for ${city}` : ''}.`
@@ -194,9 +212,12 @@ async function generateCategoryVerdicts(
 ): Promise<CategoryVerdicts | null> {
   const catLines = facts
     .map((cat) => {
-      const owned = cat.ownedNames.length > 0 ? ` · owns: ${cat.ownedNames.join(', ')}` : '';
+      const logged =
+        cat.piecesLogged > 0
+          ? ` · pieces on their ledger: ${cat.piecesLogged}${cat.pieceNames.length > 0 ? ` (${cat.pieceNames.join(', ')})` : ''}`
+          : ' · pieces on their ledger: none';
       const gaps = cat.gapNames.length > 0 ? ` · named gaps: ${cat.gapNames.join(', ')}` : '';
-      return `- id "${cat.id}" · ${cat.name} · ${cat.total} types · ${cat.owned} owned${owned}${gaps}`;
+      return `- id "${cat.id}" · ${cat.name} · ${cat.total} types${logged}${gaps}`;
     })
     .join('\n');
   const raw = await callClaude({
@@ -205,7 +226,7 @@ async function generateCategoryVerdicts(
       VOICE,
       {
         text:
-          'Task: the PIECES face of the Index. Under each category header sits Beau\u2019s verdict for THIS wearer: 1\u20132 short sentences (max 230 characters) reading the category against what they own, their colouring, proportions, lifestyle and climate — a verdict AND a recommendation (what carries the run, what the next buy should be, or what to skip). Different for every wearer and every category; never generic. Return JSON: {"verdicts": {"<categoryId>": "..."}}. Include EVERY category id given.',
+          'Task: the PIECES face of the Index. Under each category header sits Beau\u2019s verdict for THIS wearer: 1\u20132 short sentences (max 230 characters) reading the category against the pieces they have ACTUALLY logged — the exact counts and names given per category; never contradict them (if pieces are listed they own them, if none are listed they own none) — plus their colouring, proportions, lifestyle, city and climate — a verdict AND a recommendation (what carries the run, what the next buy should be, or what to skip). Different for every wearer and every category; never generic. Return JSON: {"verdicts": {"<categoryId>": "..."}}. Include EVERY category id given.',
         cache: true,
       },
     ],
@@ -223,11 +244,11 @@ async function generateCategoryVerdicts(
   return { verdicts, generated: true };
 }
 
-export function useCategoryVerdicts(profile: StyleProfile | null, model: IndexModel): CategoryVerdicts {
-  const facts = useMemo(() => categoryFactsOf(model), [model]);
+export function useCategoryVerdicts(profile: StyleProfile | null, model: IndexModel, pieces: WardrobePiece[]): CategoryVerdicts {
+  const facts = useMemo(() => categoryFactsOf(model, pieces), [model, pieces]);
   const city = model.climate.city;
   const fp = useMemo(() => fingerprint({ facts, city, profile: profileSignature(profile) }), [facts, city, profile]);
-  const key = `ethaion:index-tab-copy:v1:cats:${fp}`;
+  const key = `ethaion:index-tab-copy:v2:cats:${fp}`;
   const fallback = useMemo(() => categoryVerdictFallback(facts, city), [facts, city]);
   const [copy, setCopy] = useState<CategoryVerdicts | null>(() => readCache<CategoryVerdicts>(key));
 

@@ -55,6 +55,7 @@ import { HairlineRowsSkeleton, ShimmerDefs, Skeleton } from './skeleton';
 import { BrandDetailSheet } from './hunt-discover';
 import { FindSubTab, UnifiedResultView, parseUnifiedResult, unifiedRowMeta } from './hunt-find';
 import { HuntStages } from './hunt-stages';
+import { HuntRecommendations } from './hunt-recommendations';
 
 function formatDate(iso?: string) {
   if (!iso) return '';
@@ -1192,6 +1193,18 @@ export function ScoutTab({
           <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
             Everything you’re considering — spotted, weighed, held.
           </p>
+        </div>
+      </div>
+
+      {/* BEAU IS HUNTING FOR YOU — the personalised discovery shelf (Hunt
+          redesign): recommended pieces as product cards — photograph, maker,
+          piece, price, Beau's own reason — with category and price filters.
+          Every card comes from the live recommendation engine reading THIS
+          user's ledger, dossier, city and gaps; saving one files a real
+          candidate at Spotted. */}
+      <div className="px-6 sm:px-10 py-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+        <div className="max-w-[1180px] mx-auto">
+          <HuntRecommendations profile={profile} pieces={pieces} prefs={prefs} />
         </div>
       </div>
 

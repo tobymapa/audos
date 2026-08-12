@@ -33,7 +33,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import {
+  BRAND_DIRECTORY,
   PRICE_BAND_ORDER,
+  brandCategoryIds,
   mergeDirectory,
   verifiedBrandWebsiteUrl,
   type BrandProfile,
@@ -41,7 +43,7 @@ import {
   type DirectoryEntry,
   type Register,
 } from './brands';
-import { INDEX_GARMENT_TYPES, type GarmentCategoryId, type GarmentType } from './garment-types';
+import { INDEX_GARMENT_TYPES, findGarmentType, type GarmentCategoryId, type GarmentType } from './garment-types';
 import { runOfType } from './garment-type-runs';
 import { TEMPERATURE_BAND_ORDER, type TemperatureBand } from './temperature-bands';
 import {
@@ -49,8 +51,9 @@ import {
   RULER_HI,
   RULER_LO,
   VERDICT_TEXT,
-  computePieceBandCounts,
+  computeCategoryBandCounts,
   daysInSpan,
+  matchGarmentTypeId,
   hideIndexMaker,
   restoreHiddenIndex,
   spanOf,
@@ -80,12 +83,14 @@ import { looksLikeUrl, nameFromUrl, normalizeSiteUrl, parseBrandImportFile } fro
 import {
   BRAND_INDEX_CHANGED_EVENT,
   addBrandIndexEntry,
+  fetchMaterials,
   updateBrandIndexEntry,
   type BrandIndexEntry,
   type BrandIndexStatus,
   type StyleProfile,
   type WardrobePiece,
 } from './profile-data';
+import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 import { usePlexMono } from './mono-type';
 
 // ---------------------------------------------------------------------------
@@ -316,11 +321,16 @@ function pieceVerdictColor(v: string | null): string {
 }
 
 /** The temperature-band selector — click a band to hold it. Every band
- * carries the count of the reader's OWN pieces that answer it, live from
- * the ledger. COLDEST sits at the far left, WARMEST at the far right. */
+ * carries the count of the reader's OWN pieces IN THIS CATEGORY that
+ * answer it — live arithmetic over the ledger, each piece read from its
+ * stored warmth row or the same inference the Today pre-filter runs
+ * (category + material + make); a piece with no inferrable range joins no
+ * band. COLDEST sits at the far left, WARMEST at the far right. */
 function BandStrip({
   counts,
   pieceCounts,
+  categoryTotal,
+  categoryLabel,
   ownedBands,
   held,
   onHold,
@@ -328,6 +338,9 @@ function BandStrip({
 }: {
   counts: Record<string, number>;
   pieceCounts: Record<TemperatureBand, number>;
+  /** Every ledger piece the held category holds — the denominator. */
+  categoryTotal: number;
+  categoryLabel: string;
   ownedBands: Set<TemperatureBand>;
   held: TemperatureBand | null;
   onHold: (b: TemperatureBand | null) => void;
@@ -399,10 +412,14 @@ function BandStrip({
                     }}
                   />
                   <span
-                    title={`Pieces on your ledger that answer ${BAND_CELL_LABELS[band]}`}
+                    title={
+                      categoryTotal > 0
+                        ? `${yours} of your ${categoryTotal} ${categoryLabel.toLowerCase()} pieces suit ${BAND_CELL_LABELS[band]} — read from each piece's own category, material and make`
+                        : `No ${categoryLabel.toLowerCase()} on your ledger yet`
+                    }
                     style={{ ...mono(6.5, yours > 0 ? ACCENT_DEEP : FAINTER), display: 'block', marginTop: '6px', whiteSpace: 'nowrap' }}
                   >
-                    {yours > 0 ? `${yours} of yours` : 'none of yours'}
+                    {categoryTotal > 0 ? `${yours} of your ${categoryTotal}` : 'none logged yet'}
                   </span>
                 </button>
               );
@@ -524,11 +541,15 @@ function PiecesFace({
   model,
   pieces,
   profile,
+  warmth,
+  materials,
   onMakersForType,
 }: {
   model: IndexModel;
   pieces: WardrobePiece[];
   profile: StyleProfile | null;
+  warmth: Record<number, PieceWarmth>;
+  materials: Record<number, string>;
   onMakersForType: (t: GarmentType) => void;
 }) {
   const firstBanded = model.categories.find((c) => c.banded)?.id || model.categories[0]?.id || 'tops';
@@ -545,11 +566,17 @@ function PiecesFace({
 
   // Beau's verdict for every category — generated against THIS reader's
   // ledger, profile and gaps; a per-reader computed line until it lands.
-  const catVerdicts = useCategoryVerdicts(profile, model);
+  const catVerdicts = useCategoryVerdicts(profile, model, pieces);
 
-  // The reader's own pieces bucketed into the eight bands — live arithmetic
-  // over the ledger, so the counts move as pieces are added or removed.
-  const pieceBandCounts = useMemo(() => computePieceBandCounts(pieces), [pieces]);
+  // The reader's own pieces OF THIS CATEGORY bucketed into the eight bands
+  // — live arithmetic over the ledger and each piece's real temperature
+  // range (stored warmth row, or the deterministic category + material
+  // inference), so the counts move as pieces are added or removed and can
+  // never disagree with the category copy below.
+  const bandLedger = useMemo(
+    () => computeCategoryBandCounts(pieces, banded ? cat : null, warmth, materials),
+    [pieces, cat, banded, warmth, materials],
+  );
 
   const pickCategory = (id: GarmentCategoryId) => {
     setCat(id);
@@ -659,7 +686,9 @@ function PiecesFace({
       {banded && (
         <BandStrip
           counts={bandCounts}
-          pieceCounts={pieceBandCounts}
+          pieceCounts={bandLedger.counts}
+          categoryTotal={bandLedger.categoryTotal}
+          categoryLabel={category?.name || 'pieces'}
           ownedBands={ownedBands}
           held={heldBand}
           onHold={setHeldBand}
@@ -690,21 +719,6 @@ function PiecesFace({
             <p style={{ ...body(13.5, SECONDARY), margin: '9px 0 0', maxWidth: '30ch' }}>
               {catVerdicts.verdicts[category?.id || ''] || ''}
             </p>
-            <div style={{ borderTop: `1px solid ${HAIRLINE}`, margin: '14px 0 12px', maxWidth: '150px' }} />
-            <div className="flex flex-col" style={{ gap: '7px' }}>
-              <span className="flex items-center" style={{ gap: '9px' }}>
-                <span aria-hidden style={{ width: '26px', height: '6px', background: '#2e2115', flexShrink: 0 }} />
-                <span style={mono(7.5, SECONDARY)}>You own one</span>
-              </span>
-              <span className="flex items-center" style={{ gap: '9px' }}>
-                <span aria-hidden style={{ width: '26px', height: '6px', background: 'rgba(59,43,29,0.30)', flexShrink: 0 }} />
-                <span style={mono(7.5, SECONDARY)}>You don't</span>
-              </span>
-              <span className="flex items-center" style={{ gap: '9px' }}>
-                <span aria-hidden style={{ width: '26px', height: '10px', border: `1.5px dashed ${ACCENT}`, flexShrink: 0 }} />
-                <span style={mono(7.5, SECONDARY)}>A gap your board names</span>
-              </span>
-            </div>
           </div>
         </aside>
 
@@ -884,19 +898,49 @@ const STOCKED_LABELS: Record<'ships-online' | 'travel', string> = {
   travel: 'Travel to buy',
 };
 
-/** maker name (lowercased) → the categories the canon says they make. */
+/** maker name (lowercased) → the categories on file: the canon's own
+ * type→maker links merged with the catalog's per-brand category map, so a
+ * category filter always finds the full bench of verified makers. */
 const MAKER_CATEGORIES: Map<string, Set<GarmentCategoryId>> = (() => {
   const map = new Map<string, Set<GarmentCategoryId>>();
+  const add = (name: string, cat: GarmentCategoryId) => {
+    const key = name.toLowerCase();
+    const set = map.get(key) || new Set<GarmentCategoryId>();
+    set.add(cat);
+    map.set(key, set);
+  };
   for (const t of INDEX_GARMENT_TYPES) {
-    for (const m of t.makers) {
-      const key = m.toLowerCase();
-      const set = map.get(key) || new Set<GarmentCategoryId>();
-      set.add(t.category);
-      map.set(key, set);
-    }
+    for (const m of t.makers) add(m, t.category);
+  }
+  for (const b of BRAND_DIRECTORY) {
+    for (const id of brandCategoryIds(b.brand)) add(b.brand, id as GarmentCategoryId);
   }
   return map;
 })();
+
+/** The categories ONE maker is on file for — the merged map first; a maker
+ * outside it (a reader's own addition, a Beau discovery) is read from its
+ * own dossier: the reference piece and signature pieces are matched to the
+ * garment-type canon. Cached per brand once a non-empty answer exists. */
+const MAKER_CATS_CACHE = new Map<string, Set<GarmentCategoryId>>();
+function makerCategorySet(p: BrandProfile): Set<GarmentCategoryId> {
+  const key = p.brand.toLowerCase();
+  const cached = MAKER_CATS_CACHE.get(key);
+  if (cached) return cached;
+  const set = new Set<GarmentCategoryId>(MAKER_CATEGORIES.get(key) || []);
+  if (set.size === 0) {
+    for (const text of [p.referenceFor || '', ...(p.signaturePieces || [])]) {
+      if (!text) continue;
+      const typeId = matchGarmentTypeId({ name: text });
+      const t = typeId ? findGarmentType(typeId) : null;
+      if (t && t.category !== 'other') set.add(t.category);
+    }
+  }
+  // An empty read is never cached — a stub row gains its dossier later and
+  // should gain its categories with it.
+  if (set.size > 0) MAKER_CATS_CACHE.set(key, set);
+  return set;
+}
 
 const MAKER_GRID = 'grid grid-cols-[26px_22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_20px]';
 
@@ -1187,13 +1231,12 @@ function MakersFace({
     return entries.filter((e) => {
       const p = e.profile;
       const key = p.brand.toLowerCase();
-      if (typeFilter && typeMakerKeys) {
-        if (typeMakerKeys.size > 0) {
-          if (!typeMakerKeys.has(key)) return false;
-        } else {
-          const cats = MAKER_CATEGORIES.get(key);
-          if (!cats || !cats.has(typeFilter.category)) return false;
-        }
+      if (typeFilter) {
+        // The arrow filters to the piece's CATEGORY — the canon's exact
+        // type→maker names count as well, so a house named on the type's own
+        // record is never dropped.
+        const exact = typeMakerKeys ? typeMakerKeys.has(key) : false;
+        if (!exact && !makerCategorySet(p).has(typeFilter.category)) return false;
       }
       if (favesOnly && !isFav(p.brand)) return false;
       if (q) {
@@ -1203,8 +1246,8 @@ function MakersFace({
       if (places.length > 0 && (!p.country || !places.includes(p.country))) return false;
       if (bands.length > 0 && !bands.includes(p.priceBand)) return false;
       if (makes.length > 0) {
-        const cats = MAKER_CATEGORIES.get(key);
-        if (!cats || !makes.some((m) => cats.has(m as GarmentCategoryId))) return false;
+        const cats = makerCategorySet(p);
+        if (!makes.some((m) => cats.has(m as GarmentCategoryId))) return false;
       }
       if (reads.length > 0 && !reads.includes(readOf(e))) return false;
       if (stocked.length > 0 && !stocked.includes(stockedOf(p))) return false;
@@ -1357,7 +1400,7 @@ function MakersFace({
     const onLedger = ledgerBrands.has(key);
     const open = openMaker === p.brand;
     const pick = pickMap.get(key) || null;
-    const cats = [...(MAKER_CATEGORIES.get(key) || [])].map((c) => model.categories.find((mc) => mc.id === c)?.name || c);
+    const cats = [...makerCategorySet(p)].map((c) => model.categories.find((mc) => mc.id === c)?.name || c);
     return (
       <div key={p.brand}>
         <div className={`${MAKER_GRID} items-center`} style={{ gap: '0 12px', padding: '11px 0', borderBottom: ROW_HAIRLINE }}>
@@ -1481,7 +1524,8 @@ function MakersFace({
           style={{ gap: '8px 16px', padding: '10px 13px', marginBottom: '4px', border: `1px solid ${ACCENT_DEEP}`, background: 'rgba(168,113,44,0.08)' }}
         >
           <span style={mono(8, DEEP)}>
-            Makers known for the {typeFilter.name} · {shown.length} on file
+            Makers of {(model.categories.find((c) => c.id === typeFilter.category)?.name || typeFilter.category).toLowerCase()} — via the{' '}
+            {typeFilter.name} · {shown.length} on file
           </span>
           <button
             type="button"
@@ -1656,6 +1700,27 @@ function MakersFace({
 export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile: StyleProfile | null }) {
   usePlexMono();
   const model = useIndexModel(pieces);
+  // Each piece's REAL temperature range — the stored piece_warmth rows and
+  // the materials they were inferred from — feeds the band ledger, so the
+  // per-band counts are read from the pieces themselves, never authored.
+  const [warmth, setWarmth] = useState<Record<number, PieceWarmth>>({});
+  const [materials, setMaterials] = useState<Record<number, string>>({});
+  useEffect(() => {
+    let alive = true;
+    fetchPieceWarmth()
+      .then((rows) => {
+        if (alive) setWarmth(rows);
+      })
+      .catch(() => undefined);
+    fetchMaterials()
+      .then((rows) => {
+        if (alive) setMaterials(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [pieces]);
   const [face, setFace] = useState<'pieces' | 'makers'>('pieces');
   // The Pieces→Makers hand-off: a piece row's arrow holds its type here so
   // the Makers face opens filtered to the houses that make it.
@@ -1751,7 +1816,7 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
       {/* Both faces stay mounted — filters, selections and scroll survive the
           toggle; only one shows. */}
       <div style={{ display: face === 'pieces' ? undefined : 'none' }}>
-        <PiecesFace model={model} pieces={pieces} profile={profile} onMakersForType={onMakersForType} />
+        <PiecesFace model={model} pieces={pieces} profile={profile} warmth={warmth} materials={materials} onMakersForType={onMakersForType} />
       </div>
       <div style={{ display: face === 'makers' ? undefined : 'none' }}>
         <MakersFace

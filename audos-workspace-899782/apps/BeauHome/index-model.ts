@@ -15,6 +15,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { swatchFor, type WardrobePiece } from './profile-data';
+import { warmthFor, type PieceWarmth } from './warmth-model';
 import { peekBeauAssessment } from './beau-assessment';
 import { GARMENT_RUNS, type GarmentRun } from './garment-type-runs';
 import { INDEX_CATEGORY_IDS, INDEX_GARMENT_TYPES, findGarmentType, type GarmentCategoryId, type GarmentType } from './garment-types';
@@ -216,6 +217,71 @@ function allKeywords(): Array<{ id: string; kws: string[] }> {
   return keywordCache;
 }
 
+/** THE ONE keyword read every Index surface shares: the garment type a
+ * piece answers to, weighed from its name, slot and category. Every count
+ * and verdict on the tab must categorise a piece the same way, or the
+ * band strip and the category copy contradict each other. */
+export function matchGarmentTypeId(piece: {
+  name?: string | null;
+  slot?: string | null;
+  category?: string | null;
+}): string | null {
+  const text = `${piece.name || ''} ${piece.slot || ''} ${piece.category || ''}`.toLowerCase();
+  if (!text.trim()) return null;
+  let bestId: string | null = null;
+  let bestLen = 0;
+  for (const { id, kws } of allKeywords()) {
+    for (const kw of kws) {
+      if (kw.length > bestLen && text.includes(kw)) {
+        bestId = id;
+        bestLen = kw.length;
+      }
+    }
+  }
+  return bestId;
+}
+
+/** The stored wardrobe categories, mapped onto the Index's eleven. */
+const PIECE_CATEGORY_ALIASES: Record<string, GarmentCategoryId> = {
+  tops: 'tops',
+  knitwear: 'knitwear',
+  sweatshirts: 'sweatshirts',
+  outerwear: 'outerwear',
+  bottoms: 'bottoms',
+  formalwear: 'formalwear',
+  'base-layers': 'base-layers',
+  shoes: 'shoes',
+  accessories: 'accessories',
+  bags: 'bags',
+  hats: 'hats',
+};
+
+/** Name reads that carry a stored 'accessories'/'other' piece into its
+ * true Index category — a watch cap is headwear, a tote is a bag. */
+const PIECE_NAME_CATEGORY_HINTS: Array<[RegExp, GarmentCategoryId]> = [
+  [/\b(cap|hat|beanie|beret|fedora|trilby|panama|deerstalker|balaclava)\b/, 'hats'],
+  [/\b(bag|tote|holdall|weekender|briefcase|backpack|rucksack|satchel|duffle|duffel)\b/, 'bags'],
+  [/\b(sweatshirt|hoodie|hooded sweat)\b/, 'sweatshirts'],
+  [/\b(undershirt|long johns?|thermal|base layer|boxers?|briefs|socks?)\b/, 'base-layers'],
+];
+
+/**
+ * The Index category ONE piece belongs to — the type match first (it is
+ * the most specific read), then a name hint, then the stored category.
+ * Null when nothing places it; a null piece joins no count anywhere.
+ */
+export function pieceIndexCategory(piece: WardrobePiece): GarmentCategoryId | null {
+  const typeId = matchGarmentTypeId(piece);
+  const type = typeId ? findGarmentType(typeId) : null;
+  if (type && type.category !== 'other') return type.category;
+  const text = `${piece.name || ''} ${piece.slot || ''}`.toLowerCase();
+  for (const [rx, cat] of PIECE_NAME_CATEGORY_HINTS) {
+    if (rx.test(text)) return cat;
+  }
+  const raw = (piece.category || '').trim().toLowerCase();
+  return PIECE_CATEGORY_ALIASES[raw] || null;
+}
+
 export interface IndexOwnership {
   /** typeId → up to four swatch colours from the reader's own pieces. */
   swatches: Map<string, string[]>;
@@ -226,23 +292,11 @@ export interface IndexOwnership {
 }
 
 export function computeOwnership(pieces: WardrobePiece[]): IndexOwnership {
-  const flat = allKeywords();
   const swatches = new Map<string, string[]>();
   const brands = new Map<string, string>();
   const names = new Map<string, string[]>();
   for (const piece of pieces) {
-    const text = `${piece.name || ''} ${piece.slot || ''} ${piece.category || ''}`.toLowerCase();
-    if (!text.trim()) continue;
-    let bestId: string | null = null;
-    let bestLen = 0;
-    for (const { id, kws } of flat) {
-      for (const kw of kws) {
-        if (kw.length > bestLen && text.includes(kw)) {
-          bestId = id;
-          bestLen = kw.length;
-        }
-      }
-    }
+    const bestId = matchGarmentTypeId(piece);
     if (!bestId) continue;
     const sw = swatches.get(bestId) || [];
     for (const c of piece.colors || []) {
@@ -283,21 +337,8 @@ const SEASON_FALLBACK_BANDS: Record<string, TemperatureBand[]> = {
 export function computePieceBandCounts(pieces: WardrobePiece[]): Record<TemperatureBand, number> {
   const counts = {} as Record<TemperatureBand, number>;
   for (const band of TEMPERATURE_BAND_ORDER) counts[band] = 0;
-  const flat = allKeywords();
   for (const piece of pieces) {
-    const text = `${piece.name || ''} ${piece.slot || ''} ${piece.category || ''}`.toLowerCase();
-    let bestId: string | null = null;
-    let bestLen = 0;
-    if (text.trim()) {
-      for (const { id, kws } of flat) {
-        for (const kw of kws) {
-          if (kw.length > bestLen && text.includes(kw)) {
-            bestId = id;
-            bestLen = kw.length;
-          }
-        }
-      }
-    }
+    const bestId = matchGarmentTypeId(piece);
     const bands = new Set<TemperatureBand>();
     const type = bestId ? findGarmentType(bestId) : null;
     const span = type ? spanOf(type) : null;
@@ -315,6 +356,74 @@ export function computePieceBandCounts(pieces: WardrobePiece[]): Record<Temperat
     for (const band of bands) counts[band] += 1;
   }
   return counts;
+}
+
+// ---------------------------------------------------------------------------
+// THE CATEGORY BAND LEDGER — the reader's own pieces of ONE category,
+// bucketed into the eight bands from each piece's REAL temperature range:
+// the stored piece_warmth row when one exists, otherwise the same
+// deterministic inference (category + material + name + seasons) the Today
+// pre-filter runs on. A weather-neutral piece (a belt, a bag, a watch) has
+// no inferrable range and joins NO band — never fabricated into one.
+// ---------------------------------------------------------------------------
+
+export interface CategoryBandLedger {
+  counts: Record<TemperatureBand, number>;
+  /** Every ledger piece the category holds. */
+  categoryTotal: number;
+  /** Of those, the pieces with an inferrable temperature range. */
+  banded: number;
+}
+
+export function computeCategoryBandCounts(
+  pieces: WardrobePiece[],
+  category: GarmentCategoryId | null,
+  warmth: Record<number, PieceWarmth> = {},
+  materials: Record<number, string> = {},
+): CategoryBandLedger {
+  const counts = {} as Record<TemperatureBand, number>;
+  for (const band of TEMPERATURE_BAND_ORDER) counts[band] = 0;
+  let categoryTotal = 0;
+  let banded = 0;
+  for (const piece of pieces) {
+    if (category && pieceIndexCategory(piece) !== category) continue;
+    categoryTotal += 1;
+    const read = warmthFor(piece, materials, warmth);
+    if (read.warmth_level === 'all-weather') continue; // no range to claim
+    const lo = read.min_comfortable_temp_c;
+    const hi = read.max_comfortable_temp_c;
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) continue;
+    let counted = false;
+    for (const def of TEMPERATURE_BANDS) {
+      const b = BAND_BOUNDS[def.id];
+      if (Math.min(hi, b.hi) - Math.max(lo, b.lo) >= 2) {
+        counts[def.id] += 1;
+        counted = true;
+      }
+    }
+    if (counted) banded += 1;
+  }
+  return { counts, categoryTotal, banded };
+}
+
+/** Per-category piece facts from the SAME categorisation the band ledger
+ * uses — the copy layer reads these so "nothing on your ledger" can never
+ * contradict a band that counted a piece. */
+export interface CategoryPieceFacts {
+  count: number;
+  names: string[];
+}
+
+export function computeCategoryPieceFacts(pieces: WardrobePiece[]): Record<string, CategoryPieceFacts> {
+  const out: Record<string, CategoryPieceFacts> = {};
+  for (const id of INDEX_CATEGORY_IDS) out[id] = { count: 0, names: [] };
+  for (const piece of pieces) {
+    const cat = pieceIndexCategory(piece);
+    if (!cat || !out[cat]) continue;
+    out[cat].count += 1;
+    if (piece.name && out[cat].names.length < 6) out[cat].names.push(piece.name);
+  }
+  return out;
 }
 
 /** The gaps the board names — read from the LAST stored assessment (never
