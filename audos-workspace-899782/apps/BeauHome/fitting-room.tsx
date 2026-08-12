@@ -6,11 +6,12 @@
  *
  * Top to bottom, exactly as the reference sets it:
  *
- *   1 THE CONTEXT BAR — location · temperature · conditions at the left,
+ *   1 THE MASTHEAD — the SHARED tab masthead (tab-header.tsx): “The
+ *     Fitting”, its one-line standfirst, and the five OCCASIONS as one
+ *     segmented control in its aside: Office · Smart Casual · Weekend ·
+ *     Formal · Evening.
+ *   2 THE CONTEXT BAR — location · temperature · conditions at the left,
  *     “Change location” and “The Fitting · [day]” at the right.
- *   2 THE MASTHEAD — “The *Fitting*”, the small-caps standfirst, and the
- *     five OCCASIONS as one segmented control: Office · Smart Casual ·
- *     Weekend · Formal · Evening.
  *   3 THE BAND, three columns:
  *       · the DAY RAIL — Mon 1 … Sun 7, today live;
  *       · THE FITTING — season · occasion, the colour harmony, the outfit
@@ -99,11 +100,11 @@ import {
   WALNUT,
   body,
 } from './index-style';
+import { TabHeader } from './tab-header';
 import {
   AvoidList,
   DayRail,
   FittingContextBar,
-  FittingMasthead,
   FooterLegend,
   HarmonyBars,
   NoteList,
@@ -366,7 +367,7 @@ function ShelfCard({
 // as its garment at every width and after every drag.
 // ---------------------------------------------------------------------------
 
-const annMono: React.CSSProperties = { fontFamily: MONO, fontSize: '8px', letterSpacing: '0.08em', textTransform: 'uppercase' };
+const annMono: React.CSSProperties = { fontFamily: MONO, fontSize: '7px', letterSpacing: '0.08em', textTransform: 'uppercase' };
 
 /** The zone a piece lands in — the same reading the flat-lay makes. */
 function zoneLabelFor(piece: BoardPiece): string {
@@ -408,8 +409,8 @@ interface MeasuredPiece {
 }
 
 function labelHeight(piece: BoardPiece): number {
-  const nameLines = (piece.name || '').length > 22 ? 2 : 1;
-  return 11 + nameLines * 16 + 13 + (boardStatusOf(piece) ? 12 : 0);
+  const nameLines = (piece.name || '').length > 20 ? 2 : 1;
+  return 9 + nameLines * 15 + 11 + (boardStatusOf(piece) ? 10 : 0);
 }
 
 /**
@@ -464,10 +465,10 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
       className="block min-w-0"
       style={{
         textAlign: side === 'l' ? 'right' : 'left',
-        maxWidth: '130px',
+        maxWidth: '110px',
         background: PAPER,
         border: `1px solid ${HAIRLINE}`,
-        padding: '7px 10px',
+        padding: '4px 8px',
       }}
     >
       <span className="block" style={{ ...annMono, color: MUTED }}>{zoneLabelFor(piece)}</span>
@@ -481,7 +482,7 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
             style={{ width: '9px', height: '9px', flexShrink: 0, background: swatch, border: '1px solid rgba(0,0,0,0.12)' }}
           />
         )}
-        <span style={{ fontFamily: SERIF, fontSize: '14.5px', lineHeight: 1.2, color: WALNUT }}>{piece.name}</span>
+        <span style={{ fontFamily: SERIF, fontSize: '12px', lineHeight: 1.2, color: WALNUT }}>{piece.name}</span>
       </span>
       <span className="block" style={{ ...annMono, color: MUTED, marginTop: '3px' }}>
         {[categoryLabel(piece.category || '') || null, piece.brand].filter(Boolean).join(' · ') || '—'}
@@ -574,7 +575,7 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
   if (pieces.length === 0) return <>{children}</>;
   return (
     <div>
-      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(126px,150px)_minmax(0,1fr)_minmax(126px,150px)] sm:gap-1">
+      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(100px,116px)_minmax(0,1fr)_minmax(100px,116px)] sm:gap-1">
         <div className="hidden sm:block relative" aria-hidden="true">
           {labels.filter((l) => l.side === 'l').map((l) => (
             <EdgeLabelBlock key={l.piece.key} label={l} />
@@ -1139,26 +1140,29 @@ export function FittingRoomTab({
 
   return (
     <div style={{ background: PAGE }}>
-      {/* 1 · THE CONTEXT BAR */}
-      <FittingContextBar right={`The Fitting · ${dayName}`} />
-
-      {/* 2 · THE MASTHEAD — the title, the standfirst, the five occasions. */}
-      <FittingMasthead
-        lead="The"
-        emphasis="Fitting"
-        standfirst="Seven days · Every occasion · Drawn to your build"
+      {/* 1 · THE MASTHEAD — the SHARED one (tab-header.tsx), so the title
+          type, the indentation, the height and the closing rule are
+          identical to the other five primary tabs. The five occasions sit
+          in its aside, where the other tabs carry their face chips. */}
+      <TabHeader
+        title="The Fitting"
+        standfirst="Seven days, every occasion — drawn to your build."
         aside={<SegmentedTabs items={occasionTabs} activeKey={occasion} />}
       />
 
+      {/* 2 · THE CONTEXT BAR — the shared weather reading and the location
+          control, BELOW the masthead so the header itself stays uniform. */}
+      <FittingContextBar right={`The Fitting · ${dayName}`} />
+
       {/* 3 · THE BAND — the days, the fitting, the notes. */}
       <div className="px-6 sm:px-10">
-        <div className="max-w-[1180px] mx-auto grid grid-cols-1 lg:grid-cols-[88px_minmax(0,1fr)_320px] xl:grid-cols-[96px_minmax(0,1fr)_384px] items-stretch">
+        <div className="max-w-[1180px] mx-auto grid grid-cols-1 lg:grid-cols-[76px_minmax(0,1fr)_220px] xl:grid-cols-[84px_minmax(0,1fr)_232px] items-stretch">
           <DayRail days={railDays} />
 
           {/* THE FITTING ITSELF */}
           <div
             className="relative flex flex-col min-w-0 lg:border-r border-[rgba(59,43,29,0.18)]"
-            style={{ background: CANVAS, padding: '26px 22px 44px' }}
+            style={{ background: CANVAS, padding: '26px 22px 22px' }}
             data-tour="tour-fitting-board"
           >
             <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -1179,7 +1183,7 @@ export function FittingRoomTab({
             <section
               aria-label="The outfit on the board"
               className="relative mx-auto w-full"
-              style={{ maxWidth: '820px', marginTop: '10px', minHeight: '376px' }}
+              style={{ marginTop: '10px', minHeight: '376px' }}
             >
               <div
                 aria-hidden="true"
@@ -1197,7 +1201,12 @@ export function FittingRoomTab({
               />
               <div className="relative" style={{ zIndex: 2 }}>
                 <AnnotatedBoard pieces={activeBoard}>
-                  <StyledOutfitBoard pieces={activeBoard} onRemove={removeFromBoard} seed={`fitting-${fittingKey}`} />
+                  <StyledOutfitBoard
+                    pieces={activeBoard}
+                    onRemove={removeFromBoard}
+                    seed={`fitting-${fittingKey}`}
+                    canvasMaxWidth="630px"
+                  />
                 </AnnotatedBoard>
               </div>
               {composing && (
@@ -1216,16 +1225,16 @@ export function FittingRoomTab({
 
             {/* THE LOOK'S OWN LINE */}
             <div className="text-center" style={{ marginTop: '10px' }}>
-              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, fontSize: '36px', lineHeight: 1.1, color: WALNUT }}>
+              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>
                 {outfitName}
               </div>
-              <div style={{ ...fitLabel(9.5, MUTED, '0.2em'), marginTop: '9px' }}>{bodyTag}</div>
-              <p style={{ ...body(14.5, INK), margin: '18px auto 0', maxWidth: '60ch', lineHeight: 1.7 }}>{outfitDescription}</p>
+              <div style={{ ...fitLabel(8, MUTED, '0.2em'), marginTop: '7px' }}>{bodyTag}</div>
+              <p style={{ ...body(12, INK), margin: '14px auto 0', maxWidth: '66ch', lineHeight: 1.65 }}>{outfitDescription}</p>
             </div>
           </div>
 
           {/* THE NOTES */}
-          <aside aria-label="Notes on this look" style={{ background: PAPER, padding: '26px 22px 40px' }}>
+          <aside aria-label="Notes on this look" style={{ background: PAPER, padding: '26px 16px 32px' }}>
             <SectionRule>Style notes</SectionRule>
             <NoteList notes={styleNotes} />
 

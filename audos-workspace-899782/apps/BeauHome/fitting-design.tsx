@@ -1,8 +1,15 @@
 /**
  * THE FITTING · LAYOUT FURNITURE — the small components the rebuilt Fitting
- * tab is drawn from, in the reference design's own register:
+ * tab is drawn from, in the reference design's own register.
  *
- *   · the CONTEXT BAR above the masthead (location + weather at the left,
+ * NOTE — the tab's MASTHEAD is no longer here: The Fitting carries the
+ * shared one (tab-header.tsx) with the other five primary tabs, so the six
+ * headers are identical. `FittingMasthead` below is kept only so nothing
+ * that still imports it breaks; do not use it on a new surface.
+ *
+ * What this file draws:
+ *
+ *   · the CONTEXT BAR under the masthead (location + weather at the left,
  *     “Change location” and the tab + day at the right);
  *   · the SEGMENTED control at the masthead's right edge (how the board is
  *     made: Today · By hand · Trip · Saved);
@@ -21,7 +28,7 @@
  */
 import { useState } from 'react';
 import type React from 'react';
-import { Loader2, LocateFixed, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, LocateFixed, X } from 'lucide-react';
 import {
   ACCENT,
   ACCENT_DEEP,
@@ -66,7 +73,7 @@ export function swatchForPiece(name: string, colors?: string[] | null): string |
 }
 
 // ---------------------------------------------------------------------------
-// THE CONTEXT BAR — the strip between the tab bar and the masthead: the
+// THE CONTEXT BAR — the strip directly under the shared masthead: the
 // SHARED location + weather (weather-context.tsx, the same reading The
 // Ledger shows), “Change location”, and the tab · day at the right edge.
 // Changing the city here changes it everywhere, exactly as before.
@@ -201,9 +208,9 @@ export function FittingContextBar({ right }: { right: React.ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// THE MASTHEAD — the reference's own header: the title with its italic
-// second word, the small-caps standfirst beneath it, and the occasion
-// control bottom-aligned at the right.
+// THE MASTHEAD — RETIRED. The Fitting now carries the shared tab masthead
+// (tab-header.tsx) with the other five primary tabs; this is kept only for
+// compatibility and must not be used on a new surface.
 // ---------------------------------------------------------------------------
 
 export function FittingMasthead({
@@ -291,6 +298,11 @@ export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; ac
 // ---------------------------------------------------------------------------
 // THE DAY RAIL — a column of days down the left of the band (a row on a
 // phone). The active day carries the canvas wash and the gold tick.
+//
+// The seven days SHARE the column's full height (each cell flex: 1), so the
+// rail's last day ends exactly where the canvas beside it ends — the band
+// closes on one line rather than leaving the canvas running on below the
+// days (founder's correction).
 // ---------------------------------------------------------------------------
 
 export interface RailDay {
@@ -320,15 +332,17 @@ export function DayRail({ days, extra }: { days: RailDay[]; extra?: React.ReactN
           aria-selected={day.active}
           onClick={day.onSelect}
           title={day.title}
-          className="flex-shrink-0 lg:w-full transition-colors"
+          className="flex-shrink-0 lg:flex-1 lg:w-full transition-colors"
           style={{
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '5px',
             padding: '14px 12px',
             minWidth: '62px',
+            minHeight: '62px',
             border: 'none',
             cursor: 'pointer',
             opacity: day.quiet && !day.active ? 0.55 : 1,
@@ -474,7 +488,9 @@ export function SwapRow({
         }}
       />
       <span style={{ minWidth: 0 }}>
-        <span className="block group-hover:underline" style={{ fontFamily: SERIF, fontSize: '18px', lineHeight: 1.25, color: WALNUT }}>
+        {/* The piece's name — two sizes down from the board's own type, so
+            the narrowed notes column reads as a margin note, not a heading. */}
+        <span className="block group-hover:underline" style={{ fontFamily: SERIF, fontSize: '14px', lineHeight: 1.3, color: WALNUT }}>
           {name}
         </span>
         <span className="block" style={{ ...body(12.5, MUTED), marginTop: '2px' }}>
@@ -487,6 +503,8 @@ export function SwapRow({
 
 // ---------------------------------------------------------------------------
 // THE SHELF — one labelled run per source, in the reference's tile grid.
+// Each one FOLDS: the chevron beside its label collapses the run of tiles
+// (open by default), so the reader can put a whole source away.
 // ---------------------------------------------------------------------------
 
 export function Shelf({
@@ -495,21 +513,44 @@ export function Shelf({
   children,
   tone = MUTED,
   id,
+  defaultOpen = true,
 }: {
   title: string;
   note: string;
   children: React.ReactNode;
   tone?: string;
   id?: string;
+  /** Every shelf opens UNFOLDED; the chevron folds away the ones the reader
+   * is done with, so the board itself stays in view. */
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <section id={id} aria-label={title} style={{ marginTop: '26px', scrollMarginTop: '80px' }}>
-      <SectionRule right={note} tone={tone}>
-        {title}
-      </SectionRule>
-      <div className="flex flex-wrap gap-x-6 gap-y-7" style={{ paddingTop: '18px' }}>
-        {children}
+      <div
+        className="flex items-baseline justify-between gap-4"
+        style={{ paddingBottom: '8px', borderBottom: `1px solid ${HAIRLINE}` }}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={open ? `Fold ${title}` : `Unfold ${title}`}
+          className="inline-flex items-center gap-2 text-left transition-opacity hover:opacity-70"
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+        >
+          <span aria-hidden="true" className="inline-flex self-center" style={{ color: ACCENT }}>
+            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </span>
+          <span style={label(9, tone, '0.18em')}>{title}</span>
+        </button>
+        <span style={label(9, MUTED, '0.18em')}>{note}</span>
       </div>
+      {open && (
+        <div className="flex flex-wrap gap-x-6 gap-y-7" style={{ paddingTop: '18px' }}>
+          {children}
+        </div>
+      )}
     </section>
   );
 }

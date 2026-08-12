@@ -456,10 +456,15 @@ export function StyledOutfitBoard({
   pieces,
   onRemove,
   seed = 'ethaion',
+  canvasMaxWidth = '420px',
 }: {
   /** Every selected piece, in the order they were added. */
   pieces: BoardPiece[];
   onRemove?: (key: string) => void;
+  /** How wide the square canvas may draw. The portrait stage scales to it,
+   * so this is what sizes the garments themselves — The Fitting's board is
+   * the main event and asks for a large one. */
+  canvasMaxWidth?: string;
   /** Stable per-outfit seed — the SAME outfit always lays out identically;
    * it changes only when the outfit itself changes context (a new day, a
    * different saved outfit, a fresh manual board). */
@@ -477,7 +482,7 @@ export function StyledOutfitBoard({
             board renders at, so nothing jumps when the first piece lands.
             No field, no frame — the Fitting board is transparent space
             (founder's correction). */}
-        <div className="relative w-full max-w-[420px] mx-auto" style={{ aspectRatio: '1 / 1' }}>
+        <div className="relative w-full mx-auto" style={{ maxWidth: canvasMaxWidth, aspectRatio: '1 / 1' }}>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
             <span className="block w-12 h-[3px] bg-[var(--color-neutral-300,#dccdb2)]" aria-hidden="true" />
             <p
@@ -510,7 +515,9 @@ export function StyledOutfitBoard({
 
   return (
     <div className="relative w-full" style={{ background: 'transparent' }}>
-      <div className="px-4 sm:px-8 py-6 sm:py-8">
+      {/* No padding of its own: the canvas carries its own 16px margin, and
+          every pixel spared here is a pixel the board itself can use. */}
+      <div>
         <FlatLayBoard
           pieces={pieces}
           seed={seed}
@@ -520,13 +527,14 @@ export function StyledOutfitBoard({
           // default starting state.
           dragKey={seed}
           aspect={aspect}
-          maxWidth="420px"
+          maxWidth={canvasMaxWidth}
+          trayMaxWidth={canvasMaxWidth}
           panel="paper"
           variant="tray"
           ground="transparent"
           showHeldOut
           onRemove={onRemove}
-          className="today-canvas--center"
+          className={`today-canvas--center${canvasMaxWidth === '420px' ? '' : ' today-canvas--flush'}`}
         />
       </div>
     </div>

@@ -94,6 +94,7 @@ import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 import { usePlexMono } from './mono-type';
 import { SubTabs } from './sub-tabs';
 import { TabHeader } from './tab-header';
+import { INDEX_OPEN_TYPE_EVENT, peekIndexTarget, takeIndexTarget, type IndexTarget } from './edit-links';
 
 // ---------------------------------------------------------------------------
 // Shared furniture
@@ -563,6 +564,36 @@ function PiecesFace({
   const [find, setFind] = useState('');
   const [openType, setOpenType] = useState<string | null>(null);
 
+  /**
+   * THE EDIT'S WAY IN (additive). A Gap row on The Edit asks for ONE garment
+   * type by id: the face lands on its category with every filter cleared, its
+   * entry open, and the row scrolled to. The request arrives as an event when
+   * the tab is already mounted, or parked when it is being loaded for the
+   * first time — both land here. Nothing else about this face changes.
+   */
+  const jumpRef = useRef<(target: IndexTarget | null) => void>(() => undefined);
+  jumpRef.current = (target) => {
+    const type = target ? findGarmentType(target.typeId) : null;
+    if (!type || type.category === 'other') return;
+    setCat(type.category as GarmentCategoryId);
+    setHeldBand(null);
+    setRegs([]);
+    setOccs([]);
+    setRuns([]);
+    setFind('');
+    setOpenType(type.id);
+    window.setTimeout(() => {
+      document.getElementById(`index-type-${type.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 160);
+  };
+
+  useEffect(() => {
+    jumpRef.current(takeIndexTarget());
+    const onOpen = (e: Event) => jumpRef.current(((e as CustomEvent).detail || null) as IndexTarget | null);
+    window.addEventListener(INDEX_OPEN_TYPE_EVENT, onOpen);
+    return () => window.removeEventListener(INDEX_OPEN_TYPE_EVENT, onOpen);
+  }, []);
+
   const category = model.categories.find((c) => c.id === cat) || model.categories[0];
   const banded = !!category?.banded;
 
@@ -742,7 +773,7 @@ function PiecesFace({
                     const open = openType === t.id;
                     const toggle = () => setOpenType(open ? null : t.id);
                     return (
-                      <div key={t.id}>
+                      <div key={t.id} id={`index-type-${t.id}`}>
                         <div
                           className={`${PIECE_GRID} items-center`}
                           style={{ gap: '0 14px', padding: '8.5px 0', borderBottom: ROW_HAIRLINE, background: gap ? GAP_TINT : 'transparent' }}
@@ -1733,6 +1764,15 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
     setFace('makers');
   };
 
+  // The Edit's “→ The Index” deep link always lands on the Pieces face; the
+  // face itself opens the type's entry (PiecesFace above).
+  useEffect(() => {
+    if (peekIndexTarget()) setFace('pieces');
+    const onOpen = () => setFace('pieces');
+    window.addEventListener(INDEX_OPEN_TYPE_EVENT, onOpen);
+    return () => window.removeEventListener(INDEX_OPEN_TYPE_EVENT, onOpen);
+  }, []);
+
   // The maker directory — the catalog seed merged with persisted additions.
   // The limit reads well past any realistic file so no row is ever dropped.
   const { data: addedRows, refresh } = window.useWorkspaceDB<DirectoryBrandRow>('hunt_directory_brands', {
@@ -1775,8 +1815,8 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
         title="The Index"
         standfirst={
           face === 'pieces'
-            ? `Every garment type, read against ${model.climate.city ? `your ${model.climate.city} climate` : 'your climate'} and your ledger.`
-            : 'The houses Beau would send you to first, chosen against your record.'
+            ? `Every garment type, read against ${model.climate.city ? `your ${model.climate.city} climate` : 'your climate'}.`
+            : 'The houses Beau would send you to first, read against your record.'
         }
         aside={
           <SubTabs

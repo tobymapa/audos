@@ -542,10 +542,14 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
  * `.today-canvas--center` to centre it on the paper panel).
  */
 const TRAY_CSS =
-  '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:420px;aspect-ratio:1/1;' +
+  '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:var(--today-canvas-max,420px);aspect-ratio:1/1;' +
   'margin:16px 16px 16px auto;background:var(--today-canvas-ground,#EDE8DF);border-radius:0;min-height:160px;' +
   'padding:12px;display:flex;align-items:center;justify-content:center}' +
   '.today-canvas--center{margin:16px auto}' +
+  // FLUSH — the canvas takes the whole column it is given and only a hair of
+  // vertical margin. The Fitting's board uses it: every pixel spared at the
+  // edges is a pixel the garments themselves get.
+  '.today-canvas--flush{width:100%;margin:6px auto}' +
   '.today-canvas::before{content:"";position:absolute;inset:10px;border:2px solid #241a12;pointer-events:none;z-index:20}' +
   // THE BARE GROUND (founder's correction — the Fitting Room's outfit board
   // loses its square field and frame; the clothes float on transparent empty
@@ -567,6 +571,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   seed = 'ethaion',
   aspect = 480 / 600,
   maxWidth = '480px',
+  trayMaxWidth,
   panel = 'paper',
   uniformItems = false,
   variant = 'stage',
@@ -585,6 +590,11 @@ export function FlatLayBoard<T extends FlatLayPiece>({
    * (480 × 600) and both the stage and the tray use that proportion. */
   aspect?: number;
   maxWidth?: string;
+  /** TRAY ONLY — how wide the one square canvas may draw (default 420px).
+   * The portrait stage scales to the canvas, so this is the ONE knob that
+   * sizes every garment on the board: The Fitting sets it larger, the
+   * Ledger's “Beau · Today” card keeps the default. */
+  trayMaxWidth?: string;
   /** Which light ground the pieces lie on. 'paper' is the light stage itself.
    * 'walnut' is the dark panel: there the light ground is the tray's ONE
    * canvas under the whole outfit — never a square per piece — which is what
@@ -651,6 +661,25 @@ export function FlatLayBoard<T extends FlatLayPiece>({
     moved: boolean;
   } | null>(null);
   const suppressClickRef = useRef(false);
+
+  // TAP TO SELECT, THEN TAKE IT OFF (founder's canvas fix). With `onRemove`
+  // live, tapping a piece SELECTS it — it lifts to the front, takes a walnut
+  // outline and shows its own ×. Only the selected piece carries a control,
+  // so the canvas is never littered with them; Escape, a tap on the ground,
+  // or a second tap on the piece clears the selection. Removing a piece
+  // takes it off THIS board only — nothing leaves the Ledger.
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (selectedKey && !pieces.some((piece) => piece.key === selectedKey)) setSelectedKey(null);
+  }, [pieces, selectedKey]);
+  useEffect(() => {
+    if (!selectedKey) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedKey(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedKey]);
 
   /** The rendered position: zone layout + the user's stored delta, clamped
    * to the canvas so a restored offset can never strand a piece outside. */
@@ -737,6 +766,14 @@ export function FlatLayBoard<T extends FlatLayPiece>({
       className={tray ? 'today-stage' : `flat-lay-board relative w-full mx-auto ${className}`}
       style={tray ? undefined : { maxWidth, aspectRatio: `${aspect}`, position: 'relative' }}
       aria-label={tray ? undefined : ariaLabel}
+      onClick={
+        onRemove
+          ? (e) => {
+              // A tap on the bare ground puts the selection down.
+              if (e.target === e.currentTarget) setSelectedKey(null);
+            }
+          : undefined
+      }
     >
       {(tray ? trayItems : placed).map((item) => {
         // Zone position + the user's dragged delta (when `dragKey` is live),
@@ -745,6 +782,10 @@ export function FlatLayBoard<T extends FlatLayPiece>({
         const beingDragged = dragRef.current?.key === item.piece.key;
         const dragStyle: React.CSSProperties = dragKey
           ? { touchAction: 'none', cursor: beingDragged ? 'grabbing' : 'grab', userSelect: 'none' }
+          : {};
+        const selected = !!onRemove && selectedKey === item.piece.key;
+        const selectStyle: React.CSSProperties = selected
+          ? { outline: '1px solid #241a12', outlineOffset: '3px' }
           : {};
         const dragHandlers = dragKey
           ? {
@@ -758,8 +799,17 @@ export function FlatLayBoard<T extends FlatLayPiece>({
         return (
         <div
           key={item.piece.key}
+          data-piece-key={item.piece.key}
           className={tray ? 'today-piece' : 'flat-lay-item absolute'}
           {...dragHandlers}
+          onClick={
+            onRemove
+              ? (e) => {
+                  e.stopPropagation();
+                  setSelectedKey((cur) => (cur === item.piece.key ? null : item.piece.key));
+                }
+              : undefined
+          }
           style={tray ? ({
             // The placement facts, handed to the tray's CSS as custom
             // properties — the zone box (plus any dragged delta). No rotation.
@@ -767,14 +817,15 @@ export function FlatLayBoard<T extends FlatLayPiece>({
             ['--y' as string]: `${pos.top.toFixed(2)}%`,
             ['--w' as string]: `${item.width.toFixed(2)}%`,
             ['--h' as string]: `${item.height.toFixed(2)}%`,
-            ['--z' as string]: String(item.z),
+            ['--z' as string]: String(selected ? item.z + 200 : item.z),
             ...dragStyle,
+            ...selectStyle,
           } as React.CSSProperties) : {
             left: `${pos.left}%`,
             top: `${pos.top}%`,
             width: `${item.width}%`,
             height: `${item.height}%`,
-            zIndex: item.z,
+            zIndex: selected ? item.z + 200 : item.z,
             // No rotation — items render upright, catalog style. No border,
             // no frame, no shadow and no background: a CUTOUT is never a card
             // and never carries a ground — the board beneath it is the only
@@ -787,8 +838,15 @@ export function FlatLayBoard<T extends FlatLayPiece>({
             alignItems: 'center',
             justifyContent: 'center',
             ...dragStyle,
+            ...selectStyle,
           }}
-          title={item.piece.notOwned ? `${item.piece.name} — not yours yet` : item.piece.name}
+          title={
+            onRemove
+              ? `${item.piece.name}${item.piece.notOwned ? ' — not yours yet' : ''} — tap to select, then × to take it off`
+              : item.piece.notOwned
+                ? `${item.piece.name} — not yours yet`
+                : item.piece.name
+          }
         >
           {/* DASHED MEANS NOT YOURS — the 1px dashed accent outline on any
               piece the wearer doesn't own, on every surface the flat-lay
@@ -849,14 +907,21 @@ export function FlatLayBoard<T extends FlatLayPiece>({
               {item.piece.name}
             </span>
           )}
-          {onRemove && (
+          {/* The remove control belongs to the SELECTED piece alone, and sits
+              INSIDE its box so the canvas's clip can never cut it off. */}
+          {onRemove && selected && (
             <button
               type="button"
-              onClick={() => onRemove(item.piece.key)}
-              aria-label={`Remove ${item.piece.name} from the outfit`}
-              title={`Remove ${item.piece.name} from the outfit`}
-              className="absolute -top-2 -right-2 z-10 w-6 h-6 flex items-center justify-center bg-[var(--color-paper,#fbf8f1)] border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)] rounded-full"
-              style={{ fontSize: '12px', lineHeight: 1 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedKey(null);
+                onRemove(item.piece.key);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-label={`Take ${item.piece.name} off the board`}
+              title={`Take ${item.piece.name} off the board — it stays in your Ledger`}
+              className="absolute w-7 h-7 flex items-center justify-center bg-[var(--color-paper,#fbf8f1)] border border-[#241a12] text-[var(--color-text,#241a12)] hover:bg-[var(--color-accent-100,#fbf1de)] rounded-full"
+              style={{ top: '1px', right: '1px', zIndex: 30, fontSize: '14px', lineHeight: 1 }}
             >
               ×
             </button>
@@ -946,6 +1011,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
         style={{
           ['--aspect' as string]: String(trayAspect),
           ['--today-canvas-ground' as string]: canvasGround,
+          ...(trayMaxWidth ? { ['--today-canvas-max' as string]: trayMaxWidth } : null),
         } as React.CSSProperties}
         aria-label={ariaLabel}
       >

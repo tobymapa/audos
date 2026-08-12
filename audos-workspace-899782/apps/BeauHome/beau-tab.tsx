@@ -8,9 +8,11 @@
  * arithmetic over his ledger: how much of that year can he actually dress
  * for?
  *
- *  · THE MASTHEAD carries the figure — the share of his year with every
- *    critical layer present — and the four counts under it: answered, short,
- *    thin, and the number of open gaps.
+ *  · THE MASTHEAD is the SHARED one (tab-header.tsx) and carries only the
+ *    figure — the share of his year with every critical layer present. The
+ *    four counts (answered, short, thin, open gaps) sit directly BELOW its
+ *    closing rule, in the page's own body: nothing may render inside the
+ *    masthead, or this tab's header stops matching the other five.
  *  · THE MAP (edit-map.tsx) is categories × bands: a cell per category per
  *    band, shaded deep · covered · thin · gap, with the blanks the category
  *    has no business in left empty and inert. Clicking a cell opens the panel
@@ -284,7 +286,7 @@ export function BeauTab(props: {
   // The design's own headline, carried by the shared masthead's standfirst so
   // the tab title, indentation and closing rule stay uniform with the others.
   const city = climate.city;
-  const standfirst = `Your ${city ? `${city} ` : ''}year, and what it is missing \u2014 every day of it falls in one of eight temperature bands.`;
+  const standfirst = `Your ${city ? `${city} ` : ''}year, and what it is missing.`;
 
   const selectedCell = useMemo(
     () => ruler.rows.flatMap((r) => r.cells).find((c) => c.key === cell) || null,
@@ -324,12 +326,15 @@ export function BeauTab(props: {
             </span>
           </>
         }
-      >
-        {/* The four figures — inside the masthead block, above its closing
-            rule, exactly as the reference sets them. */}
+      />
+
+      <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
+        {/* The four figures — the page's own furniture, BELOW the masthead's
+            closing rule, so this tab's header is exactly the height of the
+            other five. */}
         <div
           className="grid grid-cols-2 md:grid-cols-4"
-          style={{ marginTop: '22px', borderTop: `1px solid ${INK}` }}
+          style={{ marginBottom: '26px', borderTop: `1px solid ${INK}` }}
         >
           {figures.map((figure, i) => (
             <div
@@ -345,9 +350,7 @@ export function BeauTab(props: {
             </div>
           ))}
         </div>
-      </TabHeader>
 
-      <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
         {pieces.length === 0 ? (
           <p style={{ ...body(14.5, SECONDARY), margin: 0, maxWidth: '70ch' }}>
             Log your first piece on The Ledger and this page fills in — every day of your year against what you own,

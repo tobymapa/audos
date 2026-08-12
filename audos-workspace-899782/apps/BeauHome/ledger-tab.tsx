@@ -614,7 +614,7 @@ export function LedgerTab({
     <div>
       <TabHeader
         title="The Ledger"
-        standfirst={'Everything you own, by category \u2014 open a piece to correct what Beau thinks it is.'}
+        standfirst={'Everything you own, by category \u2014 open a piece to correct Beau.'}
         aside={
           <>
             <span style={{ ...serif(44, WALNUT), lineHeight: 1 }}>{model.total}</span>

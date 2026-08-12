@@ -2010,7 +2010,7 @@ export default function YourStyle() {
           button in its aside. */}
       <TabHeader
         title="The Dossier"
-        standfirst="Everything Beau knows about you — correct it and he uses it immediately."
+        standfirst="Everything Beau knows about you — correct it and he uses it."
         aside={<SaveProfileButton surface="your-style" />}
       />
 
