@@ -7,8 +7,9 @@
  *
  * Six stops, in the order a new customer meets the product — the
  * primary tabs AND their key sub-tabs / sections:
- *   The Ledger · Beau · Today · Your pieces (category sections)
+ *   The Ledger · its categories
  *   The Fitting · the board's actions · the Board section
+ *   The Hunt — where Beau's recommendations and the comparison bench live
  *
  * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
  * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
@@ -52,15 +53,9 @@ const STEPS: TourStep[] = [
     navigate: { tab: 'wardrobe' },
   },
   {
-    anchor: 'tour-beau-today',
-    kicker: 'Beau · Today',
-    body: 'The day\u2019s outfit, composed from what you own — weather read, occasion set.',
-    navigate: { tab: 'wardrobe' },
-  },
-  {
     anchor: 'tour-ledger-pieces',
-    kicker: 'The Ledger · Your pieces',
-    body: 'Everything you own, organised by category — search it, open a category, or see every piece in one view.',
+    kicker: 'The Ledger · By category',
+    body: 'Open a category to see what is in it, then open a piece to correct what Beau thinks it is — the cloth, the cut, how it fits you.',
     navigate: { tab: 'wardrobe' },
   },
   {
@@ -79,6 +74,11 @@ const STEPS: TourStep[] = [
     kicker: 'The Fitting · Board',
     body: 'Everything you can put on the board — what you own, what you\u2019re weighing and Beau\u2019s picks; anything not yours lands dashed.',
     navigate: { tab: 'fitting-room' },
+  },
+  {
+    anchor: 'tour-hunt',
+    kicker: 'The Hunt',
+    body: 'What Beau would buy next, category by category — plus a bench that compares up to four pieces you\u2019re weighing.',
   },
 ];
 

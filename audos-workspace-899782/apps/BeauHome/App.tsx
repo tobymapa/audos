@@ -36,7 +36,6 @@ import {
   fetchStyleMeasurements,
   saveMeasurements,
   heightRangeFromCm,
-  homeCity,
   migrateLegacyItems,
   normalizePiece,
   reconcilePatternedName,
@@ -66,24 +65,15 @@ import {
   type MigrationProgress,
 } from './photo-enhance';
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
-import { FlatLayBoard, type FlatLayPiece } from './flat-lay-board';
 import { OnboardingTour } from './onboarding-tour';
-import { TabHeader } from './tab-header';
 import { FloatingBackButton } from './floating-back';
-import { HairlineRowsSkeleton, HomeSkeleton, ShimmerDefs } from './skeleton';
+import { HairlineRowsSkeleton, HomeSkeleton } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
-import { CategoryGrid, CategoryPage, SeeAllPieces, WardrobeSearch } from './wardrobe';
-import { AddPieceHub, AddPieceSection } from './add-piece';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
 import { sweepSemanticTags } from './semantic-tags';
 import { sweepPieceWarmth } from './warmth-model';
 import { BeauAssessmentProvider } from './beau-assessment-context';
 import { SaveProfileNudge, isGuestUnsaved } from './save-profile';
-import { TODAY_BOARD_EVENT, getTodayBoard, peekTodayBoard, type TodayBoard } from './today-board';
-import { useReassessStatus } from './reassess-queue';
-import { WEATHER_EVENT, WeatherLine, ensureSharedWeather, useSharedWeather } from './weather-context';
-import { composeTodayCopy } from './today-copy';
-import { sortByBodyOrder } from './body-order';
 
 // Code splitting (Pass Forty-Seven; widened in Pass Fifty): every surface
 // that is NOT the landing Wardrobe screen — The Rail, Radar, Reads,
@@ -106,6 +96,8 @@ const StyleMeToday = lazy(() => import('./style-today').then((m) => ({ default: 
 const YourStyle = lazy(() => import('../YourStyle/App').then((m) => ({ default: memo(m.default) })));
 const IndexTab = lazy(() => import('./index-tab').then((m) => ({ default: memo(m.IndexTab) })));
 const HuntTab = lazy(() => import('./hunt-tab').then((m) => ({ default: memo(m.HuntTab) })));
+// The Ledger's own layout (the landing tab): everything he owns, by category.
+const LedgerTab = lazy(() => import('./ledger-tab').then((m) => ({ default: memo(m.LedgerTab) })));
 
 /** Module-scoped so the housekeeping audits run at most ONCE per page load.
  * A StrictMode double-mount, or the app being closed and reopened from the
@@ -118,12 +110,13 @@ let auditsKicked = false;
  * a shell with SIX persistent top tabs in this exact order:
  *   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier
  *   (Reads hidden; old Rail merged into Ledger)
- *  - Wardrobe: tracker by category (icons fill proportionally with colour),
- *    illustrated per-piece tiles tinted the piece's actual colour, the ONE
- *    photo-first "Add what you own" flow (Pass Thirty-Three: every piece
- *    starts with a photo — Beau reads the garment and pre-fills the details
- *    for confirmation), the photo log sub-view and the milestones gauge.
- *    Build & complexion lives in Your Style, not here.
+ *  - The Ledger (tab id 'wardrobe', ledger-tab.tsx): everything he owns, by
+ *    category — a link or a photograph goes in at the top, the nine
+ *    categories unfold into his pieces with Beau's read against each one,
+ *    opening a piece opens the sheet where he corrects Beau, and the page
+ *    closes on the pieces the record argues against. This app file holds only
+ *    the shell for it: the tab bar, the data, and the routing.
+ *    Build & complexion lives in The Dossier, not here.
  *  - Curated: TWO-LAYER. Layer 1 shows one brand-free card per wardrobe gap,
  *    milestone-ordered; tapping a gap opens Layer 2 — 3–5 specific product
  *    picks with Save (→ Saved) and Refresh (see ./curated).
@@ -1379,564 +1372,6 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
   );
 }
 
-// ---------------------------------------------------------------------------
-// What to wear today? — the FIRST of the app's three walnut bands (Pass
-// Forty-One): a full-bleed #241a12 band that sits IMMEDIATELY below the
-// "Your Wardrobe" page heading. Cormorant 28px heading in #f6f0e5, one short
-// supporting line in Lora 15px at .78 opacity, and a tappable "Let's do it ›"
-// text row (no button) that opens the full weather + occasion flow
-// (StyleMeToday).
-// ---------------------------------------------------------------------------
-
-/**
- * The outfit preview inside the Beau · Today card — it fills the card's
- * RIGHT-side space (text left, preview right), showing what Beau is
- * suggesting before the tap-through. Reads the SAME cached today board The
- * Fitting uses (today-board.ts) — one compose per day per wardrobe, never
- * more.
- *
- * IT IS ONE CANVAS, not a row of thumbnails and not a set of separate cards:
- * a single `.today-canvas` — ONE light field inset in the walnut slab — with
- * a transparent `.today-piece` per garment laid on it (flat-lay-board.tsx,
- * `variant="tray"`), the same fixed ZONE layout the Fitting's stage uses
- * (head / torso / waist / legs / feet plus the side accessory column, zero
- * rotation), at 480 × 600. There is no second rendering: whatever the state
- * of the ingestion pipeline, this is the card.
- *
- * THE CANVAS IS THE ONLY BACKGROUND SURFACE HERE, and that is the whole point:
- * it is what the WALNUT needs — a navy jacket or a black shoe would otherwise
- * wash out against it — and it is also the ground an uncut photo's studio
- * white multiplies into, which is what lets a piece whose cutout has not
- * landed yet be composed with the rest rather than held back. A light square
- * behind each individual piece was the old workaround for the same problem and
- * it is gone: it turned one composed outfit back into a run of little cards.
- * The pieces themselves are transparent, so where zones overlap (torso
- * layers, socks over shoes) it is the IMAGES that overlap. The canvas carries
- * one 2px inset frame 10px inside its own edge, like a picture frame sitting
- * within the boundary.
- */
-/** The tray is 480 × 600 — the zone system's portrait design size. It MUST
- * match `.today-stage`'s aspect-ratio in flat-lay-board.tsx (the transparent
- * positioning box inside the canvas), so the fixed zone percentages land
- * where the design puts them. */
-const TODAY_BOARD_ASPECT = 480 / 600;
-
-/**
- * THE TRAY'S SPACE, HELD — shown only on a FIRST compose, when there is no
- * cached board for today yet and Beau is out reasoning about one. Composing
- * the board is a model call, and the card used to show nothing at all on that
- * side until it came back, which read as a broken half-empty band.
- *
- * It is ONE quiet field in the tray's exact shape (480 × 600, right-aligned,
- * the same box `.today-canvas` occupies), deliberately NOT a row of ghost
- * squares: a placeholder that hinted at separate tiles would be the very
- * impression the flat-lay exists to undo. Nothing here renders a piece, so it
- * is not a second rendering of the composition — it is the space, waiting.
- */
-const TodayTraySkeleton = memo(function TodayTraySkeleton() {
-  return (
-    <span
-      role="status"
-      aria-label={'Beau is laying out today\u2019s outfit'}
-      className="block sm:flex-1 min-w-0"
-      // The canvas's own box — the SQUARE framed canvas (founder's frame
-      // fix): equal width and height, 420px at most, inset 16px from the
-      // slab's edge, right-aligned — so the skeleton holds exactly the
-      // footprint the finished tray takes.
-      style={{
-        width: 'calc(100% - 32px)',
-        maxWidth: '420px',
-        aspectRatio: '1 / 1',
-        minHeight: '160px',
-        margin: '16px 16px 16px auto',
-      }}
-    >
-      <ShimmerDefs />
-      {/* Paper at very low opacity — the beige shimmer the paper surfaces use
-          would glare against the walnut. */}
-      <span
-        aria-hidden="true"
-        className="block w-full h-full"
-        style={{
-          background:
-            'linear-gradient(90deg, rgba(246,240,229,0.045) 25%, rgba(246,240,229,0.115) 50%, rgba(246,240,229,0.045) 75%)',
-          backgroundSize: '200% 100%',
-          animation: 'hab-shimmer 1.5s infinite',
-        }}
-      />
-    </span>
-  );
-});
-
-/** The settled tray cutouts for a set of pieces — synchronous peeks only,
- * shared by the tray's initial state and its effect so the FIRST painted
- * frame already carries every stored cutout. Only flatLayReady cuts count: a
- * cut that still has the wearer in it, or one the verification step flagged,
- * is a fine thumbnail and never a tray item. */
-function settledTrayCutouts(
-  pieces: WardrobePiece[],
-): Record<number, { url: string; croppedWidth: number | null; croppedHeight: number | null }> {
-  const settled: Record<number, { url: string; croppedWidth: number | null; croppedHeight: number | null }> = {};
-  for (const piece of pieces) {
-    const asset = peekFlatLayAsset((piece.photo_url || '').trim());
-    if (asset?.flatLayReady) {
-      settled[piece.id] = {
-        url: asset.url,
-        croppedWidth: asset.croppedWidth ?? null,
-        croppedHeight: asset.croppedHeight ?? null,
-      };
-    }
-  }
-  return settled;
-}
-
-const TodayOutfitPreview = memo(function TodayOutfitPreview({ pieces, profile }: { pieces: WardrobePiece[]; profile: StyleProfile }) {
-  const [today, setToday] = useState<TodayBoard | null>(() => peekTodayBoard(pieces));
-  // True only while a FIRST compose is out — a cached board paints instantly
-  // and never shows the placeholder, and a recompose (a new city, an adjusted
-  // board) leaves the tray already on screen exactly where it is.
-  // Initialised from the same condition the effect uses, so the very FIRST
-  // painted frame already holds the tray's space — the effect runs after
-  // paint, and starting at false left one blank frame before the skeleton.
-  const [composing, setComposing] = useState(
-    () => pieces.filter((p) => p.id > 0).length >= 3 && !peekTodayBoard(pieces),
-  );
-  useEffect(() => {
-    let cancelled = false;
-    // Only compose once the wardrobe can actually dress a day.
-    if (pieces.filter((p) => p.id > 0).length >= 3) {
-      if (!peekTodayBoard(pieces)) setComposing(true);
-      getTodayBoard({ pieces, profile })
-        .then((b) => {
-          if (!cancelled) setToday(b);
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          if (!cancelled) setComposing(false);
-        });
-    }
-    const onUpdate = () => setToday(peekTodayBoard(pieces));
-    window.addEventListener(TODAY_BOARD_EVENT, onUpdate);
-    // A location/weather change re-runs the compose — the board signature
-    // includes the city, so a new place means a fresh weather-aware read.
-    const onWeather = () => {
-      if (pieces.filter((p) => p.id > 0).length >= 3) {
-        getTodayBoard({ pieces, profile })
-          .then((b) => {
-            if (!cancelled) setToday(b);
-          })
-          .catch(() => undefined);
-      }
-    };
-    window.addEventListener(WEATHER_EVENT, onWeather);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(TODAY_BOARD_EVENT, onUpdate);
-      window.removeEventListener(WEATHER_EVENT, onWeather);
-    };
-  }, [pieces, profile]);
-
-  const thumbs = useMemo(() => {
-    if (!today) return [] as WardrobePiece[];
-    const byId = new Map(pieces.map((p) => [p.id, p]));
-    const withPhotos = today.pieceIds
-      .map((id) => byId.get(id))
-      .filter((p): p is WardrobePiece => !!p && !!(p.photo_url || '').trim());
-    // Left-to-right follows the body, top to bottom: hat → outerwear →
-    // jacket → knitwear → top → trousers → shoes. Leftmost = head,
-    // rightmost = feet.
-    return sortByBodyOrder(withPhotos, (p) => ({ category: p.category, slot: p.slot, name: p.name }));
-  }, [today, pieces]);
-
-  // THE STORED CUTOUTS. A wardrobe photo is kept on a paper card, not as a
-  // cutout, so the tray needs the transparent PNG the ingestion pipeline
-  // stored for it. Every piece is PEEKED first — an ingested one answers
-  // synchronously from the store, which is why this card paints its finished
-  // composition on the first render — and anything still missing is handed to
-  // the IDLE queue rather than processed while the page is rendering.
-  // The URL plus the tight-cropped PNG's pixel dimensions (pipeline v3) —
-  // the tray derives each item's render width from its category height and
-  // this true aspect ratio, without loading the image first.
-  const [cutouts, setCutouts] = useState<Record<number, { url: string; croppedWidth: number | null; croppedHeight: number | null }>>(
-    () => settledTrayCutouts(thumbs),
-  );
-  // How many pieces are still WAITING on the ingestion pipeline. While any
-  // are, the tray's space is held by the skeleton rather than showing a
-  // half-empty canvas — and never a photograph on a solid plate.
-  const [pendingCutouts, setPendingCutouts] = useState(() => {
-    const settled = settledTrayCutouts(thumbs);
-    return thumbs.filter((piece) => (piece.photo_url || '').trim() && !settled[piece.id]).length;
-  });
-  useEffect(() => {
-    let live = true;
-    const settled = settledTrayCutouts(thumbs);
-    setCutouts(settled);
-    const pending = thumbs.filter((piece) => (piece.photo_url || '').trim() && !settled[piece.id]);
-    setPendingCutouts(pending.length);
-    if (pending.length > 0) {
-      whenIdle(() => {
-        for (const piece of pending) {
-          if (!live) return;
-          void flatLayAssetForShelf({
-            candidates: (piece.photo_url || '').trim(),
-            category: piece.category,
-            name: piece.name,
-            pieceId: piece.id,
-          })
-            .then((asset) => {
-              if (!live || !asset.flatLayReady) return;
-              setCutouts((current) =>
-                current[piece.id]?.url === asset.url
-                  ? current
-                  : {
-                      ...current,
-                      [piece.id]: {
-                        url: asset.url,
-                        croppedWidth: asset.croppedWidth ?? null,
-                        croppedHeight: asset.croppedHeight ?? null,
-                      },
-                    },
-              );
-            })
-            .catch(() => undefined)
-            .finally(() => {
-              if (live) setPendingCutouts((count) => Math.max(0, count - 1));
-            });
-        }
-      });
-    }
-    return () => {
-      live = false;
-    };
-  }, [thumbs]);
-
-  // ONLY GENUINE TRANSPARENCY GOES INTO THE TRAY (founder's spec): a piece
-  // whose stored cutout has landed is laid on the canvas as a bare
-  // alpha-channel PNG; a piece the pipeline is still cutting — or one it
-  // could not cut cleanly — is marked NOT flat-lay-ready, and the board holds
-  // it out of the composition. Never a photograph on a solid plate inside the
-  // tray: the paper card a wardrobe photo lives on is exactly the white box
-  // the composition must never show.
-  const boardPieces: FlatLayPiece[] = useMemo(
-    () =>
-      thumbs.map((piece) => ({
-        key: String(piece.id),
-        name: piece.name,
-        category: piece.category,
-        slot: piece.slot,
-        image: cutouts[piece.id]?.url || (piece.photo_url || '').trim(),
-        flatLayReady: cutouts[piece.id] ? true : false,
-        // The tight-cropped cutout's true aspect — only meaningful alongside
-        // the cutout URL itself, so both travel together.
-        croppedWidth: cutouts[piece.id]?.croppedWidth ?? null,
-        croppedHeight: cutouts[piece.id]?.croppedHeight ?? null,
-      })),
-    [thumbs, cutouts],
-  );
-
-  // Nothing to lay out yet: hold the tray's space while Beau is composing,
-  // and take none at all when there is simply no board to show.
-  if (thumbs.length < 2) return composing ? <TodayTraySkeleton /> : null;
-
-  // The tray lays out STORED TRANSPARENT CUTOUTS ONLY. While the ingestion
-  // pipeline is still cutting (or the board itself is still composing) its
-  // space is held by the skeleton; if nothing could be cut and nothing is
-  // pending, there is no tray — never a canvas of plated photographs.
-  const readyCount = boardPieces.filter((piece) => piece.flatLayReady !== false).length;
-  if (readyCount < 2) return composing || pendingCutouts > 0 ? <TodayTraySkeleton /> : null;
-
-  // THE TRAY — ONE beige canvas, every piece an absolutely-positioned child
-  // laid on it in its category's fixed zone. Only genuine transparent cutouts
-  // lie on it: a piece still waiting on its cutout (or flagged by the
-  // verification step) is held out of the composition — its plated
-  // presentation lives in The Fitting's held-out list, never inside the tray.
-  return (
-    <FlatLayBoard
-      pieces={boardPieces}
-      seed={`today-${(today?.pieceIds || []).join('-') || 'ethaion'}`}
-      // DRAGGABLE PIECES: the customer can reposition any piece on the Today
-      // canvas; the layout is remembered per outfit (localStorage, keyed by
-      // the board's piece identity) and the zone composition stays the
-      // default starting state.
-      dragKey={`today-${(today?.pieceIds || []).join('-') || 'ethaion'}`}
-      aspect={TODAY_BOARD_ASPECT}
-      panel="walnut"
-      uniformItems
-      variant="tray"
-      // The canvas IS the column: the layout classes go on the one background
-      // surface rather than on a wrapper around it, so there is exactly one
-      // box here and every piece is a child of it. No `w-full`: the canvas
-      // sets its own width so its 16px inset from the slab is real space
-      // rather than overflow.
-      className="sm:flex-1 min-w-0"
-      ariaLabel="Today's suggested outfit — laid out flat"
-    />
-  );
-});
-
-/**
- * THE RE-ASSESSMENT MARK — the visible half of the save/re-assess split
- * (reassess-queue.ts), on the screen where the save actually happens.
- *
- * Logging or editing a piece awaits its database write and nothing else: the
- * Save button releases at once and Beau's re-read is queued behind it. That
- * is the right architecture and it leaves one thing unsaid — the customer has
- * no way of knowing the re-read is happening. This is that line, and it is
- * deliberately the smallest thing on the page: one quiet sentence under the
- * heading while the background job runs, gone when it clears.
- *
- * It BLOCKS NOTHING. It is not a spinner over the page, it takes no space
- * when idle, and The Ledger stays fully usable throughout — the sections that
- * depend on the assessment (the Verdict, the Coverage Map, Complete the Look
- * on The Edit) re-render in place when it lands, with no reload.
- */
-const ReassessMark = memo(function ReassessMark() {
-  const status = useReassessStatus();
-  if (status !== 'reassessing') return null;
-  return (
-    <p
-      aria-live="polite"
-      className="inline-flex items-center gap-1.5 text-[var(--color-neutral-600,#856c51)]"
-      style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, marginTop: '10px' }}
-    >
-      <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
-      Beau is re-reading your wardrobe — carry on; The Edit updates itself.
-    </p>
-  );
-});
-
-/**
- * TODAY'S WEATHER GAP — the honest line on the walnut card (Today
- * weather-reasoning fix, step 5).
- *
- * When the candidate filter cannot cover a core slot with anything rated for
- * the conditions, Beau says so HERE as well as in The Fitting: a customer who
- * never taps through would otherwise see a suggested outfit with no hint that
- * it is a compromise, which is exactly the trust problem this fix exists to
- * close. Paper text at reduced opacity, not oxblood — oxblood never sits on
- * the dark walnut ground (Part 4).
- */
-const TodayGapNote = memo(function TodayGapNote({ pieces }: { pieces: WardrobePiece[] }) {
-  const [note, setNote] = useState<string | null>(() => peekTodayBoard(pieces)?.gapNote ?? null);
-  useEffect(() => {
-    const sync = () => setNote(peekTodayBoard(pieces)?.gapNote ?? null);
-    sync();
-    window.addEventListener(TODAY_BOARD_EVENT, sync);
-    return () => window.removeEventListener(TODAY_BOARD_EVENT, sync);
-  }, [pieces]);
-  if (!note) return null;
-  return (
-    <p
-      className="mt-3 italic"
-      style={{
-        fontFamily: 'var(--space-font-family)',
-        fontSize: '13.5px',
-        lineHeight: 1.55,
-        color: '#f6f0e5',
-        opacity: 0.82,
-        maxWidth: '52ch',
-        borderLeft: '2px solid rgba(246,240,229,0.45)',
-        paddingLeft: '12px',
-      }}
-    >
-      {note}
-    </p>
-  );
-});
-
-const WhatToWearToday = memo(function WhatToWearToday({
-  pieces,
-  profile,
-  onPlanFullLook,
-}: {
-  pieces: WardrobePiece[];
-  profile: StyleProfile;
-  onPlanFullLook: () => void;
-}) {
-  // First use asks for the device location via the browser prompt (a stored
-  // city never re-prompts); the profile's home city is the quiet fallback.
-  useEffect(() => {
-    ensureSharedWeather(homeCity(profile));
-  }, [profile]);
-  // THE DAILY COPY (founder's copy contract, today-copy.ts). The headline
-  // and body are GENERATED, never hard-coded: they ride on the cached today
-  // board (produced with the chosen pieces from the same live weather — one
-  // unit, regenerated once per day per location, and together on “ask for
-  // another”). Until a board with copy exists — first compose still out, or
-  // a board cached before the contract — the same generator runs here on
-  // the live weather, so the card is never empty and never a question.
-  const [board, setBoard] = useState<TodayBoard | null>(() => peekTodayBoard(pieces));
-  useEffect(() => {
-    const sync = () => setBoard(peekTodayBoard(pieces));
-    sync();
-    window.addEventListener(TODAY_BOARD_EVENT, sync);
-    window.addEventListener(WEATHER_EVENT, sync);
-    return () => {
-      window.removeEventListener(TODAY_BOARD_EVENT, sync);
-      window.removeEventListener(WEATHER_EVENT, sync);
-    };
-  }, [pieces]);
-  const { weather } = useSharedWeather();
-  const copy = useMemo(() => {
-    if (board?.headline && board?.body) return { headline: board.headline, body: board.body };
-    const byId = new Map(pieces.map((p) => [p.id, p]));
-    const chosen = (board?.pieceIds || [])
-      .map((id) => byId.get(id))
-      .filter((p): p is WardrobePiece => !!p)
-      .map((p) => ({ name: p.name, category: p.category, slot: p.slot }));
-    const generated = composeTodayCopy({ weather, pieces: chosen });
-    return {
-      headline: board?.headline || generated.headline,
-      body: board?.body || generated.body,
-    };
-  }, [board, pieces, weather]);
-  return (
-    <section
-      aria-label="Beau · today — the day's outfit"
-      data-tour="tour-beau-today"
-      className="px-6 sm:px-10 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
-      style={{ background: '#241a12', paddingTop: '48px', paddingBottom: '52px' }}
-    >
-      {/* Two columns: Beau's words on the left, the suggested-outfit
-          preview filling the right-side space (it stacks below the copy on
-          small screens). Tapping through lands on The Fitting with this
-          exact board pre-filled. */}
-      <div className="max-w-[1180px] mx-auto flex flex-col sm:flex-row sm:items-center gap-7 sm:gap-12">
-        <div className="min-w-0 flex-1">
-          {/* Oxblood never sits on the dark walnut ground (Part 4) — the
-              BEAU · TODAY kicker reads in paper here. */}
-          <p
-            className="uppercase"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', color: '#fbf8f1', marginBottom: '8px' }}
-          >
-            Beau · today
-          </p>
-          {/* [headline] — the weather-driven judgement call, 3–8 words,
-              never a question. Generated fresh with each day's board. */}
-          <h3 style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '32px', lineHeight: 1.1, color: '#f6f0e5' }}>
-            {copy.headline}
-          </h3>
-          {/* [body] — the pieces, named plainly, and why they hold up all
-              day. Never mechanism copy. */}
-          <p className="mt-2" style={{ fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.6, color: '#f6f0e5', opacity: 0.78, maxWidth: '56ch' }}>
-            {copy.body}
-          </p>
-          {/* [meta] — City · Temp°C · Condition + “Change location” (or
-              “Set your location” when unknown). ONE shared state with The
-              Fitting: change it in either place and both update instantly. */}
-          <div className="mt-3">
-            <WeatherLine tone="dark" />
-          </div>
-          {/* When nothing owned is rated for today, the card says so rather
-              than presenting a compromise as the answer. */}
-          <TodayGapNote pieces={pieces} />
-          <button
-            type="button"
-            onClick={onPlanFullLook}
-            className="mt-6 inline-flex items-center gap-1.5 group"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', color: 'var(--color-accent,#a8712c)' }}
-          >
-            Let’s do it
-            <span
-              className="group-hover:translate-x-0.5 transition-transform"
-              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1 }}
-              aria-hidden="true"
-            >
-              ›
-            </span>
-          </button>
-        </div>
-        {/* The right-side outfit preview — renders nothing until the cached
-            today board has at least two photographed pieces. */}
-        <TodayOutfitPreview pieces={pieces} profile={profile} />
-      </div>
-    </section>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Wardrobe action rows (Pass Forty-Four) — plain tappable hairline rows that
-// sit ABOVE the inventory: label Cormorant 19px, descriptor Lora 14px
-// neutral-600, trailing ›, 1px divider bottom hairline. No fill, no radius.
-// ---------------------------------------------------------------------------
-
-const WardrobeActionRow = memo(function WardrobeActionRow({
-  rowLabel,
-  descriptor,
-  onClick,
-  compact = false,
-}: {
-  rowLabel: string;
-  descriptor: string;
-  onClick: () => void;
-  /** Single-line hairline variant — roughly half the vertical space: the
-   * label and descriptor share one row, for actions that should read as a
-   * quiet tappable rule rather than a banner. */
-  compact?: boolean;
-}) {
-  if (compact) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="w-full min-h-[44px] flex items-center gap-3 text-left group"
-        style={{ padding: '8px 0', borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.18))', background: 'transparent', borderRadius: 0 }}
-      >
-        <span className="min-w-0 flex-1 flex items-baseline gap-2.5">
-          <span
-            className={`flex-shrink-0 ${typography.color.primary}`}
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', fontWeight: 400, lineHeight: 1.2 }}
-          >
-            {rowLabel}
-          </span>
-          <span
-            className="hidden sm:block truncate text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.4 }}
-          >
-            {descriptor}
-          </span>
-        </span>
-        <span
-          className="flex-shrink-0 text-[var(--color-neutral-500,#a68e70)] group-hover:translate-x-0.5 transition-transform"
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1 }}
-          aria-hidden="true"
-        >
-          ›
-        </span>
-      </button>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full grid grid-cols-[minmax(0,1fr)_18px] items-center gap-3 text-left group"
-      style={{ padding: '20px 0', borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.18))', background: 'transparent', borderRadius: 0 }}
-    >
-      <span className="min-w-0">
-        <span
-          className={`block ${typography.color.primary}`}
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '19px', fontWeight: 400, lineHeight: 1.2 }}
-        >
-          {rowLabel}
-        </span>
-        <span
-          className="block text-[var(--color-neutral-600,#856c51)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.5, marginTop: '4px' }}
-        >
-          {descriptor}
-        </span>
-      </span>
-      <span
-        className="justify-self-end text-[var(--color-neutral-500,#a68e70)] group-hover:translate-x-0.5 transition-transform"
-        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', lineHeight: 1 }}
-        aria-hidden="true"
-      >
-        ›
-      </span>
-    </button>
-  );
-});
 
 /** Keeps a visited tab's subtree mounted when the user switches away —
  * hidden with display:none instead of unmounted — so component state,
@@ -1973,10 +1408,10 @@ export default function BeauHome() {
   const [materials, setMaterials] = useState<Record<number, string>>({});
   const [pieceDetails, setPieceDetails] = useState<Record<number, PieceDetails>>({});
   const [pieceAttributes, setPieceAttrs] = useState<Record<number, PieceAttributes>>({});
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  // The one sub-view The Ledger still routes to: the daily-outfit surface,
+  // opened by the 'style-today' deep link (the tab's own layout is
+  // ledger-tab.tsx, which holds its own state).
   const [openStyleToday, setOpenStyleToday] = useState(false);
-  // "All pieces" — The Ledger's full-inventory page (Part 2b).
-  const [openSeeAll, setOpenSeeAll] = useState(false);
   const [tab, setTab] = useState<TabId>('wardrobe');
   // The single end-of-onboarding save nudge — set once when a guest finishes
   // onboarding, dismissed forever after (Save or Skip).
@@ -2232,16 +1667,12 @@ export default function BeauHome() {
       const wanted = (e as CustomEvent).detail?.tab as string | undefined;
       if (wanted && (TABS.some((t) => t.id === wanted) || HIDDEN_TAB_IDS.includes(wanted as TabId))) {
         setTab(wanted as TabId);
-        setOpenCategory(null);
         setOpenStyleToday(false);
-        setOpenSeeAll(false);
       }
       // Deep link: "style-today" opens The Ledger's daily-outfit surface.
       if (wanted === 'style-today') {
         setTab('wardrobe');
-        setOpenCategory(null);
         setOpenStyleToday(true);
-        setOpenSeeAll(false);
       }
       fetchProfile()
         .then((p) => setProfile(p))
@@ -2252,14 +1683,12 @@ export default function BeauHome() {
   }, []);
 
   // The "Log one I own" / "Add to the Ledger" event (ethaion:add-piece):
-  // land on The Ledger — the Add a piece surface listens for the SAME event
-  // (add-piece.tsx) and opens its Search flow seeded with the type name.
+  // land on The Ledger — its Log a piece row listens for the SAME event
+  // (ledger-tab.tsx) and opens the search flow seeded with the type name.
   useEffect(() => {
     const onAddPiece = () => {
       setTab('wardrobe');
-      setOpenCategory(null);
       setOpenStyleToday(false);
-      setOpenSeeAll(false);
     };
     window.addEventListener('ethaion:add-piece', onAddPiece);
     return () => window.removeEventListener('ethaion:add-piece', onAddPiece);
@@ -2441,36 +1870,22 @@ export default function BeauHome() {
   // survives tab switches and re-runs ONLY when the wardrobe, archetypes,
   // profile, budgets or taste memory actually change — never on navigation.
 
-  // Stable reference (Pass Forty-Six) so memoised children (CategoryGrid,
-  // ItemCard) don't re-render on unrelated App state changes.
+  // Stable reference (Pass Forty-Six) so memoised children don't re-render
+  // on unrelated App state changes.
   const removePiece = useCallback(async (id: number) => {
     await deletePiece(id);
     refreshAll();
   }, [refreshAll]);
 
-  // Fitting entry points (Fitting overhaul, Part 3.1): The Fitting is ONE
-  // shared canvas — "Build a Look" hands it an empty board, "Beau · Today"
-  // a pre-filled board + reasoning strip (Beau · Trip's form lives in
-  // trip-card.tsx). Dynamic imports keep the Fitting's code lazy-loaded.
-  const openManualFitting = useCallback(() => {
-    void import('./fitting-room-state').then((m) => m.requestFittingBoard({ source: 'manual' }));
-  }, []);
-  const openTodayFitting = useCallback(() => {
-    void import('./fitting-room-state').then((m) => m.requestFittingBoard({ source: 'today' }));
-  }, []);
-  const openTripFitting = useCallback(() => {
-    // No brief here — The Fitting opens in Trip mode and shows the short
-    // destination / dates / occasions form itself (Part 10).
-    void import('./fitting-room-state').then((m) => m.requestFittingBoard({ source: 'trip' }));
-  }, []);
+  // (The Ledger's old hand-offs into The Fitting — Build a look, Beau ·
+  // Today, Plan for a trip — went with the layout they lived on. The Fitting
+  // opens its own board, and fitting-room-state still takes a board request
+  // from anywhere that needs one.)
 
   // Stable handlers for the memoised panels and action rows — inline arrows
   // here would hand every memoised child a fresh prop on each app render
   // and defeat React.memo entirely.
-  const openAllPieces = useCallback(() => setOpenSeeAll(true), []);
-  const closeAllPieces = useCallback(() => setOpenSeeAll(false), []);
   const closeStyleToday = useCallback(() => setOpenStyleToday(false), []);
-  const closeCategory = useCallback(() => setOpenCategory(null), []);
   const backToWardrobe = useCallback(() => setTab('wardrobe'), []);
   const backToCurated = useCallback(() => setTab('curated'), []);
 
@@ -2480,8 +1895,6 @@ export default function BeauHome() {
   // the button itself only appears once the page is scrolled down.
   const floatingBack =
     tab === 'wardrobe' && openStyleToday ? closeStyleToday
-    : tab === 'wardrobe' && !openStyleToday && openCategory ? closeCategory
-    : tab === 'wardrobe' && !openStyleToday && !openCategory && openSeeAll ? closeAllPieces
     : tab === 'dressed' ? backToWardrobe
     : tab === 'saved' ? backToCurated
     : null;
@@ -2524,9 +1937,7 @@ export default function BeauHome() {
         tab={tab}
         onChange={(t) => {
           setTab(t);
-          setOpenCategory(null);
           setOpenStyleToday(false);
-          setOpenSeeAll(false);
         }}
       />
 
@@ -2547,8 +1958,12 @@ export default function BeauHome() {
         {/* Tab panels stay mounted once visited (KeepMounted) — switching
             tabs hides them with display:none instead of unmounting, so
             their state and data survive and switching back is instant. */}
+        {/* THE LEDGER (ledger-tab.tsx) — everything he owns, by category: log
+            a piece, unfold a category, open one to correct Beau, and the
+            pieces the record argues against. The style-me-today surface stays
+            routable underneath it (the 'style-today' deep link). */}
         <KeepMounted active={tab === 'wardrobe'}>
-        {openStyleToday && (
+        {openStyleToday ? (
           <Suspense fallback={<TabLoadingSkeleton />}>
           <StyleMeToday
             pieces={pieces}
@@ -2558,150 +1973,28 @@ export default function BeauHome() {
             onChanged={refreshAll}
           />
           </Suspense>
-        )}
-
-        {!openStyleToday && openCategory && (
-          <CategoryPage
-            categoryId={openCategory}
-            pieces={pieces}
-            materials={materials}
-            details={pieceDetails}
-            onBack={closeCategory}
-            onDelete={removePiece}
-            onAdded={refreshAll}
-            addPanel={<AddPieceHub categoryId={openCategory} pieces={pieces} onAdded={refreshAll} />}
-          />
-        )}
-
-        {/* SEE ALL PIECES — the full inventory view: every category as a
-            horizontal row of tiles, filters by category and sub-type. */}
-        {!openStyleToday && !openCategory && openSeeAll && (
-          <SeeAllPieces
-            pieces={pieces}
-            materials={materials}
-            onBack={closeAllPieces}
-            onChanged={refreshAll}
-          />
-        )}
-
-        {!openStyleToday && !openCategory && !openSeeAll && (
+        ) : (
           <>
-            {/* The shared tab masthead (tab-header.tsx) — the same block,
-                type and indentation as the other five tabs. Beneath it, and
-                ONLY while a queued pass is actually running, the
-                re-assessment mark. */}
-            <TabHeader
-              title="The Ledger"
-              standfirst="Beau’s live read of your wardrobe — and what deserves your money next."
-            >
-              <ReassessMark />
-            </TabHeader>
+            <Suspense fallback={<TabLoadingSkeleton />}>
+              <LedgerTab
+                profile={profile}
+                pieces={pieces}
+                prefs={prefs}
+                budgets={budgets}
+                loading={piecesLoading || rawPieces == null}
+                onChanged={refreshAll}
+              />
+            </Suspense>
 
-            {/* THE LEDGER LAYOUT (Recommendation Engine overhaul, Part 7) —
-                strict order: 1 Build a look · 2 Beau · Today · 3 Plan for a
-                trip · 4 Add a piece · 5 Your pieces. VISUAL RULE: dark card =
-                Beau-initiated TIME-SENSITIVE prompt (Today only); plain
-                hairline row = user-initiated or contextual action (Build a
-                look, Plan for a trip). This distinction holds everywhere. */}
-
-            {/* 1 — "Build a look": plain tappable hairline row — opens The
-                Fitting with an empty board (the manual entry point). Styled
-                IDENTICALLY to "Plan for a trip" below (founder's fix pass):
-                the same full WardrobeActionRow treatment, not the compact
-                variant — same typography, dividers and colours. */}
-            <div className="px-6 sm:px-10">
-              <div className="max-w-[1180px] mx-auto">
-                <WardrobeActionRow
-                  rowLabel="Build a look"
-                  descriptor="Pull together an outfit from what you own."
-                  onClick={openManualFitting}
-                />
-              </div>
-            </div>
-
-            {/* 2 — Beau · Today: the ONE walnut band — the priority prompt,
-                full visual weight. It previews the suggested outfit (Part 8)
-                and hands off to The Fitting with the same board pre-filled. */}
-            <WhatToWearToday pieces={pieces} profile={profile} onPlanFullLook={openTodayFitting} />
-
-            {/* 3 — "Plan for a trip": a plain hairline row (user-initiated,
-                contextual — NOT a dark card). Routes to The Fitting in Trip
-                mode, where the short brief form now lives. */}
-            <div className="px-6 sm:px-10">
-              <div className="max-w-[1180px] mx-auto">
-                <WardrobeActionRow
-                  rowLabel="Plan for a trip"
-                  descriptor="Tell Beau where you’re going — he’ll build a capsule and flag what’s missing."
-                  onClick={openTripFitting}
-                />
-              </div>
-            </div>
-
-            {/* 4 — "Add a piece": the full 23a surface — its own "Add a
-                piece" header with the [ Photograph ] [ Search ] pills at the
-                right edge, the photo-led card flow beneath (add-piece.tsx). */}
-            <div className="px-6 sm:px-10 pt-10">
-              <div className="max-w-[1180px] mx-auto">
-                <AddPieceSection pieces={pieces} onAdded={refreshAll} />
-              </div>
-            </div>
-
-            {/* (The old "Plan a Trip" walnut band is retired — the Beau ·
-                Trip card above hands the whole flow to The Fitting's Trip
-                mode. travel.tsx stays routable in code only.) */}
-
-            <div className="max-w-[1180px] mx-auto w-full">
-              {/* ONE soft save nudge — appears once, right after onboarding,
-                  with Save and Skip. Guests only; never re-shown. */}
-              {showSaveNudge && (
-                <div className="px-6 sm:px-10 pt-8">
+            {/* ONE soft save nudge — appears once, right after onboarding,
+                with Save and Skip. Guests only; never re-shown. */}
+            {showSaveNudge && (
+              <div className="px-6 sm:px-10 pb-10">
+                <div className="max-w-[1180px] mx-auto">
                   <SaveProfileNudge onDismiss={() => setShowSaveNudge(false)} />
                 </div>
-              )}
-
-              {/* Your Pieces (Part 2b) — a clean inventory of what the user
-                  actually owns: search bar → the "All pieces" row → the
-                  category sections, each with a simple raw piece count
-                  (never a fraction, never an "x / y needed"). Coverage
-                  judgement lives in The Edit's coverage map, not here. The
-                  LAST section — it closes the page with the 72px bottom
-                  padding (the old "On the Rail" section was removed: owned
-                  pieces are already organised by category here). */}
-              <section className="px-6 sm:px-10 pt-[52px] pb-[72px]" data-tour="tour-ledger-pieces">
-                <div className="pb-2.5 border-b border-[var(--color-text,#3b2b1d)] mb-4">
-                  <h3 className={`hab-section-head ${typography.color.primary}`}>Your pieces</h3>
-                </div>
-                {(piecesLoading || rawPieces == null) && (rawPieces ?? []).length === 0 ? (
-                  /* Wardrobe pieces loading — shimmer hairline rows in the
-                     shape of the category list (Pass Forty-Six): never a
-                     blank area, never a spinner. `rawPieces == null` is part
-                     of the guard so the pre-first-fetch state also shows the
-                     skeleton rather than an empty list. */
-                  <HairlineRowsSkeleton rows={6} />
-                ) : (
-                  <WardrobeSearch
-                    pieces={pieces}
-                    materials={materials}
-                    details={pieceDetails}
-                    attributes={pieceAttributes}
-                    onDelete={removePiece}
-                    onChanged={refreshAll}
-                  >
-                    {/* "All pieces" — below the search bar, before the
-                        categories: opens the full row-layout inventory. */}
-                    {pieces.length > 0 && (
-                      <WardrobeActionRow
-                        rowLabel="All pieces"
-                        descriptor="Every piece you own, category by category, with filters"
-                        onClick={openAllPieces}
-                      />
-                    )}
-                    <CategoryGrid pieces={pieces} onOpen={setOpenCategory} />
-                  </WardrobeSearch>
-                )}
-              </section>
-
-            </div>
+              </div>
+            )}
           </>
         )}
         </KeepMounted>
