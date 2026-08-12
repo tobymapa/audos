@@ -65,14 +65,14 @@ const STEPS: TourStep[] = [
   },
   {
     anchor: 'tour-fitting-board',
-    kicker: 'The Fitting · The board',
-    body: 'Compose an outfit on the board, then save it or share it — a board holding a piece you don\u2019t own saves as a proposal.',
+    kicker: 'The Fitting · The look',
+    body: 'Tap a day down the left, or an occasion along the top, and Beau re-dresses the board from what you own.',
     navigate: { tab: 'fitting-room' },
   },
   {
     anchor: 'tour-fitting-shelf',
-    kicker: 'The Fitting · Board',
-    body: 'Everything you can put on the board — what you own, what you\u2019re weighing and Beau\u2019s picks; anything not yours lands dashed.',
+    kicker: 'The Fitting · The board',
+    body: 'Everything you can dress it in — what you own, what you saved in the Hunt and Beau\u2019s picks; anything not yours lands dashed.',
     navigate: { tab: 'fitting-room' },
   },
   {

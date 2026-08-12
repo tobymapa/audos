@@ -65,20 +65,6 @@ export function swatchForPiece(name: string, colors?: string[] | null): string |
   return colour ? swatchFor(colour) : null;
 }
 
-export type ColourFamily = 'anchor' | 'neutral' | 'accent';
-
-const ANCHORS = ['navy', 'black', 'charcoal', 'dark grey', 'dark gray', 'indigo', 'forest green', 'bottle green', 'dark brown', 'chocolate', 'wine'];
-const NEUTRALS = ['white', 'off-white', 'off white', 'cream', 'ecru', 'stone', 'linen', 'oatmeal', 'beige', 'sand', 'grey', 'gray', 'light grey', 'light gray', 'khaki', 'sage', 'denim'];
-
-/** Which of the three the colour belongs to — the legend at the foot of the
- * page names them, and the harmony strip is read in their terms. */
-export function colourFamily(colorName: string): ColourFamily {
-  const key = (matchColorOption(colorName) || colorName || '').toLowerCase().trim();
-  if (ANCHORS.includes(key)) return 'anchor';
-  if (NEUTRALS.includes(key)) return 'neutral';
-  return 'accent';
-}
-
 // ---------------------------------------------------------------------------
 // THE CONTEXT BAR — the strip between the tab bar and the masthead: the
 // SHARED location + weather (weather-context.tsx, the same reading The
@@ -215,6 +201,53 @@ export function FittingContextBar({ right }: { right: React.ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
+// THE MASTHEAD — the reference's own header: the title with its italic
+// second word, the small-caps standfirst beneath it, and the occasion
+// control bottom-aligned at the right.
+// ---------------------------------------------------------------------------
+
+export function FittingMasthead({
+  lead,
+  emphasis,
+  standfirst,
+  aside,
+}: {
+  /** The plain first word — “The”. */
+  lead: string;
+  /** The italic word that follows — “Fitting”. */
+  emphasis: string;
+  standfirst: string;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="px-6 sm:px-10" style={{ borderBottom: `1px solid ${HAIRLINE}` }}>
+      <header
+        className="max-w-[1180px] mx-auto flex items-start md:items-end justify-between gap-6 md:gap-9 flex-wrap"
+        style={{ paddingTop: '30px', paddingBottom: '22px' }}
+      >
+        <div className="min-w-0">
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: SERIF,
+              fontWeight: 300,
+              fontSize: 'clamp(34px, 5vw, 46px)',
+              lineHeight: 1,
+              letterSpacing: '0.01em',
+              color: INK,
+            }}
+          >
+            {lead} <em style={{ fontStyle: 'italic' }}>{emphasis}</em>
+          </h2>
+          <p style={{ ...label(9.5, MUTED, '0.16em'), margin: '8px 0 0' }}>{standfirst}</p>
+        </div>
+        {aside}
+      </header>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // THE SEGMENTED CONTROL — one hairline box, the active face filled walnut.
 // ---------------------------------------------------------------------------
 
@@ -274,8 +307,8 @@ export interface RailDay {
 export function DayRail({ days, extra }: { days: RailDay[]; extra?: React.ReactNode }) {
   return (
     <div
-      className="flex lg:flex-col overflow-x-auto lg:overflow-visible border-b lg:border-b-0 lg:border-r border-[rgba(59,43,29,0.18)]"
-      style={{ padding: '10px 0' }}
+      className="flex lg:flex-col gap-[2px] overflow-x-auto lg:overflow-visible border-b lg:border-b-0 lg:border-r border-[rgba(59,43,29,0.18)]"
+      style={{ padding: '22px 0' }}
       role="tablist"
       aria-label="Days"
     >
@@ -287,14 +320,14 @@ export function DayRail({ days, extra }: { days: RailDay[]; extra?: React.ReactN
           aria-selected={day.active}
           onClick={day.onSelect}
           title={day.title}
-          className="flex-shrink-0 transition-colors"
+          className="flex-shrink-0 lg:w-full transition-colors"
           style={{
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: '5px',
-            padding: '14px 16px',
+            padding: '14px 12px',
             minWidth: '62px',
             border: 'none',
             cursor: 'pointer',
