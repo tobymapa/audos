@@ -22,6 +22,19 @@ export const PAPER = '#fbf8f1';
 export const HAIRLINE = 'rgba(59,43,29,0.18)';
 export const RULE = 'rgba(59,43,29,0.34)';
 
+// The washes and the two inks that only appear ON the walnut band. Kept here
+// with the rest of the palette so no surface has to spell a colour of its own.
+/** The accent wash behind an active chip, pill or tag. */
+export const TINT = 'rgba(168,113,44,0.12)';
+/** The lighter accent wash a control takes on hover. */
+export const TINT_SOFT = 'rgba(168,113,44,0.06)';
+/** The oatmeal ground an opened row sits on, a shade under the page. */
+export const WASH = 'rgba(59,43,29,0.05)';
+/** Body copy on the walnut band. */
+export const ON_WALNUT = '#fbf1de';
+/** The small-caps label on the walnut band. */
+export const ON_WALNUT_GOLD = '#e3c184';
+
 export function mono(size = 9, color = FAINT): React.CSSProperties {
   return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.07em', textTransform: 'uppercase', color };
 }
