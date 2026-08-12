@@ -19,6 +19,11 @@ export const FAINTER = '#bfae96';
 export const ACCENT = '#a8712c';
 export const ACCENT_DEEP = '#7c4a17';
 export const PAPER = '#fbf8f1';
+/** The page ground every tab sits on. */
+export const PAGE = '#efe7d9';
+/** The wash under a working canvas — a shade between the page and the paper
+ * (The Fitting's centre panel). */
+export const CANVAS = '#f4eee3';
 export const HAIRLINE = 'rgba(59,43,29,0.18)';
 export const RULE = 'rgba(59,43,29,0.34)';
 

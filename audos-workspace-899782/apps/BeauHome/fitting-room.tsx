@@ -6,26 +6,29 @@
  *   · TRIP   ("Plan for a trip" row on The Ledger) → the brief form HERE,
  *     then a multi-day board set + packing list
  *
- * LAYOUT (the plain-scroll overhaul): ONE natural vertical scroll — the
- * sub-page / bottom-sheet overlay pattern is retired; nothing slides in,
- * nothing overlays the board. Top to bottom:
- *   1 a slim header row (tab kicker, the SHARED location + weather line,
- *     the trip day carousel, the trip-level gap
- *     note) · 2 THE BOARD — the flat-lay canvas,
- *     always fully visible · 3 the action bar (Save · Add to Reserve ·
- *     Share · View saved) · 4 the reasoning strip (AI boards only —
- *     oxblood, dismissible) · 5 quick-adjust chips (AI boards only) ·
- *     6 the SOURCE toggles (What you own · In your Reserve · Beau's picks
- *     — all on by default; active = walnut fill/paper text, inactive =
- *     paper fill/walnut hairline) · 7 the CATEGORY chips, deliberately
- *     smaller and lighter so the two filter kinds never read as one:
- *     source toggles decide which SECTIONS show, category chips filter
- *     WITHIN them · 8 the THREE-LEVEL shelf — one labelled grid per
- *     section; Beau's picks carry the oxblood tag and REAL product
- *     imagery (og:image, then a looked-up product photograph — never an
- *     empty named box) · [trip only] the packing list · 9 the inline
- *     SAVED section (saved outfits + your Reserve — "View saved" scrolls
- *     to it).
+ * LAYOUT (the Design5 rebuild): ONE natural vertical scroll, drawn as the
+ * reference sets it — top to bottom:
+ *   1 the CONTEXT BAR (the SHARED location + weather, "Change location",
+ *     and the tab · day at the right edge) · 2 the SHARED masthead
+ *     (tab-header.tsx) carrying the board's segmented control at its right
+ *     edge — Today · By hand · Trip · Saved · 3 THE BAND, three columns:
+ *     the DAY RAIL down the left, THE FITTING in the middle (season ·
+ *     source, the colour harmony read off the pieces on the board, THE
+ *     OUTFIT ITSELF — the real cutout garments on the flat-lay canvas,
+ *     annotated at both edges, never a silhouette — then its name, the
+ *     build it was drawn for, Beau's note and the quick adjustments), and
+ *     the NOTES column at the right (Style notes · Swap alternatives ·
+ *     What not to do, with the one acquisition line beneath) · 4 the
+ *     action row (Save · Start an empty board · Share · the saved library)
+ *     · 5 THE BOARD — the shelves the fitting is dressed from, each in the
+ *     reference's tile grid; Beau's picks carry the oxblood tag and REAL
+ *     product imagery (og:image, then a looked-up product photograph —
+ *     never an empty named box) · [trip only] the packing list · 6 the
+ *     inline SAVED section · 7 the closing legend.
+ *
+ * The layout furniture — the context bar, the segmented control, the day
+ * rail, the harmony strip, the note lists and the shelf headers — lives in
+ * fitting-design.tsx; every colour and type helper comes from index-style.
  *
  * THE BOARD is multi-select (Part 3.4): tapping a shelf piece adds it,
  * tapping it again takes it off, and every selected piece sits on the board
@@ -50,8 +53,7 @@
  * "Beau's pick" tags, the reasoning strip and the quick-adjust chips.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, Pin, X } from 'lucide-react';
-import { typography } from '../../lib/colors';
+import { Loader2, Pin, X } from 'lucide-react';
 import {
   RESERVE_CHANGED_EVENT,
   WARDROBE_CATEGORIES,
@@ -66,7 +68,7 @@ import {
   type WardrobePiece,
 } from './profile-data';
 import { hierarchyGate, itemPassesGate } from './wardrobe-model';
-import { pieceBrandType, pieceNameType } from './piece-typography';
+import { pieceNameType } from './piece-typography';
 import {
   FITTING_BOARD_EVENT,
   FITTING_PIECE_EVENT,
@@ -90,7 +92,7 @@ import {
   type BoardPiece,
 } from './flat-view';
 import { bodyOrderRank } from './body-order';
-import { MONO, numberWord, usePlexMono } from './mono-type';
+import { MONO, capWord, numberWord, usePlexMono } from './mono-type';
 import {
   flatLayAssetForShelf,
   isTransparentCutout,
@@ -120,9 +122,55 @@ import { getTodayBoard, peekTodayBoard, rememberTodayBoard } from './today-board
 import { TripBriefForm } from './trip-card';
 import { SavedLooksScreen } from './saved-looks';
 import { useBeauReveal } from './beau-reveal';
-import { WeatherLine, sharedWeatherPromptLine } from './weather-context';
+import { sharedWeatherPromptLine } from './weather-context';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 import { TabHeader } from './tab-header';
+import {
+  ACCENT,
+  ACCENT_DEEP,
+  CANVAS,
+  HAIRLINE,
+  INK,
+  MUTED,
+  PAGE,
+  PAPER,
+  SERIF,
+  WALNUT,
+  body,
+} from './index-style';
+import {
+  AvoidList,
+  DayRail,
+  FittingContextBar,
+  FooterLegend,
+  HarmonyBars,
+  NoteList,
+  SectionRule,
+  SegmentedTabs,
+  Shelf,
+  ShelfEmpty,
+  SwapRow,
+  colourFamily,
+  colourNameForPiece,
+  label as fitLabel,
+  swatchForPiece,
+  type ColourFamily,
+  type RailDay,
+  type SegmentedItem,
+} from './fitting-design';
+
+/** The week, Monday first — the day rail's own order. */
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** The season the fitting is being dressed for, from the month (northern
+ * hemisphere — the same reading Beau's copy makes elsewhere). */
+function seasonOf(date: Date): string {
+  const m = date.getMonth();
+  if (m <= 1 || m === 11) return 'Winter';
+  if (m <= 4) return 'Spring';
+  if (m <= 7) return 'Summer';
+  return 'Autumn';
+}
 
 /** THE AVATAR PATH IS DELETED (design handoff §dead-code): the flat lay
  * replaced the try-on figure — lib/tryon, the render lifecycle, the pinned-
@@ -388,13 +436,13 @@ function ShelfCard({
   onPin: () => void;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="w-[132px] sm:w-[156px] flex-shrink-0">
       <button
         type="button"
         onClick={onTap}
         aria-pressed={mode === 'flat' ? selected : undefined}
-        className="block w-full min-h-[44px] text-left group relative"
-        style={selected && mode === 'flat' ? { outline: '1px solid #241a12', outlineOffset: '3px' } : undefined}
+        className="block w-full text-left group relative"
+        style={{ background: 'transparent', border: 'none', padding: 0 }}
         title={
           mode === 'avatar'
             ? `See it on your avatar — ${piece.name}`
@@ -404,32 +452,37 @@ function ShelfCard({
         }
         aria-label={`${mode === 'avatar' ? 'Try on' : selected ? 'Remove from the board' : 'Add to the board'}: ${piece.name}${piece.brand ? ` by ${piece.brand}` : ''}`}
       >
-        {selected && mode === 'flat' && (
-          <span
-            className="absolute top-1 left-1 z-10 px-1.5 py-0.5 uppercase"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '8.5px', letterSpacing: '0.12em', background: '#241a12', color: '#fbf8f1' }}
-            aria-hidden="true"
-          >
-            On the board
-          </span>
-        )}
-        <ShelfThumb piece={piece} />
-        {isPick && (
-          <span
-            className="inline-block mt-1.5 uppercase"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '9px', letterSpacing: '0.14em', color: OXBLOOD }}
-          >
-            Beau’s pick
-          </span>
-        )}
+        {/* THE TILE (Design5): the cutout bare on the paper, and the one
+            piece already on the board ringed in the accent rather than
+            boxed — the ring sits OUTSIDE the photograph, so a shelf of
+            pieces still reads as one run. */}
         <span
-          className={`block ${isPick ? 'mt-0.5' : 'mt-1.5'} leading-tight group-hover:underline break-words`}
-          style={{ ...pieceNameType, fontSize: '13px' }}
+          className="relative block"
+          style={{
+            outline: selected && mode === 'flat' ? `1px solid ${ACCENT}` : '1px solid transparent',
+            outlineOffset: '6px',
+            opacity: selected && mode === 'flat' ? 1 : 0.92,
+          }}
+        >
+          <ShelfThumb piece={piece} />
+          {selected && mode === 'flat' && (
+            <span
+              className="absolute left-0 top-0 z-10"
+              style={{ ...fitLabel(8, '#f4eee3', '0.14em'), background: WALNUT, padding: '4px 8px' }}
+              aria-hidden="true"
+            >
+              On the board
+            </span>
+          )}
+        </span>
+        <span
+          className="block group-hover:underline break-words"
+          style={{ fontFamily: SERIF, fontSize: '17px', lineHeight: 1.25, color: WALNUT, marginTop: '10px' }}
         >
           {piece.name}
         </span>
-        <span className="block mt-0.5 break-words" style={{ ...pieceBrandType, fontSize: '11px' }}>
-          {piece.brand || '\u2014'}
+        <span className="block break-words" style={{ ...fitLabel(8.5, isPick ? OXBLOOD : ACCENT, '0.14em'), marginTop: '2px' }}>
+          {isPick ? `Beau’s pick · ${piece.brand || '\u2014'}` : piece.brand || '\u2014'}
         </span>
       </button>
       {/* Direct product link (Buy Links overhaul, Part 2.2/2.4): every card
@@ -441,12 +494,12 @@ function ShelfCard({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="mt-1 min-h-[28px] inline-flex items-center gap-1 hover:underline"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', color: 'var(--color-accent,#a8712c)' }}
+          className="inline-flex items-center gap-1 hover:underline"
+          style={{ ...fitLabel(8, ACCENT_DEEP, '0.1em'), marginTop: '6px' }}
           title={`View the product page — ${piece.name}`}
           aria-label={`View the product page for ${piece.name}`}
         >
-          View product <span aria-hidden="true" style={{ fontSize: '10px', lineHeight: 1 }}>↗</span>
+          View product <span aria-hidden="true" style={{ fontSize: '9px', lineHeight: 1 }}>↗</span>
         </a>
       )}
       {mode === 'avatar' && (
@@ -802,6 +855,18 @@ function ReasoningStrip({ text, onDismiss }: { text: string; onDismiss: () => vo
   );
 }
 
+/**
+ * THE OUTFIT'S NOTE (Design5) — the paragraph under the fitting's name.
+ * When Beau composed the board it is HIS reasoning, revealed as he writes
+ * it; otherwise it is the board's own standing line.
+ */
+function BoardNote({ text, live }: { text: string; live: boolean }) {
+  const shown = useBeauReveal(text);
+  return (
+    <p style={{ ...body(14.5, INK), margin: '18px auto 0', maxWidth: '60ch' }}>{live ? shown : text}</p>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The quick-adjust chips — AI-originated boards only, in Beau's oxblood.
 // Each chip re-calls the reasoning endpoint with ONE added constraint; the
@@ -818,24 +883,19 @@ function AdjustChips({
   onAdjust: (adjustment: BoardAdjustment) => void;
 }) {
   return (
-    <div
-      className="flex gap-1.5 overflow-x-auto pt-3 pb-1"
-      style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
-      aria-label="Quick adjustments"
-    >
+    <div className="flex flex-wrap justify-center gap-1.5" style={{ paddingTop: '16px' }} aria-label="Quick adjustments">
       {ADJUSTMENTS.map((adj) => (
         <button
           key={adj}
           type="button"
           onClick={() => onAdjust(adj)}
           disabled={busy != null}
-          className="flex-shrink-0 min-h-[36px] px-3 inline-flex items-center gap-1.5 bg-transparent transition-opacity hover:opacity-75 disabled:opacity-50"
+          className="flex-shrink-0 inline-flex items-center gap-1.5 bg-transparent transition-opacity hover:opacity-75 disabled:opacity-50"
           style={{
-            fontFamily: 'var(--space-font-family)',
-            fontSize: '12px',
+            ...fitLabel(8.5, OXBLOOD, '0.14em'),
+            padding: '9px 14px',
             borderRadius: 0,
             border: `1px solid ${OXBLOOD}`,
-            color: OXBLOOD,
           }}
           title={`Ask Beau: ${ADJUSTMENT_LABELS[adj].toLowerCase()} — only the relevant piece changes`}
         >
@@ -970,27 +1030,57 @@ function sameLabels(a: EdgeLabel[], b: EdgeLabel[]): boolean {
   return a.every((label, i) => label.piece.key === b[i].piece.key && label.side === b[i].side && Math.abs(label.top - b[i].top) < 0.5);
 }
 
+/**
+ * ONE CALLOUT (Design5): the reference's boxed label on a gold leader — the
+ * piece's zone in small caps, its colour chip beside its name, then category
+ * · maker, and the status line on anything that isn't yours. The chip reads
+ * the colour named in the piece's own title, the same palette the harmony
+ * strip is drawn from.
+ */
 function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
   const { piece, side } = label;
   const status = boardStatusOf(piece);
+  const swatch = swatchForPiece(piece.name, null);
   const leader = (
     <span
       aria-hidden="true"
       className="flex-1 self-center"
-      style={{ borderTop: '1px dotted rgba(59,43,29,0.4)', minWidth: '14px' }}
+      style={{
+        height: '1px',
+        minWidth: '12px',
+        background: `linear-gradient(to ${side === 'l' ? 'left' : 'right'}, ${ACCENT}, rgba(168,113,44,0.15))`,
+      }}
     />
   );
   const text = (
-    <span className="block min-w-0" style={{ textAlign: side === 'l' ? 'right' : 'left', maxWidth: '150px' }}>
-      <span className="block" style={{ ...annMono, color: 'var(--color-neutral-500,#a68e70)' }}>{zoneLabelFor(piece)}</span>
-      <span className="block" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12.5px', lineHeight: 1.25, color: 'var(--color-text,#241a12)', marginTop: '1px' }}>
-        {piece.name}
+    <span
+      className="block min-w-0"
+      style={{
+        textAlign: side === 'l' ? 'right' : 'left',
+        maxWidth: '130px',
+        background: PAPER,
+        border: `1px solid ${HAIRLINE}`,
+        padding: '7px 10px',
+      }}
+    >
+      <span className="block" style={{ ...annMono, color: MUTED }}>{zoneLabelFor(piece)}</span>
+      <span
+        className="flex items-baseline gap-1.5"
+        style={{ marginTop: '3px', flexDirection: side === 'l' ? 'row-reverse' : 'row' }}
+      >
+        {swatch && (
+          <span
+            aria-hidden="true"
+            style={{ width: '9px', height: '9px', flexShrink: 0, background: swatch, border: '1px solid rgba(0,0,0,0.12)' }}
+          />
+        )}
+        <span style={{ fontFamily: SERIF, fontSize: '14.5px', lineHeight: 1.2, color: WALNUT }}>{piece.name}</span>
       </span>
-      <span className="block" style={{ ...annMono, color: 'var(--color-neutral-600,#856c51)', marginTop: '2px' }}>
+      <span className="block" style={{ ...annMono, color: MUTED, marginTop: '3px' }}>
         {[categoryLabel(piece.category || '') || null, piece.brand].filter(Boolean).join(' · ') || '—'}
       </span>
       {status && (
-        <span className="block" style={{ ...annMono, color: piece.key.startsWith('curated-') ? OXBLOOD : 'var(--color-accent-700,#7c4a17)', marginTop: '2px' }}>
+        <span className="block" style={{ ...annMono, color: piece.key.startsWith('curated-') ? OXBLOOD : ACCENT_DEEP, marginTop: '2px' }}>
           {status}
         </span>
       )}
@@ -999,7 +1089,7 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
   return (
     <div
       className="absolute w-full flex items-center"
-      style={{ top: `${label.top}px`, transform: 'translateY(-50%)', gap: '6px' }}
+      style={{ top: `${label.top}px`, transform: 'translateY(-50%)', gap: '5px' }}
     >
       {side === 'l' ? (
         <>
@@ -1094,7 +1184,7 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
   if (pieces.length === 0) return <>{children}</>;
   return (
     <div>
-      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(120px,160px)_minmax(0,1fr)_minmax(120px,160px)] sm:gap-2">
+      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(126px,150px)_minmax(0,1fr)_minmax(126px,150px)] sm:gap-1">
         <div className="hidden sm:block relative" aria-hidden="true">
           {labels.filter((label) => label.side === 'l').map((label) => (
             <EdgeLabelBlock key={label.piece.key} label={label} />
@@ -1137,82 +1227,6 @@ interface CompleteLookSuggestion {
   piece: FittingPiece;
   reason: string;
   fillsEmpty: boolean;
-}
-
-function CompleteLookRail({
-  suggestions,
-  buy,
-  onTap,
-  onSeePicks,
-}: {
-  suggestions: CompleteLookSuggestion[];
-  buy: FittingPiece | null;
-  onTap: (piece: FittingPiece) => void;
-  onSeePicks: () => void;
-}) {
-  return (
-    <aside className="mt-9 lg:mt-0" aria-label="Complete the look">
-      <div className="pb-2" style={{ borderBottom: '1px solid var(--color-text,#3b2b1d)' }}>
-        <h4 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '23px', lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
-          Complete the look
-        </h4>
-      </div>
-      <p style={{ margin: '9px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--color-neutral-700,#634e38)' }}>
-        Swaps and additions from pieces you own. Tap one and it takes the slot.
-      </p>
-      <div className="mt-2">
-        {suggestions.map(({ piece, reason }) => (
-          <button
-            key={piece.key}
-            type="button"
-            onClick={() => onTap(piece)}
-            className="w-full grid grid-cols-[46px_minmax(0,1fr)] gap-3 items-start text-left py-3 group"
-            style={{ borderBottom: '1px solid var(--color-divider,rgba(59,43,29,0.18))', background: 'transparent' }}
-            title={`Put it on the board — ${piece.name}`}
-          >
-            <span className="block w-[46px]">
-              <ShelfThumb piece={piece} />
-            </span>
-            <span className="min-w-0">
-              <span className="block group-hover:underline" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '14.5px', fontWeight: 400, lineHeight: 1.25, color: 'var(--color-text,#241a12)' }}>
-                {piece.name}
-              </span>
-              <span className="block" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px', lineHeight: 1.45, color: 'var(--color-neutral-600,#856c51)', marginTop: '2px' }}>
-                {reason}
-              </span>
-            </span>
-          </button>
-        ))}
-        {suggestions.length === 0 && (
-          <p style={{ margin: '10px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--color-neutral-600,#856c51)' }}>
-            Everything you own that suits the board is already on it — log more pieces in The Ledger and the swaps
-            appear here.
-          </p>
-        )}
-      </div>
-
-      {/* ONE ACQUISITION LINE, BOXED (10a) — this screen speaks only about
-          what you own; the exception is drawn as an exception. */}
-      {buy && (
-        <div className="mt-5" style={{ background: 'var(--color-paper,#fbf8f1)', borderLeft: '3px solid var(--color-accent,#a8712c)', padding: '12px 14px 13px' }}>
-          <p className="uppercase" style={{ margin: 0, fontFamily: MONO, fontSize: '8px', letterSpacing: '0.1em', color: 'var(--color-accent-700,#7c4a17)' }}>
-            The one thing you’d need to buy
-          </p>
-          <p style={{ margin: '7px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)' }}>
-            {piece10aBuyLine(buy)} It’s here because the board raised a question the wardrobe can’t answer.
-          </p>
-          <button
-            type="button"
-            onClick={onSeePicks}
-            className="uppercase hover:underline mt-2"
-            style={{ fontFamily: MONO, fontSize: '8px', letterSpacing: '0.1em', color: 'var(--color-accent,#a8712c)', background: 'transparent' }}
-          >
-            See it in Beau’s picks →
-          </button>
-        </div>
-      )}
-    </aside>
-  );
 }
 
 function piece10aBuyLine(buy: FittingPiece): string {
@@ -1945,6 +1959,12 @@ export function FittingRoomTab({
   /** Which shelf cards read as “on the board” right now. */
   const selectedKeys = useMemo(() => new Set(activeBoard.map((p) => p.key)), [activeBoard]);
 
+  /** How many of each shelf are on the board — the count each shelf's rule
+   * carries at its right edge (Design5). */
+  const shelfOwnedOn = shelfOwned.filter((p) => selectedKeys.has(p.key)).length;
+  const shelfReserveOn = shelfReserve.filter((p) => selectedKeys.has(p.key)).length;
+  const shelfPicksOn = shelfPicks.filter((p) => selectedKeys.has(p.key)).length;
+
   // Quick-adjust: ONE constraint added, a TARGETED slot change. This is the
   // explicit refinement path — and for Today boards the adjusted outfit
   // replaces the day's cached board so the Ledger preview stays in step.
@@ -2213,6 +2233,183 @@ export function FittingRoomTab({
     setBoardSeed(`board-${Date.now()}`);
   };
 
+  // ------------------------------------------------------------------
+  // THE REFERENCE'S FURNITURE (Design5) — every line of it read off real
+  // state: the day rail, the season and the source, the colour harmony
+  // taken from the pieces ON the board, and the three note columns.
+  // ------------------------------------------------------------------
+  const today = new Date();
+  const todayIndex = (today.getDay() + 6) % 7;
+  const todayName = DAY_NAMES[todayIndex];
+  const seasonLabel = seasonOf(today);
+  const sourceLabel = trip ? 'Trip' : boardSource === 'today' ? 'Today' : 'By hand';
+  const dayLabel = trip ? activeDayState?.label || `Day ${trip.activeDay + 1}` : todayName;
+  const boardTitle = trip
+    ? activeDayState?.label || 'The trip board'
+    : boardSource === 'today'
+      ? 'Today’s look'
+      : 'The board';
+  const bodyTag = [profile?.build, profile?.height_range, dayLabel, sourceLabel].filter(Boolean).join(' · ');
+  const onBoardLine =
+    activeBoard.length > 0
+      ? `${activeBoard.length} piece${activeBoard.length === 1 ? '' : 's'} on the board`
+      : 'Nothing on the board yet';
+
+  /** The wardrobe's stored colours by board key — the harmony strip and the
+   * swap chips read these first, and fall back to the piece's own name. */
+  const ownedColors = useMemo(() => {
+    const map = new Map<string, string[] | null>();
+    for (const p of pieces) map.set(`owned-${p.id}`, p.colors || null);
+    return map;
+  }, [pieces]);
+
+  /** THE COLOUR HARMONY — the board's own palette, in the order the pieces
+   * were added. No board, no strip: it is never invented. */
+  const harmony = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const p of activeBoard) {
+      const hex = swatchForPiece(p.name, ownedColors.get(p.key) || null);
+      if (!hex || seen.has(hex)) continue;
+      seen.add(hex);
+      out.push(hex);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [activeBoard, ownedColors]);
+
+  /** THE PALETTE, GROUPED — what the legend at the foot of the page counts:
+   * the anchors holding the look down, the neutrals around them, and the
+   * accents doing the talking. */
+  const harmonyFamilies = useMemo(() => {
+    const counts: Record<ColourFamily, number> = { anchor: 0, neutral: 0, accent: 0 };
+    for (const p of activeBoard) {
+      const colour = colourNameForPiece(p.name, ownedColors.get(p.key) || null);
+      if (!colour) continue;
+      counts[colourFamily(colour)] += 1;
+    }
+    return counts;
+  }, [activeBoard, ownedColors]);
+
+  const styleNotes = useMemo(() => {
+    const notes: string[] = [];
+    if (trip) notes.push('Composed for the trip — every day draws on the one packing list below.');
+    else if (boardSource === 'today') notes.push('Carried over from The Ledger and edited here — Beau dressed it from what you own.');
+    else notes.push('Built by hand — nothing on this board was composed for you.');
+    if (activeBoard.length > 0) {
+      notes.push('Pieces land in their zone and stack outward from the body — drag one to nudge it into place.');
+      notes.push('Tap a piece again, or use the × on the board, to take it off — it stays in your Ledger.');
+    } else {
+      notes.push('Nothing on the board yet — tap a piece on the shelf below and it lands in its own zone.');
+    }
+    if (unownedOnBoard.length > 0) {
+      notes.push(
+        `${unownedOnBoard.length === 1 ? 'One piece' : `${capWord(numberWord(Math.min(99, unownedOnBoard.length)))} pieces`} here ${
+          unownedOnBoard.length === 1 ? 'is' : 'are'
+        } not yours yet — ${unownedOnBoard.length === 1 ? 'it draws' : 'they draw'} dashed on the board.`,
+      );
+    }
+    return notes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip, boardSource, activeBoard.length, unownedOnBoard.length]);
+
+  const avoidNotes = useMemo(() => {
+    const notes: string[] = ['A zone takes more than one piece — two jumpers stack, two pairs of shoes don’t.'];
+    if (unownedOnBoard.length > 0) notes.push('Don’t call this an outfit yet — a board holding a piece you don’t own saves as a proposal.');
+    else if (activeBoard.length === 0) notes.push('Don’t save an empty board — Save waits until at least one piece is on it.');
+    else notes.push('Don’t save a look you wouldn’t wear tomorrow — everything on this board is already yours.');
+    if (!trip && gapNote) notes.push(gapNote);
+    else notes.push('Don’t dress against the day — the reading at the top of the page is what this was composed for.');
+    return notes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip, gapNote, activeBoard.length, unownedOnBoard.length]);
+
+  /** Beau's note when he composed the board; the board's own standing line
+   * otherwise. */
+  const boardDescription = trip
+    ? `Packed for ${trip.brief.destination}${trip.brief.dates ? `, ${trip.brief.dates}` : ''} — this day’s board, drawn from the pieces you own.`
+    : boardSource === 'today'
+      ? 'Today’s look, drawn from what you own and the day outside. Swap any piece and the rest of the board holds.'
+      : 'An empty canvas. Tap pieces on the shelf below and they land in their own zone — outer layer, top, waist, bottom, feet.';
+  const noteLive = aiOriginated && !!stripText && !stripDismissed;
+
+  /** THE DAY RAIL — the trip's days in Trip mode, the week otherwise, with
+   * today live and every other day one tap from a trip. */
+  const railDays = useMemo<RailDay[]>(() => {
+    if (trip) {
+      return trip.days.map((day, i) => ({
+        key: `${day.label}-${i}`,
+        abbr: tripDayChipLabel(trip.brief, i),
+        num: String(i + 1),
+        active: i === trip.activeDay && !tripList,
+        title: `${day.label} — ${trip.brief.destination}`,
+        onSelect: () => {
+          setTripList(false);
+          setTrip((cur) => (cur ? { ...cur, activeDay: i } : cur));
+        },
+      }));
+    }
+    return DAY_NAMES.map((name, i) => ({
+      key: name,
+      abbr: name.slice(0, 3),
+      num: String(i + 1),
+      active: i === todayIndex,
+      quiet: i !== todayIndex,
+      title:
+        i === todayIndex
+          ? 'Today — tap and Beau dresses the board again'
+          : `${name} — Beau dresses today; plan any other day as a trip`,
+      onSelect: () => {
+        if (i === todayIndex) void composeToday();
+        else setTripFormOpen(true);
+      },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip, tripList, todayIndex]);
+
+  /** THE SEGMENTED CONTROL — how this board is made. Each one re-dresses
+   * the fitting through the entry point it already had. */
+  const sourceTabs: SegmentedItem[] = [
+    {
+      key: 'today',
+      label: 'Today',
+      title: 'Beau dresses today from the pieces you own',
+      onSelect: () => {
+        if (trip) exitTrip();
+        void composeToday();
+      },
+    },
+    {
+      key: 'manual',
+      label: 'By hand',
+      title: 'Start an empty board and build it yourself',
+      onSelect: () => {
+        if (trip) exitTrip();
+        startEmptyBoard();
+      },
+    },
+    {
+      key: 'trip',
+      label: 'Trip',
+      title: 'Plan a trip — a board a day, and the packing list beneath',
+      onSelect: () => {
+        if (trip) {
+          setTripList(false);
+          return;
+        }
+        void restoreStoredTrip().then((restored) => {
+          if (!restored) setTripFormOpen(true);
+        });
+      },
+    },
+    {
+      key: 'saved',
+      label: 'Saved',
+      title: 'Your saved looks and proposals — the full library',
+      onSelect: () => setSavedLooksOpen(true),
+    },
+  ];
+
   const monoAction: React.CSSProperties = { fontFamily: MONO, fontSize: '8.5px', letterSpacing: '0.1em', textTransform: 'uppercase' };
 
   const actionBar = (
@@ -2242,12 +2439,10 @@ export function FittingRoomTab({
         </div>
       )}
 
-      {/* THE ZONES LINE (10a) — the board's stacking order, stated once. */}
-      <p className="uppercase" style={{ margin: '0 0 2px', fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
-        Zones · in stacking order&nbsp;&nbsp;&nbsp;Head&nbsp;&nbsp;Eyewear&nbsp;&nbsp;Neck&nbsp;&nbsp;Outer layer&nbsp;&nbsp;Mid layer&nbsp;&nbsp;Top&nbsp;&nbsp;Waist&nbsp;&nbsp;Bottom&nbsp;&nbsp;Feet&nbsp;&nbsp;Carry&nbsp;&nbsp;Wrist
-      </p>
+      {/* THE ZONES LINE — the board's stacking order, stated once. The rule
+          about what a zone will and won't take lives in the notes column. */}
       <p className="uppercase" style={{ margin: '0 0 10px', fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
-        · A zone takes more than one piece; two jumpers stack, two shoes don’t
+        Zones · in stacking order&nbsp;&nbsp;&nbsp;Head&nbsp;&nbsp;Eyewear&nbsp;&nbsp;Neck&nbsp;&nbsp;Outer layer&nbsp;&nbsp;Mid layer&nbsp;&nbsp;Top&nbsp;&nbsp;Waist&nbsp;&nbsp;Bottom&nbsp;&nbsp;Feet&nbsp;&nbsp;Carry&nbsp;&nbsp;Wrist
       </p>
 
       {/* THE ACTION ROW (10a): “Save this look” boxed, the rest in mono,
@@ -2318,111 +2513,37 @@ export function FittingRoomTab({
   );
 
   return (
-    <div style={{ background: 'var(--color-bg,#efe7d9)' }}>
-      {/* ONE natural vertical scroll — no fixed zones, no bottom sheet, no
-          overlays: the board is always visible and the page just scrolls. */}
-        {/* THE HEADER — the SHARED tab masthead (tab-header.tsx): the same
-            block, type, indentation and closing rule as every other primary
-            tab. The location + weather context sits in its aside, where the
-            reference sets it; the trip carousel inside it, below the title. */}
+    <div style={{ background: PAGE }}>
+      {/* 1 · THE CONTEXT BAR — the SHARED location and weather (the same
+          reading The Ledger shows), the way in to change it, and the tab ·
+          day at the right edge. */}
+      <FittingContextBar right={`The Fitting · ${todayName}`} />
+
+      {/* 2 · THE MASTHEAD — the SHARED tab header (tab-header.tsx): the same
+          block, type, indentation and closing rule as every other primary
+          tab. Its aside carries the board's segmented control — how this
+          board is made — exactly where the reference sets it. */}
         <TabHeader
           title={trip ? `The Fitting · ${trip.brief.destination}` : 'The Fitting'}
-          standfirst="Build the day’s look on the board, from the pieces you own."
-          aside={
-              <div className="flex flex-col items-start md:items-end gap-2">
-                {!trip && boardSource === 'today' && (
-                  /* “Beau · Today” reads visually distinct (design handoff §2):
-                     the one accent chip on this header. */
-                  <span
-                    className="uppercase px-2 py-0.5 border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)] whitespace-nowrap"
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10.5px', letterSpacing: '0.14em' }}
-                  >
-                    Beau · Today
-                  </span>
-                )}
-                <WeatherLine tone="light" />
-              </div>
-          }
+          standfirst="Seven days · every occasion · drawn to your build."
+          aside={<SegmentedTabs items={sourceTabs} activeKey={trip ? 'trip' : boardSource} />}
         >
 
-            {/* TRIP: the day-board carousel — ◄ [Day 1] [Day 2] [Day 3] ► */}
+            {/* TRIP: the brief in one line, and the two controls the day
+                rail doesn't carry. The DAYS themselves live on the rail down
+                the left of the band, where the reference puts them. */}
             {trip && (
-              <div className="flex items-center gap-1.5 min-w-0 pt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setTrip((cur) => (cur ? { ...cur, activeDay: Math.max(0, cur.activeDay - 1) } : cur))}
-                  disabled={!trip || trip.activeDay === 0}
-                  aria-label="Previous day"
-                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)] disabled:opacity-30"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <div
-                  className="flex gap-1.5 overflow-x-auto min-w-0"
-                  style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
-                  role="tablist"
-                  aria-label="Trip days"
-                >
-                  {trip.days.map((day, i) => {
-                    const activeDay = i === trip.activeDay && !tripList;
-                    return (
-                      <button
-                        key={day.label + i}
-                        type="button"
-                        role="tab"
-                        aria-selected={activeDay}
-                        onClick={() => {
-                          setTripList(false);
-                          setTrip((cur) => (cur ? { ...cur, activeDay: i } : cur));
-                        }}
-                        className={`flex-shrink-0 uppercase min-h-[34px] px-3 whitespace-nowrap transition-colors ${
-                          activeDay
-                            ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
-                            : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
-                        }`}
-                        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.1em' }}
-                      >
-                        {tripDayChipLabel(trip.brief, i)}
-                      </button>
-                    );
-                  })}
-                  {/* THE FIFTH TAB (M8): the packing list as a view of its
-                      own — the day boards step aside. */}
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={tripList}
-                    onClick={() => {
-                      setTripList(true);
-                      // The list lives further down the scroll — bring it up.
-                      window.setTimeout(() => {
-                        document.getElementById('trip-packing-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }, 60);
-                    }}
-                    className={`flex-shrink-0 uppercase min-h-[34px] px-3 whitespace-nowrap transition-colors ${
-                      tripList
-                        ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
-                        : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
-                    }`}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.1em' }}
-                  >
-                    List
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTrip((cur) => (cur ? { ...cur, activeDay: Math.min(cur.days.length - 1, cur.activeDay + 1) } : cur))}
-                  disabled={!trip || trip.activeDay >= trip.days.length - 1}
-                  aria-label="Next day"
-                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)] disabled:opacity-30"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+              <div className="flex items-center gap-5 flex-wrap pt-3">
+                <span style={fitLabel(9, MUTED, '0.16em')}>
+                  {trip.days.length} day{trip.days.length === 1 ? '' : 's'}
+                  {trip.brief.dates ? ` · ${trip.brief.dates}` : ''}
+                  {trip.brief.occasions ? ` · ${trip.brief.occasions}` : ''}
+                </span>
                 <button
                   type="button"
                   onClick={() => setTripFormOpen(true)}
-                  className="flex-shrink-0 min-h-[34px] px-2 hover:underline"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-accent,#a8712c)' }}
+                  className="hover:underline"
+                  style={{ ...fitLabel(9, ACCENT_DEEP, '0.16em'), background: 'transparent', border: 'none' }}
                   title="Plan a different trip — the current one stays saved"
                 >
                   New trip
@@ -2430,8 +2551,8 @@ export function FittingRoomTab({
                 <button
                   type="button"
                   onClick={exitTrip}
-                  className="flex-shrink-0 min-h-[34px] px-2 hover:underline"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-600,#856c51)' }}
+                  className="hover:underline"
+                  style={{ ...fitLabel(9, MUTED, '0.16em'), background: 'transparent', border: 'none' }}
                   title="Leave Trip mode — back to a single board"
                 >
                   Close trip
@@ -2460,45 +2581,105 @@ export function FittingRoomTab({
             )}
         </TabHeader>
 
-        {/* THE BOARD (10a) — “Today's look” with its edge labels at the
-            left, “Complete the look” beside it — swaps and additions from
-            pieces you own. One scroll, no overlays. */}
-        <div className="px-6 sm:px-10 pt-6">
-          <div className="max-w-[1180px] mx-auto lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-[44px] lg:items-start">
-            <div className="relative min-w-0">
-              {/* The section head — TODAY'S LOOK · carried over from The
-                  Ledger · edited here (10a). */}
-              <div className="flex items-baseline justify-between gap-4 pb-2" style={{ borderBottom: '1px solid var(--color-text,#3b2b1d)' }}>
-                <h4 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '23px', lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
-                  {trip ? activeDayState?.label || 'The trip board' : boardSource === 'today' ? 'Today’s look' : 'The board'}
-                </h4>
-                <span className="uppercase text-right" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
-                  {trip ? 'Composed for the trip' : boardSource === 'today' ? 'Carried over from The Ledger · edited here' : 'Built by hand · edited here'}
-                </span>
-              </div>
+      {/* 3 · THE BAND — the days at the left, THE FITTING in the middle, the
+          notes at the right. The centre column holds the REAL composition:
+          the cutout garments on the flat-lay canvas, annotated at both
+          edges. Nothing here is a silhouette or a stand-in. */}
+      <div className="px-6 sm:px-10" style={{ borderBottom: `1px solid ${HAIRLINE}` }}>
+        <div className="max-w-[1180px] mx-auto grid grid-cols-1 lg:grid-cols-[88px_minmax(0,1fr)_320px] xl:grid-cols-[96px_minmax(0,1fr)_384px] items-stretch">
 
-              {/* TRIP BRIEF FORM (Part 10) — shown IN PLACE of the board when
-                  Trip mode was entered without a brief (no overlay). */}
-              {tripFormOpen && (
-                <div style={{ background: 'var(--color-bg,#efe7d9)' }}>
-                  <TripBriefForm
-                    onSubmit={(brief) => {
-                      setTripFormOpen(false);
-                      void composeTrip(brief);
-                    }}
-                    onCancel={() => setTripFormOpen(false)}
-                  />
-                </div>
-              )}
-              {!tripFormOpen && !(trip && tripList) && (
-                <section
-                  aria-label={trip ? `${activeDayState?.label || 'Trip day'} outfit board` : 'Your outfit board'}
-                  className="relative"
+          {/* THE DAY RAIL — the trip's days, or the week with today live. */}
+          <DayRail
+            days={railDays}
+            extra={
+              trip ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTripList(true);
+                    // The list lives further down the scroll — bring it up.
+                    window.setTimeout(() => {
+                      document.getElementById('trip-packing-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 60);
+                  }}
+                  className="flex-shrink-0 hover:underline"
+                  style={{
+                    ...fitLabel(8.5, tripList ? ACCENT_DEEP : MUTED, '0.16em'),
+                    padding: '14px 8px',
+                    background: 'transparent',
+                    border: 'none',
+                  }}
+                  title="The packing list — every piece across the trip's days"
                 >
-                  {/* THE FLAT LAY, ANNOTATED (10a): names around the edge on
-                      dotted leaders — zone · name · category · maker, with
-                      the status line on anything not yours. The transparent
-                      board itself is untouched — no field, no frame. */}
+                  List
+                </button>
+              ) : null
+            }
+          />
+
+          {/* THE FITTING ITSELF. */}
+          <div
+            className="relative flex flex-col min-w-0 lg:border-l lg:border-r border-[rgba(59,43,29,0.18)]"
+            style={{ background: CANVAS, padding: '26px 22px 40px' }}
+          >
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <span className="inline-flex items-center gap-2" style={fitLabel(9.5, MUTED, '0.16em')}>
+                <span aria-hidden="true" style={{ width: '5px', height: '5px', borderRadius: '50%', background: ACCENT, display: 'inline-block' }} />
+                {seasonLabel}
+              </span>
+              <span style={fitLabel(9.5, ACCENT_DEEP, '0.16em')}>{sourceLabel}</span>
+            </div>
+
+            {/* THE COLOUR HARMONY — the board's own palette, read off the
+                pieces on it (their logged colours first, the colour named in
+                their title second). */}
+            <div style={{ marginTop: '16px' }}>
+              <SectionRule right={dayLabel}>Colour harmony</SectionRule>
+              <HarmonyBars colors={harmony} />
+            </div>
+
+            {/* TRIP BRIEF FORM (Part 10) — shown IN PLACE of the fitting when
+                Trip mode was entered without a brief (no overlay). */}
+            {tripFormOpen && (
+              <div style={{ marginTop: '18px' }}>
+                <TripBriefForm
+                  onSubmit={(brief) => {
+                    setTripFormOpen(false);
+                    void composeTrip(brief);
+                  }}
+                  onCancel={() => setTripFormOpen(false)}
+                />
+              </div>
+            )}
+
+            {!tripFormOpen && !(trip && tripList) && (
+              <section
+                aria-label={trip ? `${activeDayState?.label || 'Trip day'} outfit board` : 'Your outfit board'}
+                className="relative"
+                style={{ marginTop: '10px' }}
+              >
+                {/* The reference's soft light behind the composition — paper
+                    lifting out of the canvas wash, nothing drawn on it. */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '46%',
+                    transform: 'translate(-50%,-50%)',
+                    width: '260px',
+                    height: '260px',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(251,248,241,0.9) 0%, rgba(244,238,227,0) 70%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* THE FLAT LAY, ANNOTATED: the real cutouts in their zones,
+                    named at both edges on a gold leader — zone · colour ·
+                    name · category · maker, with the status line on anything
+                    not yours. The board itself is untouched: no field, no
+                    frame, no figure. */}
+                <div className="relative" style={{ zIndex: 2 }}>
                   <AnnotatedBoard pieces={activeBoard}>
                     <StyledOutfitBoard
                       pieces={activeBoard}
@@ -2506,86 +2687,123 @@ export function FittingRoomTab({
                       seed={trip ? `trip-${trip.brief.destination}-day-${trip.activeDay}` : boardSeed}
                     />
                   </AnnotatedBoard>
-                  {/* THE BOARD'S OWN RULE, STATED (10a) — with the dashed
-                      count at the right edge. */}
-                  {activeBoard.length > 0 && (
-                    <div className="flex items-baseline justify-between gap-4 flex-wrap pt-2">
-                      <span className="uppercase" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
-                        Pieces land in their zone and stack outward from the body · drag to nudge, tap a piece then × to take it off the board — it stays in your Ledger
-                      </span>
-                      {unownedOnBoard.length > 0 && (
-                        <span className="uppercase" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-accent-700,#7c4a17)' }}>
-                          {unownedOnBoard.length} piece{unownedOnBoard.length === 1 ? '' : 's'} dashed — not yours yet
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {/* Beau composing — today's board or the trip's day boards. */}
-                  {composing && (
-                    <div
-                      className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
-                      style={{ background: 'rgba(239,231,217,0.72)' }}
-                      aria-live="polite"
-                    >
-                      <span className="block w-12 h-[3px] bg-[var(--color-accent,#a8712c)] animate-pulse" aria-hidden="true" />
-                      <p
-                        className={`${typography.color.primary} mt-4`}
-                        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.3, maxWidth: '28ch' }}
-                      >
-                        {boardSource === 'trip' ? 'Beau is packing you…' : 'Beau is dressing you for today…'}
-                      </p>
-                    </div>
-                  )}
-                </section>
-              )}
-
-              {/* Action bar — directly below the board (10a): the proposal
-                  strip, the zones line, then Save this look · Start an empty
-                  board · Share · the saved-looks count. */}
-              {actionBar}
-            </div>
-
-            {/* COMPLETE THE LOOK (10a) — beside the board, from pieces you
-                own. Trip mode keeps the full width for its day boards. */}
-            {!trip && !tripFormOpen && (
-              <CompleteLookRail
-                suggestions={completeLook}
-                buy={acquisitionLine}
-                onTap={(piece) => onShelfTap(piece)}
-                onSeePicks={() => document.getElementById('fitting-picks-shelf')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              />
+                </div>
+                {/* Beau composing — today's board or the trip's day boards. */}
+                {composing && (
+                  <div
+                    className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
+                    style={{ background: 'rgba(244,238,227,0.78)' }}
+                    aria-live="polite"
+                  >
+                    <span className="block w-12 h-[3px] bg-[var(--color-accent,#a8712c)] animate-pulse" aria-hidden="true" />
+                    <p style={{ fontFamily: SERIF, fontSize: '20px', lineHeight: 1.3, maxWidth: '28ch', color: WALNUT, marginTop: '16px' }}>
+                      {boardSource === 'trip' ? 'Beau is packing you…' : 'Beau is dressing you for today…'}
+                    </p>
+                  </div>
+                )}
+              </section>
             )}
-          </div>
-        </div>
 
-      {/* ============ THE SHELF — plain sections in the same scroll ====== */}
-      <div className="bg-[var(--color-paper,#fbf8f1)] border-t border-[var(--color-divider,rgba(59,43,29,0.18))] mt-3">
-        <div className="px-6 sm:px-10 pb-10">
-          <div className="max-w-[1180px] mx-auto">
-            {/* 2 · Reasoning strip — AI-originated boards only (oxblood on
-                the light sheet ground). Manual boards skip straight to the
-                action bar. */}
-            {aiOriginated && stripText && !stripDismissed && (
-              <div className="pt-2">
-                <ReasoningStrip text={stripText} onDismiss={dismissStrip} />
+            {/* THE FITTING'S OWN LINE — its name, the build it was drawn to,
+                Beau's note, and the adjustments that re-dress it. */}
+            {!tripFormOpen && !(trip && tripList) && (
+              <div className="text-center" style={{ marginTop: '10px' }}>
+                <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, fontSize: '36px', lineHeight: 1.1, color: WALNUT }}>
+                  {boardTitle}
+                </div>
+                <div style={{ ...fitLabel(9.5, MUTED, '0.2em'), marginTop: '9px' }}>{bodyTag}</div>
+                <BoardNote text={noteLive && stripText ? stripText : boardDescription} live={noteLive} />
+                {noteLive && (
+                  <button
+                    type="button"
+                    onClick={dismissStrip}
+                    className="hover:underline"
+                    style={{ ...fitLabel(8, MUTED, '0.12em'), marginTop: '10px', background: 'transparent', border: 'none' }}
+                    title="Hide Beau’s note — the outfit stays"
+                  >
+                    Hide the note
+                  </button>
+                )}
+                {aiOriginated && !composing && <AdjustChips busy={adjustBusy} onAdjust={(adj) => void runAdjustment(adj)} />}
               </div>
             )}
+          </div>
 
-            {/* 3 · Quick-adjust chips — AI-originated boards only (oxblood). */}
-            {aiOriginated && !composing && (
-              <AdjustChips busy={adjustBusy} onAdjust={(adj) => void runAdjustment(adj)} />
+          {/* THE NOTES COLUMN — how to wear it, what to swap, what not to do. */}
+          <aside aria-label="Notes on this look" style={{ background: PAPER, padding: '26px 22px 40px' }}>
+            <SectionRule>Style notes</SectionRule>
+            <NoteList notes={styleNotes} />
+
+            <SectionRule className="mt-8">Swap alternatives</SectionRule>
+            {completeLook.length > 0 ? (
+              <div className="flex flex-col">
+                {completeLook.map(({ piece, reason }) => (
+                  <SwapRow
+                    key={piece.key}
+                    swatch={swatchForPiece(piece.name, ownedColors.get(piece.key) || null)}
+                    name={piece.name}
+                    why={reason}
+                    onClick={() => onShelfTap(piece)}
+                    title={`Put it on the board — ${piece.name}`}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
+                Everything you own that suits the board is already on it — log more pieces in The Ledger and the
+                swaps appear here.
+              </p>
             )}
 
-            {/* THE BOARD SECTION'S HEAD (10a) — renamed from “The Shelf”:
-                “The [X]” naming is reserved for the top-level tabs, so this
-                sub-section reads plainly as “Board” (UI corrections pass). */}
-            <div className="pt-6">
-              <h4 style={{ margin: 0, fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '23px', lineHeight: 1.15, color: 'var(--color-text,#241a12)' }}>
-                Board
-              </h4>
-              <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', maxWidth: '58ch' }}>
-                Everything you can put on the board: what you own, what you’re weighing, and what Beau has put up.
-              </p>
+            <SectionRule className="mt-8">What not to do</SectionRule>
+            <AvoidList notes={avoidNotes} />
+
+            {/* ONE ACQUISITION LINE, BOXED (10a) — this screen speaks only
+                about what you own; the exception is drawn as an exception. */}
+            {acquisitionLine && (
+              <div style={{ marginTop: '26px', background: CANVAS, borderLeft: `3px solid ${ACCENT}`, padding: '12px 14px 13px' }}>
+                <p style={{ ...fitLabel(8, ACCENT_DEEP, '0.1em'), margin: 0 }}>The one thing you’d need to buy</p>
+                <p style={{ ...body(13, INK), margin: '7px 0 0' }}>
+                  {piece10aBuyLine(acquisitionLine)} It’s here because the board raised a question the wardrobe
+                  can’t answer.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('fitting-picks-shelf')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="hover:underline"
+                  style={{ ...fitLabel(8, ACCENT, '0.1em'), marginTop: '9px', background: 'transparent', border: 'none' }}
+                >
+                  See it in Beau’s picks →
+                </button>
+              </div>
+            )}
+          </aside>
+        </div>
+      </div>
+
+      {/* 4 · THE ACTION ROW — the proposal strip, the zones line, then Save
+          this look · Start an empty board · Share · the saved library. */}
+      <div className="px-6 sm:px-10">
+        <div className="max-w-[1180px] mx-auto">{actionBar}</div>
+      </div>
+
+      {/* 5 · THE BOARD — everything the fitting can be dressed in, on the
+          page's own ground, one labelled shelf per source. */}
+      <div style={{ background: PAGE }}>
+        <div className="px-6 sm:px-10 pt-6 pb-10">
+          <div className="max-w-[1180px] mx-auto">
+            <div className="flex items-baseline justify-between gap-5 flex-wrap">
+              <div className="min-w-0">
+                <h4 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>
+                  The board
+                </h4>
+                <p style={{ ...body(13.5, MUTED), margin: '6px 0 0', maxWidth: '64ch' }}>
+                  Everything you can dress the fitting in: what you own, what you’re weighing in the Hunt, and what
+                  Beau has put up. Tap a piece to put it on — tap it again, or use the × on the board, to take it
+                  off.
+                </p>
+              </div>
+              <span style={fitLabel(9, ACCENT_DEEP, '0.16em')}>{onBoardLine}</span>
             </div>
 
             {/* 4 · TRY SOMETHING NEW — paste a product URL, preview the piece
@@ -2700,109 +2918,86 @@ export function FittingRoomTab({
                 toggle above, all three visible by default, and narrowed by
                 the category chips. */}
             {sectionsOn.owned && (
-
-              <section aria-label="Yours — what you own" className="pt-4">
-                <p
-                  className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
-                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
-                >
-                  Yours
-                </p>
+              <Shelf
+                title="Yours · logged in the Ledger"
+                note={shelfOwnedOn > 0 ? `${shelfOwnedOn} on the board` : `${shelfOwned.length} piece${shelfOwned.length === 1 ? '' : 's'}`}
+              >
                 {shelfOwned.length > 0 ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4 pt-3">
-                    {shelfOwned.map((piece) => (
-                      <ShelfCard
-                        key={piece.key}
-                        piece={piece}
-                        isPick={false}
-                        mode={mode}
-                        selected={selectedKeys.has(piece.key)}
-                        onTap={() => onShelfTap(piece)}
-                        onPin={() => pinPiece(piece)}
-                      />
-                    ))}
-                  </div>
+                  shelfOwned.map((piece) => (
+                    <ShelfCard
+                      key={piece.key}
+                      piece={piece}
+                      isPick={false}
+                      mode={mode}
+                      selected={selectedKeys.has(piece.key)}
+                      onTap={() => onShelfTap(piece)}
+                      onPin={() => pinPiece(piece)}
+                    />
+                  ))
                 ) : (
-                  <p
-                    className="pt-3 text-[var(--color-neutral-600,#856c51)]"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
-                  >
+                  <ShelfEmpty>
                     {categoryFilters.length > 0
                       ? 'Nothing you own in those categories — clear a filter to see the rest.'
                       : 'Nothing logged yet — photograph or search a piece in The Ledger.'}
-                  </p>
+                  </ShelfEmpty>
                 )}
-              </section>
+              </Shelf>
             )}
 
             {sectionsOn.reserve && (
-              <section aria-label="Weighing — on your Reserve" className="pt-6">
-                <p
-                  className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
-                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
-                >
-                  Weighing · on your Reserve
-                </p>
+              <Shelf
+                title="Weighing · watched in the Hunt"
+                note={shelfReserveOn > 0 ? `${shelfReserveOn} on the board` : `${shelfReserve.length} piece${shelfReserve.length === 1 ? '' : 's'}`}
+              >
                 {shelfReserve.length > 0 ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4 pt-3">
-                    {shelfReserve.map((piece) => (
-                      <ShelfCard
-                        key={piece.key}
-                        piece={piece}
-                        isPick={false}
-                        mode={mode}
-                        selected={selectedKeys.has(piece.key)}
-                        onTap={() => onShelfTap(piece)}
-                        onPin={() => pinPiece(piece)}
-                      />
-                    ))}
-                  </div>
+                  shelfReserve.map((piece) => (
+                    <ShelfCard
+                      key={piece.key}
+                      piece={piece}
+                      isPick={false}
+                      mode={mode}
+                      selected={selectedKeys.has(piece.key)}
+                      onTap={() => onShelfTap(piece)}
+                      onPin={() => pinPiece(piece)}
+                    />
+                  ))
                 ) : (
-                  <p
-                    className="pt-3 text-[var(--color-neutral-600,#856c51)]"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
-                  >
+                  <ShelfEmpty>
                     {categoryFilters.length > 0
                       ? 'Nothing in your Reserve in those categories — clear a filter to see the rest.'
                       : 'Nothing on your Reserve yet — watch a piece and it appears here.'}
-                  </p>
+                  </ShelfEmpty>
                 )}
-              </section>
+              </Shelf>
             )}
 
             {sectionsOn.picks && (
-              <section id="fitting-picks-shelf" aria-label="Beau's picks" className="pt-6" style={{ scrollMarginTop: '80px' }}>
-                <p
-                  className="uppercase pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
-                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', color: OXBLOOD }}
-                >
-                  Beau’s picks
-                </p>
+              <Shelf
+                id="fitting-picks-shelf"
+                title="Beau’s picks · not yours yet"
+                tone={OXBLOOD}
+                note={shelfPicksOn > 0 ? `${shelfPicksOn} on the board` : `${shelfPicks.length} piece${shelfPicks.length === 1 ? '' : 's'}`}
+              >
                 {shelfPicks.length > 0 ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4 pt-3">
-                    {shelfPicks.map((piece) => (
-                      <ShelfCard
-                        key={`picks-${piece.key}`}
-                        piece={piece}
-                        isPick
-                        mode={mode}
-                        selected={selectedKeys.has(piece.key)}
-                        onTap={() => onShelfTap(piece)}
-                        onPin={() => pinPiece(piece)}
-                      />
-                    ))}
-                  </div>
+                  shelfPicks.map((piece) => (
+                    <ShelfCard
+                      key={`picks-${piece.key}`}
+                      piece={piece}
+                      isPick
+                      mode={mode}
+                      selected={selectedKeys.has(piece.key)}
+                      onTap={() => onShelfTap(piece)}
+                      onPin={() => pinPiece(piece)}
+                    />
+                  ))
                 ) : (
-                  <p
-                    className="pt-3 text-[var(--color-neutral-600,#856c51)]"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
-                  >
+                  <ShelfEmpty>
                     {categoryFilters.length > 0
                       ? 'None of Beau’s picks sit in those categories — clear a filter to see the rest.'
                       : 'Beau has nothing to add here yet — log a few pieces in The Ledger and he’ll fill this shelf.'}
-                  </p>
+                  </ShelfEmpty>
                 )}
-              </section>
+              </Shelf>
             )}
 
             {/* TRIP ONLY: the packing list — flat, deduplicated. */}
@@ -2874,10 +3069,9 @@ export function FittingRoomTab({
               </section>
             )}
 
-            {/* THE SHELF'S FOOTNOTE (10a) — the board's contract, stated
-                once. */}
-            <div className="flex items-baseline justify-between gap-x-6 gap-y-2 flex-wrap mt-6 pt-3" style={{ borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}>
-              <p className={`${typography.color.muted}`} style={{ margin: 0, fontSize: '10.5px', fontFamily: 'var(--space-font-family)', lineHeight: 1.55, maxWidth: '64ch' }}>
+            {/* THE SHELF'S FOOTNOTE — the board's contract, stated once. */}
+            <div className="mt-8 pt-3" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+              <p style={{ ...body(12, MUTED), margin: 0, maxWidth: '64ch' }}>
                 Pasting a product page here previews the piece on the board — save it and it joins your Reserve.
                 Anything not yours lands dashed; a board holding one saves as a proposal, and product photography is
                 cut out of its background before it lands.
@@ -2981,6 +3175,17 @@ export function FittingRoomTab({
           </div>
         </div>
       </div>
+
+      {/* 7 · THE CLOSING LEGEND — what the board's colours are, and the one
+          line that says how the screen answers a tap. */}
+      <FooterLegend
+        items={[
+          { dot: '#1f2a44', label: harmonyFamilies.anchor > 0 ? `Anchors · ${harmonyFamilies.anchor}` : 'Anchors' },
+          { dot: MUTED, label: harmonyFamilies.neutral > 0 ? `Neutrals · ${harmonyFamilies.neutral}` : 'Neutrals' },
+          { dot: ACCENT, label: harmonyFamilies.accent > 0 ? `Accents · ${harmonyFamilies.accent}` : 'Accents' },
+        ]}
+        note="Tap a day or a source and the fitting re-dresses"
+      />
 
       {/* THE SAVED LOOKS SCREEN (22a · M7) — two-up flat-lay grid, sorted
           by last worn, proposals dashed. Tapping a card loads it here. */}
