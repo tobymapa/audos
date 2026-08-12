@@ -2,7 +2,7 @@
  * Guest mode + "Save your profile" (Pass Nine).
  *
  * Ethaion is guest-first: nobody is asked for an email to enter, onboard,
- * browse Curated, use Scout, or talk to Beau. A guest session lives in
+ * browse the app, or talk to Beau. A guest session lives in
  * sessionStorage only — it ends when the browser closes, and returning
  * without saving starts onboarding fresh. That is expected and fine.
  *

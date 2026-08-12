@@ -9,7 +9,6 @@
  * if it can say something its parent can't. “Other cuts of this type” is
  * the lateral row the map called out as missing — added (29a).
  */
-import { promoteToScout } from './profile-data';
 import { findGarmentType } from './garment-types';
 import { runOfType } from './garment-type-runs';
 import { categoryName, isBandedCategory, spanLabel, spanOf, verdictFor, type IndexModel } from './index-model';
@@ -163,12 +162,7 @@ export function IndexCutPage({ model, typeId, cut, nav }: { model: IndexModel; t
           </>
         }
         down={<>Nothing. This is the leaf — colour and cloth are filters, not deeper pages.</>}
-        out={
-          <>
-            A maker → their page ·{' '}
-            <ControlLink onClick={() => promoteToScout(`${cut.toLowerCase()} ${parent.name.toLowerCase()}`)}>Hunt this cut →</ControlLink>
-          </>
-        }
+        out={<>A maker → their page.</>}
       />
     </div>
   );

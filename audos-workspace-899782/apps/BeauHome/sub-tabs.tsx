@@ -1,9 +1,8 @@
 /**
  * THE SHARED SUB-TAB BAR (Recommendation Engine overhaul, Part 4).
  *
- * ONE component behind every sub-tab row in the app — The Rail's
- * "For You / World of Menswear" and The Hunt's "Find / Discover / Compare /
- * Matrix / Your Hunt History" — so the two can never drift apart again.
+ * ONE component behind every sub-tab row in the app — e.g. The Rail's
+ * "For You / World of Menswear" — so sub-tab rows can never drift apart.
  *
  * TWO STYLE VARIANTS are kept side by side so the founder can compare them
  * with a ONE-LINE change (ACTIVE_SUB_TAB_VARIANT below):
@@ -11,7 +10,7 @@
  *  · `sub-tab--style-a` — the underline register The Rail used to carry:
  *    Lora 12px small-caps, walnut when active over a hairline underline
  *    indicator, muted walnut when not, on a hairline baseline rule.
- *  · `sub-tab--style-b` — The Hunt's chip register (THE ACTIVE ONE):
+ *  · `sub-tab--style-b` — the chip register (THE ACTIVE ONE):
  *    Cormorant 12px small-caps in a hairline-outlined chip, the active chip
  *    filled accent-100 with a tobacco-gold border and accent-800 text; the
  *    row scrolls horizontally on narrow screens.
@@ -26,15 +25,15 @@ export type SubTabVariant = 'sub-tab--style-a' | 'sub-tab--style-b';
 
 /**
  * THE ONE-LINE SWITCH. Both variants stay in the code; flip this to
- * 'sub-tab--style-a' to put The Rail AND The Hunt back on the underline
- * treatment. Style B matches The Hunt's existing chips, so it is active.
+ * 'sub-tab--style-a' to put the rows back on the underline treatment.
+ * Style B is the chip treatment, and it is active.
  */
 export const ACTIVE_SUB_TAB_VARIANT: SubTabVariant = 'sub-tab--style-b';
 
 export interface SubTabItem<T extends string> {
   id: T;
   label: string;
-  /** Appended to the label — e.g. The Hunt's Compare queue count. */
+  /** Appended to the label — e.g. a queue count. */
   suffix?: string;
   /** Emitted as data-tour on the button — lets the first-run walkthrough
    * (onboarding-tour.tsx) ring individual sub-tabs. */
@@ -65,7 +64,7 @@ function styleAButton(active: boolean): React.CSSProperties {
 const STYLE_A_BUTTON = 'uppercase flex-shrink-0 transition-colors hover:text-[var(--space-text-primary)]';
 
 // ---------------------------------------------------------------------------
-// Variant B — The Hunt's hairline chips (active).
+// Variant B — the hairline chips (active).
 // ---------------------------------------------------------------------------
 
 const STYLE_B_ROW = 'flex items-center gap-1.5 overflow-x-auto';

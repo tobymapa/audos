@@ -2036,7 +2036,7 @@ export default function YourStyle() {
         />
 
         {/* ================= MISSING, AND IT COSTS YOU NOW (M10) =================
-            Shoe size and waist are the two facts The Hunt's fit-for-you rows
+            Shoe size and waist are the two facts Beau's fit reads
             need — while either is missing, the callout LEADS the Dossier
             (never buried mid-page) and names the cost. It disappears the
             moment both are set. */}
@@ -2045,7 +2045,7 @@ export default function YourStyle() {
             className="mt-6 p-4 sm:p-5"
             style={{ border: '1.5px solid var(--color-accent-2,#7d2a24)', background: 'var(--color-paper,#fbf8f1)' }}
             role="note"
-            aria-label="Missing measurements the Hunt needs"
+            aria-label="Missing measurements Beau needs"
           >
             <p className="uppercase" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', color: 'var(--color-accent-2,#7d2a24)' }}>
               Missing, and it costs you now
@@ -2058,7 +2058,7 @@ export default function YourStyle() {
                   : 'He doesn\u2019t have your waist.'}
             </p>
             <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, marginTop: '6px', maxWidth: '54ch' }}>
-              Every fit-for-you row in The Hunt is guesswork until these are set — shoes judged without a size, trousers
+              Every fit read Beau gives is guesswork until these are set — shoes judged without a size, trousers
               without a waist. {!measurements?.shoe_size && !measurements?.waist_cm ? 'Two fields fix it.' : 'One field fixes it.'}
             </p>
             <button
@@ -2898,7 +2898,7 @@ export default function YourStyle() {
                 {savingPrefs === 'currency' && <Loader2 className="w-4 h-4 animate-spin text-[var(--space-text-muted)] mt-1" />}
               </div>
               <p className={`${typography.size.xs} ${typography.color.muted} mt-1 italic`}>
-                Applies across The Rail, The Hunt and budgets. Conversions are approximate.
+                Applies across The Rail and budgets. Conversions are approximate.
               </p>
             </div>
             {/* Per-category budgets — the range can differ by category. */}
@@ -2926,7 +2926,7 @@ export default function YourStyle() {
                 {savingPrefs === 'secondhand' && <Loader2 className="w-4 h-4 animate-spin text-[var(--space-text-muted)] mt-1" />}
               </div>
               <p className={`${typography.size.xs} ${typography.color.muted} mt-1`}>
-                When open, eBay and Vestiaire finds appear on The Rail and The Hunt — always labelled.
+                When open, eBay and Vestiaire finds appear on The Rail — always labelled.
               </p>
             </div>
             <div>

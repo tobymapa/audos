@@ -46,8 +46,6 @@ import { useEffect, useState } from 'react';
 import { ChevronRight, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { tw, typography } from '../../lib/colors';
 import {
-  goToTab,
-  promoteToScout,
   type CategoryBudget,
   type StylePrefs,
   type StyleProfile,
@@ -254,9 +252,9 @@ function DismissControl({ rec, onDismissed }: { rec: AssessmentRecommendation; o
 }
 
 /** One acquisition, as the reference sets it (Edit cleanup): rank · the
- * piece · the reasoning in one tight column · the way into The Hunt. The
- * "Not for me" dismissal stays on every row — the taste memory is a
- * first-class behaviour, not chrome. */
+ * piece · the reasoning in one tight column. The "Not for me" dismissal
+ * stays on every row — the taste memory is a first-class behaviour, not
+ * chrome. */
 function RecommendationRow({ rec, index, onDismissed }: { rec: AssessmentRecommendation; index: number; onDismissed: () => void }) {
   return (
     <div className="grid grid-cols-[34px_minmax(0,1fr)] sm:grid-cols-[34px_minmax(0,230px)_minmax(0,1fr)] items-start gap-x-5 gap-y-2 py-6">
@@ -294,15 +292,6 @@ function RecommendationRow({ rec, index, onDismissed }: { rec: AssessmentRecomme
               {rec.archetypesServed.join(' · ')}
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => promoteToScout(rec.pieceName)}
-            className="uppercase hover:underline text-[var(--color-accent-700,#7c4a17)]"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em' }}
-            title="Open The Hunt on this piece"
-          >
-            In The Hunt →
-          </button>
           <span className="flex-1" />
           <DismissControl rec={rec} onDismissed={onDismissed} />
         </div>
@@ -609,14 +598,6 @@ export function BeauTab({
                     {capWord(numberWord(assessment.recommendations.length))}, in order
                   </h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => goToTab('scout')}
-                  className="px-4 min-h-[44px] border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors whitespace-nowrap"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}
-                >
-                  Take all {numberWord(assessment.recommendations.length)} to The Hunt
-                </button>
               </div>
               <div className="divide-y divide-[var(--space-border-default)] border-b border-[var(--space-border-default)]">
                 {assessment.recommendations.map((rec, i) => (

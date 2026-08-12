@@ -5,16 +5,15 @@
  * bottom-left corner of the shell (bottom-right is the photo-migration
  * pill's spot).
  *
- * Eight stops, in the order a new customer meets the product — the
+ * Six stops, in the order a new customer meets the product — the
  * primary tabs AND their key sub-tabs / sections:
  *   The Ledger · Beau · Today · Your pieces (category sections)
- *   The Hunt (spotted · weighed · held) · its Find tool
  *   The Fitting · the board's actions · the Board section
  *
  * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
  * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
  * lives INSIDE a tab first navigates there — dispatching the same
- * `ethaion:navigate` / `ethaion:hunt-subtab` events chat deep links use —
+ * `ethaion:navigate` events chat deep links use —
  * so the element exists before it is measured. The highlighted element
  * gets a subtle oxblood ring and the rest of the page dims lightly behind
  * it; when an anchor isn't on screen the card centres instead — the tour
@@ -29,7 +28,6 @@
  * #EDE8DF darker beige · #D9CFBE line · #8A7F70 muted · #8B3A3A oxblood.
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { setHuntSubTabHandoff } from './brands';
 
 export const ONBOARDING_DONE_KEY = 'ethaion_onboarding_done';
 
@@ -38,11 +36,10 @@ interface TourStep {
   anchor: string;
   kicker: string;
   body: string;
-  /** Where this step's anchor LIVES: dispatched as `ethaion:navigate` (and
-   * `ethaion:hunt-subtab` for The Hunt's sub-tabs) before measuring, so
-   * sub-tab stops can ring elements inside their own tab. Stops anchored
-   * to the always-visible tab bar carry none. */
-  navigate?: { tab?: string; huntSubTab?: string };
+  /** Where this step's anchor LIVES: dispatched as `ethaion:navigate`
+   * before measuring, so sub-tab stops can ring elements inside their own
+   * tab. Stops anchored to the always-visible tab bar carry none. */
+  navigate?: { tab?: string };
 }
 
 /** Copy contract: short, direct, Ethaion's voice — never "Welcome to the
@@ -65,17 +62,6 @@ const STEPS: TourStep[] = [
     kicker: 'The Ledger · Your pieces',
     body: 'Everything you own, organised by category — search it, open a category, or see every piece in one view.',
     navigate: { tab: 'wardrobe' },
-  },
-  {
-    anchor: 'tour-hunt',
-    kicker: 'The Hunt',
-    body: 'Everything you\u2019re considering, one screen, three stages — spotted, weighed, held. Paste a product link and it files itself.',
-  },
-  {
-    anchor: 'tour-hunt-find',
-    kicker: 'The Hunt · Find',
-    body: 'One box — name a piece with a size and a ceiling for live listings, or ask \u201cis it worth the money?\u201d.',
-    navigate: { tab: 'scout', huntSubTab: 'find' },
   },
   {
     anchor: 'tour-fitting',
@@ -137,11 +123,6 @@ function TourOverlay({ onDone }: { onDone: () => void }) {
     // use — so the element actually exists before it is measured.
     if (current.navigate?.tab) {
       window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab: current.navigate.tab } }));
-    }
-    if (current.navigate?.huntSubTab) {
-      // The handoff helper covers BOTH cases: a mounted Hunt hears the live
-      // event; a Hunt still lazy-loading reads the stored handoff at mount.
-      setHuntSubTabHandoff(current.navigate.huntSubTab);
     }
     // Bring the anchor into view once it exists. Lazily-mounted tabs land
     // over several frames, so the scroll attempt retries inside the settle

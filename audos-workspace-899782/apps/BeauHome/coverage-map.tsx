@@ -8,8 +8,7 @@
  *   · COVERED — names the pieces that cover it, in the user's own words.
  *   · GAP — NAMES WHAT'S MISSING (“No smart-casual shoe”, never “Gap ›”),
  *     the top three carry their rank, and the FIRST gets the page's one
- *     solid accent border. Tapping a gap leads to THE HUNT, pre-filled —
- *     under the corrected IA the Rail is gone.
+ *     solid accent border.
  *   · DOESN'T APPLY — a sweatshirt is not a formal gap. Sensible defaults
  *     plus a per-cell toggle, so the map never scores a category against a
  *     register it has no business in.
@@ -31,7 +30,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check } from 'lucide-react';
 import { typography } from '../../lib/colors';
-import { label, promoteToScout, type StyleProfile, type WardrobePiece } from './profile-data';
+import { label, type StyleProfile, type WardrobePiece } from './profile-data';
 import { fetchSemanticTags, type SemanticTags } from './semantic-tags';
 import { SAGE, TicketFrame, coveredBoxStyle, dashedBoxStyle } from './ticket-frame';
 import { sortByCategoryOrder } from './category-order';
@@ -156,18 +155,6 @@ const DEFAULT_NA: Record<string, RegisterId[]> = {
 function cellKey(rowId: string, register: string): string {
   return `${rowId}\u241f${register}`;
 }
-
-/** A GAP LEADS TO THE HUNT, pre-filled (7a — the Rail is gone from the IA):
- * the priority carries straight into the funnel's search. */
-export function openHuntForGap(rowId: string, register?: RegisterId): void {
-  const reg = register ? REGISTERS.find((r) => r.id === register) : null;
-  const query = reg ? `${reg.label.toLowerCase()} ${GAP_NOUNS[rowId] || rowId.toLowerCase()}` : (GAP_NOUNS[rowId] || rowId.toLowerCase());
-  promoteToScout(query);
-}
-
-/** Legacy name kept for compatibility — the destination is The Hunt now. */
-export const openRailForGap = (category: string, register?: string): void =>
-  openHuntForGap(category, register as RegisterId | undefined);
 
 const cellHead: React.CSSProperties = {
   fontFamily: 'var(--space-font-heading)',
@@ -418,8 +405,8 @@ export function CoverageMap({
         </button>
       );
     }
-    // GAP — named, ranked, and it leads to The Hunt pre-filled. The FIRST
-    // gap carries the page's one solid accent border (6a).
+    // GAP — named and ranked. The FIRST gap carries the page's one solid
+    // accent border (6a).
     const first = state.rank === 1;
     return (
       <div
@@ -429,15 +416,10 @@ export function CoverageMap({
             : { ...dashedBoxStyle, padding: '8px 10px', background: 'transparent' }
         }
       >
-        <button
-          type="button"
-          onClick={() => openHuntForGap(rowId, register)}
-          className="block w-full text-left group"
-          title={`${state.label} — see candidates in The Hunt`}
-        >
+        <div className="block w-full text-left" title={state.label}>
           <span className="flex items-baseline gap-2 flex-wrap">
             <span
-              className={`${first ? 'text-[var(--color-accent-800,#5c3413)]' : 'text-[var(--color-neutral-700,#634e38)]'} group-hover:underline`}
+              className={first ? 'text-[var(--color-accent-800,#5c3413)]' : 'text-[var(--color-neutral-700,#634e38)]'}
               style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.4 }}
             >
               {state.label}
@@ -451,13 +433,7 @@ export function CoverageMap({
               </span>
             )}
           </span>
-          <span
-            className="block uppercase text-[var(--color-neutral-500,#a68e70)] group-hover:text-[var(--color-accent-700,#7c4a17)] transition-colors"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '9.5px', letterSpacing: '0.14em', marginTop: '3px' }}
-          >
-            See The Hunt ›
-          </span>
-        </button>
+        </div>
         <button
           type="button"
           onClick={() => toggleNa(rowId, register)}
@@ -492,9 +468,8 @@ export function CoverageMap({
           <h3 className={`hab-section-head ${typography.color.primary}`} style={{ marginBottom: '6px' }}>The coverage map</h3>
           <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '62ch' }}>
             Rows are parts of the wardrobe; columns are registers. A filled cell names what covers it — in your
-            words. An open cell names exactly what’s missing, the top three carry their rank, and tapping one opens
-            The Hunt on that gap. Where a register doesn’t claim a category, the cell says so instead of counting
-            against you.
+            words. An open cell names exactly what’s missing, and the top three carry their rank. Where a register
+            doesn’t claim a category, the cell says so instead of counting against you.
           </p>
         </div>
         {/* Register view · Archetype view — the secondary layer's toggle. */}
@@ -688,8 +663,8 @@ export function CoverageMap({
         </TicketFrame>
       )}
 
-      {/* THE PRIORITY — the top three gaps, open, ranked, each leading into
-          The Hunt (6a: never an accordion, never “Gap ›”). */}
+      {/* THE PRIORITY — the top three gaps, open and ranked (6a: never an
+          accordion, never “Gap ›”). */}
       {view === 'register' && rankedGaps.length > 0 && (
         <div className="mt-5">
           <p className="uppercase text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', marginBottom: '8px' }}>
@@ -697,11 +672,9 @@ export function CoverageMap({
           </p>
           <div className="grid gap-2 sm:grid-cols-3">
             {rankedGaps.slice(0, 3).map((gap, i) => (
-              <button
+              <div
                 key={`${gap.rowId}-${gap.register}`}
-                type="button"
-                onClick={() => openHuntForGap(gap.rowId, gap.register)}
-                className="text-left px-3 py-2.5 min-h-[52px] transition-colors hover:bg-[var(--color-accent-100,#fbf1de)]"
+                className="text-left px-3 py-2.5 min-h-[52px]"
                 style={i === 0 ? { border: '1.5px solid var(--color-accent,#a8712c)' } : { border: '1px dashed var(--color-divider,rgba(59,43,29,0.4))' }}
               >
                 <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em' }}>
@@ -710,10 +683,7 @@ export function CoverageMap({
                 <span className={`block ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.4 }}>
                   {gapLabel(gap.rowId, gap.register)}
                 </span>
-                <span className="block text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px' }}>
-                  See candidates in The Hunt ›
-                </span>
-              </button>
+              </div>
             ))}
           </div>
         </div>

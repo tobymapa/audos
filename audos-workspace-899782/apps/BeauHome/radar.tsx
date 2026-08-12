@@ -1,7 +1,7 @@
 /**
  * Ethaion — On the Radar (v8, Pass Forty-Two — back on the tab bar).
  *
- * The pipeline stage between Scout (active research) and Wardrobe (owned):
+ * The watch-list stage before Wardrobe (owned):
  * the "convinced but not buying yet" layer. Each entry is a SPECIFIC piece —
  * exact model name, colour, size — with notes, an optional product URL and
  * last-seen price, and price-drop / restock watch flags.
@@ -14,8 +14,6 @@
  *
  * Movement:
  *  - "I own it now"  → files the piece into the wardrobe tracker (owned).
- *  - "Back to Scout" → still deciding: hands the piece back to Scout with the
- *    query prefilled, and removes it from the Radar.
  *
  * Watching: with a product URL on file, entries with a watch toggle on are
  * re-checked automatically when the Radar opens (stale ones first, a few per
@@ -33,7 +31,6 @@ import {
   categoryLabel,
   deleteRadarItem,
   insertRadarItem,
-  promoteToScout,
   radarToWardrobe,
   updateRadarItem,
   type RadarItem,
@@ -444,16 +441,6 @@ function RadarTableRow({
       onOwned(created);
     });
 
-  const backToScout = () =>
-    run('scout', async () => {
-      const query = [item.brand, item.name, item.color, item.size ? `size ${item.size}` : '', item.price_seen ? `around ${item.price_seen}` : '']
-        .filter(Boolean)
-        .join(' ');
-      await deleteRadarItem(item.id);
-      onRemoved();
-      promoteToScout(query);
-    });
-
   const remove = () =>
     run('delete', async () => {
       await deleteRadarItem(item.id);
@@ -778,16 +765,6 @@ function RadarTableRow({
                   {busy === 'own' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   I own it now
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void backToScout()}
-                  disabled={!!busy}
-                  className={`px-3 py-1.5 rounded ${typography.size.xs} inline-flex items-center gap-1.5 ${tw.button.secondary} disabled:opacity-50`}
-                  title="Still deciding — hand it back to The Hunt"
-                >
-                  {busy === 'scout' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Back to The Hunt
-                </button>
                 <span className="flex-1" />
                 {!confirming ? (
                   <button
@@ -831,9 +808,8 @@ function RadarTableRow({
 // ---------------------------------------------------------------------------
 // The Reserve — ONE surface now: the watch table (price drops & restocks).
 // The old sub-tab bar is gone: "Brand Index" is retired (brand tracking
-// lives in The Hunt → Discover, with its favourite star and Beau's
-// known-for), and with only the watch list left, "The Watchlist" chip went
-// with it — no tab chrome for a single view.
+// lives in The Index → Makers), and with only the watch list left, "The
+// Watchlist" chip went with it — no tab chrome for a single view.
 // ---------------------------------------------------------------------------
 
 export function RadarTab() {
@@ -1064,7 +1040,7 @@ function ReserveWatchlist() {
             className="max-w-md mx-auto"
             style={{ fontFamily: 'var(--space-font-family)', fontSize: '16px', lineHeight: 1.55, color: 'var(--color-neutral-600,#856c51)' }}
           >
-            Nothing on your Reserve yet. Add a piece from The Hunt or The Rail.
+            Nothing on your Reserve yet. Ask Beau to watch a piece and it appears here.
           </p>
         </div>
       ) : items.length > 0 ? (

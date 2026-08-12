@@ -528,8 +528,8 @@ export function PieceDetailPanel({
               )}
             </div>
             <p style={{ margin: '10px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY, maxWidth: '64ch' }}>
-              It stays a list of who makes it well, not a recommendation to buy one — Beau’s picks live in The Hunt,
-              where you went looking for them.
+              It stays a list of who makes it well, not a recommendation to buy one — for a pick ranked against
+              your dossier, ask Beau in the chat.
             </p>
           </>
         ) : (
@@ -823,8 +823,8 @@ export function MakerDetailPanel({
               </button>
             </div>
             <p style={{ margin: '12px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY, maxWidth: '66ch' }}>
-              Unrated is a resting state, not an error. Leaving it is a real choice — the maker still appears in The
-              Hunt when it answers a gap, carrying your note instead of his tier.
+              Unrated is a resting state, not an error. Leaving it is a real choice — the maker still surfaces when
+              it answers a gap, carrying your note instead of his tier.
             </p>
           </>
         ) : (

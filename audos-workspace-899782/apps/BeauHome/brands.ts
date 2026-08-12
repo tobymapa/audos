@@ -1,6 +1,6 @@
 /**
- * THE BRAND DIRECTORY — the structured catalog behind The Hunt's brand
- * intelligence sub-tabs (Discover, Compare, Matrix, and the shared Brand
+ * THE BRAND DIRECTORY — the structured catalog behind the app's maker
+ * intelligence surfaces (The Index's maker pages and the shared Brand
  * Detail page).
  *
  * Seeded from the same verified makers as the reference layer
@@ -3069,8 +3069,7 @@ export function clearCompare(): void {
 
 // ---------------------------------------------------------------------------
 // Profile toggle — "Profile on" (Beau reasons with full user context) vs
-// "Profile off" (general knowledge only). Persists for the session and
-// applies across every Hunt sub-tab.
+// "Profile off" (general knowledge only). Persists for the session.
 // ---------------------------------------------------------------------------
 
 const PROFILE_TOGGLE_KEY = 'ethaion_hunt_profile_on';
@@ -3089,29 +3088,6 @@ export function writeProfileToggle(on: boolean): void {
   } catch { /* storage unavailable — state stays component-local */ }
 }
 
-// ---------------------------------------------------------------------------
-// Sub-tab handoff — other surfaces (The Rail's "Compare makers") can land
-// The Hunt on a specific sub-tab.
-// ---------------------------------------------------------------------------
-
-const HUNT_SUBTAB_KEY = 'ethaion_hunt_subtab';
-
-export function setHuntSubTabHandoff(subTab: string): void {
-  try {
-    sessionStorage.setItem(HUNT_SUBTAB_KEY, subTab);
-  } catch { /* storage unavailable */ }
-  window.dispatchEvent(new CustomEvent('ethaion:hunt-subtab', { detail: { subTab } }));
-}
-
-export function consumeHuntSubTabHandoff(): string | null {
-  try {
-    const value = sessionStorage.getItem(HUNT_SUBTAB_KEY);
-    if (value) sessionStorage.removeItem(HUNT_SUBTAB_KEY);
-    return value;
-  } catch {
-    return null;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Beau's rating — the one-word judgement every Discover row carries

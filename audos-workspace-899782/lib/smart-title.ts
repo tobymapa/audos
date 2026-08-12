@@ -13,8 +13,8 @@
  * order and phrasing for what remains, then trims to length — never a model
  * call, so it is instant, free and works offline.
  *
- * Consumers: Your Hunt History rows (scout.tsx / hunt-find.tsx) and Beau's
- * chat conversation list (components/BeauConversations.tsx).
+ * Consumers: Beau's chat conversation list
+ * (components/BeauConversations.tsx).
  */
 
 const MAX_WORDS_DEFAULT = 7;

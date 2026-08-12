@@ -4,7 +4,7 @@
  * surface.
  *
  * The problem it solves is not the network, which lazy images already handle
- * (illustrations.tsx, product-photo.tsx): it is the RENDER. The Hunt's maker
+ * (illustrations.tsx, product-photo.tsx): it is the RENDER. The maker
  * directory is a table of every brand Beau names, each row carrying archetype
  * chips, a price indicator, a rating tag and two action buttons — a couple of
  * thousand elements built and laid out before the customer has scrolled past

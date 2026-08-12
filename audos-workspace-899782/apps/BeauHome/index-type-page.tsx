@@ -2,7 +2,7 @@
  * THE INDEX · L2 · THE TYPE PAGE (24a) — where the walk lands. Seven
  * fields, and every type carries all seven: band · registers & occasions ·
  * place · colours · cuts · makers · neighbours. Up: the plate. Down: a cut.
- * Across: a maker. Out: the Ledger and the Hunt — the tab's only exits.
+ * Across: a maker. Out: the Ledger — the tab's only exit.
  *
  * Field sets by category (25a): the unbanded categories (accessories,
  * bags) drop band and place — an empty field is worse than an absent one,
@@ -14,7 +14,7 @@
  * the page reads correctly without them by design.
  */
 import { useMemo } from 'react';
-import { promoteToScout, type StyleProfile, type WardrobePiece } from './profile-data';
+import type { StyleProfile, WardrobePiece } from './profile-data';
 import { PieceBrandPicks } from './piece-recommendations';
 import { findCatalogBrand, verifiedBrandWebsiteUrl, PRICE_BAND_SYMBOL, type BrandProfile } from './brands';
 import { findGarmentType, type GarmentType } from './garment-types';
@@ -159,7 +159,6 @@ export function IndexTypePage({
             </div>
           )}
           <div className="flex flex-wrap" style={{ gap: '8px 10px', marginTop: '14px' }}>
-            <OutlinedControl onClick={() => promoteToScout(type.name.toLowerCase())}>Hunt for one</OutlinedControl>
             <OutlinedControl onClick={() => window.dispatchEvent(new CustomEvent('ethaion:add-piece', { detail: { name: type.name } }))}>Log one I own</OutlinedControl>
           </div>
         </div>
@@ -187,7 +186,6 @@ export function IndexTypePage({
               </div>
               <div className="flex flex-wrap" style={{ gap: '8px 12px', marginTop: '12px' }}>
                 <ControlLink onClick={() => nav.goRuler(type.category, type.band)}>Index by temperature →</ControlLink>
-                <ControlLink onClick={() => promoteToScout(`${type.name.toLowerCase()} for ${spanLabel(span)}`)}>Hunt this band →</ControlLink>
               </div>
             </div>
           </div>
@@ -292,9 +290,6 @@ export function IndexTypePage({
                 <span style={mono(8.5, SECONDARY)}>{profile ? PRICE_BAND_SYMBOL[profile.priceBand] : ''}</span>
               </div>
             ))}
-            <div style={{ paddingTop: '10px' }}>
-              <ControlLink onClick={() => promoteToScout(`${type.name.toLowerCase()} — ${makers.map((m) => m.name).join(', ')}`)}>Send all to the Hunt →</ControlLink>
-            </div>
             <p style={{ ...body(12, FAINT), margin: '8px 0 0', maxWidth: '72ch' }}>
               Ref means the maker defines the piece, not that it's the best one for you — a fact about the garment's
               history. The ranked picks above are the “for you” read; these rows are the record.
@@ -333,9 +328,7 @@ export function IndexTypePage({
         down={type.cuts.length > 0 ? <>A cut in field {banded ? 'five' : 'three'} → its own page. The only way to L3.</> : <>Nothing — this type carries no separate cuts.</>}
         out={
           <>
-            <ControlLink onClick={() => window.dispatchEvent(new CustomEvent('ethaion:add-piece', { detail: { name: type.name } }))}>Add to the Ledger</ControlLink>
-            {' · '}
-            <ControlLink onClick={() => promoteToScout(type.name.toLowerCase())}>Hunt for one</ControlLink> — both carry the type as context.
+            <ControlLink onClick={() => window.dispatchEvent(new CustomEvent('ethaion:add-piece', { detail: { name: type.name } }))}>Add to the Ledger</ControlLink> — it carries the type as context.
           </>
         }
       />

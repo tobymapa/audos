@@ -1,6 +1,6 @@
 /**
  * Fitting engine — the shared state behind the Fitting tab and every "Try
- * this on" entry point across the app (Hunt candidates, owned pieces,
+ * this on" entry point across the app (candidates, owned pieces,
  * What-to-wear suggestions).
  *
  *  - requestFittingRoomTryOn(piece): the ONE way any surface hands a piece

@@ -1,12 +1,12 @@
 /**
  * Ethaion — “Try this on”.
  *
- * The core promise: see a piece you're considering — a Hunt candidate, a
+ * The core promise: see a piece you're considering — a candidate, a
  * Beau recommendation, or something from your own rail — laid out against
  * what you already own before spending money.
  *
- * TryOnButton is the ghost “Try this on” action on candidate cards, Hunt
- * rows, What-to-wear pieces and owned-piece cards. Tapping it hands the
+ * TryOnButton is the ghost “Try this on” action on candidate cards,
+ * What-to-wear pieces and owned-piece cards. Tapping it hands the
  * piece to The Fitting (fitting-room-state.ts), where it lands on the
  * flat-lay board — drawn DASHED when it isn't yours, so a board holding it
  * saves as a proposal.

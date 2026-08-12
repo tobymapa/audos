@@ -38,7 +38,6 @@ import {
   insertPieces,
   insertRadarItem,
   logBrand,
-  promoteToScout,
 } from './profile-data';
 import {
   analyzeDiscoveryImage,
@@ -113,7 +112,7 @@ const STATUSES: Array<{ id: EntryStatus; label: string; cls: string; idleCls: st
   },
   {
     id: 'promoted',
-    label: 'With The Hunt',
+    label: 'With Beau',
     cls: 'bg-[var(--space-surface-accent-soft)] text-[var(--space-text-brand)] border-[var(--space-brand-primary-200)]',
     idleCls: 'border-[var(--space-border-default)] text-[var(--space-text-muted)] hover:border-[var(--space-border-strong)]',
   },
@@ -612,12 +611,6 @@ function EntryDetail({
     void run('tags', () => onUpdate(row.id, { tags: JSON.stringify([...tags, t]) }));
   };
 
-  const promote = () =>
-    run('promote', async () => {
-      await onUpdate(row.id, { status: 'promoted' });
-      promoteToScout([row.brand, row.name, row.price ? `around ${row.price}` : ''].filter(Boolean).join(' '));
-    });
-
   // "Move to Radar" is the high-commitment step of the pipeline — Saved is
   // "considering", Radar is "I know exactly what I want, watch it for me".
 
@@ -704,20 +697,8 @@ function EntryDetail({
           <img src={row.image_url} alt={row.name} className="mt-3 max-h-64 rounded-xl object-contain border border-[var(--space-border-default)]" />
         )}
 
-        {/* Promote / own — the bridges into the rest of Ethaion */}
+        {/* Own / watch — the bridges into the rest of Ethaion */}
         <div className="flex items-center gap-2 mt-4 flex-wrap">
-          {row.status !== 'promoted' && (
-            <button
-              type="button"
-              onClick={() => void promote()}
-              disabled={!!busy}
-              className={`px-3.5 py-2 rounded-lg ${typography.size.sm} flex items-center gap-1.5 ${tw.button.primary} disabled:opacity-50`}
-              title="Hand this to The Hunt — Beau hunts it (or alternatives) against your profile"
-            >
-              {busy === 'promote' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              Send Beau hunting
-            </button>
-          )}
           <button
             type="button"
             onClick={() => void toRadar()}

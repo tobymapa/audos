@@ -12,7 +12,6 @@
  */
 import { useMemo, useState } from 'react';
 import type React from 'react';
-import { promoteToScout } from './profile-data';
 import { findGarmentType, type GarmentCategoryId, type GarmentType } from './garment-types';
 import { RULER_HI, RULER_LO, daysInSpan, spanLabel, spanOf, verdictFor, type IndexModel, type TempSpan } from './index-model';
 import {
@@ -20,7 +19,6 @@ import {
   ACCENT_DEEP,
   BackLink,
   Breadcrumb,
-  ControlLink,
   FAINT,
   FAINTER,
   GapTag,
@@ -243,11 +241,9 @@ export function IndexPlate({ model, catId, nav }: { model: IndexModel; catId: Ga
         down={<>Any type name → its page. A dashed band → the same page, arriving at the gap.</>}
         out={
           holes.length > 0 ? (
-            <ControlLink onClick={() => promoteToScout(`${cat.name.toLowerCase()} for ${holes[0].lo}–${holes[0].hi} degrees`)}>
-              Hunt the {holes[0].lo}–{holes[0].hi}° hole — the plate's own query, pre-filled →
-            </ControlLink>
+            <>The {holes[0].lo}–{holes[0].hi}° hole is the gap worth closing first — ask Beau in the chat.</>
           ) : (
-            <ControlLink onClick={() => promoteToScout(cat.name.toLowerCase())}>Hunt this category →</ControlLink>
+            <>Every band here is covered — ask Beau in the chat when one opens.</>
           )
         }
       />

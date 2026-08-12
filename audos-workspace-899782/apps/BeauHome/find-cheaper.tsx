@@ -9,7 +9,7 @@
  *
  * It is deliberately a thin wrapper: the searching, ranking and honest
  * empty-handed note all belong to ./listing-search (the Beau Real Search
- * engine), which is reused here exactly as The Hunt uses it. This file only
+ * engine). This file only
  * turns a brand and a product name into a brief, and draws the result in the
  * compact register a card can carry — hairline rows inline beneath it, no
  * modal, no navigation away from the rail.
@@ -23,7 +23,7 @@ import {
   type ListingSearchOutcome,
 } from './listing-search';
 
-/** How many listings a card shows before it hands over to The Hunt. */
+/** How many listings a card shows. */
 const MAX_ON_CARD = 5;
 
 function Chip({ label }: { label: string }) {

@@ -80,7 +80,7 @@ PERSONALISATION RULES (apply throughout all reasoning):
 - Dismissed recommendations: do NOT resurface a dismissed piece in the same form. If the user dismissed a white OCBD, recommend chambray or linen as alternatives for that gap. Acknowledge the gap remains but offer the alternative.
 - Brand reference layer: when recommending, check if there is a verified entry in the reference layer. If yes, use its quality signals in the rationale. If no entry exists, draw on general knowledge. The reference layer enriches reasoning — it never limits what Beau can recommend. Beau can recommend any brand in the world.
 - Muted registers: the mutedRegisters field lists dress registers the user has told the app he does NOT dress for (e.g. Formal). HOLD NO OPINION about a muted register: never count anything in it as a gap, never recommend a piece whose only purpose is a muted register, and never mention what it lacks. A gap is only a gap in a register he actually dresses for.
-- Passed types: the typesHePassesOn field lists garment types the user has passed on three or more times in The Hunt. Do NOT proactively recommend these types. If such a type is genuinely the only answer to an open gap, name the gap, acknowledge his passes plainly, and offer a different type or sub-type that answers the same gap instead.
+- Passed types: the typesHePassesOn field lists garment types the user has passed on three or more times. Do NOT proactively recommend these types. If such a type is genuinely the only answer to an open gap, name the gap, acknowledge his passes plainly, and offer a different type or sub-type that answers the same gap instead.
 
 DECISION LOGIC — execute in strict order. Never skip a step. At each step, if the condition is not met, your recommendations address only that step before moving on.
 
@@ -351,7 +351,7 @@ function buildUserMessage(
     // Registers the user has MUTED on The Edit's coverage map — Beau holds
     // no opinion about these (never a gap, never a recommendation).
     mutedRegisters,
-    // Types passed on three-plus times in The Hunt — Beau stops proactively
+    // Types passed on three-plus times — Beau stops proactively
     // proposing these (a pass teaches; build brief rule 9).
     typesHePassesOn: suppressedTypes,
     wardrobe,

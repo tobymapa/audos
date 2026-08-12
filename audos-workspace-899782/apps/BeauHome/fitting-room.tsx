@@ -58,7 +58,7 @@ import {
   buildCuratedFeed,
   categoryLabel,
   fetchMaterials,
-  goToTab,
+  insertRadarItem,
   type CategoryBudget,
   type RadarItem,
   type StylePrefs,
@@ -117,7 +117,6 @@ import {
   type TripBoards,
 } from './fitting-ai';
 import { getTodayBoard, peekTodayBoard, rememberTodayBoard } from './today-board';
-import { fileCandidate } from './hunt-stages';
 import { TripBriefForm } from './trip-card';
 import { SavedLooksScreen } from './saved-looks';
 import { useBeauReveal } from './beau-reveal';
@@ -910,7 +909,7 @@ function zoneLabelFor(piece: BoardPiece): string {
 }
 
 /** The status line under a label — only pieces that aren't yours carry one
- * (dashed on the board): Beau's picks, Hunt candidates, pasted previews. */
+ * (dashed on the board): Beau's picks, Reserve candidates, pasted previews. */
 function boardStatusOf(piece: BoardPiece): string | null {
   if (piece.key.startsWith('owned-')) return null;
   if (piece.key.startsWith('curated-')) return 'Beau\u2019s pick';
@@ -920,30 +919,64 @@ function boardStatusOf(piece: BoardPiece): string | null {
 
 interface EdgeLabel {
   piece: BoardPiece;
-  /** % from the rail's top. */
+  /** PIXELS from the rail's top — the label's own CENTRE, not its edge. */
   top: number;
+  side: 'l' | 'r';
 }
 
-/** Stack one side's labels down the rail — each at its piece's height,
- * nudged apart so two labels in one zone never overlap. */
-function layoutEdgeLabels(items: Array<{ piece: BoardPiece; centre: number }>): EdgeLabel[] {
+interface MeasuredPiece {
+  piece: BoardPiece;
+  /** The piece's rendered vertical centre, in px from the rail's top. */
+  centre: number;
+  side: 'l' | 'r';
+}
+
+/** A label block's rendered height, near enough to keep two of them apart:
+ * the zone line, the name (two lines once it's long enough to wrap at the
+ * block's 150px), the category · maker line and the optional status line. */
+function labelHeight(piece: BoardPiece): number {
+  const nameLines = (piece.name || '').length > 22 ? 2 : 1;
+  return 11 + nameLines * 16 + 13 + (boardStatusOf(piece) ? 12 : 0);
+}
+
+/**
+ * Each label's centre IS its piece's centre — that is the whole rule. The
+ * only departure is when two blocks would physically overlap: then the pair
+ * is prised apart symmetrically (each moves half the shortfall) so the run
+ * stays centred on the pieces it names rather than sliding down the rail.
+ */
+function stackLabels(items: MeasuredPiece[]): EdgeLabel[] {
   const sorted = [...items].sort((a, b) => a.centre - b.centre);
-  let last = -Infinity;
-  return sorted.map(({ piece, centre }) => {
-    const top = Math.min(88, Math.max(0, Math.max(centre - 6, last + 15)));
-    last = top;
-    return { piece, top };
-  });
+  const centres = sorted.map((item) => item.centre);
+  for (let pass = 0; pass < 4; pass += 1) {
+    let moved = false;
+    for (let i = 1; i < sorted.length; i += 1) {
+      const need = labelHeight(sorted[i - 1].piece) / 2 + labelHeight(sorted[i].piece) / 2 + 6;
+      const have = centres[i] - centres[i - 1];
+      if (have >= need) continue;
+      const push = (need - have) / 2;
+      centres[i - 1] -= push;
+      centres[i] += push;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return sorted.map((item, i) => ({ piece: item.piece, top: centres[i], side: item.side }));
 }
 
-function EdgeLabelBlock({ label, side }: { label: EdgeLabel; side: 'l' | 'r' }) {
-  const { piece } = label;
+function sameLabels(a: EdgeLabel[], b: EdgeLabel[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((label, i) => label.piece.key === b[i].piece.key && label.side === b[i].side && Math.abs(label.top - b[i].top) < 0.5);
+}
+
+function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
+  const { piece, side } = label;
   const status = boardStatusOf(piece);
   const leader = (
     <span
       aria-hidden="true"
-      className="flex-1 self-start"
-      style={{ borderTop: '1px dotted rgba(59,43,29,0.4)', marginTop: '13px', minWidth: '14px' }}
+      className="flex-1 self-center"
+      style={{ borderTop: '1px dotted rgba(59,43,29,0.4)', minWidth: '14px' }}
     />
   );
   const text = (
@@ -964,8 +997,8 @@ function EdgeLabelBlock({ label, side }: { label: EdgeLabel; side: 'l' | 'r' }) 
   );
   return (
     <div
-      className="absolute w-full flex items-start"
-      style={{ top: `${label.top}%`, gap: '6px', flexDirection: side === 'l' ? 'row' : 'row' }}
+      className="absolute w-full flex items-center"
+      style={{ top: `${label.top}px`, transform: 'translateY(-50%)', gap: '6px' }}
     >
       {side === 'l' ? (
         <>
@@ -982,29 +1015,94 @@ function EdgeLabelBlock({ label, side }: { label: EdgeLabel; side: 'l' | 'r' }) 
   );
 }
 
-/** The board with its 10a annotation rails — names around the edge on
- * dotted leaders (sm and up; a narrow screen lists the pieces beneath). */
+/**
+ * The board with its 10a annotation rails — names around the edge on dotted
+ * leaders (sm and up; a narrow screen lists the pieces beneath).
+ *
+ * THE LABELS ARE MEASURED, NOT GUESSED (founder's alignment fix). The old
+ * version re-ran the composer and expressed each label's top as a percentage
+ * of the RAIL, while the piece's top was a percentage of the canvas's inner
+ * stage — two different boxes, so the labels splayed away from their pieces
+ * and ignored both held-out pieces and any piece the wearer had dragged.
+ * Now each rendered piece is read off the DOM by its `data-piece-key`, and
+ * its label is placed at that measured centre in pixels and pulled back half
+ * its own height — so the midpoint of the label and the midpoint of the piece
+ * sit on the same horizontal line, at every width, after every drag.
+ */
 function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: React.ReactNode }) {
+  const railsRef = useRef<HTMLDivElement | null>(null);
+  const boardColRef = useRef<HTMLDivElement | null>(null);
+  const [labels, setLabels] = useState<EdgeLabel[]>([]);
+
+  useEffect(() => {
+    const measure = () => {
+      const rails = railsRef.current;
+      const col = boardColRef.current;
+      if (!rails || !col) return;
+      const railsRect = rails.getBoundingClientRect();
+      const colRect = col.getBoundingClientRect();
+      if (railsRect.height <= 0 || colRect.width <= 0) return;
+      const byKey = new Map(pieces.map((piece) => [piece.key, piece]));
+      const found: MeasuredPiece[] = [];
+      col.querySelectorAll<HTMLElement>('[data-piece-key]').forEach((el) => {
+        const piece = byKey.get(el.getAttribute('data-piece-key') || '');
+        if (!piece) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.height <= 0) return;
+        found.push({
+          piece,
+          centre: rect.top + rect.height / 2 - railsRect.top,
+          side: rect.left + rect.width / 2 < colRect.left + colRect.width / 2 ? 'l' : 'r',
+        });
+      });
+      const next = [
+        ...stackLabels(found.filter((item) => item.side === 'l')),
+        ...stackLabels(found.filter((item) => item.side === 'r')),
+      ];
+      setLabels((cur) => (sameLabels(cur, next) ? cur : next));
+    };
+
+    measure();
+    // The cutouts land asynchronously and the canvas is aspect-ratio sized, so
+    // re-measure on the next frame, shortly after, and on every later change.
+    const frame = window.requestAnimationFrame(measure);
+    const timers = [window.setTimeout(measure, 200), window.setTimeout(measure, 700)];
+    const observers: Array<{ disconnect: () => void }> = [];
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => measure());
+      if (railsRef.current) ro.observe(railsRef.current);
+      if (boardColRef.current) ro.observe(boardColRef.current);
+      observers.push(ro);
+    }
+    if (typeof MutationObserver !== 'undefined' && boardColRef.current) {
+      // A drag rewrites the piece's CSS custom properties — its label follows.
+      const mo = new MutationObserver(() => measure());
+      mo.observe(boardColRef.current, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'src', 'data-piece-key'] });
+      observers.push(mo);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      for (const timer of timers) window.clearTimeout(timer);
+      for (const observer of observers) observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [pieces]);
+
   const placed = useMemo(() => composeFlatLayBoard(pieces), [pieces]);
-  const left = layoutEdgeLabels(
-    placed.filter((p) => p.left + p.width / 2 < 50).map((p) => ({ piece: p.piece as BoardPiece, centre: p.top + p.height / 2 })),
-  );
-  const right = layoutEdgeLabels(
-    placed.filter((p) => p.left + p.width / 2 >= 50).map((p) => ({ piece: p.piece as BoardPiece, centre: p.top + p.height / 2 })),
-  );
   if (pieces.length === 0) return <>{children}</>;
   return (
     <div>
-      <div className="sm:grid sm:items-stretch sm:grid-cols-[minmax(120px,160px)_minmax(0,1fr)_minmax(120px,160px)] sm:gap-2">
+      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(120px,160px)_minmax(0,1fr)_minmax(120px,160px)] sm:gap-2">
         <div className="hidden sm:block relative" aria-hidden="true">
-          {left.map((label) => (
-            <EdgeLabelBlock key={label.piece.key} label={label} side="l" />
+          {labels.filter((label) => label.side === 'l').map((label) => (
+            <EdgeLabelBlock key={label.piece.key} label={label} />
           ))}
         </div>
-        <div className="min-w-0">{children}</div>
+        <div ref={boardColRef} className="min-w-0">{children}</div>
         <div className="hidden sm:block relative" aria-hidden="true">
-          {right.map((label) => (
-            <EdgeLabelBlock key={label.piece.key} label={label} side="r" />
+          {labels.filter((label) => label.side === 'r').map((label) => (
+            <EdgeLabelBlock key={label.piece.key} label={label} />
           ))}
         </div>
       </div>
@@ -1252,7 +1350,6 @@ export function FittingRoomTab({
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
   const [actionFlash, setActionFlash] = useState<string | null>(null);
-  const [reserveBusy, setReserveBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -1969,41 +2066,6 @@ export function FittingRoomTab({
     }
   };
 
-  /** File the board's unowned pieces into The Hunt as Spotted (the Reserve
-   * is retired as a destination — candidates live in ONE place, at one
-   * stage, with their board history as evidence). */
-  const fileBoardInHunt = async () => {
-    if (reserveBusy) return;
-    const candidates = activeBoardPieces.filter((p) => !p.key.startsWith('owned-'));
-    if (candidates.length === 0) {
-      setActionFlash('Everything on this board is already in your Ledger.');
-      return;
-    }
-    setReserveBusy(true);
-    try {
-      for (const p of candidates) {
-        await fileCandidate({
-          name: p.name,
-          brand: p.brand,
-          category: p.category,
-          origin: 'From a board',
-          reason: 'A look in The Fitting needed a piece you don\u2019t own.',
-          source: 'fitting',
-        });
-      }
-      setActionFlash(
-        candidates.length === 1
-          ? 'One piece filed in The Hunt as Spotted.'
-          : `${candidates.length} pieces filed in The Hunt as Spotted.`,
-      );
-    } catch (e) {
-      console.warn('[Ethaion] filing into The Hunt failed:', e);
-      setActionFlash('Couldn\u2019t file that into The Hunt — try again.');
-    } finally {
-      setReserveBusy(false);
-    }
-  };
-
   const shareText = (): string => {
     if (trip) {
       const lines = trip.days.map((day) => {
@@ -2157,8 +2219,7 @@ export function FittingRoomTab({
     // action row (onboarding-tour.tsx).
     <div className="mt-3" data-tour="tour-fitting-board">
       {/* THE PROPOSAL STRIP (10a): the board states what isn't yours and
-          names the consequence — saved, it files as a proposal, and the
-          dashed pieces carry through to The Hunt. */}
+          names the consequence — saved, it files as a proposal. */}
       {unownedOnBoard.length > 0 && !trip && (
         <div
           className="flex items-start justify-between gap-4 flex-wrap"
@@ -2166,8 +2227,8 @@ export function FittingRoomTab({
         >
           <p style={{ margin: 0, fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.55, color: 'var(--color-text,#3b2b1d)', maxWidth: '56ch' }}>
             This look has {unownedOnBoard.length === 1 ? 'one piece' : `${numberWord(Math.min(99, unownedOnBoard.length))} pieces`} you don’t
-            own — drawn dashed. Saved, it files as a <em>proposal</em>, not an outfit, and the dashed pieces carry
-            through to The Hunt — so a look can be the reason you buy something.
+            own — drawn dashed. Saved, it files as a <em>proposal</em>, not an outfit — so a look can be the
+            reason you buy something.
           </p>
           <button
             type="button"
@@ -2226,17 +2287,6 @@ export function FittingRoomTab({
             Start an empty board
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => void fileBoardInHunt()}
-          disabled={reserveBusy || activeBoardPieces.length === 0}
-          className="hover:underline disabled:opacity-40 inline-flex items-center gap-1.5"
-          style={{ ...monoAction, color: 'var(--color-neutral-700,#634e38)', background: 'transparent' }}
-          title="File the unowned pieces on this board into The Hunt as Spotted"
-        >
-          {reserveBusy && <Loader2 className="w-3 h-3 animate-spin" />}
-          File in The Hunt
-        </button>
         <button
           type="button"
           onClick={() => void shareBoard()}
@@ -2468,7 +2518,7 @@ export function FittingRoomTab({
                   {activeBoard.length > 0 && (
                     <div className="flex items-baseline justify-between gap-4 flex-wrap pt-2">
                       <span className="uppercase" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-neutral-500,#a68e70)' }}>
-                        Pieces land in their zone and stack outward from the body · drag to nudge, tap a piece to take it off
+                        Pieces land in their zone and stack outward from the body · drag to nudge, tap a piece then × to take it off the board — it stays in your Ledger
                       </span>
                       {unownedOnBoard.length > 0 && (
                         <span className="uppercase" style={{ fontFamily: MONO, fontSize: '7.5px', letterSpacing: '0.09em', color: 'var(--color-accent-700,#7c4a17)' }}>
@@ -2498,7 +2548,7 @@ export function FittingRoomTab({
 
               {/* Action bar — directly below the board (10a): the proposal
                   strip, the zones line, then Save this look · Start an empty
-                  board · File in The Hunt · Share · the saved-looks count. */}
+                  board · Share · the saved-looks count. */}
               {actionBar}
             </div>
 
@@ -2598,7 +2648,7 @@ export function FittingRoomTab({
                   onClick={() => document.getElementById('fitting-paste-link')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                   className="flex-shrink-0 uppercase whitespace-nowrap hover:underline"
                   style={{ fontFamily: MONO, fontSize: '8.5px', letterSpacing: '0.09em', padding: '8px 6px', color: 'var(--color-accent-700,#7c4a17)', background: 'transparent' }}
-                  title="Paste a product page — it previews on the board and can file into The Hunt"
+                  title="Paste a product page — it previews on the board and can save to your Reserve"
                 >
                   Paste a link
                 </button>
@@ -2693,12 +2743,12 @@ export function FittingRoomTab({
             )}
 
             {sectionsOn.reserve && (
-              <section aria-label="Weighing — in The Hunt" className="pt-6">
+              <section aria-label="Weighing — on your Reserve" className="pt-6">
                 <p
                   className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
                   style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}
                 >
-                  Weighing · in The Hunt
+                  Weighing · on your Reserve
                 </p>
                 {shelfReserve.length > 0 ? (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4 pt-3">
@@ -2721,7 +2771,7 @@ export function FittingRoomTab({
                   >
                     {categoryFilters.length > 0
                       ? 'Nothing in your Reserve in those categories — clear a filter to see the rest.'
-                      : 'Nothing on your Reserve yet — watch a piece from The Rail or The Hunt and it appears here.'}
+                      : 'Nothing on your Reserve yet — watch a piece and it appears here.'}
                   </p>
                 )}
               </section>
@@ -2831,24 +2881,14 @@ export function FittingRoomTab({
               </section>
             )}
 
-            {/* THE SHELF'S FOOTNOTE (10a) — the funnel stated once, with
-                the way into The Hunt at the right edge. */}
+            {/* THE SHELF'S FOOTNOTE (10a) — the board's contract, stated
+                once. */}
             <div className="flex items-baseline justify-between gap-x-6 gap-y-2 flex-wrap mt-6 pt-3" style={{ borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}>
               <p className={`${typography.color.muted}`} style={{ margin: 0, fontSize: '10.5px', fontFamily: 'var(--space-font-family)', lineHeight: 1.55, maxWidth: '64ch' }}>
-                Pasting a product page here files the piece into The Hunt as <em>Spotted</em> and puts it straight on
-                the board — one action, both places. Anything not yours lands dashed; a board holding one saves as a
-                proposal, and product photography is cut out of its background before it lands.
+                Pasting a product page here previews the piece on the board — save it and it joins your Reserve.
+                Anything not yours lands dashed; a board holding one saves as a proposal, and product photography is
+                cut out of its background before it lands.
               </p>
-              {radarPieces.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => goToTab('scout')}
-                  className="uppercase hover:underline"
-                  style={{ fontFamily: MONO, fontSize: '8px', letterSpacing: '0.09em', color: 'var(--color-accent-700,#7c4a17)', background: 'transparent' }}
-                >
-                  See all {radarPieces.length} you’re weighing →
-                </button>
-              )}
             </div>
 
             {/* SAVED OUTFITS — inline at the foot of the same scroll (the

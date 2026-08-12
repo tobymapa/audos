@@ -665,7 +665,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
             ) : (
               <div className="text-center text-[var(--space-text-secondary)]">
                 <Bot className="w-12 h-12 mx-auto mb-3 text-[var(--space-text-muted)]" />
-                <p className="text-base leading-7">I’m Beau — I’ve read your style profile, so I already know your direction, skin tone and budget. Describe a piece you’re after or paste a product link, and I’ll tell you whether it’s worth buying. Share a photo or link of any look you love and I’ll read the signal underneath — it sharpens everything I pick for you. Type, hold the mic to dictate, or tap the waveform to talk with me live. I can also log a piece into The Ledger, put one on your Reserve, or run and save a hunt — just say the word.</p>
+                <p className="text-base leading-7">I’m Beau — I’ve read your style profile, so I already know your direction, skin tone and budget. Describe a piece you’re after or paste a product link, and I’ll tell you whether it’s worth buying. Share a photo or link of any look you love and I’ll read the signal underneath — it sharpens everything I pick for you. Type, hold the mic to dictate, or tap the waveform to talk with me live. I can also log a piece into The Ledger, put one on your Reserve, or hunt a piece down for you — just say the word.</p>
                 {starterPrompts.length > 0 && !userIsTyping && (
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
                     {starterPrompts.map((prompt) => (

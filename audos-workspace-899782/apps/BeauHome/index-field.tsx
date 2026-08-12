@@ -15,7 +15,6 @@
  * three footer readings and Beau's line are GEN (G8, G9 — shipped absent).
  */
 import { useMemo } from 'react';
-import { promoteToScout } from './profile-data';
 import { findGarmentType, INDEX_GARMENT_TYPES, type GarmentType } from './garment-types';
 import { TEMPERATURE_BANDS, type TemperatureBand } from './temperature-bands';
 import {
@@ -32,7 +31,6 @@ import {
   ACCENT_DEEP,
   BackLink,
   Breadcrumb,
-  ControlLink,
   FAINT,
   FAINTER,
   GenSlot,
@@ -229,7 +227,7 @@ export function IndexField({ model, nav }: { model: IndexModel; nav: IndexNav })
       <UpDownOut
         up={<>The Index root — the breadcrumb, always top left.</>}
         down={<>A piece you own, or a named gap → the type page. A gap is a type you don't own. A dashed cell → the ruler most likely to answer it.</>}
-        out={<><ControlLink onClick={() => promoteToScout('the register I dress in most')}>Ask Beau for a row →</ControlLink></>}
+        out={<>Ask Beau in the chat for a row — he reads it against your dossier.</>}
       />
     </div>
   );

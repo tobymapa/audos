@@ -1134,9 +1134,9 @@ export default function EmailGate({
     { quote: 'Fewer, better pieces, chosen with intention — a wardrobe that still feels right at 45.', name: 'The principle' },
   ];
   const faqs = [
-    { q: 'Do I need an account or email to start?', a: 'No. Tap “Start now” and you’re in — the onboarding, The Ledger, The Rail, The Hunt and Beau all work as a guest, no email asked. When you want your profile to survive the browser closing, tap “Save your profile” inside (top of The Dossier) and leave an email — entirely your call.' },
+    { q: 'Do I need an account or email to start?', a: 'No. Tap “Start now” and you’re in — the onboarding, The Ledger, The Rail and Beau all work as a guest, no email asked. When you want your profile to survive the browser closing, tap “Save your profile” inside (top of The Dossier) and leave an email — entirely your call.' },
     { q: 'Do I need a credit card?', a: 'No — no credit card, and no email either. Start as a guest and save your profile only if you want it kept.' },
-    { q: 'What is inside?', a: 'Beau — your personal menswear advisor — plus The Ledger (your wardrobe record), The Rail (his recommendations, matched to your profile), The Hunt research tools, and Maker Scout for discovering obscure, high-value makers.' },
+    { q: 'What is inside?', a: 'Beau — your personal menswear advisor — plus The Ledger (your wardrobe record), The Rail (his recommendations, matched to your profile), and Maker Scout for discovering obscure, high-value makers.' },
     { q: 'Is my data private?', a: 'Yes. Your profile and wardrobe are stored privately for your account and used only to personalise your recommendations.' },
   ];
 

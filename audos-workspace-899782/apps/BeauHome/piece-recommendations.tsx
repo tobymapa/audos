@@ -12,8 +12,8 @@
  *   · THEN FOUR MORE — the next best makers for the same type, named, linked.
  *
  * The ranking is Beau's, made against the wearer's dossier (proportions,
- * colouring, the directions they wear, what they already own) through the
- * same runMatchSearch the Hunt's Find uses — no second recommendation engine.
+ * colouring, the directions they wear, what they already own) through
+ * runMatchSearch — no second recommendation engine.
  * With too little dossier to personalise, the same call runs profile-off and
  * returns generally well-regarded makers for the type instead; if the model
  * is unreachable, the catalog's own tier-ranked makers stand in. Nothing is
@@ -109,8 +109,8 @@ function loadPicks(
     query: input.query,
     profileOn: input.profileOn,
     profile: input.profile,
-    // Per-category ceilings live on the Hunt's own surfaces; the dossier's
-    // frame, colouring and directions are what rank makers for a TYPE.
+    // Per-category ceilings don't apply here; the dossier's frame,
+    // colouring and directions are what rank makers for a TYPE.
     budgets: {},
     pieces: input.pieces,
     prefs: null,
@@ -331,7 +331,7 @@ export function PieceBrandPicks({
       <div style={{ marginTop: '16px', border: `1px dashed ${HAIR_STRONG}`, padding: '18px', textAlign: 'center' }}>
         <div style={mono(8.5, MUTED)}>Where to get a good one</div>
         <p style={{ margin: '6px 0 0', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.55, color: SECONDARY }}>
-          {busy ? 'Beau is reading the market for this piece…' : 'Nothing to recommend for this type yet — ask Beau in The Hunt and it lands here.'}
+          {busy ? 'Beau is reading the market for this piece…' : 'Nothing to recommend for this type yet — ask Beau in the chat and it lands here.'}
         </p>
       </div>
     );

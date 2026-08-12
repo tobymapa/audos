@@ -19,7 +19,7 @@
  * for scanning, not reading.
  */
 import { useMemo, useRef, useState } from 'react';
-import { promoteToScout, type WardrobePiece } from './profile-data';
+import type { WardrobePiece } from './profile-data';
 import { catalogDirectoryEntries } from './brands';
 import { findGarmentType, type GarmentCategoryId, type GarmentType } from './garment-types';
 import {
@@ -355,12 +355,7 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
             <ControlLink onClick={() => nav.goMakers()}>makers</ControlLink>.
           </>
         }
-        out={
-          <>
-            A saved filter becomes a search in{' '}
-            <ControlLink onClick={() => promoteToScout('classic menswear')}>the Hunt</ControlLink>.
-          </>
-        }
+        out={<>Ask Beau in the chat and he searches against your dossier.</>}
       />
     </div>
   );

@@ -86,7 +86,6 @@ import {
   type SubSeedPick,
 } from './rail-subcategories';
 import { runScoutRequest, type FindRecommendation } from './scout-ai';
-import { addToCompare, setHuntSubTabHandoff } from './brands';
 import { TicketFrame } from './ticket-frame';
 import { PickCardsSkeleton } from './skeleton';
 import { Illo, pieceIlloProps } from './illustrations';
@@ -722,23 +721,6 @@ function SpecSheet({ pick }: { pick: BeauRecommendation }) {
             {link.kind === 'view' ? `View on ${link.retailer}` : `Buy at ${link.retailer}`} <ExternalLink className="w-3 h-3" />
           </a>
         ))}
-        {/* Compare makers — pre-loads this maker into The Hunt's Compare
-            sub-tab (Brand Intelligence overhaul, Part 5). */}
-        {pick.exampleBrand && (
-          <button
-            type="button"
-            onClick={() => {
-              addToCompare(pick.exampleBrand);
-              setHuntSubTabHandoff('compare');
-              goToTab('scout');
-            }}
-            className="inline-flex items-center gap-1 hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
-            title="Line this maker up against others in The Hunt's Compare"
-          >
-            Compare makers ›
-          </button>
-        )}
       </div>
     </TicketFrame>
   );
@@ -1061,9 +1043,8 @@ function PickHuntPage({
 //     spec sheet), unchanged in content and logic.
 //   · "World of Menswear" — the full reference taxonomy of classic
 //     menswear (world-of-menswear.tsx).
-// Styling comes from the SHARED sub-tab component (sub-tabs.tsx), so these
-// are pixel-identical to The Hunt's sub-tabs; both style variants live in
-// that file behind a one-line switch.
+// Styling comes from the SHARED sub-tab component (sub-tabs.tsx); both
+// style variants live in that file behind a one-line switch.
 // ---------------------------------------------------------------------------
 
 type RailView = 'for-you' | 'world';
@@ -1075,7 +1056,7 @@ const RAIL_SUB_TABS: Array<{ id: RailView; label: string }> = [
 
 function RailSubTabs({ view, onChange }: { view: RailView; onChange: (v: RailView) => void }) {
   return (
-    /* The same hairline baseline The Hunt's sub-tab row sits on. */
+    /* The shared hairline baseline the sub-tab row sits on. */
     <div className="border-b border-[var(--color-divider,rgba(59,43,29,0.18))]" style={{ marginBottom: '20px' }}>
       <SubTabs items={RAIL_SUB_TABS} active={view} onChange={onChange} ariaLabel="Rail views" className="py-3" />
     </div>

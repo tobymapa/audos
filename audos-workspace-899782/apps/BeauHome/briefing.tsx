@@ -34,7 +34,6 @@ import { Download, Loader2, RefreshCw } from 'lucide-react';
 import { typography } from '../../lib/colors';
 import type { BeauAssessment } from './beau-assessment';
 import type { StyleProfile, WardrobePiece } from './profile-data';
-import { openRailForGap } from './coverage-map';
 import {
   canGenerateBriefing,
   exportBriefingDocument,
@@ -195,22 +194,14 @@ function BriefingDocument({
         {sections.pathForward}
       </p>
 
-      {/* The pieces named above, in the order he sequenced them — each one
-          opens The Rail on that gap, exactly as "What to acquire next" does. */}
+      {/* The pieces named above, in the order he sequenced them. */}
       {sections.referencedPieces.length > 0 && (
         <p className={typography.color.secondary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.7, maxWidth: DOC_WIDTH, marginBottom: '32px' }}>
-          In that order, on The Rail:{' '}
+          In that order:{' '}
           {sections.referencedPieces.map((piece, i) => (
             <span key={`${piece.label}-${i}`}>
               {i > 0 && <span aria-hidden="true"> · </span>}
-              <button
-                type="button"
-                onClick={() => openRailForGap(piece.category || piece.label)}
-                className="underline underline-offset-2 decoration-dotted hover:text-[var(--space-text-primary)] transition-colors"
-                style={{ color: OXBLOOD }}
-              >
-                {piece.label}
-              </button>
+              <span style={{ color: OXBLOOD }}>{piece.label}</span>
             </span>
           ))}
         </p>

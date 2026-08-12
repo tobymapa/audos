@@ -1,5 +1,5 @@
 /**
- * THE HUNT — REAL LISTING SEARCH.
+ * REAL LISTING SEARCH.
  *
  * The product thesis is that Beau does the searching. Before this module a
  * Find query like “a Grenfell Golfer, size 36, secondhand, under €200” came

@@ -20,7 +20,7 @@
  *   · CLAUDE_HAIKU  — quick-adjust chips, reasoning-strip generation, gap
  *     notes, simple source filters, brand-profile generation
  *   · CLAUDE_SONNET — brand dossiers, the Edit assessment, full outfit
- *     generation, Beau chat, Hunt find/match/judge
+ *     generation, Beau chat, find/match/judge
  * Everything that knows The Aspirant deeply stays on Sonnet.
  */
 

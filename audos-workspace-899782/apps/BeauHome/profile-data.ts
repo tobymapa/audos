@@ -2967,7 +2967,7 @@ export function buildCuratedFeed(
     // never enters the candidate set unless a future explicit rule justifies it.
     .filter((item) => !(item.slot === 'raincoat' && /trench/i.test(item.name) && item.colors.some((colour) => colour.toLowerCase() === 'black')))
     // Natural-only is an eligibility rule, not flattering copy added after
-    // selection. Technical exceptions belong in Scout, never this feed.
+    // selection. Technical exceptions never enter this feed.
     .filter((item) => profile.materials !== 'natural-only' || item.natural)
     // ARCHETYPE FIT is a hard rule (Pass Forty-Four): with archetypes on
     // file, only pieces tagged for at least one of them are eligible — a
@@ -4517,7 +4517,7 @@ export async function auditPatternLabels(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// On the Radar — the pipeline stage between Scout (research) and Wardrobe (owned)
+// On the Radar — the watch-list stage before Wardrobe (owned)
 // ---------------------------------------------------------------------------
 
 export interface RadarItem {
@@ -5088,7 +5088,7 @@ export function openApp(appId: string): void {
 
 /**
  * Switch the Ethaion home app to one of its top-level tabs
- * (wardrobe | curated | scout | radar | saved | your-style). Also opens the
+ * (wardrobe | curated | radar | saved | your-style). Also opens the
  * home app so it works from anywhere in the shell (chat deep links,
  * standalone screens).
  */
@@ -5128,27 +5128,6 @@ export function trackFunnelEvent(eventType: string, metadata: Record<string, unk
       body: JSON.stringify({ sessionId, visitorId, eventType, metadata }),
     }).catch(() => undefined);
   } catch { /* never throw from analytics */ }
-}
-
-// ---------------------------------------------------------------------------
-// Scout prefill handoff — lets the Saved tab "promote" an entry into Scout
-// even though the Scout tab mounts after the navigation event has fired.
-// ---------------------------------------------------------------------------
-
-let pendingScoutPrefill: string | null = null;
-
-/** Queue text for the Scout "find" entry card, then navigate to Scout. */
-export function promoteToScout(text: string): void {
-  pendingScoutPrefill = text;
-  goToTab('scout');
-  window.dispatchEvent(new CustomEvent('ethaion:scout-prefill', { detail: { text } }));
-}
-
-/** Read-and-clear the queued Scout prefill (called by ScoutTab on mount). */
-export function consumeScoutPrefill(): string | null {
-  const text = pendingScoutPrefill;
-  pendingScoutPrefill = null;
-  return text;
 }
 
 // ---------------------------------------------------------------------------

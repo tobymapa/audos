@@ -13,7 +13,6 @@
  * reader truth.
  */
 import { useEffect, useMemo, useRef } from 'react';
-import { promoteToScout } from './profile-data';
 import { findGarmentType, type GarmentCategoryId, type GarmentType } from './garment-types';
 import { TEMPERATURE_BANDS, type TemperatureBand } from './temperature-bands';
 import { daysInBand, reachBands, verdictFor, type IndexModel } from './index-model';
@@ -190,11 +189,7 @@ export function IndexRuler({ model, catId, band, nav }: { model: IndexModel; cat
       <UpDownOut
         up={<>The Index root — the breadcrumb, always top left.</>}
         down={<>Any name in a band row, muted ones included — a muted name is a reach, not a different kind of thing.</>}
-        out={
-          <>
-            <ControlLink onClick={() => promoteToScout(`${cat.name.toLowerCase()} for the cold end`)}>Ask Beau to fill the cold end →</ControlLink>
-          </>
-        }
+        out={<>Ask Beau in the chat to fill the cold end — he answers against your dossier.</>}
       />
     </div>
   );

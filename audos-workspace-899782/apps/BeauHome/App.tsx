@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BookOpen,
   Check,
-  Compass,
   Folder,
   Hourglass,
   LayoutGrid,
@@ -85,7 +84,7 @@ import { composeTodayCopy } from './today-copy';
 import { sortByBodyOrder } from './body-order';
 
 // Code splitting (Pass Forty-Seven; widened in Pass Fifty): every surface
-// that is NOT the landing Wardrobe screen — The Rail, Radar, Scout, Reads,
+// that is NOT the landing Wardrobe screen — The Rail, Radar, Reads,
 // Curated, Saved, Build a Look, Style-me-today and Your Style — loads on
 // first visit via dynamic import(), behind a Suspense skeleton. Only the
 // Wardrobe screen's code is in the initial JS payload, so it parses and
@@ -93,7 +92,6 @@ import { sortByBodyOrder } from './body-order';
 // Tab-switch performance: the main tab panels are wrapped in React.memo at
 // the lazy boundary, so an app-level re-render (e.g. the `tab` state
 // changing) never re-renders a panel whose props are unchanged.
-const ScoutTab = lazy(() => import('./scout').then((m) => ({ default: memo(m.ScoutTab) })));
 const RadarTab = lazy(() => import('./radar').then((m) => ({ default: memo(m.RadarTab) })));
 const FromHabitus = lazy(() => import('./editorial').then((m) => ({ default: memo(m.FromHabitus) })));
 const RailTab = lazy(() => import('./rail').then((m) => ({ default: memo(m.RailTab) })));
@@ -114,9 +112,9 @@ let auditsKicked = false;
 /* ============================================================================
  * Ethaion — the home app (Milestones overhaul). A tap-only
  * onboarding runs before anything else; once complete the visitor lands in
- * a shell with SEVEN persistent top tabs in this exact order:
- *   The Ledger · The Edit · The Rail · The Hunt · The Reserve ·
- *   The Fitting · The Dossier   (Reads hidden; old Rail merged into Ledger)
+ * a shell with FIVE persistent top tabs in this exact order:
+ *   The Ledger · The Edit · The Fitting · The Index · The Dossier
+ *   (Reads hidden; old Rail merged into Ledger)
  *  - Wardrobe: tracker by category (icons fill proportionally with colour),
  *    illustrated per-piece tiles tinted the piece's actual colour, the ONE
  *    photo-first "Add what you own" flow (Pass Thirty-Three: every piece
@@ -126,11 +124,6 @@ let auditsKicked = false;
  *  - Curated: TWO-LAYER. Layer 1 shows one brand-free card per wardrobe gap,
  *    milestone-ordered; tapping a gap opens Layer 2 — 3–5 specific product
  *    picks with Save (→ Saved) and Refresh (see ./curated).
- *  - Scout: the unified research surface (Pass Twelve merge): ACTIVE hunting
- *    (specific search, link/pic paste, Beau review, persistent history with
- *    notes/tags/sheet view) plus the PASSIVE "Browse" sandbox that absorbed
- *    the retired Explore tab — standalone persisted filters and results,
- *    profile untouched.
  *  - Your Style: the full editable profile screen + budget defaults.
  * Radar (the watch list), Reads (the editorials) and The Rail (the photo
  * record) regained their tab-bar slots in Pass Forty-Two — each is a full
@@ -475,8 +468,8 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
             }).catch(() => undefined);
           }
         } else if (s === 1) {
-          // SIZES — straight onto style_measurements, the same rows The
-          // Hunt's fit-for-you column and the Dossier read.
+          // SIZES — straight onto style_measurements, the same rows the
+          // Dossier reads.
           const waist = waistStr.trim();
           const patch: Record<string, string | null> = {};
           if (clothingSize.trim()) patch.clothing_size = clothingSize.trim();
@@ -983,8 +976,7 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
             )}
 
             {/* 2 · SIZES — the labels worn: general size · trouser waist ·
-                shoe size, straight onto style_measurements (the rows The
-                Hunt's fit-for-you column reads). All skippable. */}
+                shoe size, straight onto style_measurements. All skippable. */}
             {step === 1 && (
               <div className="space-y-6">
                 <div>
@@ -1043,7 +1035,7 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
                     <span className={`${typography.size.sm} ${typography.color.muted}`}>{waistUnit}</span>
                   </div>
                   <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5 italic`}>
-                    The Hunt judges every trouser against this — without it the fit row is guesswork.
+                    Beau judges every trouser against this — without it any fit read is guesswork.
                   </p>
                 </div>
                 <div>
@@ -1074,7 +1066,7 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
                     <span className={`${typography.size.sm} ${typography.color.muted}`}>{shoeSystem}</span>
                   </div>
                   <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5 italic`}>
-                    Every shoe in The Hunt is judged against this. Brand-by-brand exceptions live in The Dossier.
+                    Every shoe Beau weighs is judged against this. Brand-by-brand exceptions live in The Dossier.
                   </p>
                 </div>
               </div>
@@ -1217,29 +1209,26 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level navigation — SIX tabs, in this exact order, each with a
+// Top-level navigation — FIVE tabs, in this exact order, each with a
 // hairline stroke icon:
-//   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier.
-// The Rail / Hunt / Reserve funnel is consolidated into The Hunt as three
-// stages on one screen (hunt-stages.tsx); The Index is REBUILT from the
-// founder's reference screenshots (index-tab.tsx — Pieces and Makers as two
-// faces of one page) and sits immediately LEFT of The Dossier, which stays
-// the RIGHTMOST tab. The internal tab ids are unchanged ('wardrobe', 'beau',
-// 'scout', 'fitting-room', 'your-style', …) so chat deep links keep working,
-// and the retired tab surfaces ('curated', 'radar') stay fully routable as
-// hidden views.
-// On a phone the six tabs move to a BOTTOM bar at thumb height with 52pt
+//   The Ledger · The Edit · The Fitting · The Index · The Dossier.
+// The Index is REBUILT from the founder's reference screenshots
+// (index-tab.tsx — Pieces and Makers as two faces of one page) and sits
+// immediately LEFT of The Dossier, which stays the RIGHTMOST tab. The
+// internal tab ids are unchanged ('wardrobe', 'beau', 'fitting-room',
+// 'your-style', …) so chat deep links keep working, and the retired tab
+// surfaces ('curated', 'radar') stay fully routable as hidden views.
+// On a phone the five tabs move to a BOTTOM bar at thumb height with 52pt
 // targets, same order.
 // ---------------------------------------------------------------------------
 
-type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'index' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
+type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'index' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
 
 /** Hairline, stroke-only tab icons — no fills (Part 1's icon column). */
-const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'compass' | 'hourglass' | 'figure' | 'folder' | 'library' }> = [
+const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'hourglass' | 'figure' | 'folder' | 'library' }> = [
   { id: 'wardrobe', label: 'The Ledger', short: 'Ledger', icon: 'book' },
   { id: 'beau', label: 'The Edit', short: 'Edit', icon: 'grid' },
   { id: 'fitting-room', label: 'The Fitting', short: 'Fitting', icon: 'figure' },
-  { id: 'scout', label: 'The Hunt', short: 'Hunt', icon: 'compass' },
   // The Index — rebuilt (August 2026), sits immediately LEFT of The Dossier.
   { id: 'index', label: 'The Index', short: 'Index', icon: 'library' },
   // The Dossier — a PRIMARY tab again, rightmost (founder's correction).
@@ -1273,7 +1262,6 @@ function TabIcon({ icon }: { icon: string }) {
     case 'book': return <BookOpen className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'grid': return <LayoutGrid className={cls} strokeWidth={1.5} fill="none" aria-hidden="true" />;
     case 'hanger': return <HangerGlyph />;
-    case 'compass': return <Compass className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'hourglass': return <Hourglass className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'figure': return <PersonStanding className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'library': return <Library className={cls} strokeWidth={1.5} aria-hidden="true" />;
@@ -1289,20 +1277,18 @@ function TabIcon({ icon }: { icon: string }) {
  * fully intact (Milestones overhaul, Part 6);
  * 'rail' is the OLD Rail photo-record screen — no tab-bar slot, still
  * routable by deep link;
- * 'curated' is the old Rail tab — its funnel half lives in The Hunt's
- * Spotted stage;
- * 'radar' is the old Reserve — now The Hunt's Held stage. */
+ * 'curated' is the old Rail tab;
+ * 'radar' is the old Reserve — the watch list. */
 const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar'];
 
 function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void }) {
-  // Warm Editorial nav, two placements (founder's correction — six tabs):
-  //  · DESKTOP — the six tabs as a centred header strip, 47px tall. The
+  // Warm Editorial nav, two placements (founder's correction — five tabs):
+  //  · DESKTOP — the five tabs as a centred header strip, 47px tall. The
   //    Dossier sits rightmost IN the strip; the account corner is retired.
-  //  · PHONE — the six tabs move to a fixed BOTTOM bar at thumb height,
+  //  · PHONE — the five tabs move to a fixed BOTTOM bar at thumb height,
   //    52pt targets, same order; the slim top strip keeps the wordmark.
   const tourAnchorFor = (id: TabId) =>
     id === 'wardrobe' ? 'tour-ledger'
-    : id === 'scout' ? 'tour-hunt'
     : id === 'fitting-room' ? 'tour-fitting'
     : undefined;
 
@@ -1348,9 +1334,9 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
         </div>
       </div>
 
-      {/* PHONE — the six tabs at the bottom, thumb height, 52pt targets,
+      {/* PHONE — the five tabs at the bottom, thumb height, 52pt targets,
           same order as the desktop header (Mobile spec M1 + the founder's
-          six-tab correction). */}
+          five-tab correction). */}
       <nav
         className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex bg-[var(--space-surface-card)] border-t border-[var(--space-text-primary)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
@@ -2234,9 +2220,7 @@ export default function BeauHome() {
   // Your Style tab also lands here, so re-check the profile each time.
   useEffect(() => {
     const onNavigate = (e: Event) => {
-      let wanted = (e as CustomEvent).detail?.tab as string | undefined;
-      // Legacy deep link: the Explore tab merged into Scout (Pass Twelve).
-      if (wanted === 'explore') wanted = 'scout';
+      const wanted = (e as CustomEvent).detail?.tab as string | undefined;
       if (wanted && (TABS.some((t) => t.id === wanted) || HIDDEN_TAB_IDS.includes(wanted as TabId))) {
         setTab(wanted as TabId);
         setOpenCategory(null);
@@ -2525,8 +2509,8 @@ export default function BeauHome() {
     <BeauAssessmentProvider profile={profile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
       {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
-          The Hunt · The Index · The Dossier (six tabs; on a phone they sit
-          in the bottom bar). */}
+          The Index · The Dossier (five tabs; on a phone they sit in the
+          bottom bar). */}
       <TabBar
         tab={tab}
         onChange={(t) => {
@@ -2806,16 +2790,8 @@ export default function BeauHome() {
           </Suspense>
         </KeepMounted>
 
-        {/* Scout — the unified research surface (Pass Twelve): active hunts &
-            reviews plus the Browse sandbox that absorbed the Explore tab */}
-        <KeepMounted active={tab === 'scout'}>
-          <Suspense fallback={<TabLoadingSkeleton />}>
-            <ScoutTab profile={profile} budgets={budgets} pieces={pieces} prefs={prefs} />
-          </Suspense>
-        </KeepMounted>
-
-        {/* Radar — the old Reserve, HIDDEN from the nav (its records are The
-            Hunt's Held stage) — still routable by deep link. */}
+        {/* Radar — the old Reserve, HIDDEN from the nav — still routable
+            by deep link. */}
         <KeepMounted active={tab === 'radar'}>
           <Suspense fallback={<TabLoadingSkeleton />}>
             <RadarTab />

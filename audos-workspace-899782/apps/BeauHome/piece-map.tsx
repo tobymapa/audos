@@ -1,34 +1,35 @@
 /**
- * THE INDEX · PIECES — rebuilt to the corrected design handoff, screen 20a
- * ("Pieces · on a map, and in a quadrant") and mobile M13.
+ * THE INDEX · PIECES — two readings, not four (founder's consolidation
+ * pass): LIST · QUADRANT.
  *
- * ONE header row carries the section title and the AS A LIST · ON A MAP ·
- * AS A QUADRANT toggle at its RIGHT edge, closed by a walnut hairline.
+ * ONE header row carries the section title and the LIST · QUADRANT toggle at
+ * its RIGHT edge, closed by a walnut hairline.
  *
- *  · ON A MAP — the whole 20a page: axis-selector row and three-dot legend
- *    over the plot, the WHY A MAP HERE note and OTHER AXES table in the
- *    300px right rail, the reading paragraph beneath — then, below a rule,
- *    the quadrant section exactly as the reference stacks it.
- *  · AS A QUADRANT — the same quadrant section alone: fixed axes, the four
- *    corners NAMED IN THE PLOT'S CORNERS (Workhorses · The backbone ·
- *    Weekend specifics · Occasion only, each with its register sub-label),
- *    and the counts in the WHAT EACH CORNER HOLDS rail — counts + names,
- *    never scorecards. A muted register reads "muted", never "0 of 12".
+ *  · LIST — the 13a piece index (piece-index-list.tsx).
+ *  · QUADRANT — the old “on a map” and “as a quadrant” tabs MERGED into one
+ *    interactive reading. The plain scatter plot, the WHY A MAP HERE note and
+ *    the OTHER AXES table are gone; what remains is the quadrant itself with
+ *    the legend above it and the WHAT EACH CORNER HOLDS rail beside it —
+ *    counts + names, never scorecards. A muted register reads “muted”, never
+ *    “0 of 12”.
  *
- * The 21 plotted positions transcribe the reference's dot coordinates
- * exactly; which dots draw filled (owned) or accented (a gap Beau flags)
- * is read live from the wardrobe and the last stored assessment.
- * Mobile (M13): the map keeps eight points — gaps first, then what you
- * own — the axes stay, and the rest is pinch-to-zoom (plot-zoom.ts).
+ *    The OTHER AXES table became a CONTROL: a light selector above the plot
+ *    switches which pair of axes the quadrant reads — Formality · Versatility
+ *    (shown by default), Warmth · Rain (Autumn) and Essentialness · Cost
+ *    (Building up). Each pair carries its own axis captions and its own four
+ *    corner names, and the same pieces re-map onto it.
+ *
+ * Which dots draw filled (owned) or accented (a gap Beau flags) is read live
+ * from the wardrobe and the last stored assessment.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
-import { promoteToScout, type StyleProfile, type WardrobePiece } from './profile-data';
+import type { StyleProfile, WardrobePiece } from './profile-data';
 import { PieceIndexList } from './piece-index-list';
 import { peekBeauAssessment } from './beau-assessment';
 import { COVERAGE_PREFS_EVENT, MUTED_STORE_KEY, fetchCoveragePrefs, loadLocalJson } from './coverage-prefs';
-import { useIsNarrow, usePinchZoom } from './plot-zoom';
-import { MONO, capWord, numberWord, usePlexMono } from './mono-type';
+import { usePinchZoom } from './plot-zoom';
+import { MONO, numberWord, usePlexMono } from './mono-type';
 import { ViewToggle } from './view-toggle';
 
 // ---------------------------------------------------------------------------
@@ -49,27 +50,29 @@ const PAPER = '#fbf8f1';
 
 // Plot geometry — the reference draws an 880-wide plot with 30/40/34/58
 // padding; the SVG viewBox bakes the padding in so the corner captions
-// (MOST OUTFITS · ONE OUTFIT · CASUAL · FORMAL) have room to sit outside.
+// have room to sit outside.
 const PLOT_W = 880;
-const MAP_H = 420;
 const QUAD_H = 400;
 const PAD_L = 58;
 const PAD_T = 30;
 const PAD_R = 40;
 const PAD_B = 34;
 const VIEW_W = PAD_L + PLOT_W + PAD_R;
-const MAP_VIEW_H = PAD_T + MAP_H + PAD_B;
 const QUAD_VIEW_H = PAD_T + QUAD_H + PAD_B;
+
+// The old map's height — kept as the unit the hand-plotted coordinates were
+// transcribed in, so `my` still converts to the quadrant's own box.
+const MAP_H = 420;
 
 function svgMono(size = 8.5, fill = FAINT): React.CSSProperties {
   return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.06em', fill };
 }
 
 // ---------------------------------------------------------------------------
-// The plotted taxonomy — 21 types at the reference's exact coordinates.
-// mx/my place a type on the map (880 × 420); qx/qy on the quadrant
-// (880 × 400, only the reference's quadrant set carries them); side 'r'
-// right-aligns the label for dots near the right edge.
+// The plotted taxonomy — 21 types. mx/my are the reference's hand-plotted
+// formality × versatility coordinates (qx/qy override them on the quadrant);
+// warmth / rain / essential / cost are 0..1 readings of the same types, so
+// the other axis pairs place them without a second taxonomy.
 // ---------------------------------------------------------------------------
 
 export interface PieceMapType {
@@ -81,31 +84,39 @@ export interface PieceMapType {
   qy?: number;
   side?: 'l' | 'r';
   qside?: 'l' | 'r';
+  /** 0 = cool, 1 = the warmest thing you own. */
+  warmth: number;
+  /** 0 = ruined by rain, 1 = sheds it. */
+  rain: number;
+  /** 0 = a nice-to-have, 1 = a wardrobe essential. */
+  essential: number;
+  /** 0 = cheap to buy well, 1 = the dearest tier. */
+  cost: number;
   keywords: string[];
 }
 
 export const PIECE_MAP_TYPES: PieceMapType[] = [
-  { id: 't-shirt', label: 'T-shirt', mx: 53, my: 202, qx: 88, qy: 160, keywords: ['t-shirt', 't shirt', 'tee'] },
-  { id: 'hoodie', label: 'Hoodie', mx: 53, my: 294, qx: 106, qy: 264, keywords: ['hoodie', 'hooded'] },
-  { id: 'shorts', label: 'Shorts', mx: 88, my: 361, keywords: ['shorts'] },
-  { id: 'jeans', label: 'Jeans', mx: 141, my: 109, keywords: ['jeans'] },
-  { id: 'field-jacket', label: 'Field jacket', mx: 176, my: 168, qx: 194, qy: 136, keywords: ['field jacket', 'field-jacket', 'm-43', 'm43', 'm-65', 'm65'] },
-  { id: 'overshirt', label: 'Overshirt', mx: 211, my: 244, keywords: ['overshirt', 'shirt jacket', 'shacket'] },
-  { id: 'waxed-jacket', label: 'Waxed jacket', mx: 264, my: 202, qx: 264, qy: 176, keywords: ['waxed jacket', 'wax jacket', 'waxed-jacket', 'waxed cotton'] },
-  { id: 'leather-sneaker', label: 'Leather sneaker', mx: 299, my: 59, qx: 299, qy: 64, keywords: ['sneaker', 'trainer'] },
-  { id: 'chinos', label: 'Chinos', mx: 370, my: 8, qx: 405, qy: 24, keywords: ['chino'] },
-  { id: 'linen-shirt', label: 'Linen shirt', mx: 352, my: 134, qx: 352, qy: 112, keywords: ['linen shirt', 'linen-shirt'] },
-  { id: 'cardigan', label: 'Cardigan', mx: 405, my: 92, qx: 387, qy: 80, keywords: ['cardigan'] },
-  { id: 'crew-neck-jumper', label: 'Crew neck jumper', mx: 440, my: 50, qx: 190, qy: 96, keywords: ['crew neck', 'crewneck', 'crew-neck', 'jumper', 'sweater'] },
-  { id: 'oxford-shirt', label: 'Oxford shirt', mx: 546, my: 25, qx: 528, qy: 32, keywords: ['oxford shirt', 'oxford-shirt', 'ocbd', 'oxford button'] },
-  { id: 'roll-neck', label: 'Roll neck', mx: 493, my: 185, keywords: ['roll neck', 'rollneck', 'roll-neck', 'turtleneck', 'turtle neck'] },
-  { id: 'chelsea-boot', label: 'Chelsea boot', mx: 563, my: 126, keywords: ['chelsea'] },
-  { id: 'penny-loafer', label: 'Penny loafer', mx: 634, my: 59, side: 'r', qx: 581, qy: 88, qside: 'l', keywords: ['loafer'] },
-  { id: 'wool-trousers', label: 'Wool trousers', mx: 651, my: 168, side: 'r', qx: 634, qy: 152, qside: 'r', keywords: ['wool trouser', 'flannel trouser', 'dress trouser', 'tropical wool'] },
-  { id: 'blazer', label: 'Blazer', mx: 722, my: 109, side: 'r', keywords: ['blazer', 'sports jacket', 'sport coat'] },
-  { id: 'overcoat', label: 'Overcoat', mx: 739, my: 269, side: 'r', keywords: ['overcoat', 'topcoat', 'chesterfield'] },
-  { id: 'cap-toe-oxford', label: 'Cap-toe oxford', mx: 792, my: 227, side: 'r', keywords: ['cap-toe', 'cap toe', 'oxford shoe', 'balmoral', 'derby', 'brogue'] },
-  { id: 'suit', label: 'Suit', mx: 845, my: 353, side: 'r', keywords: ['suit'] },
+  { id: 't-shirt', label: 'T-shirt', mx: 53, my: 202, qx: 88, qy: 160, warmth: 0.08, rain: 0.05, essential: 0.95, cost: 0.06, keywords: ['t-shirt', 't shirt', 'tee'] },
+  { id: 'hoodie', label: 'Hoodie', mx: 53, my: 294, qx: 106, qy: 264, warmth: 0.6, rain: 0.12, essential: 0.6, cost: 0.16, keywords: ['hoodie', 'hooded'] },
+  { id: 'shorts', label: 'Shorts', mx: 88, my: 361, warmth: 0.03, rain: 0.24, essential: 0.45, cost: 0.12, keywords: ['shorts'] },
+  { id: 'jeans', label: 'Jeans', mx: 141, my: 109, warmth: 0.45, rain: 0.3, essential: 0.92, cost: 0.3, keywords: ['jeans'] },
+  { id: 'field-jacket', label: 'Field jacket', mx: 176, my: 168, qx: 194, qy: 136, warmth: 0.6, rain: 0.62, essential: 0.6, cost: 0.42, keywords: ['field jacket', 'field-jacket', 'm-43', 'm43', 'm-65', 'm65'] },
+  { id: 'overshirt', label: 'Overshirt', mx: 211, my: 244, warmth: 0.5, rain: 0.25, essential: 0.5, cost: 0.28, keywords: ['overshirt', 'shirt jacket', 'shacket'] },
+  { id: 'waxed-jacket', label: 'Waxed jacket', mx: 264, my: 202, qx: 264, qy: 176, warmth: 0.68, rain: 0.95, essential: 0.42, cost: 0.55, keywords: ['waxed jacket', 'wax jacket', 'waxed-jacket', 'waxed cotton'] },
+  { id: 'leather-sneaker', label: 'Leather sneaker', mx: 299, my: 59, qx: 299, qy: 64, warmth: 0.35, rain: 0.36, essential: 0.9, cost: 0.35, keywords: ['sneaker', 'trainer'] },
+  { id: 'chinos', label: 'Chinos', mx: 370, my: 8, qx: 405, qy: 24, warmth: 0.4, rain: 0.3, essential: 0.88, cost: 0.22, keywords: ['chino'] },
+  { id: 'linen-shirt', label: 'Linen shirt', mx: 352, my: 134, qx: 352, qy: 112, warmth: 0.06, rain: 0.08, essential: 0.4, cost: 0.26, keywords: ['linen shirt', 'linen-shirt'] },
+  { id: 'cardigan', label: 'Cardigan', mx: 405, my: 92, qx: 387, qy: 80, warmth: 0.58, rain: 0.1, essential: 0.45, cost: 0.34, keywords: ['cardigan'] },
+  { id: 'crew-neck-jumper', label: 'Crew neck jumper', mx: 440, my: 50, qx: 190, qy: 96, warmth: 0.7, rain: 0.3, essential: 0.85, cost: 0.38, keywords: ['crew neck', 'crewneck', 'crew-neck', 'jumper', 'sweater'] },
+  { id: 'oxford-shirt', label: 'Oxford shirt', mx: 546, my: 25, qx: 528, qy: 32, warmth: 0.3, rain: 0.15, essential: 0.9, cost: 0.22, keywords: ['oxford shirt', 'oxford-shirt', 'ocbd', 'oxford button'] },
+  { id: 'roll-neck', label: 'Roll neck', mx: 493, my: 185, warmth: 0.78, rain: 0.32, essential: 0.5, cost: 0.42, keywords: ['roll neck', 'rollneck', 'roll-neck', 'turtleneck', 'turtle neck'] },
+  { id: 'chelsea-boot', label: 'Chelsea boot', mx: 563, my: 126, warmth: 0.55, rain: 0.7, essential: 0.62, cost: 0.55, keywords: ['chelsea'] },
+  { id: 'penny-loafer', label: 'Penny loafer', mx: 634, my: 59, side: 'r', qx: 581, qy: 88, qside: 'l', warmth: 0.3, rain: 0.28, essential: 0.55, cost: 0.6, keywords: ['loafer'] },
+  { id: 'wool-trousers', label: 'Wool trousers', mx: 651, my: 168, side: 'r', qx: 634, qy: 152, qside: 'r', warmth: 0.62, rain: 0.45, essential: 0.6, cost: 0.48, keywords: ['wool trouser', 'flannel trouser', 'dress trouser', 'tropical wool'] },
+  { id: 'blazer', label: 'Blazer', mx: 722, my: 109, side: 'r', warmth: 0.5, rain: 0.2, essential: 0.7, cost: 0.72, keywords: ['blazer', 'sports jacket', 'sport coat'] },
+  { id: 'overcoat', label: 'Overcoat', mx: 739, my: 269, side: 'r', warmth: 0.95, rain: 0.72, essential: 0.68, cost: 0.88, keywords: ['overcoat', 'topcoat', 'chesterfield'] },
+  { id: 'cap-toe-oxford', label: 'Cap-toe oxford', mx: 792, my: 227, side: 'r', warmth: 0.45, rain: 0.5, essential: 0.58, cost: 0.68, keywords: ['cap-toe', 'cap toe', 'oxford shoe', 'balmoral', 'derby', 'brogue'] },
+  { id: 'suit', label: 'Suit', mx: 845, my: 353, side: 'r', warmth: 0.5, rain: 0.18, essential: 0.5, cost: 0.95, keywords: ['suit'] },
 ];
 
 const qxOf = (t: PieceMapType) => t.qx ?? t.mx;
@@ -153,7 +164,7 @@ export function gapRanks(ownedIds: Set<string>): Map<string, number> {
   return ranks;
 }
 
-/** Owned + gap statuses, shared by the plots and the Index header intro. */
+/** Owned + gap statuses, shared by the plot and the Index header intro. */
 export function usePieceStatuses(pieces: WardrobePiece[]): { owned: Set<string>; gaps: Map<string, number> } {
   const owned = useMemo(() => ownedTypeIds(pieces), [pieces]);
   const gaps = useMemo(() => gapRanks(owned), [owned]);
@@ -183,8 +194,6 @@ function useMutedRegisters(): string[] {
   return muted;
 }
 
-const ORDINALS = ['1st', '2nd', '3rd'];
-
 type DotKind = 'owned' | 'none' | 'gap';
 
 function kindOf(id: string, owned: Set<string>, gaps: Map<string, number>): DotKind {
@@ -200,19 +209,10 @@ function TypeDot({ cx, cy, kind }: { cx: number; cy: number; kind: DotKind }) {
 }
 
 // ---------------------------------------------------------------------------
-// Shared chrome — the axis-selector row, the legend, the right-rail blocks.
+// Shared chrome — the legend and the right-rail blocks (AccentNote,
+// OtherAxes and PlotBox are also the makers page's chrome; leave the
+// signatures alone).
 // ---------------------------------------------------------------------------
-
-function AxisRow({ across, up }: { across: string; up: string }) {
-  const wrap: React.CSSProperties = { fontFamily: MONO, fontSize: '9px', letterSpacing: '0.07em', textTransform: 'uppercase', color: LABEL_BROWN };
-  const pick: React.CSSProperties = { color: WALNUT, borderBottom: '1px solid rgba(168,113,44,0.6)', paddingBottom: '1px' };
-  return (
-    <div className="flex flex-wrap items-baseline" style={{ gap: '26px', paddingBottom: '12px' }}>
-      <span style={wrap}>Across · <span style={pick}>{across}&nbsp;⌄</span></span>
-      <span style={wrap}>Up · <span style={pick}>{up}&nbsp;⌄</span></span>
-    </div>
-  );
-}
 
 const legendText: React.CSSProperties = {
   fontFamily: MONO,
@@ -233,7 +233,7 @@ function LegendItem({ kind, label }: { kind: DotKind; label: string }) {
   );
 }
 
-/** The accent-ruled aside — WHY A MAP HERE · BEAU, BRIEFLY. */
+/** The accent-ruled aside — BEAU, BRIEFLY (and the makers page's own notes). */
 export function AccentNote({ title, children, style }: { title: string; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{ borderLeft: `2px solid ${ACCENT}`, paddingLeft: '16px', ...style }}>
@@ -243,7 +243,8 @@ export function AccentNote({ title, children, style }: { title: string; children
   );
 }
 
-/** The OTHER AXES table in the right rail. */
+/** The OTHER AXES table in the right rail (the makers page still reads it as
+ * a table; the pieces quadrant turned its own copy into a live selector). */
 export function OtherAxes({ rows }: { rows: Array<{ label: string; note: string; accent?: boolean }> }) {
   return (
     <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(59,43,29,0.18)' }}>
@@ -285,9 +286,12 @@ export function PlotBox({ children, style }: { children: React.ReactNode; style?
 }
 
 // ---------------------------------------------------------------------------
-// The corner label blocks the quadrant draws INSIDE the plot (20a): name in
-// Cormorant 17 over the register sub-label in mono — never counts.
+// THE AXIS PAIRS — three readings of the same 21 types. Each names its own
+// axis captions and its own four corners, so switching the pair re-labels
+// the plot as well as re-placing the dots.
 // ---------------------------------------------------------------------------
+
+export type QuadrantAxesId = 'formality-versatility' | 'warmth-rain' | 'essentialness-cost';
 
 interface QuadCorner {
   name: string;
@@ -296,6 +300,99 @@ interface QuadCorner {
   v: 't' | 'b';
   /** The reference's inset from the plot's top/bottom edge for this block. */
   inset: number;
+}
+
+interface AxisPair {
+  id: QuadrantAxesId;
+  /** The selector's own label. */
+  label: string;
+  /** The small qualifier beside it — “Autumn”, “Building up”. */
+  note: string;
+  title: string;
+  intro: string;
+  /** The mono captions: across from left to right, up from bottom to top. */
+  acrossLabel: string;
+  acrossLow: string;
+  acrossHigh: string;
+  upLabel: string;
+  upLow: string;
+  upHigh: string;
+  /** 0..1 across. */
+  x: (t: PieceMapType) => number;
+  /** 0..1 up — 1 is the top of the plot. */
+  y: (t: PieceMapType) => number;
+  /** Corner names, top-left · top-right · bottom-left · bottom-right. */
+  corners: [string, string, string, string];
+  cornerSubs: [string, string, string, string];
+  /** True when the hand-plotted coordinates place the dots — no jitter. */
+  handPlotted?: boolean;
+}
+
+export const AXIS_PAIRS: AxisPair[] = [
+  {
+    id: 'formality-versatility',
+    label: 'Formality · Versatility',
+    note: '',
+    title: 'The same axes, cut in four',
+    intro:
+      'The quadrant plots only what you own plus the gaps — then names the four regions, counts them, and says what’s thin. A map shows where things are; a quadrant tells you which corner you live in.',
+    acrossLabel: 'How formal it reads',
+    acrossLow: 'Casual',
+    acrossHigh: 'Formal',
+    upLabel: 'How many outfits it enters',
+    upLow: 'One outfit',
+    upHigh: 'Most outfits',
+    x: (t) => qxOf(t) / PLOT_W,
+    y: (t) => 1 - qyOf(t) / QUAD_H,
+    corners: ['Workhorses', 'The backbone', 'Weekend specifics', 'Occasion only'],
+    cornerSubs: ['Casual · many outfits', 'Smart · many outfits', 'Casual · few outfits', 'Smart · few outfits'],
+    handPlotted: true,
+  },
+  {
+    id: 'warmth-rain',
+    label: 'Warmth · Rain',
+    note: 'Autumn',
+    title: 'Warmth against weather',
+    intro:
+      'The same pieces read against the two things a British autumn asks of them: how warm they are, and whether they survive rain. The top-right corner is what an October week actually needs.',
+    acrossLabel: 'How warm it is',
+    acrossLow: 'Cool',
+    acrossHigh: 'Warm',
+    upLabel: 'How it takes rain',
+    upLow: 'Fair weather only',
+    upHigh: 'Sheds rain',
+    x: (t) => t.warmth,
+    y: (t) => t.rain,
+    corners: ['Mild and wet', 'Autumn armour', 'High summer', 'Cold and dry'],
+    cornerSubs: ['Cool · sheds rain', 'Warm · sheds rain', 'Cool · fair weather', 'Warm · fair weather'],
+  },
+  {
+    id: 'essentialness-cost',
+    label: 'Essentialness · Cost',
+    note: 'Building up',
+    title: 'What matters against what it costs',
+    intro:
+      'How essential a piece is, against what a good one costs. The top-left corner is where a wardrobe should be built from; the bottom-right is where money goes to be admired.',
+    acrossLabel: 'What a good one costs',
+    acrossLow: 'Cheap',
+    acrossHigh: 'Dear',
+    upLabel: 'How essential it is',
+    upLow: 'Nice to have',
+    upHigh: 'Essential',
+    x: (t) => t.cost,
+    y: (t) => t.essential,
+    corners: ['Buy these first', 'Worth saving for', 'Cheap indulgences', 'Later, or never'],
+    cornerSubs: ['Cheap · essential', 'Dear · essential', 'Cheap · optional', 'Dear · optional'],
+  },
+];
+
+function cornerBlocks(axes: AxisPair): QuadCorner[] {
+  return [
+    { name: axes.corners[0], sub: axes.cornerSubs[0], h: 'l', v: 't', inset: 26 },
+    { name: axes.corners[1], sub: axes.cornerSubs[1], h: 'r', v: 't', inset: 12 },
+    { name: axes.corners[2], sub: axes.cornerSubs[2], h: 'l', v: 'b', inset: 12 },
+    { name: axes.corners[3], sub: axes.cornerSubs[3], h: 'r', v: 'b', inset: 12 },
+  ];
 }
 
 function QuadCornerLabels({ corners, plotH }: { corners: QuadCorner[]; plotH: number }) {
@@ -317,104 +414,22 @@ function QuadCornerLabels({ corners, plotH }: { corners: QuadCorner[]; plotH: nu
   );
 }
 
-// ---------------------------------------------------------------------------
-// The map — the whole slice of the taxonomy, quarter gridlines, live dots.
-// ---------------------------------------------------------------------------
-
-function PiecesMapSvg({ pieces }: { pieces: WardrobePiece[] }) {
-  const narrow = useIsNarrow();
-  const { owned, gaps } = usePieceStatuses(pieces);
-  const zoom = usePinchZoom(VIEW_W, MAP_VIEW_H);
-
-  const plotted = useMemo(() => {
-    if (!narrow || PIECE_MAP_TYPES.length <= 8) return PIECE_MAP_TYPES;
-    // MOBILE (M13): the map keeps eight points — gaps first, then owned by
-    // versatility, then the most versatile of the rest.
-    const ranked = [...PIECE_MAP_TYPES].sort((a, b) => {
-      const aw = gaps.has(a.id) ? 2 : owned.has(a.id) ? 1 : 0;
-      const bw = gaps.has(b.id) ? 2 : owned.has(b.id) ? 1 : 0;
-      if (aw !== bw) return bw - aw;
-      return a.my - b.my;
-    });
-    return ranked.slice(0, 8);
-  }, [narrow, owned, gaps]);
-
-  return (
-    <div>
-      <AxisRow across="How formal it reads" up="How many outfits it enters" />
-      <div className="flex flex-wrap items-center" style={{ gap: '22px', paddingBottom: '14px' }}>
-        <LegendItem kind="owned" label="You own one" />
-        <LegendItem kind="none" label="You don't" />
-        <LegendItem kind="gap" label="A gap Beau flags" />
-        {zoom.zoomed && (
-          <button type="button" onClick={zoom.reset} className="hover:underline" style={{ ...legendText, color: ACCENT, background: 'transparent' }}>
-            Reset zoom
-          </button>
-        )}
-      </div>
-      <PlotBox>
-        <svg
-          ref={zoom.svgRef}
-          viewBox={zoom.viewBox}
-          {...zoom.handlers}
-          className="w-full h-auto block"
-          style={{ touchAction: zoom.touchAction }}
-          role="img"
-          aria-label="Garment types plotted — how formal they read across, how many outfits they enter up"
-        >
-          {/* Quiet quarter gridlines. */}
-          {[220, 440, 660].map((gx) => (
-            <line key={gx} x1={PAD_L + gx} y1={PAD_T} x2={PAD_L + gx} y2={PAD_T + MAP_H} stroke="rgba(59,43,29,0.1)" strokeWidth="1" />
-          ))}
-          {[105, 210, 315].map((gy) => (
-            <line key={gy} x1={PAD_L} y1={PAD_T + gy} x2={PAD_L + PLOT_W} y2={PAD_T + gy} stroke="rgba(59,43,29,0.1)" strokeWidth="1" />
-          ))}
-
-          <text x={12} y={PAD_T + 4} style={svgMono()}>MOST OUTFITS</text>
-          <text x={12} y={PAD_T + MAP_H + 2} style={svgMono()}>ONE OUTFIT</text>
-          <text x={PAD_L} y={PAD_T + MAP_H + 22} style={svgMono()}>CASUAL</text>
-          <text x={PAD_L + PLOT_W} y={PAD_T + MAP_H + 22} textAnchor="end" style={svgMono()}>FORMAL</text>
-
-          {plotted.map((t) => {
-            const kind = kindOf(t.id, owned, gaps);
-            const gapRank = gaps.get(t.id);
-            const cx = PAD_L + Math.max(8, Math.min(PLOT_W - 8, t.mx));
-            const cy = PAD_T + Math.max(8, Math.min(MAP_H - 8, t.my));
-            const right = t.side === 'r';
-            const lx = right ? cx - 13 : cx + 13;
-            const status = kind === 'owned' ? 'you own one' : gapRank ? `gap · ${ORDINALS[gapRank - 1] || `${gapRank}th`}` : 'you don’t own one';
-            return (
-              <g key={t.id}>
-                <title>{`${t.label} — ${status}`}</title>
-                <TypeDot cx={cx} cy={cy} kind={kind} />
-                <text x={lx} y={cy + 4.5} textAnchor={right ? 'end' : 'start'} style={{ fontFamily: SERIF, fontSize: '13.5px', fill: WALNUT }}>
-                  {t.label}
-                </text>
-                {gapRank && (
-                  <text x={lx} y={cy + 16} textAnchor={right ? 'end' : 'start'} style={{ ...svgMono(8, ACCENT_DEEP) }}>
-                    GAP · {(ORDINALS[gapRank - 1] || `${gapRank}TH`).toUpperCase()}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </PlotBox>
-      <p style={{ margin: '18px 0 0', maxWidth: '86ch', fontFamily: BODY, fontSize: '14px', lineHeight: 1.6, color: INK }}>
-        {narrow && plotted.length < PIECE_MAP_TYPES.length
-          ? `${plotted.length} of ${PIECE_MAP_TYPES.length} types at this width — pinch to zoom; the full set is one tap away in the list. `
-          : ''}
-        The useful region is the top middle — pieces that enter many outfits without committing to a register — and
-        it’s where the flagged gaps tend to sit, which is the visual argument for their order. Everything you own
-        draws filled, so a smart piece with no shoe to land on is the same finding The Edit states in words.
-      </p>
-    </div>
-  );
+/** Deterministic tiny jitter so two types reading the same pair of values
+ * never sit exactly on top of each other — keyed on the id, so the plot is
+ * stable between renders. */
+function jitterOf(id: string): { dx: number; dy: number } {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i += 1) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const a = ((h >>> 0) % 100) / 100;
+  const b = ((h >>> 8) % 100) / 100;
+  return { dx: (a - 0.5) * 34, dy: (b - 0.5) * 26 };
 }
 
 // ---------------------------------------------------------------------------
-// The quadrant — fewer points, fixed axes, named corners; counts live in
-// the right rail, not on the plot.
+// THE INTERACTIVE QUADRANT — the one plot the Pieces index draws.
 // ---------------------------------------------------------------------------
 
 interface CornerCount {
@@ -422,21 +437,47 @@ interface CornerCount {
   gapCount: number;
 }
 
-function usePieceCorners(owned: Set<string>, gaps: Map<string, number>) {
-  return useMemo(() => {
-    const inSet = PIECE_MAP_TYPES.filter((t) => owned.has(t.id) || gaps.has(t.id));
-    const count = (left: boolean, top: boolean): CornerCount => {
-      const here = inSet.filter((t) => (qxOf(t) < PLOT_W / 2) === left && (qyOf(t) < QUAD_H / 2) === top);
-      return { yours: here.filter((t) => owned.has(t.id)).length, gapCount: here.filter((t) => gaps.has(t.id)).length };
-    };
+interface PlacedType {
+  type: PieceMapType;
+  kind: DotKind;
+  /** In plot units. */
+  px: number;
+  py: number;
+  /** 0..1, before the jitter — what the corner counts read. */
+  ux: number;
+  uy: number;
+}
+
+function placeTypes(axes: AxisPair, owned: Set<string>, gaps: Map<string, number>): PlacedType[] {
+  return PIECE_MAP_TYPES.filter((t) => owned.has(t.id) || gaps.has(t.id)).map((type) => {
+    const ux = Math.max(0, Math.min(1, axes.x(type)));
+    const uy = Math.max(0, Math.min(1, axes.y(type)));
+    const jitter = axes.handPlotted ? { dx: 0, dy: 0 } : jitterOf(type.id);
     return {
-      workhorses: count(true, true),
-      backbone: count(false, true),
-      weekend: count(true, false),
-      occasion: count(false, false),
-      plotted: inSet,
+      type,
+      kind: kindOf(type.id, owned, gaps),
+      px: Math.max(8, Math.min(PLOT_W - 8, ux * PLOT_W + jitter.dx)),
+      py: Math.max(8, Math.min(QUAD_H - 8, (1 - uy) * QUAD_H + jitter.dy)),
+      ux,
+      uy,
     };
-  }, [owned, gaps]);
+  });
+}
+
+function countCorners(placed: PlacedType[]) {
+  const count = (left: boolean, top: boolean): CornerCount => {
+    const here = placed.filter((p) => (p.ux < 0.5) === left && (p.uy >= 0.5) === top);
+    return {
+      yours: here.filter((p) => p.kind === 'owned').length,
+      gapCount: here.filter((p) => p.kind === 'gap').length,
+    };
+  };
+  return {
+    topLeft: count(true, true),
+    topRight: count(false, true),
+    bottomLeft: count(true, false),
+    bottomRight: count(false, false),
+  };
 }
 
 function cornerText(c: CornerCount, mutedHere: boolean): string {
@@ -448,18 +489,19 @@ function cornerText(c: CornerCount, mutedHere: boolean): string {
   return bits.join(' · ');
 }
 
-/** BEAU, BRIEFLY — the one-paragraph reading of the quadrant. */
+/** BEAU, BRIEFLY — the one-paragraph reading of whichever axes are on. */
 function pieceBrief(
-  corners: { workhorses: CornerCount; backbone: CornerCount; weekend: CornerCount; occasion: CornerCount },
+  axes: AxisPair,
+  corners: ReturnType<typeof countCorners>,
   formalMuted: boolean,
   total: number,
 ): string {
   if (total === 0) return 'Log a few pieces and the quadrant fills in — then I can tell you which corner you live in.';
   const named: Array<[string, CornerCount]> = [
-    ['top-left', corners.workhorses],
-    ['top-right', corners.backbone],
-    ['bottom-left', corners.weekend],
-    ['bottom-right', corners.occasion],
+    [axes.corners[0], corners.topLeft],
+    [axes.corners[1], corners.topRight],
+    [axes.corners[2], corners.bottomLeft],
+    [axes.corners[3], corners.bottomRight],
   ];
   const dominant = named.reduce((best, cur) => (cur[1].yours > best[1].yours ? cur : best));
   const parts: string[] = [];
@@ -468,17 +510,17 @@ function pieceBrief(
       ? `, with ${dominant[1].gapCount === 1 ? 'one of your gaps' : `${numberWord(dominant[1].gapCount)} of your gaps`} landing there too`
       : '';
     parts.push(
-      `You live in the ${dominant[0]} — ${numberWord(dominant[1].yours)} piece${dominant[1].yours === 1 ? '' : 's'}${gapNote}.`,
+      `You live in “${dominant[0]}” — ${numberWord(dominant[1].yours)} piece${dominant[1].yours === 1 ? '' : 's'}${gapNote}.`,
     );
   }
-  if (dominant[0] !== 'top-right' && corners.backbone.yours > 0) {
+  if (dominant[0] !== axes.corners[1] && corners.topRight.yours > 0) {
     parts.push(
-      `You have ${numberWord(corners.backbone.yours)} piece${corners.backbone.yours === 1 ? '' : 's'} in the top-right${
-        corners.backbone.gapCount > 0 ? ' — one gap joins them up' : ''
+      `${numberWord(corners.topRight.yours)} piece${corners.topRight.yours === 1 ? '' : 's'} sit in “${axes.corners[1]}”${
+        corners.topRight.gapCount > 0 ? ' — one gap joins them up' : ''
       }.`,
     );
   }
-  if (formalMuted && corners.occasion.yours === 0) {
+  if (axes.id === 'formality-versatility' && formalMuted && corners.bottomRight.yours === 0) {
     parts.push(
       'Nothing belongs in the bottom-right — you’ve told me you don’t dress formal, and the quadrant honours that rather than scoring you on it.',
     );
@@ -486,36 +528,65 @@ function pieceBrief(
   return parts.join(' ') || 'Fewer points, fixed axes, named corners, counts — it delivers a reading, not an exploration.';
 }
 
-function PiecesQuadrant({ pieces, withHeading }: { pieces: WardrobePiece[]; withHeading: boolean }) {
+/** THE AXIS SELECTOR — deliberately light: three mono words over the plot,
+ * the live one underlined in accent. Never a panel, never a dropdown. */
+function AxisSelector({ active, onChange }: { active: QuadrantAxesId; onChange: (id: QuadrantAxesId) => void }) {
+  return (
+    <div className="flex flex-wrap items-baseline" role="group" aria-label="Which axes the quadrant reads" style={{ gap: '6px 20px', paddingBottom: '10px' }}>
+      <span style={{ ...legendText, color: FAINT }}>Axes</span>
+      {AXIS_PAIRS.map((pair) => {
+        const on = pair.id === active;
+        return (
+          <button
+            key={pair.id}
+            type="button"
+            onClick={() => onChange(pair.id)}
+            aria-pressed={on}
+            className="transition-colors"
+            style={{
+              ...legendText,
+              background: 'transparent',
+              color: on ? WALNUT : LABEL_BROWN,
+              borderBottom: on ? `1px solid ${ACCENT}` : '1px solid transparent',
+              paddingBottom: '2px',
+            }}
+          >
+            {pair.label}
+            {pair.note && <span style={{ color: on ? ACCENT_DEEP : FAINT }}>&nbsp;· {pair.note}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PiecesQuadrant({ pieces, axes }: { pieces: WardrobePiece[]; axes: AxisPair }) {
   const { owned, gaps } = usePieceStatuses(pieces);
   const muted = useMutedRegisters();
   const formalMuted = muted.includes('formal');
-  const corners = usePieceCorners(owned, gaps);
   const zoom = usePinchZoom(VIEW_W, QUAD_VIEW_H);
 
-  const cornerLabels: QuadCorner[] = [
-    { name: 'Workhorses', sub: 'Casual · many outfits', h: 'l', v: 't', inset: 26 },
-    { name: 'The backbone', sub: 'Smart · many outfits', h: 'r', v: 't', inset: 12 },
-    { name: 'Weekend specifics', sub: 'Casual · few outfits', h: 'l', v: 'b', inset: 12 },
-    { name: 'Occasion only', sub: 'Smart · few outfits', h: 'r', v: 'b', inset: 12 },
-  ];
+  const placed = useMemo(() => placeTypes(axes, owned, gaps), [axes, owned, gaps]);
+  const corners = useMemo(() => countCorners(placed), [placed]);
+  // Only the formality reading has a register the wearer can mute — the
+  // weather and cost readings have nothing to honour.
+  const mutedCorner = axes.id === 'formality-versatility' && formalMuted;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-8 lg:gap-[44px] items-start">
       <div>
-        {withHeading && (
-          <>
-            <h4 style={{ margin: 0, fontFamily: SERIF, fontSize: '30px', fontWeight: 400, lineHeight: 1.14, color: WALNUT }}>
-              The same axes, cut in four
-            </h4>
-            <p style={{ margin: '9px 0 0', maxWidth: '78ch', fontFamily: BODY, fontSize: '14.5px', lineHeight: 1.58, color: INK }}>
-              The quadrant drops the exploratory set and plots only what you own plus the gaps — then names the four
-              regions, counts them, and says what’s thin. A map shows where things are; a quadrant tells you which
-              corner you live in.
-            </p>
-          </>
-        )}
-        <PlotBox style={{ marginTop: withHeading ? '20px' : 0 }}>
+        {/* The legend stays exactly where it was — over the plot. */}
+        <div className="flex flex-wrap items-center" style={{ gap: '22px', paddingBottom: '14px' }}>
+          <LegendItem kind="owned" label="You own one" />
+          <LegendItem kind="none" label="You don't" />
+          <LegendItem kind="gap" label="A gap Beau flags" />
+          {zoom.zoomed && (
+            <button type="button" onClick={zoom.reset} className="hover:underline" style={{ ...legendText, color: ACCENT, background: 'transparent' }}>
+              Reset zoom
+            </button>
+          )}
+        </div>
+        <PlotBox>
           <svg
             ref={zoom.svgRef}
             viewBox={zoom.viewBox}
@@ -523,42 +594,45 @@ function PiecesQuadrant({ pieces, withHeading }: { pieces: WardrobePiece[]; with
             className="w-full h-auto block"
             style={{ touchAction: zoom.touchAction }}
             role="img"
-            aria-label="Your pieces and the flagged gaps, cut into four named quadrants"
+            aria-label={`Your pieces and the flagged gaps, cut into four named quadrants — ${axes.acrossLabel} across, ${axes.upLabel} up`}
           >
             <line x1={PAD_L + PLOT_W / 2} y1={PAD_T} x2={PAD_L + PLOT_W / 2} y2={PAD_T + QUAD_H} stroke="rgba(59,43,29,0.34)" strokeWidth="1" />
             <line x1={PAD_L} y1={PAD_T + QUAD_H / 2} x2={PAD_L + PLOT_W} y2={PAD_T + QUAD_H / 2} stroke="rgba(59,43,29,0.34)" strokeWidth="1" />
 
-            <QuadCornerLabels corners={cornerLabels} plotH={QUAD_H} />
+            <QuadCornerLabels corners={cornerBlocks(axes)} plotH={QUAD_H} />
 
-            <text x={12} y={PAD_T + 4} style={svgMono()}>MOST OUTFITS</text>
-            <text x={12} y={PAD_T + QUAD_H + 2} style={svgMono()}>ONE OUTFIT</text>
-            <text x={PAD_L} y={PAD_T + QUAD_H + 22} style={svgMono()}>CASUAL</text>
-            <text x={PAD_L + PLOT_W} y={PAD_T + QUAD_H + 22} textAnchor="end" style={svgMono()}>FORMAL</text>
+            <text x={12} y={PAD_T + 4} style={svgMono()}>{axes.upHigh.toUpperCase()}</text>
+            <text x={12} y={PAD_T + QUAD_H + 2} style={svgMono()}>{axes.upLow.toUpperCase()}</text>
+            <text x={PAD_L} y={PAD_T + QUAD_H + 22} style={svgMono()}>{axes.acrossLow.toUpperCase()}</text>
+            <text x={PAD_L + PLOT_W} y={PAD_T + QUAD_H + 22} textAnchor="end" style={svgMono()}>{axes.acrossHigh.toUpperCase()}</text>
 
-            {corners.plotted.map((t) => {
-              const kind = kindOf(t.id, owned, gaps);
-              const cx = PAD_L + Math.max(8, Math.min(PLOT_W - 8, qxOf(t)));
-              const cy = PAD_T + Math.max(8, Math.min(QUAD_H - 8, qyOf(t)));
-              const right = (t.qside || t.side) === 'r';
+            {placed.map(({ type, kind, px, py }) => {
+              const cx = PAD_L + px;
+              const cy = PAD_T + py;
+              const right = axes.handPlotted ? (type.qside || type.side) === 'r' : px > PLOT_W * 0.78;
               const lx = right ? cx - 13 : cx + 13;
               return (
-                <g key={t.id}>
-                  <title>{`${t.label} — ${kind === 'owned' ? 'you own one' : 'a gap Beau flags'}`}</title>
+                <g key={type.id}>
+                  <title>{`${type.label} — ${kind === 'owned' ? 'you own one' : 'a gap Beau flags'}`}</title>
                   <TypeDot cx={cx} cy={cy} kind={kind} />
                   <text x={lx} y={cy + 4.5} textAnchor={right ? 'end' : 'start'} style={{ fontFamily: SERIF, fontSize: '13.5px', fill: WALNUT }}>
-                    {t.label}
+                    {type.label}
                   </text>
                 </g>
               );
             })}
 
-            {corners.plotted.length === 0 && (
+            {placed.length === 0 && (
               <text x={PAD_L + PLOT_W / 2} y={PAD_T + QUAD_H / 2 - 14} textAnchor="middle" style={{ fontFamily: BODY, fontSize: '13px', fill: MUTED }}>
                 Nothing to place yet — log a few pieces and the quadrant fills in.
               </text>
             )}
           </svg>
         </PlotBox>
+        <p style={{ margin: '14px 0 0', maxWidth: '86ch', fontFamily: BODY, fontSize: '13px', lineHeight: 1.6, color: MUTED }}>
+          Across · {axes.acrossLabel.toLowerCase()} · Up · {axes.upLabel.toLowerCase()}. Switch the axes above and the same
+          pieces re-place themselves — the corners are renamed with them.
+        </p>
       </div>
 
       <div>
@@ -567,21 +641,26 @@ function PiecesQuadrant({ pieces, withHeading }: { pieces: WardrobePiece[]; with
         </div>
         <div className="flex flex-col" style={{ marginTop: '12px' }}>
           <CornerRow
-            name="Workhorses"
-            count={cornerText(corners.workhorses, false)}
-            tone={corners.workhorses.gapCount > 0 && corners.workhorses.yours < 3 ? ACCENT : WALNUT}
+            name={axes.corners[0]}
+            count={cornerText(corners.topLeft, false)}
+            tone={corners.topLeft.gapCount > 0 && corners.topLeft.yours < 3 ? ACCENT : WALNUT}
           />
           <CornerRow
-            name="The backbone"
-            count={cornerText(corners.backbone, false)}
-            tone={corners.backbone.gapCount > 0 && corners.backbone.yours < 3 ? ACCENT : WALNUT}
+            name={axes.corners[1]}
+            count={cornerText(corners.topRight, false)}
+            tone={corners.topRight.gapCount > 0 && corners.topRight.yours < 3 ? ACCENT : WALNUT}
           />
-          <CornerRow name="Weekend specifics" count={cornerText(corners.weekend, false)} />
+          <CornerRow name={axes.corners[2]} count={cornerText(corners.bottomLeft, false)} />
           {/* A REGISTER THE USER HAS MUTED reads "muted", never "0 of 12". */}
-          <CornerRow name="Occasion only" count={cornerText(corners.occasion, formalMuted)} tone={formalMuted ? MUTED : WALNUT} last />
+          <CornerRow
+            name={axes.corners[3]}
+            count={cornerText(corners.bottomRight, mutedCorner)}
+            tone={mutedCorner ? MUTED : WALNUT}
+            last
+          />
         </div>
         <AccentNote title="Beau, briefly" style={{ marginTop: '20px' }}>
-          {pieceBrief(corners, formalMuted, corners.plotted.length)}
+          {pieceBrief(axes, corners, formalMuted, placed.length)}
         </AccentNote>
       </div>
     </div>
@@ -589,65 +668,37 @@ function PiecesQuadrant({ pieces, withHeading }: { pieces: WardrobePiece[]; with
 }
 
 // ---------------------------------------------------------------------------
-// The exported views.
+// The exported section.
 // ---------------------------------------------------------------------------
 
-/** The plots alone — kept for callers that already carry their own header. */
-export function PiecesMap({ pieces, view }: { pieces: WardrobePiece[]; view: 'map' | 'quadrant' }) {
-  usePlexMono();
-  if (view === 'quadrant') return <PiecesQuadrant pieces={pieces} withHeading={false} />;
-  return (
-    <div>
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-8 lg:gap-[44px] items-start">
-        <PiecesMapSvg pieces={pieces} />
-        <div>
-          <AccentNote title="Why a map here">
-            A list of 380 types can’t show you that the shoe, the jumper and the chinos all sit in the same
-            high-versatility band — which is why they’re the three priorities and not, say, an overcoat.
-          </AccentNote>
-          <OtherAxes
-            rows={[
-              { label: 'Formality · versatility', note: 'Shown', accent: true },
-              { label: 'Warmth · rain', note: 'Autumn' },
-              { label: 'Essentialness · cost', note: 'Building up' },
-              { label: 'Formality · times worn', note: 'Your own habits' },
-            ]}
-          />
-        </div>
-      </div>
-      {/* THE SAME AXES, CUT IN FOUR — stacked below the map, exactly as the
-          reference lays the page out. */}
-      <div style={{ marginTop: '46px', paddingTop: '24px', borderTop: '1px solid var(--color-text,#3b2b1d)' }}>
-        <PiecesQuadrant pieces={pieces} withHeading />
-      </div>
-    </div>
-  );
-}
-
-type PiecesView = 'list' | 'map' | 'quadrant';
+type PiecesView = 'list' | 'quadrant';
 
 /**
  * THE PIECES SECTION of The Index — one header row (title + intro left, the
- * AS A LIST · ON A MAP · AS A QUADRANT toggle at the RIGHT edge), then the
- * selected reading. All three views read the same records.
+ * LIST · QUADRANT toggle at the RIGHT edge), then the selected reading. Both
+ * views read the same records.
  */
 export function PiecesIndex({
   pieces,
   profile,
+  onPlateChange,
 }: {
   pieces: WardrobePiece[];
   profile: StyleProfile | null;
+  /** Bubbles up when a CATEGORY PLATE opens/closes in the list, so The
+   * Index's own header can yield to the plate's breadcrumb. */
+  onPlateChange?: (open: boolean) => void;
 }) {
   usePlexMono();
   const [view, setView] = useState<PiecesView>('list');
-  const { gaps } = usePieceStatuses(pieces);
+  const [axesId, setAxesId] = useState<QuadrantAxesId>('formality-versatility');
+  const axes = AXIS_PAIRS.find((pair) => pair.id === axesId) || AXIS_PAIRS[0];
 
   const toggle = (
     <ViewToggle
       items={[
-        { id: 'list' as const, label: 'As a list' },
-        { id: 'map' as const, label: 'On a map' },
-        { id: 'quadrant' as const, label: 'As a quadrant' },
+        { id: 'list' as const, label: 'List' },
+        { id: 'quadrant' as const, label: 'Quadrant' },
       ]}
       active={view}
       onChange={(id) => setView(id)}
@@ -656,38 +707,18 @@ export function PiecesIndex({
   );
 
   if (view === 'list') {
-    // AS A LIST — the 13a piece index: category rail left, the types in
-    // tailor's runs right, FIND + the four filters + the jump rail above.
-    // The map/quadrant toggle stays in its header (never removed).
+    // LIST — the 13a piece index: category rail left, the types in tailor's
+    // runs right, FIND + the four filters + the jump rail above. The
+    // quadrant toggle stays in its header (never removed).
     return (
       <PieceIndexList
         pieces={pieces}
         profile={profile}
-        // A gap leads to The Hunt, pre-filled — reference never sells, it
-        // points at the funnel.
-        onSeeForYou={(sub) => promoteToScout(sub.label)}
         toggle={toggle}
+        onPlateChange={onPlateChange}
       />
     );
   }
-
-  const title = view === 'map' ? 'Where the pieces sit' : 'The same axes, cut in four';
-  const intro =
-    view === 'map' ? (
-      <>
-        {capWord(numberWord(PIECE_MAP_TYPES.length))} types placed by how formal they read and how many outfits they
-        enter. Filled dots are types you own;{' '}
-        {gaps.size > 0
-          ? `the ${numberWord(gaps.size)} accented one${gaps.size === 1 ? '' : 's'} ${gaps.size === 1 ? 'is the gap' : 'are the gaps'} from The Edit, drawn where ${gaps.size === 1 ? 'it’d' : 'they’d'} land.`
-          : 'the accented ones are the gaps The Edit flags, drawn where they’d land.'}
-      </>
-    ) : (
-      <>
-        The quadrant drops the exploratory set and plots only what you own plus the gaps — then names the four
-        regions, counts them, and says what’s thin. A map shows where things are; a quadrant tells you which
-        corner you live in.
-      </>
-    );
 
   return (
     <div>
@@ -697,14 +728,15 @@ export function PiecesIndex({
       >
         <div>
           <h3 style={{ margin: 0, fontFamily: SERIF, fontSize: 'clamp(30px, 4vw, 42px)', fontWeight: 400, lineHeight: 1.08, letterSpacing: '-0.012em', color: WALNUT }}>
-            {title}
+            {axes.title}
           </h3>
-          <p style={{ margin: '11px 0 0', maxWidth: '74ch', fontFamily: BODY, fontSize: '15.5px', lineHeight: 1.58, color: INK }}>{intro}</p>
+          <p style={{ margin: '11px 0 0', maxWidth: '74ch', fontFamily: BODY, fontSize: '15.5px', lineHeight: 1.58, color: INK }}>{axes.intro}</p>
         </div>
         {toggle}
       </div>
-      <div style={{ marginTop: '26px' }}>
-        <PiecesMap pieces={pieces} view={view} />
+      <div style={{ marginTop: '22px' }}>
+        <AxisSelector active={axesId} onChange={setAxesId} />
+        <PiecesQuadrant pieces={pieces} axes={axes} />
       </div>
     </div>
   );
