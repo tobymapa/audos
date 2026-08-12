@@ -31,6 +31,13 @@ function matches(text: string, q: string): boolean {
   return text.toLowerCase().includes(q);
 }
 
+/** Full text of one type record — name first, then everything the record
+ * carries (category, cuts, colours, makers), so “waxed”, “navy” or a maker
+ * name all land. Name hits rank ahead of body hits. */
+function typeHaystack(t: GarmentType): string {
+  return `${t.name} ${categoryName(t.category)} ${t.cuts.join(' ')} ${t.colours.join(' ')} ${t.makers.join(' ')}`.toLowerCase();
+}
+
 export function IndexJump({ nav, onClose }: { nav: IndexNav; onClose: () => void }) {
   usePlexMono();
   const [query, setQuery] = useState('');
@@ -53,7 +60,8 @@ export function IndexJump({ nav, onClose }: { nav: IndexNav; onClose: () => void
       onClose();
       fn();
     };
-    const types: JumpHit[] = INDEX_GARMENT_TYPES.filter((t) => matches(t.name, q))
+    const types: JumpHit[] = INDEX_GARMENT_TYPES.filter((t) => typeHaystack(t).includes(q))
+      .sort((a, b) => Number(matches(b.name, q)) - Number(matches(a.name, q)))
       .slice(0, 6)
       .map((t: GarmentType) => ({ kind: 'type', label: t.name, note: `${categoryName(t.category)} · ${spanLabel(spanOf(t))}`, open: go(() => nav.goType(t.id)) }));
     const cuts: JumpHit[] = [];
@@ -63,7 +71,15 @@ export function IndexJump({ nav, onClose }: { nav: IndexNav; onClose: () => void
         if (matches(c, q) || matches(`${c} ${t.name}`, q)) cuts.push({ kind: 'cut', label: c, note: `a cut of ${t.name}`, open: go(() => nav.goCut(t.id, c)) });
       }
     }
-    const makers: JumpHit[] = BRAND_DIRECTORY.filter((b) => matches(b.brand, q) || matches(b.referenceFor || '', q))
+    const makers: JumpHit[] = BRAND_DIRECTORY.filter(
+      (b) =>
+        matches(b.brand, q) ||
+        matches(b.referenceFor || '', q) ||
+        matches(b.city || '', q) ||
+        matches(b.country || '', q) ||
+        b.signaturePieces.some((s) => matches(s, q)),
+    )
+      .sort((a, b) => Number(matches(b.brand, q)) - Number(matches(a.brand, q)))
       .slice(0, 4)
       .map((b) => ({ kind: 'maker', label: b.brand, note: b.referenceFor ? `reference for the ${b.referenceFor.toLowerCase()}` : b.country, open: go(() => nav.goMaker(b.brand)) }));
     return { types, cuts, makers, flat: [...types, ...cuts, ...makers] };

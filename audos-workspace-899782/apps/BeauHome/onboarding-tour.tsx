@@ -5,11 +5,11 @@
  * bottom-left corner of the shell (bottom-right is the photo-migration
  * pill's spot).
  *
- * Nine stops, in the order a new customer meets the product — the five
- * primary tabs AND their key sub-tabs / sections (five-tab IA):
+ * Eight stops, in the order a new customer meets the product — the
+ * primary tabs AND their key sub-tabs / sections:
  *   The Ledger · Beau · Today · Your pieces (category sections)
  *   The Hunt (spotted · weighed · held) · its Find tool
- *   The Index · The Fitting · the board's actions · the Board section
+ *   The Fitting · the board's actions · the Board section
  *
  * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
  * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
@@ -76,11 +76,6 @@ const STEPS: TourStep[] = [
     kicker: 'The Hunt · Find',
     body: 'One box — name a piece with a size and a ceiling for live listings, or ask \u201cis it worth the money?\u201d.',
     navigate: { tab: 'scout', huntSubTab: 'find' },
-  },
-  {
-    anchor: 'tour-index',
-    kicker: 'The Index',
-    body: 'The reference wing — every garment type worth knowing, and the full maker directory, rated by Beau. It never says buy.',
   },
   {
     anchor: 'tour-fitting',

@@ -26,6 +26,8 @@ import {
   FIELD_REGISTERS,
   FIELD_REGISTER_LABELS,
   daysInSpan,
+  hideIndexType,
+  restoreHiddenIndex,
   spanLabel,
   spanOf,
   useRegisterDays,
@@ -36,16 +38,18 @@ import {
   ACCENT_DEEP,
   BODY,
   ControlLink,
+  DeletableRow,
   FAINT,
   FAINTER,
   GapTag,
   HAIRLINE,
   INK,
+  LensRow,
   NameLink,
   OutlinedControl,
+  ReadingSwitch,
   RULE,
   SECONDARY,
-  SwatchRow,
   UpDownOut,
   VerdictMark,
   WALNUT,
@@ -55,6 +59,7 @@ import {
   serif,
   type IndexNav,
 } from './index-chrome';
+import { IndexQuadrant } from './index-quadrant';
 import { usePlexMono } from './mono-type';
 
 export type RootLens = 'category' | 'temperature' | 'occasion' | 'place';
@@ -72,7 +77,10 @@ function typesOfCategory(model: IndexModel, id: GarmentCategoryId): GarmentType[
   return cat.runs.flatMap((r) => r.typeIds.map((t) => findGarmentType(t)).filter(Boolean) as GarmentType[]);
 }
 
-/** Four columns of names, column-major, the tailor's own order. */
+/** Four columns of names, column-major, the tailor's own order. Names sit
+ * a shade lighter than the category heads (the heads are the walnut serif;
+ * the names are ink) — and carry NO coloured circles: “Owned” is a word,
+ * not a dot. Long-press (or right-click) a row to remove it. */
 function NameColumns({ types, model, nav, columns = 4 }: { types: GarmentType[]; model: IndexModel; nav: IndexNav; columns?: number }) {
   const rows = Math.max(1, Math.ceil(types.length / columns));
   return (
@@ -89,13 +97,13 @@ function NameColumns({ types, model, nav, columns = 4 }: { types: GarmentType[];
         const owned = model.ownership.swatches.has(t.id);
         const gap = model.gaps.has(t.id);
         return (
-          <span key={t.id} style={{ padding: '3.5px 0' }}>
+          <DeletableRow key={t.id} label={t.name} onDelete={() => hideIndexType(t.id)} style={{ padding: '3.5px 0' }}>
             {gap && <GapTag />}
-            <NameLink onClick={() => nav.goType(t.id)} size={14.5} color={owned ? WALNUT : INK} title={`${t.name} — open its page`}>
+            <NameLink onClick={() => nav.goType(t.id)} size={14.5} color={INK} title={`${t.name} — open its page`}>
               {t.name}
             </NameLink>
-            {owned && <SwatchRow colours={model.ownership.swatches.get(t.id)} />}
-          </span>
+            {owned && <span style={{ ...mono(7.5, FAINT), marginLeft: '8px' }}>Owned</span>}
+          </DeletableRow>
         );
       })}
     </div>
@@ -104,6 +112,9 @@ function NameColumns({ types, model, nav, columns = 4 }: { types: GarmentType[];
 
 export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: WardrobePiece[]; nav: IndexNav }) {
   usePlexMono();
+  // The root's own two tabs — List · Quadrant, and nothing else at this
+  // level. Ruler · Matrix · Field belong to their own contexts below.
+  const [reading, setReading] = useState<'list' | 'quadrant'>('list');
   const [lens, setLens] = useState<RootLens>('category');
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const registerDays = useRegisterDays();
@@ -150,7 +161,7 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
         </div>
       </div>
 
-      {/* ——— the find line (opens the jump · 29d) + READ IT */}
+      {/* ——— the find line (opens the jump · 29d) + the root's two tabs */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] items-center" style={{ gap: '12px 28px', padding: '16px 0' }}>
         <button
           type="button"
@@ -163,21 +174,22 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
           <span style={{ ...body(14, FAINT), flex: 1 }}>a type or a maker — try “teba”, “raglan”, “Rubinacci”</span>
           <span style={mono(8.5, FAINTER)}>⌘K</span>
         </button>
-        <div className="flex flex-wrap items-baseline" style={{ gap: '6px 18px' }}>
-          <span style={mono(8.5, FAINT)}>Read it</span>
-          {LENSES.map((l) => {
-            const on = l.id === lens;
-            return (
-              <button key={l.id} type="button" onClick={() => setLens(l.id)} aria-pressed={on} style={{ ...mono(9, on ? WALNUT : SECONDARY), background: 'transparent', padding: '0 0 2px', borderBottom: on ? `1px solid ${ACCENT_DEEP}` : '1px solid transparent' }}>
-                {l.label}
-              </button>
-            );
-          })}
-        </div>
+        <ReadingSwitch active={reading} onChange={(r) => setReading(r === 'quadrant' ? 'quadrant' : 'list')} only={['list', 'quadrant']} />
       </div>
 
+      {/* ——— READ IT — the list's filters, two columns, one indent (the
+          makers face carries the identical control) */}
+      {reading === 'list' && (
+        <div style={{ padding: '0 0 14px' }}>
+          <LensRow label="Read it" options={LENSES} active={lens} onChange={setLens} />
+        </div>
+      )}
+
+      {/* ——— THE QUADRANT — the root's other tab (screenshot 8) */}
+      {reading === 'quadrant' && <IndexQuadrant model={model} nav={nav} face="pieces" embedded />}
+
       {/* ——— the category strip — counts, each a jump to its section */}
-      {(lens === 'category' || lens === 'temperature') && (
+      {reading === 'list' && (lens === 'category' || lens === 'temperature') && (
         <div className="flex flex-wrap" style={{ gap: '6px 20px', paddingBottom: '10px', borderBottom: `1px solid ${HAIRLINE}` }}>
           {model.categories.map((cat) => (
             <button key={cat.id} type="button" onClick={() => jumpTo(cat.id)} className="hover:underline" style={{ ...mono(8.5, SECONDARY), background: 'transparent', padding: 0 }}>
@@ -188,7 +200,7 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
       )}
 
       {/* ——— BY CATEGORY · each category heads a row with its sample run */}
-      {lens === 'category' &&
+      {reading === 'list' && lens === 'category' &&
         model.categories.map((cat) => {
           const sample = cat.runs[0];
           const sampleTypes = (sample?.typeIds || []).map((t) => findGarmentType(t)).filter(Boolean) as GarmentType[];
@@ -218,7 +230,7 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
         })}
 
       {/* ——— BY TEMPERATURE · one column so the bands line up */}
-      {lens === 'temperature' &&
+      {reading === 'list' && lens === 'temperature' &&
         model.categories.map((cat) => {
           if (!cat.banded) {
             return (
@@ -245,15 +257,17 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
                   const owned = model.ownership.swatches.has(t.id);
                   const gap = model.gaps.has(t.id);
                   return (
-                    <div key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline" style={{ gap: '16px', padding: '7px 6px', borderBottom: `1px solid rgba(59,43,29,0.12)`, background: gap ? 'rgba(168,113,44,0.07)' : 'transparent' }}>
-                      <span>
-                        {gap && <GapTag />}
-                        <NameLink onClick={() => nav.goType(t.id)} size={14.5} color={owned ? WALNUT : INK}>{t.name}</NameLink>
-                        {owned && <SwatchRow colours={model.ownership.swatches.get(t.id)} />}
-                      </span>
-                      <VerdictMark verdict={verdictFor(model.climate, t, gap)} />
-                      <span style={{ ...mono(8.5, SECONDARY), minWidth: '52px', textAlign: 'right' }}>{spanLabel(spanOf(t))}</span>
-                    </div>
+                    <DeletableRow key={t.id} label={t.name} onDelete={() => hideIndexType(t.id)}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline" style={{ gap: '16px', padding: '7px 6px', borderBottom: `1px solid rgba(59,43,29,0.12)`, background: gap ? 'rgba(168,113,44,0.07)' : 'transparent' }}>
+                        <span>
+                          {gap && <GapTag />}
+                          <NameLink onClick={() => nav.goType(t.id)} size={14.5} color={INK}>{t.name}</NameLink>
+                          {owned && <span style={{ ...mono(7.5, FAINT), marginLeft: '8px' }}>Owned</span>}
+                        </span>
+                        <VerdictMark verdict={verdictFor(model.climate, t, gap)} />
+                        <span style={{ ...mono(8.5, SECONDARY), minWidth: '52px', textAlign: 'right' }}>{spanLabel(spanOf(t))}</span>
+                      </div>
+                    </DeletableRow>
                   );
                 })}
               </div>
@@ -269,7 +283,7 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
         })}
 
       {/* ——— BY OCCASION · the six registers */}
-      {lens === 'occasion' &&
+      {reading === 'list' && lens === 'occasion' &&
         FIELD_REGISTERS.map((reg) => {
           const types = model.categories.flatMap((cat) => typesOfCategory(model, cat.id)).filter((t) => t.reach.includes(reg));
           const shown = types.slice(0, 24);
@@ -291,7 +305,7 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
         })}
 
       {/* ——— BY PLACE · sorted into the suitability verdict for your city */}
-      {lens === 'place' &&
+      {reading === 'list' && lens === 'place' &&
         (model.climate.weighted ? (
           (['essential', 'works', 'niche', 'wrong tool'] as const).map((shelf) => {
             const types = placeShelves[shelf] || [];
@@ -318,6 +332,14 @@ export function IndexRoot({ model, pieces, nav }: { model: IndexModel; pieces: W
             aren't weighed.
           </p>
         ))}
+
+      {/* ——— rows removed by long-press stay restorable, always */}
+      {model.hiddenTypes.size > 0 && (
+        <div style={{ ...mono(8, FAINT), paddingTop: '14px' }}>
+          {model.hiddenTypes.size} type{model.hiddenTypes.size === 1 ? '' : 's'} removed by you ·{' '}
+          <ControlLink onClick={() => restoreHiddenIndex('types')}>Restore them →</ControlLink>
+        </div>
+      )}
 
       {/* ——— the root's own footer controls (26a: one matrix door per root) */}
       <div className="flex flex-wrap" style={{ gap: '10px 14px', marginTop: '26px' }}>

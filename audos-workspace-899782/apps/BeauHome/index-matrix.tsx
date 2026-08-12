@@ -13,7 +13,7 @@
 import { useMemo } from 'react';
 import { findGarmentType, type GarmentType } from './garment-types';
 import { TEMPERATURE_BANDS, temperatureBandRank, type TemperatureBand } from './temperature-bands';
-import { daysInBand, type IndexModel } from './index-model';
+import { FIELD_REGISTERS, FIELD_REGISTER_LABELS, daysInBand, primaryRegister, type IndexModel } from './index-model';
 import {
   BackLink,
   Breadcrumb,
@@ -69,6 +69,27 @@ export function IndexMatrix({ model, nav }: { model: IndexModel; nav: IndexNav }
 
   const hasLedger = model.ownership.swatches.size > 0;
 
+  // The register-by-band proof — the SAME banded types partitioned a second
+  // way (each type once: its primary register against its band). Row totals
+  // and column totals are both summed at render; the column totals must
+  // reproduce the band totals of the table above, or the data is wrong —
+  // which is the point of printing it.
+  const regGrid = useMemo(() => {
+    const types = model.categories
+      .filter((c) => c.banded)
+      .flatMap((c) => c.runs.flatMap((r) => r.typeIds))
+      .map((id) => findGarmentType(id))
+      .filter(Boolean) as GarmentType[];
+    const rows = FIELD_REGISTERS.map((reg) => {
+      const cells = TEMPERATURE_BANDS.map((def) => types.filter((t) => t.band === def.id && primaryRegister(t) === reg).length);
+      return { reg, cells, total: cells.reduce((a, b) => a + b, 0) };
+    });
+    const colTotals = TEMPERATURE_BANDS.map((_, i) => rows.reduce((n, r) => n + r.cells[i], 0));
+    const grand = colTotals.reduce((a, b) => a + b, 0);
+    const maxCell = Math.max(1, ...rows.flatMap((r) => r.cells));
+    return { rows, colTotals, grand, maxCell };
+  }, [model]);
+
   return (
     <div>
       <BackLink label="the Index" onClick={nav.back} />
@@ -85,7 +106,7 @@ export function IndexMatrix({ model, nav }: { model: IndexModel; nav: IndexNav }
             the by-nature rows say which.
           </p>
         </div>
-        <ReadingSwitch active="matrix" onChange={(r) => { if (r === 'list') nav.goPlate('outerwear'); if (r === 'ruler') nav.goRuler('outerwear'); if (r === 'field') nav.goField(); }} />
+        <ReadingSwitch active="matrix" onChange={(r) => { if (r === 'list') nav.goRoot(); if (r === 'quadrant') nav.goQuadrant('pieces'); if (r === 'ruler') nav.goRuler('outerwear'); if (r === 'field') nav.goField(); }} />
       </div>
 
       <div className="overflow-x-auto" style={{ marginTop: '18px' }}>
@@ -163,6 +184,60 @@ export function IndexMatrix({ model, nav }: { model: IndexModel; nav: IndexNav }
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* ——— the register-by-band proof — the same types, partitioned the
+          other way; totals summed at render, never typed */}
+      <div style={{ marginTop: '30px' }}>
+        <div className="flex items-baseline flex-wrap" style={{ gap: '4px 14px' }}>
+          <span style={serif(19)}>The same types, register against band</span>
+          <span style={mono(8, FAINT)}>
+            each type once · its first register × its band · rows and columns each sum to {regGrid.grand}
+            {regGrid.grand === grid.bandedTotal ? ' — the same total as above, so the two readings agree' : ' — which DISAGREES with the table above'}
+          </span>
+        </div>
+        <div className="overflow-x-auto" style={{ marginTop: '12px' }}>
+          <table className="w-full border-collapse" style={{ minWidth: '760px' }}>
+            <thead>
+              <tr>
+                <th style={{ ...mono(8.5, FAINT), textAlign: 'left', padding: '8px 6px', borderBottom: `1px solid ${RULE}` }}>Register</th>
+                {BAND_HEADS.map((h) => (
+                  <th key={h} style={{ ...mono(8.5, FAINT), textAlign: 'right', padding: '8px 6px', borderBottom: `1px solid ${RULE}` }}>{h}</th>
+                ))}
+                <th style={{ ...mono(8.5, FAINT), textAlign: 'right', padding: '8px 6px', borderBottom: `1px solid ${RULE}` }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {regGrid.rows.map((row) => (
+                <tr key={row.reg}>
+                  <td style={{ ...body(13, INK), padding: '8px 6px', borderBottom: `1px solid ${HAIRLINE}` }}>{FIELD_REGISTER_LABELS[row.reg]}</td>
+                  {row.cells.map((n, i) => (
+                    <td
+                      key={BAND_HEADS[i]}
+                      style={{
+                        ...mono(10, n > 0 ? WALNUT : FAINTER),
+                        padding: '8px 6px',
+                        textAlign: 'right',
+                        borderBottom: `1px solid ${HAIRLINE}`,
+                        background: n > 0 ? `rgba(168,113,44,${(0.16 * n) / regGrid.maxCell})` : 'transparent',
+                      }}
+                    >
+                      {n > 0 ? n : '·'}
+                    </td>
+                  ))}
+                  <td style={{ ...mono(9.5, WALNUT), padding: '8px 6px', textAlign: 'right', borderBottom: `1px solid ${HAIRLINE}` }}>{row.total}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ ...mono(8.5, SECONDARY), padding: '9px 6px', borderTop: `1px solid ${RULE}` }}>In band</td>
+                {regGrid.colTotals.map((n, i) => (
+                  <td key={BAND_HEADS[i]} style={{ ...mono(9.5, WALNUT), padding: '9px 6px', textAlign: 'right', borderTop: `1px solid ${RULE}` }}>{n}</td>
+                ))}
+                <td style={{ ...mono(9.5, WALNUT), padding: '9px 6px', textAlign: 'right', borderTop: `1px solid ${RULE}` }}>{regGrid.grand}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ——— the footer — the by-nature note is FIX; the readings are GEN (G7, absent) */}

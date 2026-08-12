@@ -8,7 +8,6 @@ import {
   Folder,
   Hourglass,
   LayoutGrid,
-  Library,
   Loader2,
   PersonStanding,
   Sparkles,
@@ -104,7 +103,6 @@ const SavedTab = lazy(() => import('./discovery').then((m) => ({ default: memo(m
 const WardrobeStore = lazy(() => import('./store').then((m) => ({ default: memo(m.WardrobeStore) })));
 const StyleMeToday = lazy(() => import('./style-today').then((m) => ({ default: memo(m.StyleMeToday) })));
 const YourStyle = lazy(() => import('../YourStyle/App').then((m) => ({ default: memo(m.default) })));
-const IndexTab = lazy(() => import('./index-tab').then((m) => ({ default: memo(m.IndexTab) })));
 
 /** Module-scoped so the housekeeping audits run at most ONCE per page load.
  * A StrictMode double-mount, or the app being closed and reopened from the
@@ -1217,30 +1215,27 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level navigation (founder's correction — SIX tabs), in this exact
-// order, each with a hairline stroke icon:
-//   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier.
+// Top-level navigation — FIVE tabs, in this exact order, each with a
+// hairline stroke icon:
+//   The Ledger · The Edit · The Fitting · The Hunt · The Dossier.
 // The Rail / Hunt / Reserve funnel is consolidated into The Hunt as three
-// stages on one screen (hunt-stages.tsx); The Index houses the two
-// reference works (the piece taxonomy + the maker directory); The Dossier
-// is BACK IN THE PRIMARY NAV as the RIGHTMOST tab (founder's correction —
-// it was briefly demoted to the account corner). The internal tab ids are
-// unchanged ('wardrobe', 'beau', 'scout', 'fitting-room', 'your-style', …)
-// so chat deep links keep working, and the retired tab surfaces ('curated',
-// 'radar') stay fully routable as hidden views.
-// On a phone the six tabs move to a BOTTOM bar at thumb height with 52pt
+// stages on one screen (hunt-stages.tsx); The Index tab was removed
+// entirely (August 2026); The Dossier is the RIGHTMOST tab. The internal
+// tab ids are unchanged ('wardrobe', 'beau', 'scout', 'fitting-room',
+// 'your-style', …) so chat deep links keep working, and the retired tab
+// surfaces ('curated', 'radar') stay fully routable as hidden views.
+// On a phone the five tabs move to a BOTTOM bar at thumb height with 52pt
 // targets, same order.
 // ---------------------------------------------------------------------------
 
-type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed' | 'index';
+type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
 
 /** Hairline, stroke-only tab icons — no fills (Part 1's icon column). */
-const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'compass' | 'hourglass' | 'figure' | 'folder' | 'library' }> = [
+const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'compass' | 'hourglass' | 'figure' | 'folder' }> = [
   { id: 'wardrobe', label: 'The Ledger', short: 'Ledger', icon: 'book' },
   { id: 'beau', label: 'The Edit', short: 'Edit', icon: 'grid' },
   { id: 'fitting-room', label: 'The Fitting', short: 'Fitting', icon: 'figure' },
   { id: 'scout', label: 'The Hunt', short: 'Hunt', icon: 'compass' },
-  { id: 'index', label: 'The Index', short: 'Index', icon: 'library' },
   // The Dossier — a PRIMARY tab again, rightmost (founder's correction).
   { id: 'your-style', label: 'The Dossier', short: 'Dossier', icon: 'folder' },
 ];
@@ -1276,7 +1271,6 @@ function TabIcon({ icon }: { icon: string }) {
     case 'hourglass': return <Hourglass className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'figure': return <PersonStanding className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'folder': return <Folder className={cls} strokeWidth={1.5} fill="none" aria-hidden="true" />;
-    case 'library': return <Library className={cls} strokeWidth={1.5} aria-hidden="true" />;
     default: return null;
   }
 }
@@ -1288,8 +1282,8 @@ function TabIcon({ icon }: { icon: string }) {
  * fully intact (Milestones overhaul, Part 6);
  * 'rail' is the OLD Rail photo-record screen — no tab-bar slot, still
  * routable by deep link;
- * 'curated' is the old Rail tab — its reference half lives in The Index,
- * its funnel half in The Hunt's Spotted stage;
+ * 'curated' is the old Rail tab — its funnel half lives in The Hunt's
+ * Spotted stage;
  * 'radar' is the old Reserve — now The Hunt's Held stage. */
 const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar'];
 
@@ -1303,7 +1297,6 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
     id === 'wardrobe' ? 'tour-ledger'
     : id === 'scout' ? 'tour-hunt'
     : id === 'fitting-room' ? 'tour-fitting'
-    : id === 'index' ? 'tour-index'
     : undefined;
 
   return (
@@ -2255,7 +2248,7 @@ export default function BeauHome() {
     return () => window.removeEventListener('ethaion:navigate', onNavigate);
   }, []);
 
-  // The Index's "Log one I own" / "Add to the Ledger" (ethaion:add-piece):
+  // The "Log one I own" / "Add to the Ledger" event (ethaion:add-piece):
   // land on The Ledger — the Add a piece surface listens for the SAME event
   // (add-piece.tsx) and opens its Search flow seeded with the type name.
   useEffect(() => {
@@ -2522,8 +2515,8 @@ export default function BeauHome() {
     <BeauAssessmentProvider profile={profile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
       {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
-          The Hunt · The Index · The Dossier (six tabs — the founder's
-          correction; on a phone the six tabs sit in the bottom bar). */}
+          The Hunt · The Dossier (five tabs; on a phone they sit in the
+          bottom bar). */}
       <TabBar
         tab={tab}
         onChange={(t) => {
@@ -2799,14 +2792,6 @@ export default function BeauHome() {
         <KeepMounted active={tab === 'scout'}>
           <Suspense fallback={<TabLoadingSkeleton />}>
             <ScoutTab profile={profile} budgets={budgets} pieces={pieces} prefs={prefs} />
-          </Suspense>
-        </KeepMounted>
-
-        {/* The Index — the reference wing: the piece taxonomy + the maker
-            directory (design handoff 13a · 9a). */}
-        <KeepMounted active={tab === 'index'}>
-          <Suspense fallback={<TabLoadingSkeleton />}>
-            <IndexTab pieces={pieces} profile={profile} />
           </Suspense>
         </KeepMounted>
 

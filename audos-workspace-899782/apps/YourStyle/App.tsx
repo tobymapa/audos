@@ -88,6 +88,15 @@ import {
   serializeGarmentSizes,
   type DossierMeasurements,
 } from '../BeauHome/dossier-measurements';
+import { computeAndStoreClimateCurve } from '../BeauHome/climate-pipeline';
+import { TEMPERATURE_BANDS } from '../BeauHome/temperature-bands';
+import {
+  COVERAGE_PREFS_EVENT,
+  MUTED_STORE_KEY,
+  fetchCoveragePrefs,
+  loadLocalJson,
+  writeMutedPref,
+} from '../BeauHome/coverage-prefs';
 
 /* ============================================================================
  * THE DOSSIER — rebuilt clean (Dossier overhaul).
@@ -816,30 +825,185 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
   );
 });
 
-/** Small inline editor for the home city (free text + save). */
-function CityEditor({ life, onSave, saving }: { life: { city?: string }; onSave: (city: string) => void; saving: boolean }) {
-  const [draft, setDraft] = useState(life.city ?? '');
+/**
+ * The Lifestyle city editor, wired to the CLIMATE PIPELINE (Data Layer
+ * task, Deliverable 6): saving a typed place geocodes it (Open-Meteo, free,
+ * no key) and derives the 8-band day histogram ONCE; “Use my location” does
+ * the same from browser geolocation — permission-gated and always skippable.
+ * Both store city + coordinates + histogram in dossier_details; every
+ * failure steps down the ladder (the coarse climate chips below), never
+ * blocks.
+ */
+function ClimateCityEditor({
+  details,
+  life,
+  onProfileCity,
+  onStored,
+}: {
+  details: DossierDetails;
+  life: { city?: string };
+  onProfileCity: (city: string) => void;
+  onStored: (fresh: DossierDetails) => void;
+}) {
+  const [draft, setDraft] = useState(details.city ?? life.city ?? '');
+  const [working, setWorking] = useState<null | 'typed' | 'geo'>(null);
+  const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
-    setDraft(life.city ?? '');
-  }, [life.city]);
+    setDraft(details.city ?? life.city ?? '');
+  }, [details.city, life.city]);
+
+  const run = async (kind: 'typed' | 'geo') => {
+    if (kind === 'typed' && !draft.trim()) return;
+    setWorking(kind);
+    setNote(null);
+    try {
+      const curve = await computeAndStoreClimateCurve(
+        kind === 'geo' ? { useGeolocation: true } : { useGeolocation: false, typedCity: draft.trim() },
+      );
+      if (curve.source === 'none' || !curve.bands) {
+        setNote(
+          kind === 'geo'
+            ? 'Location was unavailable — type your city instead, or pick a coarse climate below; nothing is blocked.'
+            : 'That place could not be found — check the spelling, or pick a coarse climate below; nothing is blocked.',
+        );
+      } else {
+        const cityLabel = (curve.city || draft).trim();
+        if (cityLabel) onProfileCity(cityLabel);
+        onStored(await fetchDossierDetails());
+      }
+    } catch {
+      setNote('The climate service could not be reached just now — the coarse climate below still works.');
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const bands = details.climateBands;
+  const maxBand = bands ? Math.max(1, ...bands) : 1;
+
   return (
-    <div className="flex gap-2">
-      <input
-        type="text"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder="e.g. Barcelona"
-        className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} flex-1 max-w-xs`}
-        aria-label="City / location"
-      />
-      <button
-        type="button"
-        onClick={() => onSave(draft.trim())}
-        disabled={saving}
-        className={`px-3.5 rounded-lg ${typography.size.sm} ${tw.button.secondary} disabled:opacity-50`}
-      >
-        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
-      </button>
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void run('typed');
+          }}
+          placeholder="e.g. Barcelona"
+          className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} flex-1 max-w-xs`}
+          aria-label="City / location"
+        />
+        <button
+          type="button"
+          onClick={() => void run('typed')}
+          disabled={working != null || !draft.trim()}
+          className={`px-3.5 rounded-lg ${typography.size.sm} ${tw.button.secondary} disabled:opacity-50`}
+        >
+          {working === 'typed' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void run('geo')}
+          disabled={working != null}
+          className={`px-3.5 rounded-lg ${typography.size.sm} ${tw.button.secondary} disabled:opacity-50`}
+        >
+          {working === 'geo' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Use my location'}
+        </button>
+      </div>
+      {working != null && (
+        <p className={`${typography.size.xs} ${typography.color.muted} italic`}>
+          Reading twenty years of weather for your location — done once, kept forever…
+        </p>
+      )}
+      {note && <p className={`${typography.size.xs} ${typography.color.muted} italic`}>{note}</p>}
+      {bands && (
+        <div>
+          <div className="flex items-end gap-1" aria-label="Your year in eight temperature bands">
+            {TEMPERATURE_BANDS.map((def, i) => (
+              <div key={def.id} className="flex flex-col items-center" style={{ width: '34px' }}>
+                <div
+                  title={`${def.label} · ${bands[i] || 0} days a year`}
+                  style={{
+                    width: '16px',
+                    height: `${Math.max(2, (30 * (bands[i] || 0)) / maxBand)}px`,
+                    background: 'var(--space-brand-primary)',
+                    opacity: 0.75,
+                  }}
+                />
+                <span className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '9px', marginTop: '2px' }}>
+                  {bands[i] || 0}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className={`${typography.size.xs} ${typography.color.muted} mt-1 italic`}>
+            {details.city ? `${details.city}\u2019s` : 'Your'} year in eight bands, coldest first — days a year of
+            each, from twenty years of feels-like weather (08:00–20:00). Beau weighs every garment type against
+            these counts. Derived once; it only recomputes when you change your city.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The six dress registers — mute the ones that don’t apply to your life.
+ * A muted register cannot raise a gap anywhere: the coverage map, the
+ * Index’s field and Beau’s recommendations all honour it immediately. */
+const REGISTER_PREF_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: 'casual', label: 'Casual' },
+  { id: 'smart-casual', label: 'Smart casual' },
+  { id: 'business', label: 'Business' },
+  { id: 'formal', label: 'Formal' },
+  { id: 'black-tie', label: 'Black tie' },
+  { id: 'outdoor-work', label: 'Outdoor & work' },
+];
+
+function RegisterPrefs({ onMirror }: { onMirror: (muted: string[]) => void }) {
+  const [muted, setMuted] = useState<string[]>(() => loadLocalJson<string[]>(MUTED_STORE_KEY, []));
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetchCoveragePrefs()
+        .then((p) => {
+          if (alive) setMuted(p.muted);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    window.addEventListener(COVERAGE_PREFS_EVENT, load);
+    return () => {
+      alive = false;
+      window.removeEventListener(COVERAGE_PREFS_EVENT, load);
+    };
+  }, []);
+
+  const toggle = (id: string) => {
+    const nowMuted = !muted.includes(id);
+    const next = nowMuted ? [...muted, id] : muted.filter((m) => m !== id);
+    setMuted(next);
+    writeMutedPref(id, nowMuted, next);
+    onMirror(next);
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {REGISTER_PREF_OPTIONS.map((r) => {
+          const isMuted = muted.includes(r.id);
+          return (
+            <Chip key={r.id} active={!isMuted} onClick={() => toggle(r.id)}>
+              {isMuted ? `${r.label} — muted` : r.label}
+            </Chip>
+          );
+        })}
+      </div>
+      <p className={`${typography.size.xs} ${typography.color.muted} mt-1 italic`}>
+        Tap a register to mute it — one you never dress for. A muted register can’t raise a gap anywhere: the
+        coverage map and Beau both hold no opinion about it.
+      </p>
     </div>
   );
 }
@@ -2308,7 +2472,7 @@ export default function YourStyle() {
           value={
             <FactLine
               parts={[
-                life.city,
+                details.city || life.city,
                 climateLabel(details.climate),
                 occasions.length > 0
                   ? occasions
@@ -2325,7 +2489,12 @@ export default function YourStyle() {
           <div className="space-y-4">
             <div>
               <p className={statLabelCls}>City / location</p>
-              <CityEditor life={life} onSave={(nextCity) => void patch('lifestyle', { lifestyle: { ...life, city: nextCity || undefined } })} saving={saving === 'lifestyle'} />
+              <ClimateCityEditor
+                details={details}
+                life={life}
+                onProfileCity={(nextCity) => void patch('lifestyle', { lifestyle: { ...life, city: nextCity || undefined } })}
+                onStored={(fresh) => setDetails(fresh)}
+              />
             </div>
             <div>
               <p className={statLabelCls}>Climate</p>
@@ -2341,8 +2510,13 @@ export default function YourStyle() {
                 ))}
               </div>
               <p className={`${typography.size.xs} ${typography.color.muted} mt-1 italic`}>
-                Weights The Rail’s picks by season — often not the one your city is famous for.
+                The coarse fallback when no city is set — it maps to a stock year of the eight bands. A real city
+                above always beats it.
               </p>
+            </div>
+            <div>
+              <p className={statLabelCls}>Register preferences</p>
+              <RegisterPrefs onMirror={(nextMuted) => void patchDetails({ mutedRegisters: nextMuted })} />
             </div>
             <div>
               <p className={statLabelCls}>Occasions</p>

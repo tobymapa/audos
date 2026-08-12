@@ -32,7 +32,6 @@ import {
   ReadingSwitch,
   RULE,
   SECONDARY,
-  SwatchRow,
   UpDownOut,
   VerdictMark,
   WALNUT,
@@ -143,7 +142,7 @@ export function IndexPlate({ model, catId, nav }: { model: IndexModel; catId: Ga
         <div>
           <div className="flex items-start justify-between" style={{ gap: '12px' }}>
             <div style={mono(8.5, ACCENT_DEEP)}>This category, against your ledger</div>
-            <ReadingSwitch active="list" onChange={(r) => { if (r === 'ruler') nav.goRuler(cat.id); if (r === 'matrix') nav.goMatrix(); if (r === 'field') nav.goField(); }} />
+            <ReadingSwitch active="list" onChange={(r) => { if (r === 'quadrant') nav.goQuadrant('pieces'); if (r === 'ruler') nav.goRuler(cat.id); if (r === 'matrix') nav.goMatrix(); if (r === 'field') nav.goField(); }} />
           </div>
           <div style={{ ...serif(19), marginTop: '10px' }}>
             {cat.ownedCount} of {cat.total} owned
@@ -219,8 +218,7 @@ export function IndexPlate({ model, catId, nav }: { model: IndexModel; catId: Ga
                   >
                     <span>
                       {gap && <GapTag />}
-                      <NameLink onClick={() => nav.goType(t.id)} size={14.5} color={owned ? WALNUT : INK}>{t.name}</NameLink>
-                      {owned && <SwatchRow colours={model.ownership.swatches.get(t.id)} />}
+                      <NameLink onClick={() => nav.goType(t.id)} size={14.5} color={INK}>{t.name}</NameLink>
                       {owned && <span style={{ ...mono(7.5, FAINT), marginLeft: '8px' }}>Owned</span>}
                     </span>
                     {cat.banded ? <SpanBar span={spanOf(t)} kind={kind} /> : <span />}

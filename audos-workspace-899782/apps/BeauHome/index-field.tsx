@@ -113,7 +113,7 @@ export function IndexField({ model, nav }: { model: IndexModel; nav: IndexNav })
     <div>
       <BackLink label="the Index" onClick={nav.back} />
       <div style={{ marginTop: '10px' }}>
-        <Breadcrumb segs={[{ label: 'The Index', onClick: nav.goRoot }, { label: 'Reading · as a field' }]} />
+        <Breadcrumb segs={[{ label: 'The Index', onClick: nav.goRoot }, { label: 'Reading · the field' }]} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto]" style={{ gap: '16px 40px', marginTop: '16px', paddingBottom: '18px', borderBottom: `1px solid ${INK}`, alignItems: 'end' }}>
@@ -125,7 +125,7 @@ export function IndexField({ model, nav }: { model: IndexModel; nav: IndexNav })
             empty cell in a register you've muted is not.
           </p>
         </div>
-        <ReadingSwitch active="field" onChange={(r) => { if (r === 'list') nav.goPlate('outerwear'); if (r === 'ruler') nav.goRuler('outerwear'); if (r === 'matrix') nav.goMatrix(); }} />
+        <ReadingSwitch active="field" onChange={(r) => { if (r === 'list') nav.goRoot(); if (r === 'quadrant') nav.goQuadrant('pieces'); if (r === 'ruler') nav.goRuler('outerwear'); if (r === 'matrix') nav.goMatrix(); }} />
       </div>
 
       <div className="overflow-x-auto" style={{ marginTop: '18px' }}>

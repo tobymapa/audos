@@ -110,7 +110,7 @@ export function IndexRuler({ model, catId, band, nav }: { model: IndexModel; cat
             {model.climate.city ? ` · ${model.climate.city} · your city` : ''}
           </div>
         </div>
-        <ReadingSwitch active="ruler" onChange={(r) => { if (r === 'list') nav.goPlate(cat.id); if (r === 'matrix') nav.goMatrix(); if (r === 'field') nav.goField(); }} />
+        <ReadingSwitch active="ruler" onChange={(r) => { if (r === 'list') nav.goPlate(cat.id); if (r === 'quadrant') nav.goQuadrant('pieces'); if (r === 'matrix') nav.goMatrix(); if (r === 'field') nav.goField(); }} />
       </div>
 
       {/* GEN · G6 — “your coverage, read off the ruler”; ships absent. */}

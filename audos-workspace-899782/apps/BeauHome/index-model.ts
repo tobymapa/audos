@@ -366,6 +366,68 @@ export function useRegisterDays(): Record<string, number | null> {
 }
 
 // ---------------------------------------------------------------------------
+// Hidden rows — the row-level delete (long-press a row in the pieces or
+// makers list). The taxonomy itself is FIX and never edited; hiding is a
+// reader preference stored locally, always restorable, never destructive.
+// ---------------------------------------------------------------------------
+
+export interface HiddenIndex {
+  types: string[];
+  makers: string[];
+}
+
+const HIDDEN_KEY = 'ethaion:index-hidden:v1';
+export const INDEX_HIDDEN_EVENT = 'ethaion:index-hidden';
+
+export function loadHiddenIndex(): HiddenIndex {
+  try {
+    const raw = window.localStorage.getItem(HIDDEN_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return {
+      types: Array.isArray(parsed?.types) ? parsed.types.filter((t: unknown) => typeof t === 'string') : [],
+      makers: Array.isArray(parsed?.makers) ? parsed.makers.filter((m: unknown) => typeof m === 'string') : [],
+    };
+  } catch {
+    return { types: [], makers: [] };
+  }
+}
+
+function writeHiddenIndex(next: HiddenIndex): void {
+  try {
+    window.localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
+  } catch { /* storage unavailable — the session state still updates */ }
+  window.dispatchEvent(new CustomEvent(INDEX_HIDDEN_EVENT));
+}
+
+export function hideIndexType(id: string): void {
+  const cur = loadHiddenIndex();
+  if (!cur.types.includes(id)) writeHiddenIndex({ ...cur, types: [...cur.types, id] });
+}
+
+export function hideIndexMaker(name: string): void {
+  const cur = loadHiddenIndex();
+  const key = name.toLowerCase();
+  if (!cur.makers.some((m) => m.toLowerCase() === key)) writeHiddenIndex({ ...cur, makers: [...cur.makers, name] });
+}
+
+export function restoreHiddenIndex(kind?: 'types' | 'makers'): void {
+  const cur = loadHiddenIndex();
+  if (kind === 'types') writeHiddenIndex({ ...cur, types: [] });
+  else if (kind === 'makers') writeHiddenIndex({ ...cur, makers: [] });
+  else writeHiddenIndex({ types: [], makers: [] });
+}
+
+export function useHiddenIndex(): HiddenIndex {
+  const [hidden, setHidden] = useState<HiddenIndex>(() => loadHiddenIndex());
+  useEffect(() => {
+    const load = () => setHidden(loadHiddenIndex());
+    window.addEventListener(INDEX_HIDDEN_EVENT, load);
+    return () => window.removeEventListener(INDEX_HIDDEN_EVENT, load);
+  }, []);
+  return hidden;
+}
+
+// ---------------------------------------------------------------------------
 // The assembled model — one hook the screens share.
 // ---------------------------------------------------------------------------
 
@@ -385,16 +447,25 @@ export interface IndexModel {
   ownership: IndexOwnership;
   gaps: Map<string, number>;
   climate: IndexClimate;
+  /** Rows the reader long-pressed away — restorable, never destructive. */
+  hiddenTypes: Set<string>;
+  hiddenMakers: Set<string>;
 }
 
 export function useIndexModel(pieces: WardrobePiece[]): IndexModel {
   const climate = useIndexClimate();
+  const hidden = useHiddenIndex();
+  const hiddenTypes = useMemo(() => new Set(hidden.types), [hidden]);
+  const hiddenMakers = useMemo(() => new Set(hidden.makers.map((m) => m.toLowerCase())), [hidden]);
   const ownership = useMemo(() => computeOwnership(pieces), [pieces]);
   const gaps = useMemo(() => computeGaps(ownership.swatches), [ownership]);
   const categories = useMemo<IndexCategoryModel[]>(
     () =>
       INDEX_CATEGORY_IDS.map((id) => {
-        const runs = GARMENT_RUNS[id as Exclude<GarmentCategoryId, 'other'>] || [];
+        const allRuns = GARMENT_RUNS[id as Exclude<GarmentCategoryId, 'other'>] || [];
+        const runs = allRuns
+          .map((r) => ({ ...r, typeIds: r.typeIds.filter((t) => !hiddenTypes.has(t)) }))
+          .filter((r) => r.typeIds.length > 0);
         const ids = runs.flatMap((r) => r.typeIds);
         return {
           id,
@@ -405,11 +476,11 @@ export function useIndexModel(pieces: WardrobePiece[]): IndexModel {
           banded: isBandedCategory(id),
         };
       }),
-    [ownership],
+    [ownership, hiddenTypes],
   );
   const typeTotal = useMemo(() => categories.reduce((n, c) => n + c.total, 0), [categories]);
   const ownedTotal = ownership.swatches.size;
-  return { categories, typeTotal, ownedTotal, ownership, gaps, climate };
+  return { categories, typeTotal, ownedTotal, ownership, gaps, climate, hiddenTypes, hiddenMakers };
 }
 
 // ---------------------------------------------------------------------------

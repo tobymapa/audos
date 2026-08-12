@@ -14,7 +14,8 @@
  * the page reads correctly without them by design.
  */
 import { useMemo } from 'react';
-import { promoteToScout } from './profile-data';
+import { promoteToScout, type StyleProfile, type WardrobePiece } from './profile-data';
+import { PieceBrandPicks } from './piece-recommendations';
 import { findCatalogBrand, verifiedBrandWebsiteUrl, PRICE_BAND_SYMBOL, type BrandProfile } from './brands';
 import { findGarmentType, type GarmentType } from './garment-types';
 import { runOfType } from './garment-type-runs';
@@ -75,7 +76,19 @@ function makerRows(type: GarmentType): Array<{ name: string; profile: BrandProfi
   });
 }
 
-export function IndexTypePage({ model, typeId, nav }: { model: IndexModel; typeId: string; nav: IndexNav }) {
+export function IndexTypePage({
+  model,
+  typeId,
+  nav,
+  profile = null,
+  pieces = [],
+}: {
+  model: IndexModel;
+  typeId: string;
+  nav: IndexNav;
+  profile?: StyleProfile | null;
+  pieces?: WardrobePiece[];
+}) {
   usePlexMono();
   const type = findGarmentType(typeId);
   const home = useMemo(() => (type ? runOfType(type.id) : null), [type]);
@@ -91,11 +104,28 @@ export function IndexTypePage({ model, typeId, nav }: { model: IndexModel; typeI
   const bandDays = daysInBand(model.climate, type.band);
   const makers = makerRows(type);
   const neighbours = neighboursOf(type);
-  const catTotal = model.categories.find((c) => c.id === type.category)?.total || 0;
+  const cat = model.categories.find((c) => c.id === type.category) || null;
+  const catTotal = cat?.total || 0;
+
+  // Forward/back — the arrows step piece-to-piece through the category, in
+  // the plate's own run order, skipping rows the reader removed.
+  const catTypeIds = cat ? cat.runs.flatMap((r) => r.typeIds) : [];
+  const at = catTypeIds.indexOf(type.id);
+  const prevType = at > 0 ? findGarmentType(catTypeIds[at - 1]) : null;
+  const nextType = at >= 0 && at < catTypeIds.length - 1 ? findGarmentType(catTypeIds[at + 1]) : null;
 
   return (
     <div>
-      <BackLink label={nav.backLabel} onClick={nav.back} />
+      <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '8px 24px' }}>
+        <BackLink label={nav.backLabel} onClick={nav.back} />
+        {at >= 0 && (
+          <span className="inline-flex items-baseline flex-wrap" style={{ gap: '6px 18px' }}>
+            {prevType && <ControlLink onClick={() => nav.goType(prevType.id)}>← {prevType.name}</ControlLink>}
+            <span style={mono(8, FAINTER)}>{at + 1} of {catTypeIds.length}</span>
+            {nextType && <ControlLink onClick={() => nav.goType(nextType.id)}>{nextType.name} →</ControlLink>}
+          </span>
+        )}
+      </div>
       <div style={{ marginTop: '10px' }}>
         <Breadcrumb
           segs={[
@@ -123,6 +153,11 @@ export function IndexTypePage({ model, typeId, nav }: { model: IndexModel; typeI
             {owned ? `You own ${ownedNames.length === 1 ? 'one' : String(ownedNames.length)}.` : gapRank ? `A gap your board names — #${gapRank}.` : 'You own none.'}
           </div>
           {ownedNames.length > 0 && <div style={{ ...body(13, SECONDARY), marginTop: '6px' }}>{ownedNames.join(' · ')}</div>}
+          {cat && (
+            <div style={{ ...mono(8, FAINT), marginTop: '8px' }}>
+              {categoryName(type.category)} coverage · {model.ownedTotal > 0 ? `${cat.ownedCount} of ${cat.total} types owned` : '—'}
+            </div>
+          )}
           <div className="flex flex-wrap" style={{ gap: '8px 10px', marginTop: '14px' }}>
             <OutlinedControl onClick={() => promoteToScout(type.name.toLowerCase())}>Hunt for one</OutlinedControl>
             <OutlinedControl onClick={() => window.dispatchEvent(new CustomEvent('ethaion:add-piece', { detail: { name: type.name } }))}>Log one I own</OutlinedControl>
@@ -231,11 +266,22 @@ export function IndexTypePage({ model, typeId, nav }: { model: IndexModel; typeI
         </section>
       )}
 
-      {/* ——— field 6 · makers — references marked; crossing to the other face */}
+      {/* ——— field 6 · makers — the pick for YOU first (photograph and the
+          maker's own page for this piece, then the next four), and beneath
+          it the directory rows that cross to the makers face */}
       <section>
         <FieldHead n={banded ? 6 : 4} title="Who makes it" note={makers.length > 0 ? `${makers.length} maker${makers.length === 1 ? '' : 's'} in the directory` : 'no verified maker in the directory — never guessed'} />
+        <PieceBrandPicks
+          typeName={type.name}
+          categoryName={categoryName(type.category)}
+          keywords={type.cuts}
+          profile={profile}
+          pieces={pieces}
+          fallbackBrands={type.makers}
+        />
         {makers.length > 0 ? (
-          <div style={{ marginTop: '6px' }}>
+          <div style={{ marginTop: '18px' }}>
+            <div style={{ ...mono(8.5, SECONDARY), padding: '0 0 4px' }}>In the Index’s directory — each name crosses to the makers face</div>
             {makers.map(({ name, profile, ref }) => (
               <div key={name} className="grid grid-cols-[minmax(0,5fr)_minmax(0,4fr)_auto] items-baseline" style={{ gap: '18px', padding: '9px 0', borderBottom: `1px solid rgba(59,43,29,0.12)` }}>
                 <span>
@@ -251,12 +297,10 @@ export function IndexTypePage({ model, typeId, nav }: { model: IndexModel; typeI
             </div>
             <p style={{ ...body(12, FAINT), margin: '8px 0 0', maxWidth: '72ch' }}>
               Ref means the maker defines the piece, not that it's the best one for you — a fact about the garment's
-              history.
+              history. The ranked picks above are the “for you” read; these rows are the record.
             </p>
           </div>
-        ) : (
-          <p style={{ ...body(13.5, SECONDARY), margin: '10px 0 0' }}>—</p>
-        )}
+        ) : null}
       </section>
 
       {/* ——— field 7 · neighbours — computed from the band, never authored */}

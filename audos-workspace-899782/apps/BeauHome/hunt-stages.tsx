@@ -550,8 +550,7 @@ export function AddCandidate({ onAdded }: { onAdded: () => void }) {
         </button>
       </div>
       <p className="mt-1.5 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11px' }}>
-        A pasted product page files itself — maker and piece read off the URL. Adding a maker to the directory is a
-        different act and lives in The Index.
+        A pasted product page files itself — maker and piece read off the URL.
       </p>
       {flash && (
         <p className="mt-1.5" style={{ ...bodyFont, fontSize: '12px', color: 'var(--color-accent-700,#7c4a17)' }}>
