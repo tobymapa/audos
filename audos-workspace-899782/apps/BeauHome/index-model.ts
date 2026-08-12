@@ -260,6 +260,63 @@ export function computeOwnership(pieces: WardrobePiece[]): IndexOwnership {
   return { swatches, brands, names };
 }
 
+/** Season-tag fallback for pieces the keyword read cannot place — the tag
+ * still says which stretch of the year the piece answers. */
+const SEASON_FALLBACK_BANDS: Record<string, TemperatureBand[]> = {
+  winter: ['below-0', '0-5', '5-10'],
+  autumn: ['5-10', '10-15', '15-20'],
+  fall: ['5-10', '10-15', '15-20'],
+  spring: ['10-15', '15-20'],
+  summer: ['20-25', '25-30', 'above-30'],
+  'all-season': [...TEMPERATURE_BAND_ORDER],
+  'year-round': [...TEMPERATURE_BAND_ORDER],
+};
+
+/**
+ * The reader's own pieces bucketed into the eight bands — each piece is
+ * matched to its garment type (the same keyword read computeOwnership
+ * uses; it weighs the piece's name, slot and category) and counted into
+ * every band that type's span reaches. A piece with no type match falls
+ * back to its season tags. Pure arithmetic over the ledger — the counts
+ * move the moment a piece is added or removed.
+ */
+export function computePieceBandCounts(pieces: WardrobePiece[]): Record<TemperatureBand, number> {
+  const counts = {} as Record<TemperatureBand, number>;
+  for (const band of TEMPERATURE_BAND_ORDER) counts[band] = 0;
+  const flat = allKeywords();
+  for (const piece of pieces) {
+    const text = `${piece.name || ''} ${piece.slot || ''} ${piece.category || ''}`.toLowerCase();
+    let bestId: string | null = null;
+    let bestLen = 0;
+    if (text.trim()) {
+      for (const { id, kws } of flat) {
+        for (const kw of kws) {
+          if (kw.length > bestLen && text.includes(kw)) {
+            bestId = id;
+            bestLen = kw.length;
+          }
+        }
+      }
+    }
+    const bands = new Set<TemperatureBand>();
+    const type = bestId ? findGarmentType(bestId) : null;
+    const span = type ? spanOf(type) : null;
+    if (span) {
+      for (const def of TEMPERATURE_BANDS) {
+        const b = BAND_BOUNDS[def.id];
+        if (Math.min(span.hi, b.hi) - Math.max(span.lo, b.lo) >= 2) bands.add(def.id);
+      }
+    }
+    if (bands.size === 0) {
+      for (const s of piece.seasons || []) {
+        for (const band of SEASON_FALLBACK_BANDS[(s || '').trim().toLowerCase()] || []) bands.add(band);
+      }
+    }
+    for (const band of bands) counts[band] += 1;
+  }
+  return counts;
+}
+
 /** The gaps the board names — read from the LAST stored assessment (never
  * triggers a model call), each claiming its best type, capped at four. */
 export function computeGaps(owned: Map<string, string[]>): Map<string, number> {

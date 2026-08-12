@@ -2007,7 +2007,10 @@ export default function BeauHome() {
     refresh: refreshPieces,
   } = window.useWorkspaceDB<WardrobePiece>('wardrobe_pieces', {
     orderBy: { column: 'created_at', direction: 'asc' },
-    limit: 100,
+    // Read well past any realistic wardrobe — a 100-row cap was silently
+    // truncating large ledgers, so every count downstream (the Index's
+    // band counts, category ownership, The Edit's coverage) under-read.
+    limit: 1000,
   });
 
   const pieces = useMemo(

@@ -1,37 +1,39 @@
 /**
- * THE INDEX — full rebuild from the founder's reference screenshots
- * (August 2026).
+ * THE INDEX — full rebuild from the founder's reference screenshots,
+ * personalised end to end (August 2026 overhaul).
  *
  * One page, two FACES under one toggle (top right):
  *
  *  · PIECES — the garment-type reference read BY TEMPERATURE. A category
- *    strip (the eleven canonical categories, counts beside the names), a
- *    temperature-band histogram (click a band to hold it), a Find line with
- *    Formality / Occasion / Run drop-downs, and the reading itself: a left
- *    rail explaining the column, then one row per type — name, ownership
- *    dot, its span drawn as a bar on one shared 0–30° track (filled dark =
- *    you own one, grey = you don't, dashed = a gap your board names), the
- *    verdict for your city, the span figure and an arrow that opens the
- *    type's own inline entry.
+ *    strip (the eleven canonical categories, counts beside the names, one
+ *    non-scrolling row), the temperature-band selector with the reader's
+ *    own piece count under every band and COLDEST/WARMEST poles, a Find
+ *    line with Formality / Occasion / Run drop-downs, and the reading:
+ *    a left rail carrying the category name and BEAU'S OWN VERDICT for
+ *    this reader (generated from their ledger, profile and gaps — never a
+ *    stock line), then one row per type — the NAME opens the type's inline
+ *    entry; the ARROW hands off to the Makers face filtered to the houses
+ *    that make that type.
  *
- *  · MAKERS — every house on file as one table: MAKER · WHERE · WHAT
- *    DEFINES THEM · PRICE, NEW · STOCKED · BEAU'S READ. An Add-a-maker line
- *    (name or link, plus a CSV/XLSX/TXT list upload), a Find line with
- *    Favourites / Place / Price / Makes / Beau's read / Stocked filters,
- *    the five-verdict legend, and a select-to-compare flow (up to four,
- *    read side by side). A name opens the full entry inline; the × on a
- *    row removes it (restorable, never destructive).
+ *  · MAKERS — BEAU'S FIFTY: the houses Beau would send this reader to
+ *    first, chosen against their profile, ledger and named gaps, each with
+ *    a one-line justification — then the reader's own additions (a name or
+ *    a pasted link auto-researches into a full dossier), then the rest of
+ *    the directory on demand. Every column head sorts. Favourites, the
+ *    five-verdict legend and the select-to-compare flow carry over.
  *
- * Everything on the page is REAL data: the taxonomy (garment-types.ts +
- * garment-type-runs.ts), spans and verdicts (index-model.ts against the
- * dossier's climate), ownership and gaps (the reader's own ledger), the
- * maker directory (brands.ts BRAND_DIRECTORY merged with the
- * hunt_directory_brands additions), favourites (the shared brand_index
- * ledger) and the import pipeline (hunt-brand-import.ts).
+ * Everything on the page is REAL, PER-READER data: the taxonomy
+ * (garment-types.ts + garment-type-runs.ts), spans and verdicts
+ * (index-model.ts against the dossier's climate), ownership, gaps and
+ * per-band piece counts (the reader's own ledger), the maker directory
+ * (brands.ts merged with hunt_directory_brands), favourites (brand_index)
+ * and Beau's generated verdicts (index-tab-copy.ts — model-written against
+ * the reader's facts, with deterministic per-reader fallbacks).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import {
+  PRICE_BAND_ORDER,
   mergeDirectory,
   verifiedBrandWebsiteUrl,
   type BrandProfile,
@@ -47,6 +49,7 @@ import {
   RULER_HI,
   RULER_LO,
   VERDICT_TEXT,
+  computePieceBandCounts,
   daysInSpan,
   hideIndexMaker,
   restoreHiddenIndex,
@@ -71,6 +74,7 @@ import {
   mono,
   serif,
 } from './index-style';
+import { useBeauFifty, useCategoryVerdicts, usePieceBeauRead, type BeauPick } from './index-tab-copy';
 import { DISCOVER_BRANDS_EVENT, addDirectoryBrandStubs, backfillDirectoryBrandStubs } from './hunt-ai';
 import { looksLikeUrl, nameFromUrl, normalizeSiteUrl, parseBrandImportFile } from './hunt-brand-import';
 import {
@@ -91,6 +95,11 @@ import { usePlexMono } from './mono-type';
 const DEEP = '#5c3413';
 const GAP_TINT = 'rgba(168,113,44,0.07)';
 const ROW_HAIRLINE = '1px solid rgba(59,43,29,0.12)';
+
+/** Deep link into the app's own tabs — the Dossier holds the city. */
+function goToDossier(): void {
+  window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab: 'your-style' } }));
+}
 
 /** The small square-cornered mono control (RESET FILTERS, UPLOAD A LIST…). */
 function MonoButton({
@@ -306,75 +315,103 @@ function pieceVerdictColor(v: string | null): string {
   return FAINT; // niche · unweighted
 }
 
-/** The temperature-band histogram — click a band to hold it. */
+/** The temperature-band selector — click a band to hold it. Every band
+ * carries the count of the reader's OWN pieces that answer it, live from
+ * the ledger. COLDEST sits at the far left, WARMEST at the far right. */
 function BandStrip({
   counts,
+  pieceCounts,
   ownedBands,
   held,
   onHold,
+  city,
 }: {
   counts: Record<string, number>;
+  pieceCounts: Record<TemperatureBand, number>;
   ownedBands: Set<TemperatureBand>;
   held: TemperatureBand | null;
   onHold: (b: TemperatureBand | null) => void;
+  city: string | null;
 }) {
   const max = Math.max(1, ...TEMPERATURE_BAND_ORDER.map((b) => counts[b] || 0));
   return (
     <div style={{ paddingBottom: '16px' }}>
       <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '4px 16px', paddingBottom: '7px' }}>
         <span style={mono(7.5, FAINT)}>Temperature · click a band to hold it</span>
-        <span className="hidden md:inline" style={mono(7.5, FAINTER)}>
-          Types centring in each band · accent marks the bands you own into
-        </span>
+        {city ? (
+          <span style={mono(7.5, ACCENT_DEEP)}>{city}</span>
+        ) : (
+          <button
+            type="button"
+            onClick={goToDossier}
+            className="hover:opacity-70 transition-opacity"
+            style={{ ...mono(7.5, ACCENT_DEEP), background: 'transparent', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+          >
+            Set your city in the Dossier →
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: `repeat(${TEMPERATURE_BAND_ORDER.length}, minmax(74px, 1fr))`, border: `1px solid ${RULE}`, minWidth: '640px' }}
-        >
-          {TEMPERATURE_BAND_ORDER.map((band, i) => {
-            const count = counts[band] || 0;
-            const isHeld = held === band;
-            const owned = ownedBands.has(band);
-            return (
-              <button
-                key={band}
-                type="button"
-                onClick={() => onHold(isHeld ? null : band)}
-                aria-pressed={isHeld}
-                title={isHeld ? 'Release the band' : `Hold ${BAND_CELL_LABELS[band]}`}
-                className="text-left transition-colors hover:bg-[rgba(168,113,44,0.06)]"
-                style={{
-                  padding: '10px 12px 12px',
-                  borderLeft: i === 0 ? 'none' : `1px solid ${HAIRLINE}`,
-                  background: isHeld ? 'rgba(168,113,44,0.14)' : 'transparent',
-                }}
-              >
-                <span style={{ ...mono(7.5, count > 0 ? SECONDARY : FAINTER), display: 'block' }}>{BAND_CELL_LABELS[band]}</span>
-                <span
+        <div style={{ minWidth: '640px' }}>
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: `repeat(${TEMPERATURE_BAND_ORDER.length}, minmax(74px, 1fr))`, border: `1px solid ${RULE}` }}
+          >
+            {TEMPERATURE_BAND_ORDER.map((band, i) => {
+              const count = counts[band] || 0;
+              const yours = pieceCounts[band] || 0;
+              const isHeld = held === band;
+              const owned = ownedBands.has(band);
+              return (
+                <button
+                  key={band}
+                  type="button"
+                  onClick={() => onHold(isHeld ? null : band)}
+                  aria-pressed={isHeld}
+                  title={isHeld ? 'Release the band' : `Hold ${BAND_CELL_LABELS[band]}`}
+                  className="text-left transition-colors hover:bg-[rgba(168,113,44,0.06)]"
                   style={{
-                    ...serif(24, count > 0 ? WALNUT : FAINTER),
-                    display: 'block',
-                    lineHeight: 1.15,
-                    marginTop: '3px',
-                    fontFeatureSettings: "'onum' 1",
+                    padding: '10px 12px 12px',
+                    borderLeft: i === 0 ? 'none' : `1px solid ${HAIRLINE}`,
+                    background: isHeld ? 'rgba(168,113,44,0.14)' : 'transparent',
                   }}
                 >
-                  {count}
-                </span>
-                <span
-                  aria-hidden
-                  style={{
-                    display: 'block',
-                    marginTop: '6px',
-                    height: '3px',
-                    width: count > 0 ? `${Math.max(12, (count / max) * 100)}%` : '0%',
-                    background: owned ? ACCENT_DEEP : 'rgba(168,113,44,0.45)',
-                  }}
-                />
-              </button>
-            );
-          })}
+                  <span style={{ ...mono(7.5, count > 0 ? SECONDARY : FAINTER), display: 'block' }}>{BAND_CELL_LABELS[band]}</span>
+                  <span
+                    style={{
+                      ...serif(24, count > 0 ? WALNUT : FAINTER),
+                      display: 'block',
+                      lineHeight: 1.15,
+                      marginTop: '3px',
+                      fontFeatureSettings: "'onum' 1",
+                    }}
+                  >
+                    {count}
+                  </span>
+                  <span
+                    aria-hidden
+                    style={{
+                      display: 'block',
+                      marginTop: '6px',
+                      height: '3px',
+                      width: count > 0 ? `${Math.max(12, (count / max) * 100)}%` : '0%',
+                      background: owned ? ACCENT_DEEP : 'rgba(168,113,44,0.45)',
+                    }}
+                  />
+                  <span
+                    title={`Pieces on your ledger that answer ${BAND_CELL_LABELS[band]}`}
+                    style={{ ...mono(6.5, yours > 0 ? ACCENT_DEEP : FAINTER), display: 'block', marginTop: '6px', whiteSpace: 'nowrap' }}
+                  >
+                    {yours > 0 ? `${yours} of yours` : 'none of yours'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between" style={{ paddingTop: '6px' }}>
+            <span style={mono(7.5, FAINT)}>coldest</span>
+            <span style={mono(7.5, FAINT)}>warmest</span>
+          </div>
         </div>
       </div>
     </div>
@@ -443,8 +480,11 @@ function PieceAxisHeader() {
   );
 }
 
-/** The type's own inline entry — what “a row opens its piece page” opens. */
-function PieceEntry({ type, model }: { type: GarmentType; model: IndexModel }) {
+/** The type's own inline entry — opened by its NAME. Beau's read leads:
+ * model-written for this reader (deterministic per-reader fallback while
+ * the call settles), then the fixed facts under their static labels. */
+function PieceEntry({ type, model, profile }: { type: GarmentType; model: IndexModel; profile: StyleProfile | null }) {
+  const beauRead = usePieceBeauRead(type, model, profile);
   const span = spanOf(type);
   const days = daysInSpan(model.climate, span);
   const run = runOfType(type.id);
@@ -461,7 +501,13 @@ function PieceEntry({ type, model }: { type: GarmentType; model: IndexModel }) {
   if (ownedNames.length > 0) facts.push({ label: 'On your ledger', value: ownedNames.join(' · ') });
   return (
     <div style={{ padding: '12px 6px 16px', borderBottom: ROW_HAIRLINE, background: 'rgba(251,248,241,0.6)' }}>
-      {run?.run.note && <p style={{ ...body(13.5, SECONDARY), margin: '0 0 10px', maxWidth: '64ch' }}>{run.run.note}</p>}
+      {beauRead && (
+        <div style={{ margin: '0 0 12px', maxWidth: '64ch' }}>
+          <span style={{ ...mono(7, ACCENT_DEEP), display: 'block', marginBottom: '3px' }}>Beau's read</span>
+          <p style={{ ...body(13.5, INK), margin: 0 }}>{beauRead}</p>
+        </div>
+      )}
+      {run?.run.note && <p style={{ ...body(13, SECONDARY), margin: '0 0 10px', maxWidth: '64ch' }}>{run.run.note}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: '9px 26px' }}>
         {facts.map((f) => (
           <div key={f.label}>
@@ -474,7 +520,17 @@ function PieceEntry({ type, model }: { type: GarmentType; model: IndexModel }) {
   );
 }
 
-function PiecesFace({ model }: { model: IndexModel }) {
+function PiecesFace({
+  model,
+  pieces,
+  profile,
+  onMakersForType,
+}: {
+  model: IndexModel;
+  pieces: WardrobePiece[];
+  profile: StyleProfile | null;
+  onMakersForType: (t: GarmentType) => void;
+}) {
   const firstBanded = model.categories.find((c) => c.banded)?.id || model.categories[0]?.id || 'tops';
   const [cat, setCat] = useState<GarmentCategoryId>(firstBanded as GarmentCategoryId);
   const [heldBand, setHeldBand] = useState<TemperatureBand | null>(null);
@@ -486,6 +542,14 @@ function PiecesFace({ model }: { model: IndexModel }) {
 
   const category = model.categories.find((c) => c.id === cat) || model.categories[0];
   const banded = !!category?.banded;
+
+  // Beau's verdict for every category — generated against THIS reader's
+  // ledger, profile and gaps; a per-reader computed line until it lands.
+  const catVerdicts = useCategoryVerdicts(profile, model);
+
+  // The reader's own pieces bucketed into the eight bands — live arithmetic
+  // over the ledger, so the counts move as pieces are added or removed.
+  const pieceBandCounts = useMemo(() => computePieceBandCounts(pieces), [pieces]);
 
   const pickCategory = (id: GarmentCategoryId) => {
     setCat(id);
@@ -553,8 +617,9 @@ function PiecesFace({ model }: { model: IndexModel }) {
 
   return (
     <div>
-      {/* ——— the category strip */}
-      <div className="flex overflow-x-auto" style={{ gap: '2px 22px', borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
+      {/* ——— the category strip — every category on one compact row, never a
+          scroll (founder's correction: the count strip must not scroll) */}
+      <div className="flex flex-wrap" style={{ gap: '4px 18px', borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
         {model.categories.map((c) => {
           const active = c.id === cat;
           return (
@@ -565,12 +630,11 @@ function PiecesFace({ model }: { model: IndexModel }) {
               aria-pressed={active}
               className="flex-shrink-0 transition-colors"
               style={{
-                ...mono(8.5, active ? DEEP : SECONDARY),
+                ...mono(8, active ? DEEP : SECONDARY),
                 fontWeight: active ? 500 : 400,
                 background: 'transparent',
                 padding: '0 0 5px',
                 borderBottom: active ? `2px solid ${ACCENT}` : '2px solid transparent',
-                marginBottom: '-10px',
                 whiteSpace: 'nowrap',
               }}
             >
@@ -592,7 +656,16 @@ function PiecesFace({ model }: { model: IndexModel }) {
       />
 
       {/* ——— the temperature bands (banded categories only) */}
-      {banded && <BandStrip counts={bandCounts} ownedBands={ownedBands} held={heldBand} onHold={setHeldBand} />}
+      {banded && (
+        <BandStrip
+          counts={bandCounts}
+          pieceCounts={pieceBandCounts}
+          ownedBands={ownedBands}
+          held={heldBand}
+          onHold={setHeldBand}
+          city={model.climate.city}
+        />
+      )}
 
       {/* ——— the find line + drop-downs */}
       <div className="flex items-center flex-wrap" style={{ gap: '10px 12px', paddingBottom: '22px' }}>
@@ -611,16 +684,11 @@ function PiecesFace({ model }: { model: IndexModel }) {
       <div className="grid grid-cols-1 lg:grid-cols-[188px_minmax(0,1fr)]" style={{ gap: '18px 34px' }}>
         <aside>
           <div className="lg:sticky" style={{ top: '84px' }}>
-            <span style={mono(7.5, ACCENT_DEEP)}>Reading · by {banded ? 'temperature' : 'name'}</span>
-            <h4 style={{ ...serif(25, WALNUT), lineHeight: 1.15, margin: '8px 0 0' }}>
-              {category?.name}, {banded ? 'coldest first' : 'A to Z'}
-            </h4>
+            {/* The category name alone heads the rail; Beau's verdict for
+                THIS reader sits directly under it — never a stock line. */}
+            <h4 style={{ ...serif(25, WALNUT), lineHeight: 1.15, margin: 0 }}>{category?.name}</h4>
             <p style={{ ...body(13.5, SECONDARY), margin: '9px 0 0', maxWidth: '30ch' }}>
-              {banded
-                ? `One column, so the bands line up — a band only reads against its neighbours. ${
-                    model.climate.city ? `Verdicts are for ${model.climate.city}.` : model.climate.weighted ? 'Verdicts are for your climate.' : 'Set your city in the Dossier and the verdicts fill in.'
-                  }`
-                : 'No temperature band here — these are judged by material and place, so the column reads alphabetically.'}
+              {catVerdicts.verdicts[category?.id || ''] || ''}
             </p>
             <div style={{ borderTop: `1px solid ${HAIRLINE}`, margin: '14px 0 12px', maxWidth: '150px' }} />
             <div className="flex flex-col" style={{ gap: '7px' }}>
@@ -668,8 +736,9 @@ function PiecesFace({ model }: { model: IndexModel }) {
                             <button
                               type="button"
                               onClick={toggle}
+                              aria-expanded={open}
                               className="text-left hover:opacity-70 transition-opacity min-w-0"
-                              title={`${t.name} — open its entry`}
+                              title={`${t.name} — ${open ? 'close' : 'open'} its entry`}
                               style={{
                                 ...serif(15, owned ? WALNUT : INK),
                                 background: 'transparent',
@@ -697,11 +766,13 @@ function PiecesFace({ model }: { model: IndexModel }) {
                           <span style={{ ...mono(8, SECONDARY), textAlign: 'right', whiteSpace: 'nowrap' }}>
                             {span ? `${span.lo}–${span.hi}°` : '—'}
                           </span>
+                          {/* The arrow hands off to the MAKERS face, filtered to
+                              the houses known to make this type. */}
                           <button
                             type="button"
-                            onClick={toggle}
-                            aria-expanded={open}
-                            aria-label={`${t.name} — ${open ? 'close' : 'open'} its entry`}
+                            onClick={() => onMakersForType(t)}
+                            aria-label={`See the makers of ${t.name}`}
+                            title={`Makers of ${t.name} →`}
                             className="justify-self-end transition-colors hover:border-[var(--color-accent,#a8712c)]"
                             style={{
                               width: '24px',
@@ -716,10 +787,10 @@ function PiecesFace({ model }: { model: IndexModel }) {
                               justifyContent: 'center',
                             }}
                           >
-                            {open ? '↑' : '→'}
+                            →
                           </button>
                         </div>
-                        {open && <PieceEntry type={t} model={model} />}
+                        {open && <PieceEntry type={t} model={model} profile={profile} />}
                       </div>
                     );
                   })}
@@ -734,7 +805,7 @@ function PiecesFace({ model }: { model: IndexModel }) {
               {shown.length} of {category?.total || 0} {catName} types shown · {filtersHeld === 0 ? 'no filters held' : `${filtersHeld} filter${filtersHeld === 1 ? '' : 's'} held`}
             </span>
             <span className="hidden sm:inline" style={mono(7.5, FAINTER)}>
-              Names are links · a row opens its piece entry
+              A name opens the piece's entry · the arrow lists its makers
             </span>
           </div>
         </div>
@@ -744,7 +815,7 @@ function PiecesFace({ model }: { model: IndexModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// MAKERS FACE — every house on file.
+// MAKERS FACE — Beau's fifty, the reader's own additions, the full file.
 // ---------------------------------------------------------------------------
 
 type MakerRead = 'buy-first' | 'sound' | 'special-case' | 'not-for-you' | 'unread';
@@ -827,7 +898,7 @@ const MAKER_CATEGORIES: Map<string, Set<GarmentCategoryId>> = (() => {
   return map;
 })();
 
-const MAKER_GRID = 'grid grid-cols-[22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_20px]';
+const MAKER_GRID = 'grid grid-cols-[26px_22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_20px]';
 
 function FavStar({ active, onToggle, brand }: { active: boolean; onToggle: () => void; brand: string }) {
   return (
@@ -872,7 +943,7 @@ function TickBox({ on, disabled, onToggle, brand }: { on: boolean; disabled: boo
 }
 
 /** The maker's full entry, opened inline by its name. */
-function MakerEntry({ entry, categories }: { entry: DirectoryEntry; categories: string[] }) {
+function MakerEntry({ entry, categories, pick }: { entry: DirectoryEntry; categories: string[]; pick: BeauPick | null }) {
   const p = entry.profile;
   const site = p.websiteUrl || verifiedBrandWebsiteUrl(p.brand);
   const facts: Array<{ label: string; value: React.ReactNode }> = [
@@ -887,6 +958,12 @@ function MakerEntry({ entry, categories }: { entry: DirectoryEntry; categories: 
   ];
   return (
     <div style={{ padding: '12px 6px 16px', borderBottom: ROW_HAIRLINE, background: 'rgba(251,248,241,0.6)' }}>
+      {pick && (
+        <div style={{ margin: '0 0 10px', maxWidth: '70ch' }}>
+          <span style={{ ...mono(7, ACCENT_DEEP), display: 'block', marginBottom: '3px' }}>Why Beau lists it · #{pick.rank}</span>
+          <p style={{ ...body(13.5, INK), margin: 0 }}>{pick.why}</p>
+        </div>
+      )}
       {p.description && !isStubProfile(p) && <p style={{ ...body(13.5, INK), margin: '0 0 10px', maxWidth: '70ch' }}>{p.description}</p>}
       {entry.ratingNote && <p style={{ ...body(12.5, SECONDARY), margin: '0 0 10px', maxWidth: '70ch' }}>{entry.ratingNote}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: '9px 26px' }}>
@@ -962,18 +1039,58 @@ function CompareSheet({
   );
 }
 
+// ——— column sorting — every head sorts, ascending then descending.
+
+type SortCol = 'rank' | 'maker' | 'where' | 'defines' | 'price' | 'stocked' | 'read';
+interface SortState {
+  col: SortCol;
+  dir: 1 | -1;
+}
+
+function SortHead({
+  label,
+  col,
+  sort,
+  onSort,
+}: {
+  label: string;
+  col: SortCol;
+  sort: SortState;
+  onSort: (col: SortCol) => void;
+}) {
+  const active = sort.col === col;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(col)}
+      title={`Sort by ${label.toLowerCase()}`}
+      className="text-left hover:opacity-70 transition-opacity"
+      style={{ ...mono(7.5, active ? ACCENT_DEEP : FAINT), background: 'transparent', padding: 0, whiteSpace: 'nowrap' }}
+    >
+      {label}
+      {active ? (sort.dir === 1 ? ' ↑' : ' ↓') : ''}
+    </button>
+  );
+}
+
 function MakersFace({
   entries,
   metaRows,
   refreshMeta,
   model,
   pieces,
+  profile,
+  typeFilter,
+  onClearTypeFilter,
 }: {
   entries: DirectoryEntry[];
   metaRows: BrandIndexEntry[];
   refreshMeta: () => void;
   model: IndexModel;
   pieces: WardrobePiece[];
+  profile: StyleProfile | null;
+  typeFilter: GarmentType | null;
+  onClearTypeFilter: () => void;
 }) {
   const [find, setFind] = useState('');
   const [favesOnly, setFavesOnly] = useState(false);
@@ -988,7 +1105,18 @@ function MakersFace({
   const [addValue, setAddValue] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showRest, setShowRest] = useState(false);
+  const [sort, setSort] = useState<SortState>({ col: 'rank', dir: 1 });
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // BEAU'S FIFTY — the shortlist chosen for THIS reader (model-written,
+  // with a deterministic per-reader ranking until the call lands).
+  const fifty = useBeauFifty(profile, pieces, model, entries);
+  const pickMap = useMemo(() => {
+    const map = new Map<string, BeauPick>();
+    for (const p of fifty.picks) map.set(p.brand.toLowerCase(), p);
+    return map;
+  }, [fifty]);
 
   // Optimistic favourite overrides — the star recolours while the ledger
   // write settles.
@@ -1046,31 +1174,108 @@ function MakersFace({
 
   const favCount = useMemo(() => entries.filter((e) => isFav(e.profile.brand)).length, [entries, metaMap, favOverrides]);
 
+  // The makers the held TYPE points at — the canon's verified makers when
+  // it names any, its whole category otherwise.
+  const typeMakerKeys = useMemo(() => {
+    if (!typeFilter) return null;
+    const keys = new Set(typeFilter.makers.map((m) => m.toLowerCase()));
+    return keys;
+  }, [typeFilter]);
+
   const shown = useMemo(() => {
     const q = find.trim().toLowerCase();
-    return entries
-      .filter((e) => {
-        const p = e.profile;
-        const key = p.brand.toLowerCase();
-        if (favesOnly && !isFav(p.brand)) return false;
-        if (q) {
-          const hay = `${p.brand} ${p.city || ''} ${p.country || ''} ${p.description || ''}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        if (places.length > 0 && (!p.country || !places.includes(p.country))) return false;
-        if (bands.length > 0 && !bands.includes(p.priceBand)) return false;
-        if (makes.length > 0) {
+    return entries.filter((e) => {
+      const p = e.profile;
+      const key = p.brand.toLowerCase();
+      if (typeFilter && typeMakerKeys) {
+        if (typeMakerKeys.size > 0) {
+          if (!typeMakerKeys.has(key)) return false;
+        } else {
           const cats = MAKER_CATEGORIES.get(key);
-          if (!cats || !makes.some((m) => cats.has(m as GarmentCategoryId))) return false;
+          if (!cats || !cats.has(typeFilter.category)) return false;
         }
-        if (reads.length > 0 && !reads.includes(readOf(e))) return false;
-        if (stocked.length > 0 && !stocked.includes(stockedOf(p))) return false;
-        return true;
-      })
-      .sort((a, b) => a.profile.brand.localeCompare(b.profile.brand));
-  }, [entries, find, favesOnly, places, bands, makes, reads, stocked, metaMap, favOverrides]);
+      }
+      if (favesOnly && !isFav(p.brand)) return false;
+      if (q) {
+        const hay = `${p.brand} ${p.city || ''} ${p.country || ''} ${p.description || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (places.length > 0 && (!p.country || !places.includes(p.country))) return false;
+      if (bands.length > 0 && !bands.includes(p.priceBand)) return false;
+      if (makes.length > 0) {
+        const cats = MAKER_CATEGORIES.get(key);
+        if (!cats || !makes.some((m) => cats.has(m as GarmentCategoryId))) return false;
+      }
+      if (reads.length > 0 && !reads.includes(readOf(e))) return false;
+      if (stocked.length > 0 && !stocked.includes(stockedOf(p))) return false;
+      return true;
+    });
+  }, [entries, find, favesOnly, places, bands, makes, reads, stocked, metaMap, favOverrides, typeFilter, typeMakerKeys]);
 
   const filtersHeld = (favesOnly ? 1 : 0) + places.length + bands.length + makes.length + reads.length + stocked.length + (find.trim() ? 1 : 0);
+
+  // A held search, filter or type hand-off reads the WHOLE file, not just
+  // the shortlist — nobody expects a search to miss a maker Beau didn't pick.
+  const searchingWholeFile = filtersHeld > 0 || !!typeFilter;
+
+  const rankOf = (e: DirectoryEntry): number => {
+    const pick = pickMap.get(e.profile.brand.toLowerCase());
+    if (pick) return pick.rank;
+    if (e.source === 'user') return 500;
+    return 1000;
+  };
+
+  const comparatorOf = (col: SortCol) => {
+    const whereOf = (e: DirectoryEntry) => `${e.profile.country && e.profile.country !== '—' ? e.profile.country : ''} ${e.profile.city || ''}`.trim();
+    switch (col) {
+      case 'maker':
+        return (a: DirectoryEntry, b: DirectoryEntry) => a.profile.brand.localeCompare(b.profile.brand);
+      case 'where':
+        return (a: DirectoryEntry, b: DirectoryEntry) => whereOf(a).localeCompare(whereOf(b));
+      case 'defines':
+        return (a: DirectoryEntry, b: DirectoryEntry) => (a.profile.description || '').localeCompare(b.profile.description || '');
+      case 'price':
+        return (a: DirectoryEntry, b: DirectoryEntry) => PRICE_BAND_ORDER.indexOf(a.profile.priceBand) - PRICE_BAND_ORDER.indexOf(b.profile.priceBand);
+      case 'stocked':
+        return (a: DirectoryEntry, b: DirectoryEntry) => stockedOf(a.profile).localeCompare(stockedOf(b.profile));
+      case 'read':
+        return (a: DirectoryEntry, b: DirectoryEntry) => READ_ORDER.indexOf(readOf(a)) - READ_ORDER.indexOf(readOf(b));
+      default:
+        return (a: DirectoryEntry, b: DirectoryEntry) => rankOf(a) - rankOf(b);
+    }
+  };
+
+  const onSort = (col: SortCol) => {
+    setSort((cur) => (cur.col === col ? { col, dir: cur.dir === 1 ? -1 : 1 } : { col, dir: 1 }));
+  };
+
+  // The three readings of the filtered file: the shortlist, the reader's
+  // own additions, and the rest of the directory (on demand).
+  const picksShown = useMemo(
+    () => shown.filter((e) => e.source !== 'user' && pickMap.has(e.profile.brand.toLowerCase())),
+    [shown, pickMap],
+  );
+  const userShown = useMemo(() => shown.filter((e) => e.source === 'user'), [shown]);
+  const restShown = useMemo(
+    () => shown.filter((e) => e.source !== 'user' && !pickMap.has(e.profile.brand.toLowerCase())),
+    [shown, pickMap],
+  );
+
+  // Grouped (shortlist · yours · the rest) only in the default rank order;
+  // any other sort reads the visible rows as ONE flat sorted table.
+  const grouped = sort.col === 'rank' && !searchingWholeFile;
+  const flatRows = useMemo(() => {
+    const base = grouped ? [] : [...picksShown, ...userShown, ...(searchingWholeFile || showRest ? restShown : [])];
+    const cmp = comparatorOf(sort.col);
+    return base.sort((a, b) => sort.dir * cmp(a, b) || a.profile.brand.localeCompare(b.profile.brand));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grouped, picksShown, userShown, restShown, searchingWholeFile, showRest, sort, pickMap]);
+
+  const sortedPicks = useMemo(() => {
+    const list = [...picksShown].sort((a, b) => rankOf(a) - rankOf(b));
+    return sort.dir === -1 && sort.col === 'rank' ? list.reverse() : list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picksShown, sort, pickMap]);
 
   const reset = () => {
     setFind('');
@@ -1080,6 +1285,7 @@ function MakersFace({
     setMakes([]);
     setReads([]);
     setStocked([]);
+    onClearTypeFilter();
   };
 
   const toggleHeld = (brand: string) => {
@@ -1092,8 +1298,9 @@ function MakersFace({
 
   const heldEntries = useMemo(() => held.map((b) => entries.find((e) => e.profile.brand === b)).filter(Boolean) as DirectoryEntry[], [held, entries]);
 
-  /** ADD TO THE LIST — a name or a pasted link; files instantly as an
-   * Unread stub, and Beau's background pass fills the dossier in. */
+  /** ADD YOUR OWN — a name or a pasted link; files instantly, and Beau's
+   * research pass (web-grounded) fills country, speciality, price point
+   * and the rest of the dossier in behind it. */
   const addMaker = async () => {
     const raw = addValue.trim();
     if (!raw || addBusy) return;
@@ -1107,7 +1314,7 @@ function MakersFace({
     try {
       const { added, skipped } = await addDirectoryBrandStubs([name]);
       if (added.length > 0) {
-        setNotice(`${added[0]} added — Beau is pulling the file.`);
+        setNotice(`${added[0]} added — Beau is researching the maker and filling the row in.`);
         void backfillDirectoryBrandStubs().catch(() => undefined);
       } else if (skipped.length > 0) {
         setNotice(`${name} is already on the list.`);
@@ -1143,18 +1350,79 @@ function MakersFace({
     }
   };
 
-  return (
-    <div>
-      {/* ——— the filter-state line */}
-      <StateLine
-        text={filtersHeld === 0 ? `No filters held — all ${entries.length} makers on file` : `${filtersHeld} filter${filtersHeld === 1 ? '' : 's'} held — ${shown.length} of ${entries.length} makers`}
-        active={filtersHeld > 0}
-        onReset={reset}
-      />
+  const renderRow = (e: DirectoryEntry) => {
+    const p = e.profile;
+    const key = p.brand.toLowerCase();
+    const read = readOf(e);
+    const onLedger = ledgerBrands.has(key);
+    const open = openMaker === p.brand;
+    const pick = pickMap.get(key) || null;
+    const cats = [...(MAKER_CATEGORIES.get(key) || [])].map((c) => model.categories.find((mc) => mc.id === c)?.name || c);
+    return (
+      <div key={p.brand}>
+        <div className={`${MAKER_GRID} items-center`} style={{ gap: '0 12px', padding: '11px 0', borderBottom: ROW_HAIRLINE }}>
+          <span style={{ ...mono(8, pick ? ACCENT_DEEP : FAINTER), whiteSpace: 'nowrap' }}>
+            {pick ? pick.rank : e.source === 'user' ? 'you' : ''}
+          </span>
+          <TickBox on={held.includes(p.brand)} disabled={held.length >= 4} onToggle={() => toggleHeld(p.brand)} brand={p.brand} />
+          <FavStar active={isFav(p.brand)} onToggle={() => void toggleFav(p.brand)} brand={p.brand} />
+          <span className="min-w-0">
+            <button
+              type="button"
+              onClick={() => setOpenMaker(open ? null : p.brand)}
+              title={`${p.brand} — open the full entry`}
+              className="text-left hover:opacity-70 transition-opacity"
+              style={{ ...serif(16, WALNUT), background: 'transparent', padding: 0, lineHeight: 1.25, textDecoration: 'underline', textDecorationColor: RULE, textUnderlineOffset: '3.5px' }}
+            >
+              {p.brand}
+            </button>
+            {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your ledger</span>}
+          </span>
+          <span className="min-w-0">
+            <span style={{ ...body(13, INK), display: 'block', lineHeight: 1.3 }}>{p.city || (p.country !== '—' ? p.country : '—') || '—'}</span>
+            {p.founded && <span style={{ ...mono(6.5, FAINT), display: 'block', marginTop: '3px' }}>Since {p.founded}</span>}
+          </span>
+          <span className="min-w-0">
+            <span style={{ ...body(13.5, INK), display: 'block', lineHeight: 1.4 }}>
+              {isStubProfile(p) ? <span style={{ color: FAINT }}>Beau is pulling the file on this maker.</span> : p.description}
+            </span>
+            {/* Beau's own justification — written for THIS reader. */}
+            {pick && (
+              <span style={{ ...body(12.5, ACCENT_DEEP), display: 'block', marginTop: '3px', lineHeight: 1.4, fontStyle: 'italic' }}>
+                {pick.why}
+              </span>
+            )}
+          </span>
+          <span style={{ ...mono(8, SECONDARY), whiteSpace: 'nowrap' }}>{priceNewOf(p)}</span>
+          <span style={body(12.5, SECONDARY)}>{STOCKED_LABELS[stockedOf(p)]}</span>
+          <span style={mono(7.5, READ_COLORS[read])}>{READ_LABELS[read]}</span>
+          <button
+            type="button"
+            onClick={() => hideIndexMaker(p.brand)}
+            aria-label={`Remove ${p.brand} from the list`}
+            title="Remove from the list — restorable below"
+            className="justify-self-end hover:opacity-70 transition-opacity"
+            style={{ ...mono(9, FAINTER), background: 'transparent', padding: '2px 4px' }}
+          >
+            ×
+          </button>
+        </div>
+        {open && <MakerEntry entry={e} categories={cats} pick={pick} />}
+      </div>
+    );
+  };
 
-      {/* ——— add a maker */}
-      <div className="flex items-center flex-wrap" style={{ gap: '10px 12px', paddingBottom: '14px' }}>
-        <span style={{ ...mono(8, FAINT), flexShrink: 0 }}>Add a maker</span>
+  const sectionHead = (label: string, sub?: string) => (
+    <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '4px 16px', padding: '16px 0 8px', borderBottom: `1px solid ${RULE}` }}>
+      <span style={mono(8, ACCENT_DEEP)}>{label}</span>
+      {sub && <span style={mono(7.5, FAINTER)}>{sub}</span>}
+    </div>
+  );
+
+  const addMakerBlock = (
+    <div style={{ padding: '14px 0 6px' }}>
+      <div className="flex items-center flex-wrap" style={{ gap: '10px 12px' }}>
+        <span style={{ ...mono(8, FAINT), flexShrink: 0 }}>Add your own maker</span>
         <label className="flex items-center min-w-0 flex-1" style={{ border: `1px solid ${RULE}`, padding: '9px 13px', maxWidth: '420px', background: 'transparent' }}>
           <input
             type="text"
@@ -1182,7 +1450,60 @@ function MakersFace({
           onChange={(e) => void onFile(e.target.files?.[0] || null)}
         />
       </div>
-      {notice && <div style={{ ...mono(8, ACCENT_DEEP), paddingBottom: '12px' }}>{notice}</div>}
+      <p style={{ ...body(12.5, FAINT), margin: '8px 0 0', maxWidth: '70ch' }}>
+        Name a maker or paste their link and Beau researches them — country, speciality, price point, what they're known for — and files the full row himself.
+      </p>
+      {notice && <div style={{ ...mono(8, ACCENT_DEEP), paddingTop: '10px' }}>{notice}</div>}
+    </div>
+  );
+
+  const columnHeads = (
+    <div className={`${MAKER_GRID} items-end`} style={{ gap: '0 12px', borderBottom: `1px solid ${RULE}`, paddingBottom: '6px' }}>
+      <SortHead label="#" col="rank" sort={sort} onSort={onSort} />
+      <span aria-hidden />
+      <span aria-hidden />
+      <SortHead label="Maker" col="maker" sort={sort} onSort={onSort} />
+      <SortHead label="Where" col="where" sort={sort} onSort={onSort} />
+      <SortHead label="What defines them" col="defines" sort={sort} onSort={onSort} />
+      <SortHead label="Price, new" col="price" sort={sort} onSort={onSort} />
+      <SortHead label="Stocked" col="stocked" sort={sort} onSort={onSort} />
+      <SortHead label="Beau's read" col="read" sort={sort} onSort={onSort} />
+      <span aria-hidden />
+    </div>
+  );
+
+  return (
+    <div>
+      {/* ——— the hand-off banner — a piece's arrow filtered this list */}
+      {typeFilter && (
+        <div
+          className="flex items-center justify-between flex-wrap"
+          style={{ gap: '8px 16px', padding: '10px 13px', marginBottom: '4px', border: `1px solid ${ACCENT_DEEP}`, background: 'rgba(168,113,44,0.08)' }}
+        >
+          <span style={mono(8, DEEP)}>
+            Makers known for the {typeFilter.name} · {shown.length} on file
+          </span>
+          <button
+            type="button"
+            onClick={onClearTypeFilter}
+            className="hover:opacity-70 transition-opacity"
+            style={{ ...mono(8, ACCENT_DEEP), background: 'transparent', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+          >
+            Clear ×
+          </button>
+        </div>
+      )}
+
+      {/* ——— the filter-state line */}
+      <StateLine
+        text={
+          filtersHeld === 0 && !typeFilter
+            ? `Beau's fifty, chosen for you — ${entries.length} makers on file behind them`
+            : `${filtersHeld + (typeFilter ? 1 : 0)} filter${filtersHeld + (typeFilter ? 1 : 0) === 1 ? '' : 's'} held — ${shown.length} of ${entries.length} makers`
+        }
+        active={filtersHeld > 0 || !!typeFilter}
+        onReset={reset}
+      />
 
       {/* ——— the find line + drop-downs */}
       <div className="flex items-center flex-wrap" style={{ gap: '10px 12px', paddingBottom: '16px' }}>
@@ -1243,8 +1564,10 @@ function MakersFace({
       {/* ——— the count + compare toolbar */}
       <div className="flex items-center justify-between flex-wrap" style={{ gap: '8px 16px', padding: '13px 0' }}>
         <span style={mono(7.5, FAINT)}>
-          {shown.length} of {entries.length} makers shown
-          {makes.length === 1 ? ` · ${(makesOptions.find((o) => o.id === makes[0])?.label || '').toUpperCase()} houses on file` : ' · every house on file'}
+          {grouped
+            ? `${sortedPicks.length} chosen · ${userShown.length} of your own · ${restShown.length} more on file`
+            : `${flatRows.length} makers shown`}
+          {' · column heads sort'}
         </span>
         <span className="flex items-center flex-wrap" style={{ gap: '8px 14px' }}>
           <span style={mono(7.5, FAINTER)}>
@@ -1266,71 +1589,49 @@ function MakersFace({
       {comparing && heldEntries.length >= 2 ? (
         <CompareSheet entries={heldEntries} ledger={ledgerBrands} onClose={() => setComparing(false)} />
       ) : shown.length === 0 ? (
-        <p style={{ ...body(14, SECONDARY), padding: '20px 0' }}>No maker on file answers this combination — reset the filters to see every house.</p>
+        <div>
+          <p style={{ ...body(14, SECONDARY), padding: '20px 0' }}>No maker on file answers this combination — reset the filters to see every house.</p>
+          {addMakerBlock}
+        </div>
       ) : (
         <div className="overflow-x-auto">
-          <div style={{ minWidth: '860px' }}>
-            {/* the column heads */}
-            <div className={`${MAKER_GRID} items-end`} style={{ gap: '0 12px', borderBottom: `1px solid ${RULE}`, paddingBottom: '6px' }}>
-              <span aria-hidden />
-              <span aria-hidden />
-              <span style={mono(7.5, FAINT)}>Maker</span>
-              <span style={mono(7.5, FAINT)}>Where</span>
-              <span style={mono(7.5, FAINT)}>What defines them</span>
-              <span style={mono(7.5, FAINT)}>Price, new</span>
-              <span style={mono(7.5, FAINT)}>Stocked</span>
-              <span style={mono(7.5, FAINT)}>Beau's read</span>
-              <span aria-hidden />
-            </div>
-            {shown.map((e) => {
-              const p = e.profile;
-              const key = p.brand.toLowerCase();
-              const read = readOf(e);
-              const onLedger = ledgerBrands.has(key);
-              const open = openMaker === p.brand;
-              const cats = [...(MAKER_CATEGORIES.get(key) || [])].map((c) => model.categories.find((mc) => mc.id === c)?.name || c);
-              return (
-                <div key={p.brand}>
-                  <div className={`${MAKER_GRID} items-center`} style={{ gap: '0 12px', padding: '11px 0', borderBottom: ROW_HAIRLINE }}>
-                    <TickBox on={held.includes(p.brand)} disabled={held.length >= 4} onToggle={() => toggleHeld(p.brand)} brand={p.brand} />
-                    <FavStar active={isFav(p.brand)} onToggle={() => void toggleFav(p.brand)} brand={p.brand} />
-                    <span className="min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => setOpenMaker(open ? null : p.brand)}
-                        title={`${p.brand} — open the full entry`}
-                        className="text-left hover:opacity-70 transition-opacity"
-                        style={{ ...serif(16, WALNUT), background: 'transparent', padding: 0, lineHeight: 1.25, textDecoration: 'underline', textDecorationColor: RULE, textUnderlineOffset: '3.5px' }}
-                      >
-                        {p.brand}
-                      </button>
-                      {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your ledger</span>}
-                    </span>
-                    <span className="min-w-0">
-                      <span style={{ ...body(13, INK), display: 'block', lineHeight: 1.3 }}>{p.city || (p.country !== '—' ? p.country : '—') || '—'}</span>
-                      {p.founded && <span style={{ ...mono(6.5, FAINT), display: 'block', marginTop: '3px' }}>Since {p.founded}</span>}
-                    </span>
-                    <span className="min-w-0" style={{ ...body(13.5, INK), lineHeight: 1.4 }}>
-                      {isStubProfile(p) ? <span style={{ color: FAINT }}>Beau is pulling the file on this maker.</span> : p.description}
-                    </span>
-                    <span style={{ ...mono(8, SECONDARY), whiteSpace: 'nowrap' }}>{priceNewOf(p)}</span>
-                    <span style={body(12.5, SECONDARY)}>{STOCKED_LABELS[stockedOf(p)]}</span>
-                    <span style={mono(7.5, READ_COLORS[read])}>{READ_LABELS[read]}</span>
-                    <button
-                      type="button"
-                      onClick={() => hideIndexMaker(p.brand)}
-                      aria-label={`Remove ${p.brand} from the list`}
-                      title="Remove from the list — restorable below"
-                      className="justify-self-end hover:opacity-70 transition-opacity"
-                      style={{ ...mono(9, FAINTER), background: 'transparent', padding: '2px 4px' }}
-                    >
-                      ×
-                    </button>
+          <div style={{ minWidth: '900px' }}>
+            {grouped ? (
+              <>
+                {/* ——— BEAU'S FIFTY — the shortlist, strongest first */}
+                {sectionHead(
+                  `Beau's fifty · chosen against your profile and your ledger`,
+                  fifty.generated ? 'Written by Beau for you — re-drawn when your wardrobe or dossier changes' : 'Drawn from your record — Beau is refining the order',
+                )}
+                {columnHeads}
+                {sortedPicks.length === 0 ? (
+                  <p style={{ ...body(13.5, SECONDARY), padding: '14px 0' }}>None of the fifty answer the held filters — the rest of the file is below.</p>
+                ) : (
+                  sortedPicks.map(renderRow)
+                )}
+
+                {/* ——— YOUR OWN ADDITIONS — add a maker below the fifty */}
+                {sectionHead('Your makers', 'Added by you — Beau researches each one and fills the row')}
+                {addMakerBlock}
+                {userShown.length > 0 && userShown.map(renderRow)}
+
+                {/* ——— THE REST OF THE FILE — on demand */}
+                {restShown.length > 0 && (
+                  <div style={{ padding: '16px 0 0' }}>
+                    <MonoButton onClick={() => setShowRest((s) => !s)} dim={!showRest}>
+                      {showRest ? 'Hide the rest of the file ↑' : `The rest of the file · ${restShown.length} more makers ↓`}
+                    </MonoButton>
+                    {showRest && <div style={{ paddingTop: '10px' }}>{[...restShown].sort((a, b) => a.profile.brand.localeCompare(b.profile.brand)).map(renderRow)}</div>}
                   </div>
-                  {open && <MakerEntry entry={e} categories={cats} />}
-                </div>
-              );
-            })}
+                )}
+              </>
+            ) : (
+              <>
+                {columnHeads}
+                {flatRows.map(renderRow)}
+                {addMakerBlock}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1354,14 +1655,22 @@ function MakersFace({
 
 export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile: StyleProfile | null }) {
   usePlexMono();
-  void profile; // the faces read the dossier through the model's own hooks
   const model = useIndexModel(pieces);
   const [face, setFace] = useState<'pieces' | 'makers'>('pieces');
+  // The Pieces→Makers hand-off: a piece row's arrow holds its type here so
+  // the Makers face opens filtered to the houses that make it.
+  const [typeFilter, setTypeFilter] = useState<GarmentType | null>(null);
+
+  const onMakersForType = (t: GarmentType) => {
+    setTypeFilter(t);
+    setFace('makers');
+  };
 
   // The maker directory — the catalog seed merged with persisted additions.
+  // The limit reads well past any realistic file so no row is ever dropped.
   const { data: addedRows, refresh } = window.useWorkspaceDB<DirectoryBrandRow>('hunt_directory_brands', {
     orderBy: { column: 'created_at', direction: 'desc' },
-    limit: 200,
+    limit: 500,
   });
   useEffect(() => {
     const onChanged = () => refresh();
@@ -1372,7 +1681,7 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
   // The personal per-brand files — favourites live here (status 'trusted').
   const { data: metaRows, refresh: refreshMeta } = window.useWorkspaceDB<BrandIndexEntry>('brand_index', {
     orderBy: { column: 'created_at', direction: 'desc' },
-    limit: 200,
+    limit: 500,
   });
   useEffect(() => {
     const onChanged = () => refreshMeta();
@@ -1390,24 +1699,27 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
     [addedRows, model.hiddenMakers],
   );
 
+  const pieceCount = pieces.length;
+
   return (
     <div className="px-5 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-      {/* ——— the masthead: kicker + title + standfirst left, the face toggle right */}
+      {/* ——— the masthead: title + standfirst left, the face toggle right */}
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-end" style={{ gap: '18px 40px', paddingBottom: '20px' }}>
         <div>
-          {face === 'makers' && <span style={{ ...mono(7.5, ACCENT_DEEP), display: 'block', marginBottom: '7px' }}>The makers face</span>}
           <h2 style={{ ...serif(0, WALNUT), fontSize: 'clamp(32px, 4.4vw, 44px)', lineHeight: 1.06, letterSpacing: '-0.012em', margin: 0 }}>The Index</h2>
           <p style={{ ...body(15, INK), margin: '11px 0 0', maxWidth: '62ch' }}>
             {face === 'pieces'
-              ? `${model.typeTotal} garment types and ${entries.length} makers — one body of reference. Set the filters and the table below narrows to exactly the types that answer them; every name opens its own entry.`
-              : `Every house on file, with the few facts that separate them and Beau's read of each against your ledger. A name opens the full entry; tick two or more to read them side by side.`}
+              ? `${model.typeTotal} garment types read against ${model.climate.city ? `your ${model.climate.city} climate` : 'your climate'} and the ${
+                  pieceCount === 0 ? 'ledger you are yet to start' : `${pieceCount} piece${pieceCount === 1 ? '' : 's'} on your ledger`
+                }. Every count, band and verdict below is yours — a name opens the piece's entry, its arrow lists the makers.`
+              : `Beau's fifty — the houses he'd send you to first, chosen against your profile, your ledger and the gaps your board names — then your own additions and the rest of the file. A name opens the full entry; the column heads sort; tick two or more to compare.`}
           </p>
         </div>
         <div className="flex md:justify-end">
           <div className="flex" role="group" aria-label="What the list is of">
             {(
               [
-                { id: 'pieces' as const, label: `Pieces · ${model.typeTotal}` },
+                { id: 'pieces' as const, label: `Pieces · ${model.typeTotal} types` },
                 { id: 'makers' as const, label: `Makers · ${entries.length} on file` },
               ]
             ).map(({ id, label }) => {
@@ -1439,10 +1751,19 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
       {/* Both faces stay mounted — filters, selections and scroll survive the
           toggle; only one shows. */}
       <div style={{ display: face === 'pieces' ? undefined : 'none' }}>
-        <PiecesFace model={model} />
+        <PiecesFace model={model} pieces={pieces} profile={profile} onMakersForType={onMakersForType} />
       </div>
       <div style={{ display: face === 'makers' ? undefined : 'none' }}>
-        <MakersFace entries={entries} metaRows={metaRows || []} refreshMeta={refreshMeta} model={model} pieces={pieces} />
+        <MakersFace
+          entries={entries}
+          metaRows={metaRows || []}
+          refreshMeta={refreshMeta}
+          model={model}
+          pieces={pieces}
+          profile={profile}
+          typeFilter={typeFilter}
+          onClearTypeFilter={() => setTypeFilter(null)}
+        />
       </div>
     </div>
   );
