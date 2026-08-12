@@ -4,16 +4,20 @@
  *
  * THREE sub-tabs on the app's shared chip bar (sub-tabs.tsx), left to right:
  *
- *  1. BEAU'S PICKS — the same categories The Index carries, in the same
- *     order (its left-to-right is this tab's top-to-bottom), each collapsed
- *     behind its own unfold. Unfolding one asks Beau to choose within every
- *     sub-category of it, live, against this man's whole record. Save ·
- *     Favourite · Pass · Delete & replace on every card.
+ *  1. BEAU'S PICKS — the same categories The Index's Pieces face carries, in
+ *     the same order (its left-to-right is this tab's top-to-bottom), each
+ *     collapsed behind its own unfold. Unfolding one asks Beau, live, for the
+ *     three pieces he would have this man acquire next in it, read against his
+ *     whole record. Save · Favourite · Pass · Replace on every card.
  *  2. ASK BEAU — one box for a question, a brief or a product link, his
  *     verdict and recommendation beneath it, and a bench holding up to four
  *     products for a proper side-by-side.
  *  3. YOUR CALLS — everything tagged on either of the two above, in one
  *     sortable table, with the call changeable or removable in place.
+ *
+ * The chip bar carries THE INDEX'S OWN FACE-TOGGLE TREATMENT (the variant its
+ * Pieces · Makers chips use, shared through sub-tabs.tsx), so the two tabs read
+ * as one product rather than two.
  *
  * The whole tab reads ONE picture of the man (hunt-reader.ts), loaded once
  * here and shared down, so his picks and his verdicts can never be reasoned
@@ -38,9 +42,9 @@ import { usePlexMono } from './mono-type';
 import { DOSSIER_DETAILS_EVENT } from './dossier-details';
 import { COVERAGE_PREFS_EVENT } from './coverage-prefs';
 import { SubTabs, type SubTabItem } from './sub-tabs';
-import { ACCENT_DEEP, FAINT, FAINTER, HAIRLINE, WALNUT, mono, serif } from './index-style';
+import { ACCENT_DEEP, mono } from './index-style';
 import type { CategoryBudget, StylePrefs, StyleProfile, WardrobePiece } from './profile-data';
-import { loadHuntReader, readerCompleteness, type HuntReader } from './hunt-reader';
+import { loadHuntReader, type HuntReader } from './hunt-reader';
 import { useHuntCalls } from './hunt-cards';
 import { HuntPicks } from './hunt-picks';
 import { HuntAsk } from './hunt-ask';
@@ -54,7 +58,7 @@ const FACE_HEAD: Record<HuntFace, { title: string; standfirst: string }> = {
   picks: {
     title: "Beau's picks",
     standfirst:
-      'Read down the categories. Beau opens each one with what you own, what is missing and why he would fill it in that order — then the pieces he would put in front of you.',
+      'Read down the categories. Unfold one and Beau names the three pieces he would have you acquire next in it — chosen against your dossier, your climate and everything already on your ledger.',
   },
   ask: {
     title: 'Ask Beau',
@@ -159,18 +163,14 @@ export function HuntTab({
   );
 
   const head = FACE_HEAD[face];
-  // How much of the dossier Beau is actually working from — arithmetic over
-  // the facts on file, shown beside the title so a thin answer always has a
-  // visible reason.
-  const knows = reader ? readerCompleteness(reader) : null;
 
   return (
     <div>
       {/* The standard tab masthead — same height, type and indentation as
-          The Ledger, The Edit and The Index, with the face's own title and
-          what Beau has to go on, right. */}
+          The Ledger, The Edit and The Index: the face's own title and
+          standfirst, and nothing else. */}
       <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <div className="max-w-[1180px] mx-auto flex items-start justify-between gap-8 flex-wrap">
+        <div className="max-w-[1180px] mx-auto">
           <div className="min-w-0">
             <p style={{ ...mono(8.5, ACCENT_DEEP), margin: '0 0 9px' }}>Ethaion · The Hunt · Beau</p>
             <h2 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
@@ -178,17 +178,6 @@ export function HuntTab({
             </h2>
             <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0, maxWidth: '62ch' }}>
               {head.standfirst}
-            </p>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <p style={{ ...serif(30, WALNUT), margin: 0, lineHeight: 1 }}>
-              {knows == null ? '—' : `${knows}%`}
-            </p>
-            <p style={{ ...mono(8, FAINT), margin: '9px 0 0' }}>How well Beau knows you</p>
-            <p style={{ ...mono(8, FAINTER), margin: '4px 0 0', paddingTop: '4px', borderTop: `1px solid ${HAIRLINE}` }}>
-              {calls.calls.length === 0
-                ? 'No calls made yet'
-                : `${calls.calls.length} call${calls.calls.length === 1 ? '' : 's'} made`}
             </p>
           </div>
         </div>
@@ -200,6 +189,7 @@ export function HuntTab({
           active={face}
           onChange={setFace}
           ariaLabel="The Hunt"
+          variant="sub-tab--index-face"
           className="mb-7"
         />
 

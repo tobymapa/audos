@@ -24,10 +24,21 @@
  * Everything that knows The Aspirant deeply stays on Sonnet.
  */
 
-export const CLAUDE_SONNET = 'claude-3-5-sonnet-20241022';
-/** Stand-in id in case the 3.5 Sonnet id is ever retired. */
-export const CLAUDE_SONNET_4 = 'claude-sonnet-4-20250514';
-export const CLAUDE_HAIKU = 'claude-3-5-haiku-20241022';
+/**
+ * THE MODEL IDS. Anthropic retires dated snapshots on a published schedule and
+ * a retired id fails outright (404), which reads in the app as “Beau is away
+ * from his desk” on every surface at once — so these must be checked against
+ * the deprecations page whenever a Beau feature goes quiet everywhere.
+ *
+ * Retired and replaced (August 2026): claude-3-5-sonnet-20241022 (retired
+ * 28 Oct 2025) → claude-sonnet-4-6; claude-3-5-haiku-20241022 (retired
+ * 19 Feb 2026) → claude-haiku-4-5-20251001; claude-sonnet-4-20250514 (retired
+ * 15 Jun 2026) → the current Sonnet snapshot.
+ */
+export const CLAUDE_SONNET = 'claude-sonnet-4-6';
+/** Stand-in id in case the rolling Sonnet alias is ever unavailable. */
+export const CLAUDE_SONNET_4 = 'claude-sonnet-4-5-20250929';
+export const CLAUDE_HAIKU = 'claude-haiku-4-5-20251001';
 
 export interface ClaudeSystemBlock {
   text: string;

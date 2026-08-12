@@ -13,7 +13,9 @@
  *  · SUB-CATEGORIES — the garment RUNS (garment-type-runs.ts): the specific
  *    piece types within a category, grouped the way a tailor would set them
  *    ("Coats", "Rain & wind", "Loafers & monks"). FIX data, identical for
- *    every reader — only the recommendations inside them are personal.
+ *    every reader. Beau's Picks no longer draws a shelf per run — it draws
+ *    three for the category — but the runs are still the reference the
+ *    recommendation prompt chooses within, so a pick names a real type.
  *
  * TAGS (Save · Favourite · Pass) persist in the `hunt_calls` WorkspaceDB
  * table, keyed by a stable `card_key` so re-tagging a card UPDATES its row
@@ -287,10 +289,9 @@ export async function clearHuntTag(cardKey: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Replaced picks — a "Delete & replace" is a local preference, not an
-// opinion: the card goes off the shelf and Beau draws another for that
-// sub-category. Kept per sub-category so the replacement is never the piece
-// just cleared away.
+// Replaced picks — a "Replace" is a local preference, not an opinion: the
+// card goes off the shelf and Beau draws another in its place. Kept per
+// shelf so the replacement is never the piece just cleared away.
 // ---------------------------------------------------------------------------
 
 const RETIRED_KEY = 'ethaion:hunt-retired:v1';
@@ -312,6 +313,22 @@ export function subCategoryKey(categoryId: string, subCategory: string): string 
 
 export function retiredPieceNames(categoryId: string, subCategory: string): string[] {
   return retiredStore()[subCategoryKey(categoryId, subCategory)] || [];
+}
+
+/** The shelf a CATEGORY-level draw retires against. Beau's Picks draws three
+ * pieces for the category as a whole rather than one shelf per run, so the
+ * names cleared away are kept against the category itself. The leading unit
+ * separator can never collide with a run label. */
+const CATEGORY_SHELF = '\u241fcategory';
+
+/** Everything cleared away in this category, so neither this draw nor a later
+ * one repeats it. */
+export function retiredInCategory(categoryId: string): string[] {
+  return retiredPieceNames(categoryId, CATEGORY_SHELF);
+}
+
+export function retireInCategory(categoryId: string, pieceName: string): void {
+  retirePieceName(categoryId, CATEGORY_SHELF, pieceName);
 }
 
 export function retirePieceName(categoryId: string, subCategory: string, pieceName: string): void {

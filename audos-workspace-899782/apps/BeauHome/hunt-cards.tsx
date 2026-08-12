@@ -22,8 +22,8 @@
  *   · FAVOURITE — the same, tagged higher.
  *   · PASS — a no, recorded: the card leaves the shelf and Beau reasons
  *     around it next time he draws.
- *   · DELETE & REPLACE — Beau's Picks only: clears this card away and draws
- *     a different answer for the same sub-category.
+ *   · REPLACE — Beau's Picks only: clears this card away and draws a
+ *     different answer for the same category, leaving its siblings alone.
  * Tapping the tag a card already carries removes it — a call is never a
  * one-way door.
  */
@@ -350,7 +350,7 @@ export interface HuntCardActions {
   busy?: boolean;
 }
 
-/** Save · Favourite · Pass, and Delete & replace where the surface has it. */
+/** Save · Favourite · Pass, and Replace where the surface has it. */
 export function HuntActionRow({ tag, onTag, onReplace, busy }: HuntCardActions) {
   return (
     <div className="flex items-center flex-wrap gap-1.5" style={{ marginTop: '15px' }}>
@@ -381,7 +381,7 @@ export function HuntActionRow({ tag, onTag, onReplace, busy }: HuntCardActions) 
       {onReplace && (
         <ActionButton
           label="Replace"
-          title="Delete this one and let Beau draw another for this sub-category"
+          title="Delete this one and let Beau draw another in its place"
           icon={<RefreshCw className="w-3 h-3" strokeWidth={1.6} aria-hidden="true" />}
           busy={busy}
           onClick={onReplace}
@@ -559,6 +559,73 @@ export function HuntButton({
       {busy && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
       {children}
     </button>
+  );
+}
+
+/**
+ * THE CARD, WAITING — the plate Beau's Picks paints while a draw is in
+ * flight. The same paper card at the same proportions, with the photograph's
+ * frame, the name, the maker line, the price rule, the reasoning and the
+ * action row all standing as hairline blocks, so the shelf does not move when
+ * the real cards land. Never any words: a skeleton that says something is a
+ * message, and this surface has nothing to say until Beau has answered.
+ */
+function SkeletonBar({ width, height = 10, gap = 0 }: { width: string; height?: number; gap?: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'block',
+        width,
+        height: `${height}px`,
+        marginTop: `${gap}px`,
+        background: HAIRLINE,
+      }}
+    />
+  );
+}
+
+export function HuntCardSkeleton() {
+  return (
+    <article
+      aria-hidden="true"
+      className="animate-pulse"
+      style={{ background: PAPER, border: `1px solid ${HAIRLINE}`, padding: '18px 19px 19px' }}
+    >
+      <span style={{ display: 'block', aspectRatio: '5 / 2', background: HATCH, border: `1px solid ${HAIRLINE}` }} />
+      <SkeletonBar width="78%" height={16} gap={17} />
+      <SkeletonBar width="34%" height={8} gap={11} />
+      <div style={{ marginTop: '15px', paddingBottom: '11px', borderBottom: `1px solid ${HAIRLINE}` }}>
+        <SkeletonBar width="28%" height={12} />
+      </div>
+      <SkeletonBar width="100%" height={9} gap={14} />
+      <SkeletonBar width="92%" height={9} gap={7} />
+      <SkeletonBar width="64%" height={9} gap={7} />
+      <div className="flex items-center gap-1.5" style={{ marginTop: '16px' }}>
+        {['62px', '82px', '58px', '74px'].map((width) => (
+          <span
+            key={width}
+            style={{ display: 'block', width, height: '40px', border: `1px solid ${HAIRLINE}` }}
+          />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+/** The whole shelf, waiting — as many plates as the draw will bring back. */
+export function HuntPicksSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div
+      role="status"
+      aria-label="Beau is choosing"
+      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+      style={{ gap: '15px' }}
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <HuntCardSkeleton key={i} />
+      ))}
+    </div>
   );
 }
 

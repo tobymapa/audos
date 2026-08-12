@@ -11,7 +11,7 @@
  *     brand, fabric and metadata), his selected style archetypes, the
  *     archetype essential lists (hardcoded reference data below), and his
  *     profile (height, weight, skin tone, body type) are sent to Claude
- *     (claude-3-5-haiku-20241022 — fast and cheap) with Beau's full
+ *     (claude-haiku-4-5-20251001 — fast and cheap) with Beau's full
  *     decision logic as the system prompt, passed VERBATIM.
  *   · The call returns a strict JSON array of recommendations —
  *     pieceName / category / subType / whyNow / archetypesServed /
@@ -342,7 +342,7 @@ async function callClaudeHaiku(system: string, user: string): Promise<string | n
           'content-type': 'application/json',
         },
         json: {
-          model: 'claude-3-5-haiku-20241022',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 3000,
           temperature: 0.4,
           system,

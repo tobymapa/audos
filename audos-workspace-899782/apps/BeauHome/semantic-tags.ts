@@ -3,7 +3,7 @@
  *
  * Every time a piece is logged (photo flow, search flow, or chat), after the
  * row is saved to wardrobe_pieces, ONE lightweight Claude call
- * (claude-3-5-haiku-20241022 — fast and cheap) runs silently in the
+ * (claude-haiku-4-5-20251001 — fast and cheap) runs silently in the
  * background. It receives the raw piece data AS THE USER ENTERED IT (name,
  * brand, category, material) and returns a semantic classification:
  *
@@ -105,7 +105,7 @@ async function callClaudeHaiku(system: string, user: string): Promise<string | n
           'content-type': 'application/json',
         },
         json: {
-          model: 'claude-3-5-haiku-20241022',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 700,
           temperature: 0.1,
           system,
@@ -309,7 +309,7 @@ export async function tagPieceRecord(pieceId: number, input: TagInput): Promise<
   inflightTagging.add(pieceId);
   try {
     const user = buildUserMessage(input);
-    let model = 'claude-3-5-haiku-20241022';
+    let model = 'claude-haiku-4-5-20251001';
     let text = await callClaudeHaiku(SEMANTIC_TAGGING_SYSTEM_PROMPT, user);
     if (!text) {
       model = 'gpt-4o-mini';

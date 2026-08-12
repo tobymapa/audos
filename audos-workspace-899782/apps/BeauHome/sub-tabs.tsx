@@ -4,29 +4,39 @@
  * ONE component behind every sub-tab row in the app — e.g. The Rail's
  * "For You / World of Menswear" — so sub-tab rows can never drift apart.
  *
- * TWO STYLE VARIANTS are kept side by side so the founder can compare them
- * with a ONE-LINE change (ACTIVE_SUB_TAB_VARIANT below):
+ * THREE STYLE VARIANTS are kept side by side so the founder can compare them
+ * with a ONE-LINE change (ACTIVE_SUB_TAB_VARIANT below, or a `variant` prop on
+ * a single row):
  *
  *  · `sub-tab--style-a` — the underline register The Rail used to carry:
  *    Lora 12px small-caps, walnut when active over a hairline underline
  *    indicator, muted walnut when not, on a hairline baseline rule.
- *  · `sub-tab--style-b` — the chip register (THE ACTIVE ONE):
+ *  · `sub-tab--style-b` — the chip register (THE DEFAULT):
  *    Cormorant 12px small-caps in a hairline-outlined chip, the active chip
  *    filled accent-100 with a tobacco-gold border and accent-800 text; the
  *    row scrolls horizontally on narrow screens.
+ *  · `sub-tab--index-face` — THE INDEX'S OWN FACE TOGGLE, the treatment its
+ *    Pieces · Makers chips carry (index-tab.tsx): IBM Plex Mono 8.5px
+ *    small-caps, paper ground with a walnut rule when off, filled walnut with
+ *    cream type when on, square corners, 9×16px padding, and the chips butted
+ *    together on a shared hairline. Every value is pulled from the same
+ *    index-style tokens the Index reads, so the two rows cannot drift.
  *
  * Design system untouched: no new colours, no shadows, hairlines only. The
  * variant name is also emitted as a className on the row and on each button,
  * so the active variant is visible in the DOM and can be targeted in CSS.
  */
 import type React from 'react';
+import { PAPER, RULE, SECONDARY, WALNUT, mono } from './index-style';
 
-export type SubTabVariant = 'sub-tab--style-a' | 'sub-tab--style-b';
+export type SubTabVariant = 'sub-tab--style-a' | 'sub-tab--style-b' | 'sub-tab--index-face';
 
 /**
- * THE ONE-LINE SWITCH. Both variants stay in the code; flip this to
- * 'sub-tab--style-a' to put the rows back on the underline treatment.
- * Style B is the chip treatment, and it is active.
+ * THE ONE-LINE SWITCH — the DEFAULT for a row that does not name a variant.
+ * Every variant stays in the code; flip this to 'sub-tab--style-a' to put the
+ * rows back on the underline treatment. Style B is the chip treatment. The
+ * Hunt asks for 'sub-tab--index-face' by name, so its chips read exactly as
+ * The Index's Pieces · Makers toggle does.
  */
 export const ACTIVE_SUB_TAB_VARIANT: SubTabVariant = 'sub-tab--style-b';
 
@@ -87,6 +97,26 @@ function styleBClass(active: boolean): string {
 }
 
 // ---------------------------------------------------------------------------
+// Variant — the Index's face toggle, value for value.
+// ---------------------------------------------------------------------------
+
+const INDEX_FACE_ROW = 'flex overflow-x-auto';
+
+/** The cream the Index sets its active chip's type in. */
+const ON_WALNUT_CHIP = '#f6f0e5';
+
+function indexFaceButton(active: boolean, first: boolean): React.CSSProperties {
+  return {
+    ...mono(8.5, active ? ON_WALNUT_CHIP : SECONDARY),
+    background: active ? WALNUT : PAPER,
+    border: `1px solid ${active ? WALNUT : RULE}`,
+    padding: '9px 16px',
+    whiteSpace: 'nowrap',
+    marginLeft: first ? 0 : '-1px',
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The bar itself.
 // ---------------------------------------------------------------------------
 
@@ -109,14 +139,16 @@ export function SubTabs<T extends string>({
   style?: React.CSSProperties;
 }) {
   const styleA = variant === 'sub-tab--style-a';
+  const indexFace = variant === 'sub-tab--index-face';
+  const row = styleA ? STYLE_A_ROW : indexFace ? INDEX_FACE_ROW : STYLE_B_ROW;
   return (
     <nav
       role="tablist"
       aria-label={ariaLabel}
-      className={`${variant} ${styleA ? STYLE_A_ROW : STYLE_B_ROW} ${className}`}
+      className={`${variant} ${row} ${className}`}
       style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', ...style }}
     >
-      {items.map((item) => {
+      {items.map((item, i) => {
         const isActive = active === item.id;
         return (
           <button
@@ -127,8 +159,14 @@ export function SubTabs<T extends string>({
             aria-selected={isActive}
             aria-pressed={isActive}
             onClick={() => onChange(item.id)}
-            className={`${variant}__tab ${styleA ? STYLE_A_BUTTON : styleBClass(isActive)}`}
-            style={styleA ? styleAButton(isActive) : styleBButton(isActive)}
+            className={`${variant}__tab ${styleA ? STYLE_A_BUTTON : indexFace ? 'transition-colors flex-shrink-0' : styleBClass(isActive)}`}
+            style={
+              styleA
+                ? styleAButton(isActive)
+                : indexFace
+                  ? indexFaceButton(isActive, i === 0)
+                  : styleBButton(isActive)
+            }
           >
             {item.label}
             {item.suffix || ''}
