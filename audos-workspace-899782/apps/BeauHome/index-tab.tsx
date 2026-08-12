@@ -1,73 +1,39 @@
 /**
- * THE INDEX — rebuilt to the corrected design (Ethaion Ledger Corrected ·
- * 29a, “The Index tab, mapped”): four levels, two faces, four readings.
+ * THE INDEX — wiped and restarted (temperature-anchored reference pass).
  *
- * ONE RULE governs the whole tab: you go DOWN a level by clicking a NAME,
- * never a button. Buttons and chips move you SIDEWAYS — to another reading
- * of the same set. Only two screens lead out of the tab at all (the type
- * page and the field → the Ledger, the Hunt/Beau).
+ * The old four-level screen hierarchy (root · plates · type pages · cut
+ * pages, plus the quadrant/ruler/matrix/field readings of the pieces face)
+ * is gone. What remains is deliberately flat:
  *
- *   The pieces face · down by name        The makers face
- *   L0  · the root         (index-root)   L0′ · makers root (index-makers)
- *   L1  · category plate   (index-plate)  L1′ · maker page  (index-makers)
- *   L2  · the type page    (index-type-page) — the two faces meet here
- *   L3  · the cut page     (index-cut-page)
+ *   · PIECES (index-pieces.tsx) — the default face: three filter tiers
+ *     (category · sub-category runs · formality register) over ONE
+ *     temperature-anchored reference table. No deeper navigation.
+ *   · MAKERS (index-makers.tsx) — the other face, untouched: the makers
+ *     root and the maker page. A type name on a maker page lands back on
+ *     the pieces table, scrolled to that row.
  *
- *   Across · the reading switch: List · Ruler (index-ruler) · Matrix
- *   (index-matrix) · Field (index-field). The QUADRANT IS RETIRED (27c).
- *   Plus: the jump (index-jump · ⌘K anywhere in the tab) and the first-run
- *   state (index-first-run — what the Index is before it knows anything).
+ * All data and AI stay in place: garment-types.ts, garment-type-runs.ts,
+ * temperature-bands.ts, index-model.ts (climate curve, ownership, spans)
+ * and index-gen.tsx (the generated notes the makers face still carries).
+ * The ⌘K jump (index-jump.tsx) still searches types, cuts and makers.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StyleProfile, WardrobePiece } from './profile-data';
-import { findGarmentType, type GarmentCategoryId } from './garment-types';
-import { categoryName, useIndexModel } from './index-model';
+import { useIndexModel } from './index-model';
 import type { IndexNav } from './index-chrome';
-import { IndexRoot } from './index-root';
-import { IndexPlate } from './index-plate';
-import { IndexTypePage } from './index-type-page';
-import { IndexCutPage } from './index-cut-page';
-import { IndexRuler } from './index-ruler';
-import { IndexMatrix } from './index-matrix';
-import { IndexField } from './index-field';
+import { IndexGenProvider } from './index-gen';
+import { IndexPieces } from './index-pieces';
 import { MakersRoot, MakerPage } from './index-makers';
 import { IndexJump } from './index-jump';
-import { IndexFirstRun } from './index-first-run';
 import { usePlexMono } from './mono-type';
 
-type Screen =
-  | { s: 'root' }
-  | { s: 'plate'; cat: GarmentCategoryId }
-  | { s: 'type'; id: string }
-  | { s: 'cut'; typeId: string; cut: string }
-  | { s: 'ruler'; cat: GarmentCategoryId; band?: string }
-  | { s: 'matrix' }
-  | { s: 'field' }
-  | { s: 'makers' }
-  | { s: 'maker'; name: string };
+type Screen = { s: 'pieces' } | { s: 'makers' } | { s: 'maker'; name: string };
 
 function labelOf(screen: Screen | undefined): string {
   if (!screen) return 'the Index';
-  switch (screen.s) {
-    case 'root':
-      return 'the Index';
-    case 'plate':
-      return categoryName(screen.cat).toLowerCase();
-    case 'type':
-      return findGarmentType(screen.id)?.name.toLowerCase() || 'the piece';
-    case 'cut':
-      return screen.cut.toLowerCase();
-    case 'ruler':
-      return 'the ruler';
-    case 'matrix':
-      return 'the matrix';
-    case 'field':
-      return 'the field';
-    case 'makers':
-      return 'makers';
-    case 'maker':
-      return screen.name;
-  }
+  if (screen.s === 'makers') return 'makers';
+  if (screen.s === 'maker') return screen.name;
+  return 'the Index';
 }
 
 export function IndexTab({
@@ -79,10 +45,10 @@ export function IndexTab({
 }) {
   usePlexMono();
   const model = useIndexModel(pieces);
-  const [stack, setStack] = useState<Screen[]>([{ s: 'root' }]);
+  const [stack, setStack] = useState<Screen[]>([{ s: 'pieces' }]);
   const [jumpOpen, setJumpOpen] = useState(false);
-  // 29e — the Index before it knows anything. “Read it anyway” dismisses.
-  const [readAnyway, setReadAnyway] = useState(false);
+  // A row another surface asked the pieces table to land on.
+  const [focusTypeId, setFocusTypeId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
 
   const screen = stack[stack.length - 1];
@@ -92,29 +58,35 @@ export function IndexTab({
     setStack((cur) => {
       const top = cur[cur.length - 1];
       if (JSON.stringify(top) === JSON.stringify(next)) return cur;
-      return [...cur.slice(-11), next];
+      return [...cur.slice(-7), next];
     });
 
-  const nav = useMemo<IndexNav>(
-    () => ({
-      goRoot: () => setStack([{ s: 'root' }]),
-      goPlate: (cat) => push({ s: 'plate', cat }),
-      goType: (id) => push({ s: 'type', id }),
-      goCut: (typeId, cut) => push({ s: 'cut', typeId, cut }),
-      goRuler: (cat, band) => push({ s: 'ruler', cat, band }),
-      goMatrix: () => push({ s: 'matrix' }),
-      goField: () => push({ s: 'field' }),
+  const nav = useMemo<IndexNav>(() => {
+    const toPieces = (typeId?: string) => {
+      setStack([{ s: 'pieces' }]);
+      if (typeId) setFocusTypeId(typeId);
+    };
+    return {
+      goRoot: () => toPieces(),
+      // The flat view has no plates, rulers, quadrants, matrices or fields
+      // any more — every old “down” or “across” lands on the one table.
+      goPlate: () => toPieces(),
+      goType: (id) => toPieces(id),
+      goCut: (typeId) => toPieces(typeId),
+      goRuler: () => toPieces(),
+      goQuadrant: () => toPieces(),
+      goMatrix: () => toPieces(),
+      goField: () => toPieces(),
       goMakers: () => push({ s: 'makers' }),
       goMaker: (name) => push({ s: 'maker', name }),
       back: () => setStack((cur) => (cur.length > 1 ? cur.slice(0, -1) : cur)),
       backLabel: labelOf(previous),
       openJump: () => setJumpOpen(true),
-    }),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [previous?.s, (previous as any)?.cat, (previous as any)?.id, (previous as any)?.name],
-  );
+  }, [previous?.s, (previous as any)?.name]);
 
-  // ⌘K anywhere in the tab (29d).
+  // ⌘K anywhere in the tab.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -126,33 +98,26 @@ export function IndexTab({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Every screen change lands the reader at its top.
+  // A face change lands the reader at the top — unless the pieces table is
+  // about to scroll itself to a requested row.
   useEffect(() => {
+    if (focusTypeId) return;
     topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [screen]);
-
-  const firstRun = pieces.length === 0 && !readAnyway && screen.s === 'root';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen.s, (screen as any).name]);
 
   return (
-    <div ref={topRef} className="pb-24" style={{ scrollMarginTop: '72px' }}>
-      <div className="px-6 sm:px-10 pt-[44px] max-w-[1180px] mx-auto w-full">
-        {firstRun ? (
-          <IndexFirstRun model={model} nav={nav} onReadAnyway={() => setReadAnyway(true)} />
-        ) : (
-          <>
-            {screen.s === 'root' && <IndexRoot model={model} pieces={pieces} nav={nav} />}
-            {screen.s === 'plate' && <IndexPlate model={model} catId={screen.cat} nav={nav} />}
-            {screen.s === 'type' && <IndexTypePage model={model} typeId={screen.id} nav={nav} />}
-            {screen.s === 'cut' && <IndexCutPage model={model} typeId={screen.typeId} cut={screen.cut} nav={nav} />}
-            {screen.s === 'ruler' && <IndexRuler model={model} catId={screen.cat} band={screen.band} nav={nav} />}
-            {screen.s === 'matrix' && <IndexMatrix model={model} nav={nav} />}
-            {screen.s === 'field' && <IndexField model={model} nav={nav} />}
-            {screen.s === 'makers' && <MakersRoot model={model} nav={nav} />}
-            {screen.s === 'maker' && <MakerPage model={model} name={screen.name} nav={nav} />}
-          </>
-        )}
+    <IndexGenProvider model={model} profile={profile}>
+      <div ref={topRef} className="pb-24" style={{ scrollMarginTop: '72px' }}>
+        <div className="px-6 sm:px-10 pt-[44px] max-w-[1180px] mx-auto w-full">
+          {screen.s === 'pieces' && (
+            <IndexPieces model={model} nav={nav} focusTypeId={focusTypeId} onFocusHandled={() => setFocusTypeId(null)} />
+          )}
+          {screen.s === 'makers' && <MakersRoot model={model} nav={nav} />}
+          {screen.s === 'maker' && <MakerPage model={model} name={screen.name} nav={nav} />}
+        </div>
+        {jumpOpen && <IndexJump nav={nav} onClose={() => setJumpOpen(false)} />}
       </div>
-      {jumpOpen && <IndexJump nav={nav} onClose={() => setJumpOpen(false)} />}
-    </div>
+    </IndexGenProvider>
   );
 }
