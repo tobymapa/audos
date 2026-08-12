@@ -37,12 +37,11 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { typography } from '../../lib/colors';
 import { usePlexMono } from './mono-type';
 import { DOSSIER_DETAILS_EVENT } from './dossier-details';
 import { COVERAGE_PREFS_EVENT } from './coverage-prefs';
 import { SubTabs, type SubTabItem } from './sub-tabs';
-import { ACCENT_DEEP, mono } from './index-style';
+import { TabHeader } from './tab-header';
 import type { CategoryBudget, StylePrefs, StyleProfile, WardrobePiece } from './profile-data';
 import { loadHuntReader, type HuntReader } from './hunt-reader';
 import { useHuntCalls } from './hunt-cards';
@@ -52,24 +51,12 @@ import { HuntCalls } from './hunt-calls';
 
 type HuntFace = 'picks' | 'ask' | 'calls';
 
-/** The masthead changes with the face — the reader is always told which of
- * the three he is looking at, in the same words the chip bar uses. */
-const FACE_HEAD: Record<HuntFace, { title: string; standfirst: string }> = {
-  picks: {
-    title: "Beau's picks",
-    standfirst:
-      'Read down the categories. Unfold one and Beau names the three pieces he would have you acquire next in it — chosen against your dossier, your climate and everything already on your ledger.',
-  },
-  ask: {
-    title: 'Ask Beau',
-    standfirst:
-      'One box for a question or a link. Ask him something and he answers against your profile; paste a link and he gives a verdict. Queue up to four and he compares them.',
-  },
-  calls: {
-    title: 'Your calls',
-    standfirst:
-      'Every piece you have wanted, put by or passed — with the reason you gave. This is the record Beau reads you from, and you can change any of it.',
-  },
+/** The standfirst changes with the face; the title never does. ONE short
+ * sentence each, so the masthead wraps exactly as the other five tabs do. */
+const FACE_STANDFIRST: Record<HuntFace, string> = {
+  picks: 'Unfold a category and Beau names the three pieces to acquire next.',
+  ask: 'Ask him anything, or paste a link — he answers against your dossier.',
+  calls: 'Every piece you have saved, favourited or passed — and why.',
 };
 
 /** Mounted on first visit, then hidden rather than unmounted — so a face
@@ -162,37 +149,28 @@ export function HuntTab({
     [calls.calls.length],
   );
 
-  const head = FACE_HEAD[face];
-
   return (
     <div>
-      {/* The standard tab masthead — same height, type and indentation as
-          The Ledger, The Edit and The Index: the face's own title and
-          standfirst, and nothing else. */}
-      <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <div className="max-w-[1180px] mx-auto">
-          <div className="min-w-0">
-            <p style={{ ...mono(8.5, ACCENT_DEEP), margin: '0 0 9px' }}>Ethaion · The Hunt · Beau</p>
-            <h2 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
-              {head.title}
-            </h2>
-            <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0, maxWidth: '62ch' }}>
-              {head.standfirst}
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* The shared tab masthead (tab-header.tsx) — the same block every
+          other primary tab carries. The three face chips sit in its aside,
+          in the same place and the same treatment as The Index's
+          Pieces · Makers toggle. */}
+      <TabHeader
+        title="The Hunt"
+        standfirst={FACE_STANDFIRST[face]}
+        aside={
+          <SubTabs
+            items={items}
+            active={face}
+            onChange={setFace}
+            ariaLabel="The Hunt"
+            variant="sub-tab--index-face"
+            className="max-w-full"
+          />
+        }
+      />
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-        <SubTabs
-          items={items}
-          active={face}
-          onChange={setFace}
-          ariaLabel="The Hunt"
-          variant="sub-tab--index-face"
-          className="mb-7"
-        />
-
         <KeepFace active={face === 'picks'}>
           <HuntPicks reader={reader} calls={calls} recordKey={recordKey} />
         </KeepFace>

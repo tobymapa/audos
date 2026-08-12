@@ -66,6 +66,7 @@ import { BudgetFilters } from '../BeauHome/wardrobe';
 import { ARCHETYPE_PHOTOS, ARCHETYPE_PHOTO_SETS, ArchetypeIllo } from '../BeauHome/illustrations';
 import { HowToMeasureButton } from '../BeauHome/measure-guide';
 import { SaveProfileButton } from '../BeauHome/save-profile';
+import { TabHeader } from '../BeauHome/tab-header';
 import { fetchAvatarInputs, saveAvatarInputs } from '../BeauHome/body-profile';
 import {
   CLIMATE_OPTIONS,
@@ -2004,23 +2005,14 @@ export default function YourStyle() {
 
   return (
     <div ref={rootRef} className="min-h-full bg-transparent relative">
-      {/* Masthead — heading + standfirst, with the ALWAYS-VISIBLE "Save your
-          profile" button top right. */}
-      <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <div className="max-w-[1180px] mx-auto">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <h2 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
-              The Dossier
-            </h2>
-            <div className="flex-shrink-0 pt-2">
-              <SaveProfileButton surface="your-style" />
-            </div>
-          </div>
-          <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
-            Everything Beau knows about you — correct it and he uses it immediately.
-          </p>
-        </div>
-      </div>
+      {/* The shared tab masthead (tab-header.tsx) — the same block as every
+          other primary tab, with the ALWAYS-VISIBLE "Save your profile"
+          button in its aside. */}
+      <TabHeader
+        title="The Dossier"
+        standfirst="Everything Beau knows about you — correct it and he uses it immediately."
+        aside={<SaveProfileButton surface="your-style" />}
+      />
 
       <div className="px-6 sm:px-10 max-w-[1180px] mx-auto w-full pb-28">
         {/* ================= THE NAME TAPE =================

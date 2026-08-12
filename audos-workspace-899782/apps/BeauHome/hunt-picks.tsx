@@ -25,9 +25,10 @@
  *
  * WHAT THE READER NEVER SEES: an error, an excuse, or a placeholder
  * recommendation. While a draw is in flight the shelf holds the card
- * skeletons; a draw that does not land is simply asked again, quietly, until
- * it does. There is no "try again" to press, because there is nothing for the
- * reader to fix.
+ * skeletons; a draw that does not land is asked ONCE more, quietly; if that
+ * one does not land either the shelf simply reads as empty, in one neutral
+ * line. There is no "try again" to press and no message about Beau being
+ * away, because there is nothing for the reader to fix.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
@@ -62,24 +63,24 @@ import {
   type HuntPick,
 } from './hunt-picks-ai';
 import type { HuntReader } from './hunt-reader';
-import { HuntCard, HuntPicksSkeleton, type HuntCallsState } from './hunt-cards';
+import { HuntCard, HuntPicksSkeleton, HuntQuietLine, type HuntCallsState } from './hunt-cards';
 
 interface CategoryState {
   /** Null until the category has been drawn. */
   picks: HuntPick[] | null;
   loading: boolean;
+  /** True when the draw AND its one silent retry both came back with
+   * nothing. The shelf then reads as an empty shelf — never as an error. */
+  failed: boolean;
   /** Piece names with a replacement draw in flight. */
   busy: string[];
 }
 
-const EMPTY_STATE: CategoryState = { picks: null, loading: false, busy: [] };
+const EMPTY_STATE: CategoryState = { picks: null, loading: false, failed: false, busy: [] };
 
-/** How long to wait before asking Beau again when a draw does not land. The
- * reader is never told — the skeletons simply stay up. */
-const RETRY_DELAYS = [1400, 3500, 8000];
-/** And how long between the quiet re-attempts after those, while the category
- * is still unfolded in front of him. */
-const REVISIT_DELAY = 14000;
+/** The pause between a draw that did not land and the ONE silent retry. The
+ * reader is never told — the skeletons simply stay up across both. */
+const RETRY_DELAY = 1600;
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -117,7 +118,9 @@ function CategoryRow({
   onTag: (pick: HuntPick, taggable: HuntTaggable, tag: HuntTag) => void;
   onReplace: (pick: HuntPick) => void;
 }) {
-  const waiting = state.loading || !state.picks || visible.length === 0;
+  // Skeletons while a draw is in flight and before the first one lands;
+  // cards when they come; one quiet neutral line when they do not.
+  const waiting = state.loading || (!state.picks && !state.failed);
 
   return (
     <div style={{ borderBottom: `1px solid ${RULE}`, background: open ? WASH : 'transparent' }}>
@@ -171,6 +174,8 @@ function CategoryRow({
             <div style={{ padding: '0 16px 28px' }}>
               {waiting ? (
                 <HuntPicksSkeleton count={PICKS_PER_CATEGORY} />
+              ) : visible.length === 0 ? (
+                <HuntQuietLine>Nothing on this shelf just now.</HuntQuietLine>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" style={{ gap: '15px' }}>
                   {visible.map((pick) => {
@@ -245,15 +250,6 @@ export function HuntPicks({
   // started several seconds ago — a closed category is never re-attempted.
   const openRef = useRef(open);
   openRef.current = open;
-  const timers = useRef<Record<string, number>>({});
-  const drawRef = useRef<((categoryId: string, force?: boolean) => Promise<void>) | null>(null);
-
-  useEffect(
-    () => () => {
-      for (const timer of Object.values(timers.current)) window.clearTimeout(timer);
-    },
-    [],
-  );
 
   /** How many of his own pieces sit in each category — the same read The
    * Index counts with, so the two never disagree. */
@@ -288,53 +284,42 @@ export function HuntPicks({
   }, [recordKey, reader ? 'ready' : 'waiting']);
 
   /**
-   * Ask Beau for a category's three. A draw that does not land is retried on
-   * a widening delay and then, while the category is still open, quietly
-   * re-attempted — the shelf keeps its skeletons throughout, so a slow or
-   * busy model reads as "still working", which is what it is.
+   * Ask Beau for a category's three. The engine itself already tries every
+   * transport it has (hunt-picks-ai.ts → claude.ts `callModel`); on top of
+   * that ONE silent retry here covers a draw that came back empty. The shelf
+   * keeps its skeletons across both, and if the second does not land either
+   * the category reads as an empty shelf — never as an error, and never as a
+   * skeleton that stays up forever.
    */
   const draw = useCallback(
     async (categoryId: string, force = false) => {
       if (!reader) return;
-      const held = timers.current[categoryId];
-      if (held) {
-        window.clearTimeout(held);
-        delete timers.current[categoryId];
-      }
-      patch(categoryId, { loading: true });
-      for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt += 1) {
-        let picks: HuntPick[] | null = null;
+      patch(categoryId, { loading: true, failed: false });
+
+      const ask = async (forceRefresh: boolean): Promise<HuntPick[] | null> => {
         try {
-          picks = await drawCategoryPicks(reader, categoryId, { forceRefresh: force || attempt > 0 });
+          return await drawCategoryPicks(reader, categoryId, { forceRefresh });
         } catch {
-          picks = null;
+          return null;
         }
-        if (picks && picks.length > 0) {
-          patch(categoryId, { picks, loading: false });
-          return;
-        }
-        const delay = RETRY_DELAYS[attempt];
-        if (delay == null) break;
-        await wait(delay);
+      };
+
+      let picks = await ask(force);
+      if (!picks || picks.length === 0) {
+        await wait(RETRY_DELAY);
+        // He folded it away while Beau was thinking — leave it as it was.
         if (!openRef.current[categoryId]) {
           patch(categoryId, { loading: false });
           return;
         }
+        picks = await ask(true);
       }
-      if (openRef.current[categoryId]) {
-        timers.current[categoryId] = window.setTimeout(() => {
-          void drawRef.current?.(categoryId, true);
-        }, REVISIT_DELAY);
-      } else {
-        patch(categoryId, { loading: false });
-      }
+
+      if (picks && picks.length > 0) patch(categoryId, { picks, loading: false, failed: false });
+      else patch(categoryId, { picks: [], loading: false, failed: true });
     },
     [patch, reader],
   );
-
-  useEffect(() => {
-    drawRef.current = draw;
-  }, [draw]);
 
   // Unfolding a category is the trigger: the draw runs on the first open and
   // the shelf is kept afterwards, so closing and reopening costs nothing.
@@ -343,7 +328,10 @@ export function HuntPicks({
       const nextOpen = !open[categoryId];
       setOpen((cur) => ({ ...cur, [categoryId]: nextOpen }));
       const held = states[categoryId];
-      if (nextOpen && !held?.picks && !held?.loading) void draw(categoryId);
+      // Draw on the first unfold, and again if the last one came back with
+      // nothing — folding it away and back is the reader's own quiet retry,
+      // which is why this surface needs no "try again" control.
+      if (nextOpen && !held?.loading && (!held?.picks || held.failed)) void draw(categoryId);
     },
     [draw, open, states],
   );
@@ -452,7 +440,7 @@ export function HuntPicks({
     for (const category of HUNT_CATEGORIES) {
       if (!open[category.id]) continue;
       const state = states[category.id];
-      if (!state || state.loading || !state.picks || state.busy.length > 0) continue;
+      if (!state || state.loading || state.failed || !state.picks || state.busy.length > 0) continue;
       if (visibleFor(category).length > 0) {
         refills.current[category.id] = 0;
         continue;

@@ -58,6 +58,7 @@ import { useBeauReveal } from './beau-reveal';
 import { HairlineRowsSkeleton } from './skeleton';
 import { CoverageMap } from './coverage-map';
 import { CompleteTheLook } from './complete-look';
+import { TabHeader } from './tab-header';
 import { Briefing } from './briefing.tsx';
 import {
   dismissRecommendation,
@@ -466,20 +467,9 @@ export function BeauTab({
 
   return (
     <div>
-      {/* The standard tab masthead — title + one-line standfirst, sharing
-          height, type and indentation with every other primary tab. */}
-      <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-        <div className="max-w-[1180px] mx-auto">
-          <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
-            The Edit
-          </h3>
-          {/* One line, distinct from The Ledger's standfirst (which now
-              carries "Beau's live read…" per the founder's tab one-liners). */}
-          <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
-            The coverage map, the gaps that matter, and this season’s briefing.
-          </p>
-        </div>
-      </div>
+      {/* The shared tab masthead (tab-header.tsx) — title + one-line
+          standfirst, identical to every other primary tab. */}
+      <TabHeader title="The Edit" standfirst="The coverage map, the gaps that matter, and this season’s briefing." />
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
 

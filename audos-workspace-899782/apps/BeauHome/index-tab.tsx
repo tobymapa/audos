@@ -92,6 +92,8 @@ import {
 } from './profile-data';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 import { usePlexMono } from './mono-type';
+import { SubTabs } from './sub-tabs';
+import { TabHeader } from './tab-header';
 
 // ---------------------------------------------------------------------------
 // Shared furniture
@@ -1764,71 +1766,51 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
     [addedRows, model.hiddenMakers],
   );
 
-  const pieceCount = pieces.length;
-
   return (
-    <div className="px-5 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-      {/* ——— the masthead: title + standfirst left, the face toggle right */}
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-end" style={{ gap: '18px 40px', paddingBottom: '20px' }}>
-        <div>
-          <h2 style={{ ...serif(0, WALNUT), fontSize: 'clamp(32px, 4.4vw, 44px)', lineHeight: 1.06, letterSpacing: '-0.012em', margin: 0 }}>The Index</h2>
-          <p style={{ ...body(15, INK), margin: '11px 0 0', maxWidth: '62ch' }}>
-            {face === 'pieces'
-              ? `${model.typeTotal} garment types read against ${model.climate.city ? `your ${model.climate.city} climate` : 'your climate'} and the ${
-                  pieceCount === 0 ? 'ledger you are yet to start' : `${pieceCount} piece${pieceCount === 1 ? '' : 's'} on your ledger`
-                }. Every count, band and verdict below is yours — a name opens the piece's entry, its arrow lists the makers.`
-              : `Beau's fifty — the houses he'd send you to first, chosen against your profile, your ledger and the gaps your board names — then your own additions and the rest of the file. A name opens the full entry; the column heads sort; tick two or more to compare.`}
-          </p>
-        </div>
-        <div className="flex md:justify-end">
-          <div className="flex" role="group" aria-label="What the list is of">
-            {(
-              [
-                { id: 'pieces' as const, label: `Pieces · ${model.typeTotal} types` },
-                { id: 'makers' as const, label: `Makers · ${entries.length} on file` },
-              ]
-            ).map(({ id, label }) => {
-              const active = face === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setFace(id)}
-                  aria-pressed={active}
-                  className="transition-colors"
-                  style={{
-                    ...mono(8.5, active ? '#f6f0e5' : SECONDARY),
-                    background: active ? WALNUT : PAPER,
-                    border: `1px solid ${active ? WALNUT : RULE}`,
-                    padding: '9px 16px',
-                    whiteSpace: 'nowrap',
-                    marginLeft: id === 'makers' ? '-1px' : 0,
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+    <div>
+      {/* ——— the shared tab masthead (tab-header.tsx), with the face toggle
+          in its aside — the same block, indentation and rule every other
+          primary tab carries. */}
+      <TabHeader
+        title="The Index"
+        standfirst={
+          face === 'pieces'
+            ? `Every garment type, read against ${model.climate.city ? `your ${model.climate.city} climate` : 'your climate'} and your ledger.`
+            : 'The houses Beau would send you to first, chosen against your record.'
+        }
+        aside={
+          <SubTabs
+            items={[
+              { id: 'pieces' as const, label: `Pieces · ${model.typeTotal} types` },
+              { id: 'makers' as const, label: `Makers · ${entries.length} on file` },
+            ]}
+            active={face}
+            onChange={setFace}
+            ariaLabel="What the list is of"
+            variant="sub-tab--index-face"
+            className="max-w-full"
+          />
+        }
+      />
 
-      {/* Both faces stay mounted — filters, selections and scroll survive the
-          toggle; only one shows. */}
-      <div style={{ display: face === 'pieces' ? undefined : 'none' }}>
-        <PiecesFace model={model} pieces={pieces} profile={profile} warmth={warmth} materials={materials} onMakersForType={onMakersForType} />
-      </div>
-      <div style={{ display: face === 'makers' ? undefined : 'none' }}>
-        <MakersFace
-          entries={entries}
-          metaRows={metaRows || []}
-          refreshMeta={refreshMeta}
-          model={model}
-          pieces={pieces}
-          profile={profile}
-          typeFilter={typeFilter}
-          onClearTypeFilter={() => setTypeFilter(null)}
-        />
+      <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
+        {/* Both faces stay mounted — filters, selections and scroll survive
+            the toggle; only one shows. */}
+        <div style={{ display: face === 'pieces' ? undefined : 'none' }}>
+          <PiecesFace model={model} pieces={pieces} profile={profile} warmth={warmth} materials={materials} onMakersForType={onMakersForType} />
+        </div>
+        <div style={{ display: face === 'makers' ? undefined : 'none' }}>
+          <MakersFace
+            entries={entries}
+            metaRows={metaRows || []}
+            refreshMeta={refreshMeta}
+            model={model}
+            pieces={pieces}
+            profile={profile}
+            typeFilter={typeFilter}
+            onClearTypeFilter={() => setTypeFilter(null)}
+          />
+        </div>
       </div>
     </div>
   );

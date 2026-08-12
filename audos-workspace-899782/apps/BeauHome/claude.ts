@@ -104,9 +104,19 @@ export async function callClaude({
         },
       }),
     });
-    if (!res.ok) return null;
+    // Diagnostics only — the console, never the reader. Without these a
+    // quiet Beau (no key on file, a retired snapshot, a rate limit) looks
+    // identical from the outside to a slow one.
+    if (!res.ok) {
+      console.warn(`[Ethaion] Claude proxy returned HTTP ${res.status} for ${model}.`);
+      return null;
+    }
     const wrapper = await res.json();
-    if (!wrapper || typeof wrapper.status !== 'number' || wrapper.status < 200 || wrapper.status >= 300) return null;
+    if (!wrapper || typeof wrapper.status !== 'number' || wrapper.status < 200 || wrapper.status >= 300) {
+      const detail = typeof wrapper?.body === 'string' ? wrapper.body.slice(0, 300) : JSON.stringify(wrapper?.body || wrapper || {}).slice(0, 300);
+      console.warn(`[Ethaion] Anthropic replied ${wrapper?.status} for ${model}: ${detail}`);
+      return null;
+    }
     const body = typeof wrapper.body === 'string' ? JSON.parse(wrapper.body) : wrapper.body;
     const text = Array.isArray(body?.content)
       ? body.content.map((block: any) => (typeof block?.text === 'string' ? block.text : '')).join('')
@@ -116,4 +126,126 @@ export async function callClaude({
     console.warn(`[Ethaion] Claude call (${model}) failed — falling back:`, e);
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// THE NEVER-DEAD-END TRANSPORT
+//
+// `callClaude` returns null on ANY failure — a retired model id, a workspace
+// with no ANTHROPIC_API_KEY on file, a rate limit, a network blip. A surface
+// that has nowhere to show an error (Beau's Picks: the reader must see cards
+// or nothing) needs one call that keeps trying rather than one that returns
+// null and leaves a skeleton up forever. `callModel` is that call:
+//
+//   1. the model asked for (Sonnet by default — it knows this man deeply),
+//   2. the SAME model once more after a short pause (a rate limit or a blip
+//      almost always clears),
+//   3. the second tier (Haiku), so a busy moment on one model is not a dead
+//      end,
+//   4. the PLATFORM's own OpenAI proxy — no key of the workspace's own is
+//      involved, so this lands even when no Anthropic key is configured. The
+//      system blocks are joined into one system message and the reply comes
+//      back in the same shape the caller already parses.
+//
+// It returns null only when every one of those has failed.
+// ---------------------------------------------------------------------------
+
+/** The platform's managed OpenAI proxy — the last resort, never a key of
+ * the workspace's own (openai-text-generation integration). */
+async function callPlatformGpt({
+  system,
+  user,
+  maxTokens,
+  temperature,
+  json,
+}: {
+  system: string;
+  user: string;
+  maxTokens: number;
+  temperature: number;
+  json: boolean;
+}): Promise<string | null> {
+  try {
+    const res = await fetch('/proxy/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: system },
+          {
+            role: 'user',
+            content: json
+              ? `${user}\n\n(Return ONE JSON object — no prose, no markdown fences.)`
+              : user,
+          },
+        ],
+        max_tokens: maxTokens,
+        temperature,
+        ...(json ? { response_format: { type: 'json_object' } } : {}),
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    return typeof content === 'string' && content.trim() ? content : null;
+  } catch (e) {
+    console.warn('[Ethaion] platform text-generation fallback failed:', e);
+    return null;
+  }
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * One model reply, from whichever transport can give one. Silent throughout:
+ * the caller is told nothing about which tier answered, because the reader
+ * must never be shown a transport.
+ */
+export async function callModel({
+  model = CLAUDE_SONNET,
+  second = CLAUDE_HAIKU,
+  system,
+  user,
+  maxTokens = 2000,
+  temperature = 0.4,
+  json = true,
+  retryMs = 900,
+}: {
+  model?: string;
+  /** The second Anthropic tier tried before the platform fallback. */
+  second?: string | null;
+  system: ClaudeSystemBlock[];
+  user: string;
+  maxTokens?: number;
+  temperature?: number;
+  /** True when the caller is parsing JSON — the platform fallback then asks
+   * for a JSON object explicitly. */
+  json?: boolean;
+  /** The pause before the one silent retry of the first model. */
+  retryMs?: number;
+}): Promise<string | null> {
+  const first = await callClaude({ model, system, user, maxTokens, temperature });
+  if (first) return first;
+
+  await pause(retryMs);
+  const again = await callClaude({ model, system, user, maxTokens, temperature });
+  if (again) return again;
+
+  if (second) {
+    const tiered = await callClaude({ model: second, system, user, maxTokens, temperature });
+    if (tiered) return tiered;
+  }
+
+  return callPlatformGpt({
+    system: system.map((b) => b.text).join('\n\n'),
+    user,
+    maxTokens,
+    temperature,
+    json,
+  });
 }

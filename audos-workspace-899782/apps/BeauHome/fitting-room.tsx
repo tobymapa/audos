@@ -122,6 +122,7 @@ import { SavedLooksScreen } from './saved-looks';
 import { useBeauReveal } from './beau-reveal';
 import { WeatherLine, sharedWeatherPromptLine } from './weather-context';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
+import { TabHeader } from './tab-header';
 
 /** THE AVATAR PATH IS DELETED (design handoff §dead-code): the flat lay
  * replaced the try-on figure — lib/tryon, the render lifecycle, the pinned-
@@ -2320,23 +2321,15 @@ export function FittingRoomTab({
     <div style={{ background: 'var(--color-bg,#efe7d9)' }}>
       {/* ONE natural vertical scroll — no fixed zones, no bottom sheet, no
           overlays: the board is always visible and the page just scrolls. */}
-        {/* THE 10a HEADER — “The Fitting” set as the standard tab masthead
-            (title + one-line standfirst, shared height, type and indentation
-            with every other primary tab); the shared location + weather
-            context at the right edge, where the reference sets it. */}
-        <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-          <div className="max-w-[1180px] mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 md:gap-10 md:items-end">
-              <div className="min-w-0">
-                <h3 className={`hab-page-title ${typography.color.primary}`} style={{ margin: '0 0 10px' }}>
-                  The Fitting
-                  {trip ? ` · ${trip.brief.destination}` : ''}
-                </h3>
-                <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
-                  Build the day’s look on the board, from the pieces you own.
-                </p>
-              </div>
-              <div className="flex flex-col items-start md:items-end gap-2 flex-shrink-0 md:text-right">
+        {/* THE HEADER — the SHARED tab masthead (tab-header.tsx): the same
+            block, type, indentation and closing rule as every other primary
+            tab. The location + weather context sits in its aside, where the
+            reference sets it; the trip carousel inside it, below the title. */}
+        <TabHeader
+          title={trip ? `The Fitting · ${trip.brief.destination}` : 'The Fitting'}
+          standfirst="Build the day’s look on the board, from the pieces you own."
+          aside={
+              <div className="flex flex-col items-start md:items-end gap-2">
                 {!trip && boardSource === 'today' && (
                   /* “Beau · Today” reads visually distinct (design handoff §2):
                      the one accent chip on this header. */
@@ -2349,7 +2342,8 @@ export function FittingRoomTab({
                 )}
                 <WeatherLine tone="light" />
               </div>
-            </div>
+          }
+        >
 
             {/* TRIP: the day-board carousel — ◄ [Day 1] [Day 2] [Day 3] ► */}
             {trip && (
@@ -2464,8 +2458,7 @@ export function FittingRoomTab({
                 <ReasoningStrip text={gapNote} onDismiss={() => setGapDismissed(true)} />
               </div>
             )}
-          </div>
-        </div>
+        </TabHeader>
 
         {/* THE BOARD (10a) — “Today's look” with its edge labels at the
             left, “Complete the look” beside it — swaps and additions from

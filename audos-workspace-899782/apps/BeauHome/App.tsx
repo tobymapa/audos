@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BookOpen,
   Check,
+  Compass,
   Folder,
   Hourglass,
   LayoutGrid,
@@ -67,6 +68,7 @@ import {
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { FlatLayBoard, type FlatLayPiece } from './flat-lay-board';
 import { OnboardingTour } from './onboarding-tour';
+import { TabHeader } from './tab-header';
 import { FloatingBackButton } from './floating-back';
 import { HairlineRowsSkeleton, HomeSkeleton, ShimmerDefs } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
@@ -103,6 +105,7 @@ const WardrobeStore = lazy(() => import('./store').then((m) => ({ default: memo(
 const StyleMeToday = lazy(() => import('./style-today').then((m) => ({ default: memo(m.StyleMeToday) })));
 const YourStyle = lazy(() => import('../YourStyle/App').then((m) => ({ default: memo(m.default) })));
 const IndexTab = lazy(() => import('./index-tab').then((m) => ({ default: memo(m.IndexTab) })));
+const HuntTab = lazy(() => import('./hunt-tab').then((m) => ({ default: memo(m.HuntTab) })));
 
 /** Module-scoped so the housekeeping audits run at most ONCE per page load.
  * A StrictMode double-mount, or the app being closed and reopened from the
@@ -112,8 +115,8 @@ let auditsKicked = false;
 /* ============================================================================
  * Ethaion — the home app (Milestones overhaul). A tap-only
  * onboarding runs before anything else; once complete the visitor lands in
- * a shell with FIVE persistent top tabs in this exact order:
- *   The Ledger · The Edit · The Fitting · The Index · The Dossier
+ * a shell with SIX persistent top tabs in this exact order:
+ *   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier
  *   (Reads hidden; old Rail merged into Ledger)
  *  - Wardrobe: tracker by category (icons fill proportionally with colour),
  *    illustrated per-piece tiles tinted the piece's actual colour, the ONE
@@ -1209,26 +1212,29 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level navigation — FIVE tabs, in this exact order, each with a
+// Top-level navigation — SIX tabs, in this exact order, each with a
 // hairline stroke icon:
-//   The Ledger · The Edit · The Fitting · The Index · The Dossier.
-// The Index is REBUILT from the founder's reference screenshots
-// (index-tab.tsx — Pieces and Makers as two faces of one page) and sits
-// immediately LEFT of The Dossier, which stays the RIGHTMOST tab. The
-// internal tab ids are unchanged ('wardrobe', 'beau', 'fitting-room',
-// 'your-style', …) so chat deep links keep working, and the retired tab
-// surfaces ('curated', 'radar') stay fully routable as hidden views.
-// On a phone the five tabs move to a BOTTOM bar at thumb height with 52pt
+//   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier.
+// The Hunt is REINSTATED (August 2026) and sits immediately LEFT of The
+// Index: three sub-tabs — Beau's Picks, Ask Beau and Your Calls
+// (hunt-tab.tsx). The Index keeps its place immediately LEFT of The Dossier,
+// which stays the RIGHTMOST tab. The internal tab ids are unchanged
+// ('wardrobe', 'beau', 'fitting-room', 'your-style', …) so chat deep links
+// keep working, and the retired tab surfaces ('curated', 'radar') stay fully
+// routable as hidden views.
+// On a phone the six tabs move to a BOTTOM bar at thumb height with 52pt
 // targets, same order.
 // ---------------------------------------------------------------------------
 
-type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'index' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
+type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'hunt' | 'index' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
 
 /** Hairline, stroke-only tab icons — no fills (Part 1's icon column). */
-const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'hourglass' | 'figure' | 'folder' | 'library' }> = [
+const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'hourglass' | 'figure' | 'folder' | 'library' | 'compass' }> = [
   { id: 'wardrobe', label: 'The Ledger', short: 'Ledger', icon: 'book' },
   { id: 'beau', label: 'The Edit', short: 'Edit', icon: 'grid' },
   { id: 'fitting-room', label: 'The Fitting', short: 'Fitting', icon: 'figure' },
+  // The Hunt — reinstated (August 2026), immediately LEFT of The Index.
+  { id: 'hunt', label: 'The Hunt', short: 'Hunt', icon: 'compass' },
   // The Index — rebuilt (August 2026), sits immediately LEFT of The Dossier.
   { id: 'index', label: 'The Index', short: 'Index', icon: 'library' },
   // The Dossier — a PRIMARY tab again, rightmost (founder's correction).
@@ -1265,6 +1271,7 @@ function TabIcon({ icon }: { icon: string }) {
     case 'hourglass': return <Hourglass className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'figure': return <PersonStanding className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'library': return <Library className={cls} strokeWidth={1.5} aria-hidden="true" />;
+    case 'compass': return <Compass className={cls} strokeWidth={1.5} fill="none" aria-hidden="true" />;
     case 'folder': return <Folder className={cls} strokeWidth={1.5} fill="none" aria-hidden="true" />;
     default: return null;
   }
@@ -1282,14 +1289,15 @@ function TabIcon({ icon }: { icon: string }) {
 const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar'];
 
 function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void }) {
-  // Warm Editorial nav, two placements (founder's correction — five tabs):
-  //  · DESKTOP — the five tabs as a centred header strip, 47px tall. The
+  // Warm Editorial nav, two placements (six tabs since The Hunt returned):
+  //  · DESKTOP — the tabs as a centred header strip, 47px tall. The
   //    Dossier sits rightmost IN the strip; the account corner is retired.
-  //  · PHONE — the five tabs move to a fixed BOTTOM bar at thumb height,
+  //  · PHONE — the tabs move to a fixed BOTTOM bar at thumb height,
   //    52pt targets, same order; the slim top strip keeps the wordmark.
   const tourAnchorFor = (id: TabId) =>
     id === 'wardrobe' ? 'tour-ledger'
     : id === 'fitting-room' ? 'tour-fitting'
+    : id === 'hunt' ? 'tour-hunt'
     : undefined;
 
   return (
@@ -1297,7 +1305,9 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
       {/* PHONE: the strip is GONE — the shell masthead above already
           carries the Ethaion wordmark, so repeating it here read as a
           duplicate smaller header (UI corrections pass). The tabs live in
-          the fixed bottom bar; this strip only exists from sm up. */}
+          the fixed bottom bar; this strip only exists from sm up.
+          With six tabs the strip scrolls horizontally on a narrow desktop
+          window rather than crushing the labels. */}
       <div className="hidden sm:block sticky top-0 z-30 bg-[var(--space-surface-card)] border-b border-[var(--space-text-primary)] flex-shrink-0">
         {/* The strip scrolls horizontally when it must, but never shows a
             scrollbar track — scrollbar-width: none (Firefox), -ms-overflow-style
@@ -1334,9 +1344,8 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
         </div>
       </div>
 
-      {/* PHONE — the five tabs at the bottom, thumb height, 52pt targets,
-          same order as the desktop header (Mobile spec M1 + the founder's
-          five-tab correction). */}
+      {/* PHONE — the six tabs at the bottom, thumb height, 52pt targets,
+          same order as the desktop header (Mobile spec M1). */}
       <nav
         className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex bg-[var(--space-surface-card)] border-t border-[var(--space-text-primary)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
@@ -2509,8 +2518,8 @@ export default function BeauHome() {
     <BeauAssessmentProvider profile={profile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
       {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
-          The Index · The Dossier (five tabs; on a phone they sit in the
-          bottom bar). */}
+          The Hunt · The Index · The Dossier (six tabs; on a phone they sit
+          in the bottom bar). */}
       <TabBar
         tab={tab}
         onChange={(t) => {
@@ -2577,20 +2586,16 @@ export default function BeauHome() {
 
         {!openStyleToday && !openCategory && !openSeeAll && (
           <>
-            {/* Page heading: "The Ledger" (was "Your wardrobe") — Cormorant
-                52px, closed by a hairline. Beneath it, and ONLY while a
-                queued pass is actually running, the re-assessment mark. */}
-            <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
-              <div className="max-w-[1180px] mx-auto">
-                <h2 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '10px' }}>
-                  The Ledger
-                </h2>
-                <p className={`hab-standfirst ${typography.color.secondary}`} style={{ margin: 0 }}>
-                  Beau’s live read of your wardrobe — and what deserves your money next.
-                </p>
-                <ReassessMark />
-              </div>
-            </div>
+            {/* The shared tab masthead (tab-header.tsx) — the same block,
+                type and indentation as the other five tabs. Beneath it, and
+                ONLY while a queued pass is actually running, the
+                re-assessment mark. */}
+            <TabHeader
+              title="The Ledger"
+              standfirst="Beau’s live read of your wardrobe — and what deserves your money next."
+            >
+              <ReassessMark />
+            </TabHeader>
 
             {/* THE LEDGER LAYOUT (Recommendation Engine overhaul, Part 7) —
                 strict order: 1 Build a look · 2 Beau · Today · 3 Plan for a
@@ -2774,6 +2779,18 @@ export default function BeauHome() {
             <RailTab pieces={pieces} materials={materials} onChanged={refreshAll} />
           </Suspense>
         )}
+
+        {/* The Hunt — what Beau would put in front of him next. Three
+            sub-tabs: Beau's Picks (the Index's categories read down, each
+            unfolding into its sub-categories and his live recommendations),
+            Ask Beau (a question, a brief or a pasted product, plus a bench
+            holding up to four for a side-by-side) and Your Calls (everything
+            tagged, sortable, changeable). Sits LEFT of The Index. */}
+        <KeepMounted active={tab === 'hunt'}>
+          <Suspense fallback={<TabLoadingSkeleton />}>
+            <HuntTab profile={profile} pieces={pieces} prefs={prefs} budgets={budgets} />
+          </Suspense>
+        </KeepMounted>
 
         {/* The Index — the reference wing rebuilt from the founder's design
             screenshots: Pieces and Makers as two faces of one page. Sits

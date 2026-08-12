@@ -20,12 +20,17 @@
  * re-draw of the shelf.
  *
  * THE READER NEVER SEES A FAILURE. There is no static fallback list — a
- * placeholder recommendation would read as Beau's advice — so a draw that
- * does not land returns null and the surface keeps its loading state and asks
- * again (hunt-picks.tsx). Nothing here writes an error string, because
- * nothing here has anywhere to show one.
+ * placeholder recommendation would read as Beau's advice. Instead the CALL
+ * is the thing that does not give up: every draw goes through claude.ts
+ * `callModel`, which tries Sonnet, the same model once more after a pause,
+ * then Haiku, then the platform's own text model — so a rate limit, a
+ * retired snapshot or a workspace with no Anthropic key of its own still
+ * puts cards on the shelf. Only when all of those come back empty does a
+ * draw return null, and the surface shows one neutral empty line
+ * (hunt-picks.tsx). Nothing here writes an error string, because nothing
+ * here has anywhere to show one.
  */
-import { CLAUDE_HAIKU, CLAUDE_SONNET, callClaude, type ClaudeSystemBlock } from './claude';
+import { CLAUDE_HAIKU, CLAUDE_SONNET, callModel, type ClaudeSystemBlock } from './claude';
 import { findGarmentType } from './garment-types';
 import {
   HUNT_CATEGORIES,
@@ -301,8 +306,8 @@ function categoryUserMessage(reader: HuntReader, category: HuntCategory, exclude
 
 /**
  * The three pieces Beau would have this man acquire next in one category.
- * Cached on the facts; returns null when he could not be reached, which the
- * surface treats as "still working" rather than as an error.
+ * Cached on the facts; returns null only when every transport came back
+ * empty, which the surface shows as an empty shelf — never as an error.
  */
 export async function drawCategoryPicks(
   reader: HuntReader,
@@ -325,14 +330,31 @@ export async function drawCategoryPicks(
 
   const job = (async (): Promise<HuntPick[] | null> => {
     const user = categoryUserMessage(reader, category, [], count);
-    // Sonnet knows this man deeply enough to choose the pieces; Haiku is the
-    // second pass so a busy moment on one model is never a dead end.
+    // ONE call that cannot dead-end (claude.ts `callModel`): Sonnet, the same
+    // model once more after a pause, then Haiku, then the platform's own
+    // text model — so a rate limit, a retired snapshot or a workspace with
+    // no Anthropic key of its own still puts cards on the shelf.
     let picks = picksFrom(
-      await callClaude({ model: CLAUDE_SONNET, system: [VOICE], user, maxTokens: 1800, temperature: 0.5 }),
+      await callModel({
+        model: CLAUDE_SONNET,
+        second: CLAUDE_HAIKU,
+        system: [VOICE],
+        user,
+        maxTokens: 1800,
+        temperature: 0.5,
+      }),
     );
     if (picks.length === 0) {
+      // A reply that parsed to nothing is worth ONE more ask, warmer.
       picks = picksFrom(
-        await callClaude({ model: CLAUDE_HAIKU, system: [VOICE], user, maxTokens: 1800, temperature: 0.55 }),
+        await callModel({
+          model: CLAUDE_HAIKU,
+          second: CLAUDE_SONNET,
+          system: [VOICE],
+          user,
+          maxTokens: 1800,
+          temperature: 0.55,
+        }),
       );
     }
     if (picks.length === 0) return null;
@@ -365,16 +387,17 @@ export async function drawCategoryReplacement(input: {
   const category = huntCategory(input.categoryId);
   if (!category) return null;
   const user = categoryUserMessage(input.reader, category, input.exclude, 1);
-  let picks = picksFrom(
-    await callClaude({ model: CLAUDE_SONNET, system: [VOICE], user, maxTokens: 800, temperature: 0.65 }),
+  const picks = picksFrom(
+    await callModel({
+      model: CLAUDE_SONNET,
+      second: CLAUDE_HAIKU,
+      system: [VOICE],
+      user,
+      maxTokens: 800,
+      temperature: 0.65,
+    }),
     input.exclude,
   );
-  if (picks.length === 0) {
-    picks = picksFrom(
-      await callClaude({ model: CLAUDE_HAIKU, system: [VOICE], user, maxTokens: 800, temperature: 0.7 }),
-      input.exclude,
-    );
-  }
   return picks[0] || null;
 }
 
@@ -438,8 +461,14 @@ export async function getHuntCategoryReads(
         + 'Each line is a single sentence, max 90 characters, written to him, concrete and specific to his record — never a definition of the category and never a compliment. '
         + 'Return JSON: {"reads": [{"categoryId": "<the id, verbatim>", "line": "\u2026"}]} — one entry per category, in the order given.',
     ].join('\n\n');
-    let raw = await callClaude({ model: CLAUDE_HAIKU, system: [VOICE], user, maxTokens: 1200, temperature: 0.5 });
-    if (!raw) raw = await callClaude({ model: CLAUDE_SONNET, system: [VOICE], user, maxTokens: 1200, temperature: 0.5 });
+    const raw = await callModel({
+      model: CLAUDE_HAIKU,
+      second: CLAUDE_SONNET,
+      system: [VOICE],
+      user,
+      maxTokens: 1200,
+      temperature: 0.5,
+    });
     const parsed = parseJson(raw);
     const list: any[] = Array.isArray(parsed?.reads)
       ? parsed.reads
