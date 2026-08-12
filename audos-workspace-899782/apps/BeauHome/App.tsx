@@ -8,6 +8,7 @@ import {
   Folder,
   Hourglass,
   LayoutGrid,
+  Library,
   Loader2,
   PersonStanding,
   Sparkles,
@@ -103,6 +104,7 @@ const SavedTab = lazy(() => import('./discovery').then((m) => ({ default: memo(m
 const WardrobeStore = lazy(() => import('./store').then((m) => ({ default: memo(m.WardrobeStore) })));
 const StyleMeToday = lazy(() => import('./style-today').then((m) => ({ default: memo(m.StyleMeToday) })));
 const YourStyle = lazy(() => import('../YourStyle/App').then((m) => ({ default: memo(m.default) })));
+const IndexTab = lazy(() => import('./index-tab').then((m) => ({ default: memo(m.IndexTab) })));
 
 /** Module-scoped so the housekeeping audits run at most ONCE per page load.
  * A StrictMode double-mount, or the app being closed and reopened from the
@@ -1215,27 +1217,31 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level navigation — FIVE tabs, in this exact order, each with a
+// Top-level navigation — SIX tabs, in this exact order, each with a
 // hairline stroke icon:
-//   The Ledger · The Edit · The Fitting · The Hunt · The Dossier.
+//   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier.
 // The Rail / Hunt / Reserve funnel is consolidated into The Hunt as three
-// stages on one screen (hunt-stages.tsx); The Index tab was removed
-// entirely (August 2026); The Dossier is the RIGHTMOST tab. The internal
-// tab ids are unchanged ('wardrobe', 'beau', 'scout', 'fitting-room',
-// 'your-style', …) so chat deep links keep working, and the retired tab
-// surfaces ('curated', 'radar') stay fully routable as hidden views.
-// On a phone the five tabs move to a BOTTOM bar at thumb height with 52pt
+// stages on one screen (hunt-stages.tsx); The Index is REBUILT from the
+// founder's reference screenshots (index-tab.tsx — Pieces and Makers as two
+// faces of one page) and sits immediately LEFT of The Dossier, which stays
+// the RIGHTMOST tab. The internal tab ids are unchanged ('wardrobe', 'beau',
+// 'scout', 'fitting-room', 'your-style', …) so chat deep links keep working,
+// and the retired tab surfaces ('curated', 'radar') stay fully routable as
+// hidden views.
+// On a phone the six tabs move to a BOTTOM bar at thumb height with 52pt
 // targets, same order.
 // ---------------------------------------------------------------------------
 
-type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
+type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'scout' | 'index' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
 
 /** Hairline, stroke-only tab icons — no fills (Part 1's icon column). */
-const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'compass' | 'hourglass' | 'figure' | 'folder' }> = [
+const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'compass' | 'hourglass' | 'figure' | 'folder' | 'library' }> = [
   { id: 'wardrobe', label: 'The Ledger', short: 'Ledger', icon: 'book' },
   { id: 'beau', label: 'The Edit', short: 'Edit', icon: 'grid' },
   { id: 'fitting-room', label: 'The Fitting', short: 'Fitting', icon: 'figure' },
   { id: 'scout', label: 'The Hunt', short: 'Hunt', icon: 'compass' },
+  // The Index — rebuilt (August 2026), sits immediately LEFT of The Dossier.
+  { id: 'index', label: 'The Index', short: 'Index', icon: 'library' },
   // The Dossier — a PRIMARY tab again, rightmost (founder's correction).
   { id: 'your-style', label: 'The Dossier', short: 'Dossier', icon: 'folder' },
 ];
@@ -1270,6 +1276,7 @@ function TabIcon({ icon }: { icon: string }) {
     case 'compass': return <Compass className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'hourglass': return <Hourglass className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'figure': return <PersonStanding className={cls} strokeWidth={1.5} aria-hidden="true" />;
+    case 'library': return <Library className={cls} strokeWidth={1.5} aria-hidden="true" />;
     case 'folder': return <Folder className={cls} strokeWidth={1.5} fill="none" aria-hidden="true" />;
     default: return null;
   }
@@ -2515,8 +2522,8 @@ export default function BeauHome() {
     <BeauAssessmentProvider profile={profile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
       {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
-          The Hunt · The Dossier (five tabs; on a phone they sit in the
-          bottom bar). */}
+          The Hunt · The Index · The Dossier (six tabs; on a phone they sit
+          in the bottom bar). */}
       <TabBar
         tab={tab}
         onChange={(t) => {
@@ -2780,6 +2787,15 @@ export default function BeauHome() {
             <RailTab pieces={pieces} materials={materials} onChanged={refreshAll} />
           </Suspense>
         )}
+
+        {/* The Index — the reference wing rebuilt from the founder's design
+            screenshots: Pieces and Makers as two faces of one page. Sits
+            LEFT of The Dossier in the strip. */}
+        <KeepMounted active={tab === 'index'}>
+          <Suspense fallback={<TabLoadingSkeleton />}>
+            <IndexTab pieces={pieces} profile={profile} />
+          </Suspense>
+        </KeepMounted>
 
         <KeepMounted active={tab === 'your-style'}>
           <Suspense fallback={<TabLoadingSkeleton />}>
