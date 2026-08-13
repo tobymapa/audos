@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 114; // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 115; // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -1255,12 +1255,7 @@ export default function EmailGate({
               setError('');
             }}
             placeholder="Enter your email"
-            className="w-full px-4 py-4 text-base rounded-2xl focus:outline-none transition-all"
-            style={{
-              backgroundColor: sectionBackground,
-              border: `2px solid ${error ? '#7d2a24' : borderColor}`,
-              color: textPrimary,
-            }}
+            className={`eg-input${error ? ' eg-input--error' : ''}`}
             disabled={loading}
             required
             autoFocus={loginOpen}
@@ -1303,14 +1298,7 @@ export default function EmailGate({
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-4 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
-          style={{
-            backgroundColor: 'transparent',
-            border: `1px solid ${primaryColor}`,
-            color: loading ? textMuted : (palette?.text?.primary || '#3b2b1d'),
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.65 : 1,
-          }}
+          className="eg-btn eg-btn--block"
           data-testid="button-continue"
         >
           {loading ? 'Just a moment...' : 'Sign in'}
@@ -1340,13 +1328,7 @@ export default function EmailGate({
                 type="button"
                 onClick={() => handleSocialLogin(provider)}
                 disabled={loading}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all hover:-translate-y-0.5"
-                style={{
-                  backgroundColor: panelColor,
-                  border: `2px solid ${borderColor}`,
-                  color: textPrimary,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                }}
+                className="eg-btn eg-btn--block"
               >
                 <span className="capitalize">{provider}</span>
               </button>
@@ -1361,8 +1343,7 @@ export default function EmailGate({
             type="button"
             onClick={handleGuestMode}
             disabled={loading}
-            className="text-sm font-semibold transition-colors hover:opacity-70"
-            style={{ color: textMuted, cursor: loading ? 'not-allowed' : 'pointer' }}
+            className="eg-link"
             data-testid="button-guest-mode"
           >
             Continue as guest
@@ -1543,6 +1524,84 @@ export default function EmailGate({
         }
         .eg-btn:hover { background-color: ${colorWithAlpha(primaryColor, 0.08)}; }
         .eg-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .eg-btn--block { width: 100%; gap: 8px; }
+        /* The dialog renders OUTSIDE .eg-root (it is a sibling of the landing
+           shell), so it needs its own copy of the design tokens — without
+           them every .eg-btn / .eg-link inside it would resolve var(--ink)
+           and var(--accent) to nothing and lose its colour entirely. */
+        .eg-portal {
+          --page: #efe7d9;
+          --paper: #fbf8f1;
+          --ink: ${palette?.text?.primary || '#3b2b1d'};
+          --accent: ${primaryColor};
+          --accent-deep: ${accentInk};
+          --divider: ${borderColor};
+          font-family: 'Lora', Georgia, 'Times New Roman', serif;
+          color: var(--ink);
+        }
+        /* THE SIGN-IN / REGISTER POPUP shares the page’s visual language:
+           parchment paper, hairline edges, a 4px radius, no shadow, the
+           display serif for the heading and the outlined-gold control.
+           It is declared with literal colours rather than the .eg-root
+           custom properties because the dialog renders OUTSIDE .eg-root. */
+        .eg-modal {
+          background: #fbf8f1;
+          border: 1px solid ${borderColor};
+          border-radius: 4px;
+        }
+        .eg-modal-title {
+          font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+          font-weight: 400;
+          font-size: 30px;
+          line-height: 1.15;
+          color: ${palette?.text?.primary || '#3b2b1d'};
+        }
+        .eg-modal-sub {
+          font-family: 'Lora', Georgia, serif;
+          font-size: 14px;
+          line-height: 1.7;
+          color: ${palette?.text?.secondary || '#634e38'};
+        }
+        .eg-close {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px;
+          height: 38px;
+          background: transparent;
+          border: 1px solid ${borderColor};
+          border-radius: 4px;
+          color: ${palette?.text?.primary || '#3b2b1d'};
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+        .eg-close:hover { background-color: ${colorWithAlpha(primaryColor, 0.08)}; }
+        /* One text box, identical to the Settings panel’s fields: transparent
+           ground, a single hairline, 4px corners, Lora at 14px. */
+        .eg-input {
+          width: 100%;
+          background: transparent;
+          border: 1px solid ${borderColor};
+          border-radius: 4px;
+          min-height: 46px;
+          padding: 0 14px;
+          font-family: 'Lora', Georgia, serif;
+          font-size: 14px;
+          color: ${palette?.text?.primary || '#3b2b1d'};
+          outline: none;
+        }
+        .eg-input:focus { border-color: ${primaryColor}; }
+        .eg-input::placeholder { color: #a68e70; opacity: 1; }
+        .eg-input--error { border-color: #7d2a24; }
+        .eg-fine {
+          font-family: 'Lora', Georgia, serif;
+          font-size: 12px;
+          line-height: 1.7;
+          color: ${palette?.text?.secondary || '#634e38'};
+        }
+        @media (max-width: 640px) {
+          .eg-modal-title { font-size: 25px; }
+        }
         .eg-link {
           background: none;
           border: none;
@@ -2023,7 +2082,7 @@ export default function EmailGate({
 
       {loginOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8 backdrop-blur-sm"
+          className="eg-portal fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:py-8 backdrop-blur-sm"
           style={{ backgroundColor: colorWithAlpha(palette?.text?.primary || primaryColor, 0.55) }}
           role="dialog"
           aria-modal="true"
@@ -2034,25 +2093,21 @@ export default function EmailGate({
             }
           }}
         >
-          <div
-            className="w-full max-w-md relative overflow-hidden rounded-3xl"
-            style={{ backgroundColor: panelStrongColor, boxShadow: '0 30px 70px rgba(43,30,20,0.28)' }}
-          >
+          <div className="eg-modal w-full max-w-md relative max-h-[88dvh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setLoginOpen(false)}
               disabled={loading}
               aria-label="Close login"
-              className="absolute right-3 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:opacity-80"
-              style={{ backgroundColor: bgLight, color: textPrimary }}
+              className="eg-close absolute right-4 top-4 z-10"
             >
-              <X size={18} strokeWidth={2.6} />
+              <X size={18} strokeWidth={2} />
             </button>
-            <div className="p-6 sm:p-8">
-              <h2 id="email-gate-login-title" className="text-2xl font-extrabold mb-1" style={{ color: textPrimary }}>
+            <div className="px-5 py-6 sm:p-8">
+              <h2 id="email-gate-login-title" className="eg-modal-title mb-2 pr-12">
                 Welcome back to {brandName}
               </h2>
-              <p className="text-sm mb-5" style={{ color: textMuted }}>
+              <p className="eg-modal-sub mb-5">
                 Sign in with the email you saved your profile with — or continue as a guest below.
               </p>
               {renderLoginPanel(true)}

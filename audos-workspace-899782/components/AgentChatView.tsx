@@ -35,7 +35,7 @@ import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getFriendlyTerm, getToolColor } from '../lib/friendly-terms';
-import { tw, beauDarkRoom } from '../lib/colors';
+import { tw, beauChatRoom } from '../lib/colors';
 import { annotateFabrics } from '../lib/fabrics';
 import { LiveTalkButton, VoiceButton } from '../lib/voice';
 import type { AgentChatRuntime } from './useAgentChatRuntime';
@@ -531,17 +531,19 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           ? 'bg-gradient-to-br from-[var(--space-surface-gradient-from)] via-[var(--space-surface-gradient-via)] to-[var(--space-surface-gradient-to)]'
           : 'bg-[var(--space-surface-card)]'
       }`}
-      style={isBeaconSpace ? undefined : beauDarkRoom}
+      // The chat shares the dashboard's warm cream/linen palette rather than
+      // sitting in a dark room of its own (founder's correction, August 2026).
+      style={isBeaconSpace ? undefined : beauChatRoom}
     >
       {isHomeView ? (
         /* Home view — centered greeting + composer, like a fresh assistant session */
         <div className="flex-1 overflow-y-auto flex flex-col justify-center">
-          <div className="mx-auto w-full max-w-2xl px-6 sm:px-10 py-10" data-testid="home-view">
+          <div className="mx-auto w-full max-w-2xl px-4 sm:px-10 py-8 sm:py-10" data-testid="home-view">
             <div className="text-center mb-8">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--space-surface-accent-soft)] shadow-sm">
                 <Bot className="h-6 w-6 text-[var(--space-text-brand)]" />
               </div>
-              <h1 className="text-[26px] font-semibold text-[var(--space-text-primary)]">Beau, at your service.</h1>
+              <h1 className="text-[23px] sm:text-[26px] font-semibold text-[var(--space-text-primary)]">Beau, at your service.</h1>
               {homeWelcomeText && (
                 <p className="mx-auto mt-2 max-w-md text-base leading-7 text-[var(--space-text-secondary)]">{homeWelcomeText}</p>
               )}
@@ -566,7 +568,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
       ) : (
       <>
       <div ref={scrollContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-auto">
-        <div className="mx-auto w-full max-w-3xl px-6 sm:px-10 py-6 space-y-4">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-10 py-5 sm:py-6 space-y-4">
         {/* Pending-init placeholder so the user never sees a blank chat */}
         {showPendingPlaceholder && (
           <div className="flex justify-start mr-8">
@@ -665,7 +667,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
             ) : (
               <div className="text-center text-[var(--space-text-secondary)]">
                 <Bot className="w-12 h-12 mx-auto mb-3 text-[var(--space-text-muted)]" />
-                <p className="text-base leading-7">I’m Beau — I’ve read your style profile, so I already know your direction, skin tone and budget. Describe a piece you’re after or paste a product link, and I’ll tell you whether it’s worth buying. Share a photo or link of any look you love and I’ll read the signal underneath — it sharpens everything I pick for you. Type, hold the mic to dictate, or tap the waveform to talk with me live. I can also log a piece into The Ledger, put one on your Reserve, or hunt a piece down for you — just say the word.</p>
+                <p className="text-base leading-7">I’m Beau — I’ve read your style profile, so I already know your direction, skin tone and budget. Describe a piece you’re after or paste a product link, and I’ll tell you whether it’s worth buying. Share a photo or link of any look you love and I’ll read the signal underneath — it sharpens everything I pick for you. Type, hold the mic to dictate, or tap the waveform to talk with me live. I can also log a piece into The Ledger, put one on your Reserve, or hunt a piece down for you — just say the word. And when you’d rather browse than ask, The Hunt is where I’ve set out what I’d buy you next, category by category.</p>
                 {starterPrompts.length > 0 && !userIsTyping && (
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
                     {starterPrompts.map((prompt) => (
@@ -851,7 +853,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
       </div>
 
       {/* Input area — floating composer, detached from the bottom edge */}
-      <div className="px-4 sm:px-8 pb-5 pt-2 relative">
+      <div className="px-3 sm:px-8 pb-4 sm:pb-5 pt-2 relative">
         {/* Jump-to-latest — floats over the end of a long conversation */}
         {showJumpToLatest && (
           <button

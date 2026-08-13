@@ -42,7 +42,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlexMono } from './mono-type';
 import { ACCENT, ACCENT_DEEP, FAINT, INK, SECONDARY, WALNUT, body, mono, serif } from './index-style';
 import { TabHeader } from './tab-header';
-import { CrumbTrail } from './crumb-trail';
+import { CrumbPublisher } from './crumb-trail';
 import { fetchMaterials, type CategoryBudget, type StylePrefs, type StyleProfile, type WardrobePiece } from './profile-data';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 import { useIndexClimate } from './index-model';
@@ -124,6 +124,18 @@ export function BeauTab(props: {
   const [cell, setCell] = useState<string | null>(null);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [shown, setShown] = useState(GAPS_SHOWN);
+
+  // Tapping The Edit's tab label returns the page to its own home: the
+  // temperature face, the opening gap count, nothing drilled into.
+  useEffect(() => {
+    const onTabHome = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab !== 'beau') return;
+      setView('ruler');
+      setShown(GAPS_SHOWN);
+    };
+    window.addEventListener('ethaion:tab-home', onTabHome);
+    return () => window.removeEventListener('ethaion:tab-home', onTabHome);
+  }, []);
 
   // Each piece's real temperature range and its cloth — the same two reads
   // The Index's band strip runs on, so the two tabs cannot disagree.
@@ -294,7 +306,8 @@ export function BeauTab(props: {
     [ruler, cell],
   );
   // The shared trail — ETHAION / THE EDIT / BY TEMPERATURE / [the cell] —
-  // each parent segment a link back up the read (founder's correction).
+  // each parent segment a link back up the read. It is DRAWN once, by the
+  // floating chrome row; this page only publishes to it.
   const crumbSegs = [
     { label: 'Ethaion' },
     { label: 'The Edit', onClick: () => setCell(null) },
@@ -367,11 +380,9 @@ export function BeauTab(props: {
           </p>
         ) : (
           <>
-            {/* The wayfinding line — the app's shared trail; parent segments
-                step back up the read. */}
-            <div style={{ paddingBottom: '14px' }}>
-              <CrumbTrail segs={crumbSegs} />
-            </div>
+            {/* The wayfinding line lives in the floating chrome row — this
+                only tells it where the reader is. */}
+            <CrumbPublisher segs={crumbSegs} />
 
             {/* Read it · the two faces, and the legend the map is shaded by. */}
             <div

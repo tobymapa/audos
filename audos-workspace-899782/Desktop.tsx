@@ -5,7 +5,7 @@ import { useState, Suspense, lazy, LazyExoticComponent, ComponentType, useEffect
 // registers (Shirt · Folder · Search) are imported now. The iconMap itself
 // is UNCHANGED in shape — add an icon here AND to baseIconMap below when a
 // new app registration needs one.
-import { Bot, Folder, X, Plus, Menu, PanelLeftClose, PanelLeftOpen, ChevronLeft, Activity, Moon, Heart, Calendar, Users, FileText, BarChart, Settings as SettingsIcon, MessageCircle, Plane, TrendingUp, LineChart, Dumbbell, Brain, Target, Zap, Star, Clock, CheckCircle, List, BookOpen, Coffee, Music, Camera, MapPin, Wallet, ShoppingCart, Gift, Lightbulb, Sparkles, Rocket, Home, Globe, Mail, Phone, Video, Mic, Image, Play, Volume2, Cloud, Sun, Compass, Map, Key, Lock, Shield, Search, Bookmark, Bell, DollarSign, Database, CreditCard, PieChart, Shirt, Palette } from 'lucide-react';
+import { Bot, Folder, X, Plus, Menu, PanelLeftClose, PanelLeftOpen, ChevronLeft, Trash2, Activity, Moon, Heart, Calendar, Users, FileText, BarChart, Settings as SettingsIcon, MessageCircle, Plane, TrendingUp, LineChart, Dumbbell, Brain, Target, Zap, Star, Clock, CheckCircle, List, BookOpen, Coffee, Music, Camera, MapPin, Wallet, ShoppingCart, Gift, Lightbulb, Sparkles, Rocket, Home, Globe, Mail, Phone, Video, Mic, Image, Play, Volume2, Cloud, Sun, Compass, Map, Key, Lock, Shield, Search, Bookmark, Bell, DollarSign, Database, CreditCard, PieChart, Shirt, Palette } from 'lucide-react';
 import type { SpaceConfig, DesktopBranding, DesktopThemeTokens } from './types';
 import { useSpaceRuntime } from './SpaceRuntimeContext';
 // ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ const FileBrowser = lazy(() => import('./components/FileBrowser'));
 const Settings = lazy(() => import('./components/Settings'));
 import EmailGate from './components/EmailGate';
 import { isTenantDelegationCanvas } from './lib/tenant-delegation-canvas';
-import { beauDarkRoom } from './lib/colors';
+import { beauChatRoom } from './lib/colors';
 
 // v4: agent-first shell (thread sidebar + primary chat + side app panel).
 const DESKTOP_VERSION = 4;
@@ -1557,6 +1557,14 @@ export default function SpaceDesktop({
           .flex>*{min-width:0}
           [class*="grid-cols-"]>*{min-width:0}
         }
+        /* MOBILE GUTTERS AND OVERFLOW (mobile optimisation pass). Every tab
+           body opens with the same 24px gutter, which on a phone spends 48px
+           of the screen before a word is set — 16px reads better and gives
+           long labels room not to wrap. Applied to the shared utility rather
+           than tab by tab, so a new tab inherits it too. */
+        @media (max-width: 640px){
+          .px-6{padding-left:16px!important;padding-right:16px!important}
+        }
       `}</style>
 
       {/* Unified responsive shell — a single layout tree (sidebar | chat |
@@ -1669,11 +1677,11 @@ export default function SpaceDesktop({
                 activePanelId && (mobileView === 'panel' || !isBuilderView) ? 'max-md:hidden' : 'max-md:flex'
               } ${activePanelId && (isPanelExpanded || !isBuilderView) ? 'md:hidden' : 'md:flex'}`}
               style={{
-                // Warm Editorial: the Beau conversation column is the ONE dark
-                // surface — the dark room (#2b1e14 ground, #f7f2e9 text,
-                // #e3c184 accent) — a different room from the paper-and-oatmeal
-                // pages around it.
-                ...beauDarkRoom,
+                // The Beau conversation is NOT a separate dark room any more
+                // (founder's correction, August 2026): it takes the same warm
+                // cream/linen ground, walnut ink and outlined gold controls as
+                // the dashboard, so the chat and the tabs read as one product.
+                ...beauChatRoom,
                 ...(activePanelId ? { animation: 'habitusChatIn 0.32s cubic-bezier(0.22,1,0.36,1) both' } : null),
               }}
             >
@@ -1810,20 +1818,28 @@ export default function SpaceDesktop({
                 }`}
                 aria-hidden={overlayView !== 'chat'}
                 data-testid="overlay-chat"
-                style={beauDarkRoom}
+                style={beauChatRoom}
               >
-                <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 border-b border-[var(--space-border-default)]">
+                {/* The panel header matches the app's tab headers: the name in
+                    the display serif on paper, over a hairline rule. */}
+                <div className="flex items-center justify-between px-4 min-h-[52px] flex-shrink-0 border-b border-[var(--space-border-default)] bg-[var(--space-surface-card)]">
                   <span className="flex items-center gap-2 min-w-0">
                     <MessageCircle className="w-4 h-4 text-[var(--space-text-brand)]" />
-                    <span className="text-sm font-semibold truncate text-[var(--space-text-primary)]">{agentDisplayName}</span>
+                    <span
+                      className="truncate text-[var(--space-text-primary)]"
+                      style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', fontWeight: 400, lineHeight: 1.1 }}
+                    >
+                      {agentDisplayName}
+                    </span>
                   </span>
                   <span className="flex items-center gap-0.5 flex-shrink-0">
                     {/* New chat / conversation management live inside the
                         BeauConversations list — the overlay chrome only closes. */}
                     <button
                       onClick={() => setOverlayView(null)}
-                      className="p-1.5 rounded-lg hover:bg-[var(--space-surface-muted)] transition-colors text-[var(--space-text-secondary)]"
+                      className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--space-surface-muted)] transition-colors text-[var(--space-text-secondary)]"
                       title="Close"
+                      aria-label="Close the conversation"
                       data-testid="button-overlay-chat-close"
                     >
                       <X className="w-4 h-4" />
@@ -1844,15 +1860,23 @@ export default function SpaceDesktop({
               aria-hidden={overlayView !== 'settings'}
               data-testid="overlay-settings"
             >
-              <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 border-b border-[var(--space-border-default)]">
+              {/* Same header treatment as the Beau panel and the tab
+                  mastheads — display serif on paper over a hairline. */}
+              <div className="flex items-center justify-between px-4 min-h-[52px] flex-shrink-0 border-b border-[var(--space-border-default)] bg-[var(--space-surface-card)]">
                 <span className="flex items-center gap-2 min-w-0">
                   <SettingsIcon className="w-4 h-4 text-[var(--space-text-secondary)]" />
-                  <span className="text-sm font-semibold text-[var(--space-text-primary)]">Settings</span>
+                  <span
+                    className="text-[var(--space-text-primary)]"
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', fontWeight: 400, lineHeight: 1.1 }}
+                  >
+                    Settings
+                  </span>
                 </span>
                 <button
                   onClick={() => setOverlayView(null)}
-                  className="p-1.5 rounded-lg hover:bg-[var(--space-surface-muted)] transition-colors text-[var(--space-text-secondary)]"
+                  className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--space-surface-muted)] transition-colors text-[var(--space-text-secondary)]"
                   title="Close settings"
+                  aria-label="Close settings"
                   data-testid="button-overlay-settings-close"
                 >
                   <X className="w-4 h-4" />

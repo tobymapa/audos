@@ -151,8 +151,14 @@ export function CrumbTrail({ segs, style }: { segs: CrumbSegment[]; style?: Reac
   );
 }
 
-/** The full header row most drill-downs open with — the pill at the left,
- * the trail beside it, wrapping on a phone. */
+/**
+ * The header a drill-down opens with. It NO LONGER DRAWS a back control or a
+ * path of its own (founder's correction, August 2026): the app has exactly
+ * ONE back button and ONE breadcrumb, the floating pair in the sticky chrome
+ * row, and a page that drew its own put two of each on screen. The header now
+ * only PUBLISHES its whereabouts to that row — plus whatever `right` content
+ * the page hangs off it, which was never a duplicate.
+ */
 export function CrumbHeader({
   backLabel,
   onBack,
@@ -165,16 +171,9 @@ export function CrumbHeader({
   right?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between flex-wrap" style={{ gap: '10px 18px' }}>
-      {/* Every header also feeds the app-wide chrome nav bar under the tab
-          strip, so a drill-down page never has to publish its whereabouts
-          twice. */}
+    <div className="flex items-center justify-end flex-wrap" style={{ gap: '10px 18px' }}>
       <CrumbPublisher segs={segs} onBack={onBack} backLabel={backLabel} />
-      <div className="flex items-center flex-wrap" style={{ gap: '10px 16px', minWidth: 0 }}>
-        <BackPill label={backLabel} onClick={onBack} />
-        <CrumbTrail segs={segs} />
-      </div>
-      {right != null && <div className="flex items-center">{right}</div>}
+      {right != null && <div className="flex items-center min-w-0">{right}</div>}
     </div>
   );
 }
@@ -266,6 +265,108 @@ export const CHROME_BAR_EVENT = 'ethaion:chrome-bar';
  * the event only has to carry later changes. */
 export const CHROME_BAR_FLAG = '__ethaionChromeNavBar';
 
+// ---------------------------------------------------------------------------
+// BACK TO THE TOP — a small circular capsule in the bottom-right corner, in
+// the same warm paper-and-gold register as every other control. It appears
+// only once the reader has scrolled the top of the page out of view, and it
+// jumps (never animates) straight back.
+//
+// The page does NOT scroll the window: the app renders inside the shell's own
+// scrolling panel, so the button finds the nearest scrollable ancestor and
+// listens to that. The window is the fallback for surfaces that do scroll it.
+// ---------------------------------------------------------------------------
+
+function nearestScroller(from: HTMLElement | null): HTMLElement | Window {
+  let el: HTMLElement | null = from?.parentElement || null;
+  while (el) {
+    const overflowY = window.getComputedStyle(el).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 8) return el;
+    el = el.parentElement;
+  }
+  return window;
+}
+
+function scrollTopOf(target: HTMLElement | Window): number {
+  return target === window
+    ? window.scrollY || document.documentElement.scrollTop || 0
+    : (target as HTMLElement).scrollTop;
+}
+
+/** How far down the reader must be before the button is worth offering. */
+const SCROLL_TOP_THRESHOLD = 260;
+
+export function ScrollToTop() {
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const targetRef = useRef<HTMLElement | Window | null>(null);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    const target = nearestScroller(anchorRef.current);
+    targetRef.current = target;
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      setShown(scrollTopOf(target) > SCROLL_TOP_THRESHOLD);
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(read);
+    };
+    read();
+    // The two possible targets (an element or the window) have different
+    // addEventListener overloads, so the shared EventTarget view is what the
+    // listener is attached and detached through.
+    const listenTo = target as EventTarget;
+    listenTo.addEventListener('scroll', onScroll, { passive: true });
+    // A tab switch can swap which element actually scrolls; re-read then too.
+    window.addEventListener('ethaion:tab-activated', onScroll);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      listenTo.removeEventListener('scroll', onScroll);
+      window.removeEventListener('ethaion:tab-activated', onScroll);
+    };
+  }, []);
+
+  const jump = () => {
+    const target = targetRef.current || window;
+    if (target === window) window.scrollTo(0, 0);
+    else (target as HTMLElement).scrollTop = 0;
+    setShown(false);
+  };
+
+  return (
+    <>
+      <span ref={anchorRef} aria-hidden="true" style={{ position: 'absolute', width: 0, height: 0 }} />
+      {shown && (
+        <button
+          type="button"
+          onClick={jump}
+          title="Back to the top"
+          aria-label="Back to the top"
+          className="fixed z-[45] flex items-center justify-center transition-colors hover:bg-[rgba(168,113,44,0.12)]"
+          style={{
+            // Clear of the phone's bottom tab bar (52pt + safe area) and of
+            // the desktop page edge.
+            right: '16px',
+            bottom: 'calc(78px + env(safe-area-inset-bottom))',
+            width: '40px',
+            height: '40px',
+            borderRadius: '999px',
+            background: PAPER,
+            border: `1px solid ${RULE}`,
+            color: ACCENT_DEEP,
+            lineHeight: 1,
+          }}
+          data-testid="button-scroll-top"
+        >
+          <span aria-hidden="true" style={{ fontSize: '15px', marginTop: '-2px' }}>↑</span>
+        </button>
+      )}
+      <style>{'@media (min-width:640px){[data-testid="button-scroll-top"]{bottom:24px;right:22px}}'}</style>
+    </>
+  );
+}
+
 /** The floating chrome itself — mounted once, under the tab strip. */
 export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
   const [, setTick] = useState(0);
@@ -317,20 +418,31 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
       className="sticky top-0 sm:top-[46px] z-[28] flex-shrink-0"
       style={{ height: 0 }}
     >
+      {/* MOBILE: the two clusters share one line at 44pt-friendly sizes and
+          the trail is allowed to shrink (and, if it must, scroll) rather than
+          push Ask Beau off the screen or wrap under the content beneath. */}
+      <style>{
+        '.hab-chrome-rail{top:9px;left:19px;right:19px;gap:12px}' +
+        '.hab-chrome-trail{max-width:100%;overflow:hidden}' +
+        '@media (max-width:640px){' +
+        '.hab-chrome-rail{top:6px;left:10px;right:10px;gap:8px}' +
+        // Only the capsules themselves get the bigger tap target — not the
+        // individual path segments nested inside the breadcrumb frame.
+        '.hab-chrome-rail > div > button{min-height:34px}' +
+        '.hab-chrome-trail{max-width:46vw}' +
+        '}'
+      }</style>
       <div
-        className="absolute flex items-start justify-between"
+        className="hab-chrome-rail absolute flex items-start justify-between"
         style={{
-          top: '9px',
-          // ~0.5cm in from BOTH edges of the screen (founder's rule).
-          left: '19px',
-          right: '19px',
-          gap: '12px',
+          // ~0.5cm in from BOTH edges of the screen (founder's rule); the
+          // stylesheet above tightens both on a phone.
           // The middle is empty AND click-through — only the capsules
           // themselves take a tap.
           pointerEvents: 'none',
         }}
       >
-        <div className="flex items-center flex-wrap" style={{ gap: '8px', minWidth: 0, pointerEvents: 'auto' }}>
+        <div className="hab-chrome-trail flex items-center flex-wrap" style={{ gap: '8px', minWidth: 0, pointerEvents: 'auto' }}>
           {shown.onBack && <NavPill floating onClick={shown.onBack}>← Back</NavPill>}
           {segs.length > 0 && (
             <PillFrame>

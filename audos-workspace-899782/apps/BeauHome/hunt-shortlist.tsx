@@ -561,23 +561,23 @@ export function HuntTenPicksPage({
 
   return (
     <div ref={rootRef} style={{ scrollMarginTop: '80px' }}>
-      {/* The way back, and where you are — the app's shared treatment. */}
-      <div style={{ paddingBottom: '12px', borderBottom: `1px solid ${HAIRLINE}` }}>
-        <CrumbHeader
-          backLabel="Beau's Picks"
-          onBack={onBack}
-          segs={[
-            { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
-            { label: 'The Hunt', onClick: onBack },
-            { label: "Beau's Picks", onClick: onBack },
-            { label: category.name, onClick: onBack },
-            { label: sub.subName },
-          ]}
-        />
-      </div>
+      {/* Where you are, and the way back — published to the app's ONE
+          floating chrome row rather than drawn again here. The rule that
+          used to sit under a local back button went with it. */}
+      <CrumbHeader
+        backLabel="Beau's Picks"
+        onBack={onBack}
+        segs={[
+          { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
+          { label: 'The Hunt', onClick: onBack },
+          { label: "Beau's Picks", onClick: onBack },
+          { label: category.name, onClick: onBack },
+          { label: sub.subName },
+        ]}
+      />
 
       {/* The header — the sub-category and what Beau is picking against. */}
-      <div className="md:grid md:grid-cols-[minmax(0,1fr)_300px] md:gap-9" style={{ marginTop: '24px' }}>
+      <div className="md:grid md:grid-cols-[minmax(0,1fr)_300px] md:gap-9">
         <div className="min-w-0">
           <div className="flex items-baseline flex-wrap" style={{ gap: '13px' }}>
             <h3 style={{ ...serif(31, WALNUT), margin: 0, lineHeight: 1.08 }}>{sub.subName}</h3>

@@ -397,14 +397,12 @@ export default function Settings({ spaceId }: SettingsProps) {
       <div className={settingsStyles.innerContainer}>
         {/* Account Section */}
         <div className={settingsStyles.section}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[var(--space-text-primary)]">
-              Your account
-            </h3>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <h3 className={settingsStyles.sectionHead}>Your account</h3>
             {email && (
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[var(--space-text-secondary)] hover:text-[var(--space-semantic-danger-600)] hover:bg-[var(--space-semantic-danger-100)] rounded-lg transition-colors"
+                className={settingsStyles.secondaryButton}
                 data-testid="button-sign-out"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -463,9 +461,7 @@ export default function Settings({ spaceId }: SettingsProps) {
           <div className="mt-8 pt-6 border-t border-[var(--space-border-default)]" style={{ minHeight: 185 }}>
             <div className="flex items-center gap-2 mb-4">
               <CreditCard className="w-5 h-5 text-[var(--space-text-muted)]" />
-              <h3 className="text-sm font-semibold text-[var(--space-text-primary)]">
-                Subscription
-              </h3>
+              <h3 className={settingsStyles.sectionHead}>Subscription</h3>
             </div>
 
             {statusLoading ? (
@@ -508,7 +504,7 @@ export default function Settings({ spaceId }: SettingsProps) {
                       <button
                         onClick={handleManageSubscription}
                         disabled={managingPortal}
-                        className="mt-3 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[var(--space-text-secondary)] hover:text-[var(--space-text-primary)] hover:bg-[var(--space-surface-card-hover)] border border-[var(--space-border-default)] rounded-lg transition-colors disabled:opacity-50"
+                        className={`mt-3 ${settingsStyles.secondaryButton} disabled:opacity-50`}
                       >
                         {managingPortal ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -557,7 +553,7 @@ export default function Settings({ spaceId }: SettingsProps) {
                     <button
                       onClick={handleManageSubscription}
                       disabled={managingPortal}
-                      className="mt-3 flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--space-text-primary)] bg-[var(--space-surface-card)] hover:bg-[var(--space-surface-card-hover)] border border-[var(--space-border-default)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`mt-3 ${settingsStyles.secondaryButton} disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       {managingPortal ? (
                         <>
@@ -618,7 +614,7 @@ export default function Settings({ spaceId }: SettingsProps) {
                     <button
                       onClick={handleSubscribe}
                       disabled={subscribing}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-transparent border border-[var(--space-brand-primary)] hover:bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={settingsStyles.saveButton(subscribing)}
                       data-testid="button-subscribe"
                     >
                       {subscribing ? (

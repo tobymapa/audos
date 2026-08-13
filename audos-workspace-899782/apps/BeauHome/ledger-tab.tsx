@@ -42,7 +42,7 @@ import { TabHeader } from './tab-header';
 import { matchGarmentTypeId } from './index-model';
 import { openInTheIndex } from './edit-links';
 import { openMakerSheet } from './maker-sheet';
-import { CrumbPublisher, CrumbTrail, type CrumbSegment } from './crumb-trail';
+import { CrumbPublisher, type CrumbSegment } from './crumb-trail';
 import {
   fetchMaterials,
   fetchPieceConditions,
@@ -575,6 +575,7 @@ export function LedgerTab({
     window.addEventListener('ethaion:tab-activated', onActivated);
     return () => window.removeEventListener('ethaion:tab-activated', onActivated);
   }, []);
+
   // A search opens whatever it found, so nothing hides behind a closed rule.
   const openNow = q ? filtered.filter((c) => c.pieces.length > 0).map((c) => c.id) : open;
   const allOpen = open.length >= model.categories.length;
@@ -619,6 +620,22 @@ export function LedgerTab({
     return () => window.removeEventListener('ethaion:add-piece', onAddPiece);
   }, []);
 
+  // TAPPING THE LEDGER TAB GOES HOME: the piece sheet closes, the categories
+  // fold, and the search and the log field clear. Every reset writes a value
+  // the tab may already hold, so tapping the tab you are already on the home
+  // of does nothing at all — no scroll jump, no refetch.
+  useEffect(() => {
+    const onTabHome = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab !== 'wardrobe') return;
+      setOpenPieceId(null);
+      setOpenIds(null);
+      setQuery('');
+      setLogQuery('');
+    };
+    window.addEventListener('ethaion:tab-home', onTabHome);
+    return () => window.removeEventListener('ethaion:tab-home', onTabHome);
+  }, []);
+
   const afterChange = useCallback(() => {
     onChanged();
     readCompanions();
@@ -648,9 +665,9 @@ export function LedgerTab({
         ? 'Nothing logged yet \u2014 start with one piece'
         : `${capWord(numberWord(model.categories.length))} categories ${MIDDOT} open one to see what is in it`;
 
-  // Where you are inside the record — shown inline AND published to the
-  // app-wide floating breadcrumb. With a piece sheet open, the trail's
-  // Ledger segments climb back out of it.
+  // Where you are inside the record — published to the app-wide floating
+  // breadcrumb, which is the ONE place the path is drawn. With a piece sheet
+  // open, the trail's Ledger segments climb back out of it.
   const closePieceSheet = () => setOpenPieceId(null);
   const trailSegs: CrumbSegment[] = [
     { label: 'Ethaion' },
@@ -676,16 +693,13 @@ export function LedgerTab({
       />
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-        {/* Where you are inside the record — the app's shared trail, also
-            feeding the floating breadcrumb in the top-left. */}
-        <div style={{ paddingBottom: '14px' }}>
-          <CrumbPublisher
-            segs={trailSegs}
-            onBack={openPiece ? closePieceSheet : undefined}
-            backLabel={openPiece ? 'The Ledger' : undefined}
-          />
-          <CrumbTrail segs={trailSegs} />
-        </div>
+        {/* Where you are inside the record. The trail itself is drawn ONCE,
+            by the floating chrome row — this only publishes to it. */}
+        <CrumbPublisher
+          segs={trailSegs}
+          onBack={openPiece ? closePieceSheet : undefined}
+          backLabel={openPiece ? 'The Ledger' : undefined}
+        />
 
         {/* LOG A PIECE — a link in one end or a photograph in the other. */}
         <div

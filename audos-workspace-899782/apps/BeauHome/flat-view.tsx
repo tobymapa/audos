@@ -457,10 +457,17 @@ export function StyledOutfitBoard({
   onRemove,
   seed = 'ethaion',
   canvasMaxWidth = '420px',
+  quiet = false,
 }: {
   /** Every selected piece, in the order they were added. */
   pieces: BoardPiece[];
   onRemove?: (key: string) => void;
+  /** Hold the empty footprint but say NOTHING in it. The Fitting sets this
+   * while Beau is composing: the surrounding screen already shows the one
+   * building message, and this board's own “Build the look flat” invitation
+   * showing through underneath it was one of three strings stacking on the
+   * canvas at once (founder's correction, August 2026). */
+  quiet?: boolean;
   /** How wide the square canvas may draw. The portrait stage scales to it,
    * so this is what sizes the garments themselves — The Fitting's board is
    * the main event and asks for a large one. */
@@ -483,19 +490,21 @@ export function StyledOutfitBoard({
             No field, no frame — the Fitting board is transparent space
             (founder's correction). */}
         <div className="relative w-full mx-auto" style={{ maxWidth: canvasMaxWidth, aspectRatio: '1 / 1' }}>
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
-            <span className="block w-12 h-[3px] bg-[var(--color-neutral-300,#dccdb2)]" aria-hidden="true" />
-            <p
-              className={`${typography.color.primary} mt-4`}
-              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '21px', lineHeight: 1.3, maxWidth: '28ch' }}
-            >
-              Build the look flat — no rendering, no wait.
-            </p>
-            <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontFamily: 'var(--space-font-family)', maxWidth: '40ch' }}>
-              Tap pieces on the shelf below and they land here instantly — each in its own place, head to
-              toe, clean catalog style. Tap a piece again to take it off the board.
-            </p>
-          </div>
+          {!quiet && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 sm:px-8">
+              <span className="block w-12 h-[3px] bg-[var(--color-neutral-300,#dccdb2)]" aria-hidden="true" />
+              <p
+                className={`${typography.color.primary} mt-4`}
+                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '19px', lineHeight: 1.3, maxWidth: '28ch' }}
+              >
+                Build the look flat — no rendering, no wait.
+              </p>
+              <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontFamily: 'var(--space-font-family)', maxWidth: '40ch' }}>
+                Tap pieces on the shelf below and they land here instantly — each in its own place, head to
+                toe, clean catalog style. Tap a piece again to take it off the board.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );

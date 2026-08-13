@@ -366,18 +366,33 @@ export const authStyles = {
 } as const;
 
 /**
- * Settings screen styles
+ * Settings screen styles.
+ *
+ * The Settings overlay is a DASHBOARD SURFACE, not a separate product: it
+ * borrows the same furniture every Ethaion tab is built from — the global
+ * `hab-section-head` (Cormorant), `hab-kicker` (small-caps field labels) and
+ * `hab-input` (one hairline text box) utilities declared in Desktop.tsx —
+ * plus the house outlined-gold button. Nothing here invents a colour, a
+ * radius or a type scale of its own.
  */
 export const settingsStyles = {
-  container: 'h-full overflow-y-auto',
-  innerContainer: 'max-w-md mx-auto p-8',
-  section: 'space-y-6',
-  label: `block ${typography.size.sm} ${typography.weight.medium} ${typography.color.primary} mb-2`,
-  input: (hasError: boolean) => 
-    `${tw.input.base} ${hasError ? tw.input.error : tw.input.default}`,
+  container: 'h-full overflow-y-auto bg-[var(--space-surface-card)]',
+  // Phone gets real edge padding instead of the desktop 32px inset.
+  innerContainer: 'max-w-md mx-auto px-5 py-6 sm:px-8 sm:py-8',
+  section: 'space-y-5',
+  /** Section headings — the same Cormorant head the tabs use. */
+  sectionHead: `hab-section-head ${typography.color.primary}`,
+  /** Field labels — the house small-caps kicker. */
+  label: `hab-kicker block ${typography.color.tertiary} mb-2`,
+  input: (hasError: boolean) =>
+    `hab-input w-full ${hasError ? 'border-[var(--space-semantic-danger)]' : ''}`,
   errorText: `mt-1.5 ${typography.size.xs} ${typography.color.danger}`,
+  /** The primary action — outlined warm gold, uppercase Cormorant. */
   saveButton: (disabled: boolean) =>
-    `w-full px-4 py-2.5 rounded-lg ${tw.button.primary} flex items-center justify-center gap-2 ${disabled ? tw.button.disabled : ''}`,
+    `w-full px-4 min-h-[46px] ${tw.button.primary} inline-flex items-center justify-center gap-2 uppercase tracking-[0.12em] text-[13px] ${disabled ? tw.button.disabled : ''}`,
+  /** The quieter companion action (Manage billing, Sign out). */
+  secondaryButton:
+    `px-4 min-h-[42px] ${tw.button.secondary} inline-flex items-center justify-center gap-2 uppercase tracking-[0.12em] text-[12px]`,
 } as const;
 
 // =============================================================================
@@ -406,17 +421,65 @@ export function cn(...classes: (string | undefined | false)[]): string {
 }
 
 // =============================================================================
-// BEAU DARK ROOM (Warm Editorial, Pass Thirty-One)
+// THE ROOMS Beau can speak in
 // =============================================================================
 
 /**
- * The ONE dark surface in the product: the panels where Beau speaks directly
- * (the chat surface, the daily-look band). Applying this style object to a
- * surface's root re-maps every `--space-*` token the descendants consume, so
- * the UI shifts into the dark room — walnut ground #241a12, text #f6f0e5,
- * accent-300 #e3c184 kickers (Pass Thirty-Six spec) — without touching any
- * child component. It should feel like a different room, not a lighter
- * version of the page. Nothing else goes dark.
+ * THE BEAU CHAT ROOM (founder's correction, August 2026) — the customer-
+ * facing conversation is NOT a separate dark room any more. It shares the
+ * dashboard's warm cream/linen palette, its walnut ink and its outlined gold
+ * controls, so moving between a tab and Beau reads as one product.
+ *
+ * The object re-asserts the dashboard token values rather than merely
+ * omitting the dark overrides, so a chat surface nested inside any panel
+ * lands on the page palette whatever its ancestor set.
+ */
+export const beauChatRoom: React.CSSProperties = {
+  background: '#fbf8f1',
+  color: '#3b2b1d',
+  ['--space-surface-page' as any]: '#efe7d9',
+  ['--space-surface-page-alt' as any]: '#eadfcb',
+  ['--space-surface-card' as any]: '#fbf8f1',
+  ['--space-surface-card-hover' as any]: '#eadfcb',
+  ['--space-surface-panel' as any]: '#fbf8f1',
+  ['--space-surface-panel-strong' as any]: '#e4d8c3',
+  ['--space-surface-muted' as any]: '#eadfcb',
+  ['--space-surface-accent-soft' as any]: '#fbf1de',
+  ['--space-border-default' as any]: 'rgba(59,43,29,0.18)',
+  ['--space-border-strong' as any]: 'rgba(59,43,29,0.34)',
+  ['--space-text-primary' as any]: '#3b2b1d',
+  ['--space-text-secondary' as any]: '#634e38',
+  ['--space-text-muted' as any]: '#856c51',
+  ['--space-text-brand' as any]: '#7c4a17',
+  ['--space-text-accent' as any]: '#7c4a17',
+  ['--space-text-on-primary' as any]: '#fbf1de',
+  ['--space-text-on-highlight' as any]: '#fbf1de',
+  ['--space-brand-primary' as any]: '#a8712c',
+  ['--space-brand-primary-50' as any]: '#fbf1de',
+  ['--space-brand-primary-100' as any]: '#f3ddb6',
+  ['--space-brand-primary-200' as any]: '#e3c184',
+  ['--space-brand-primary-500' as any]: '#b07d31',
+  ['--space-brand-primary-600' as any]: '#a8712c',
+  ['--space-brand-primary-700' as any]: '#7c4a17',
+  ['--space-brand-highlight' as any]: '#a8712c',
+  ['--space-brand-highlight-100' as any]: '#f3ddb6',
+  ['--space-brand-highlight-600' as any]: '#a8712c',
+  ['--space-brand-highlight-700' as any]: '#7c4a17',
+  ['--space-semantic-danger' as any]: '#7d2a24',
+  ['--space-shell-icon' as any]: '#a8712c',
+  ['--space-neutral-800' as any]: '#453325',
+  ['--space-neutral-100' as any]: '#fbf8f1',
+};
+
+/**
+ * The dark room — walnut ground #241a12, text #f6f0e5, accent-300 #e3c184
+ * kickers. Applying it to a surface's root re-maps every `--space-*` token
+ * the descendants consume without touching any child component.
+ *
+ * NOTHING USES IT AS OF August 2026: the customer chat, which was its only
+ * consumer, moved onto `beauChatRoom` above so it matches the dashboard. It
+ * is kept because it is the complete, working definition of the dark
+ * treatment — re-darkening a surface is one import away.
  */
 export const beauDarkRoom: React.CSSProperties = {
   background: '#241a12',

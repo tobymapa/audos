@@ -610,6 +610,23 @@ function PiecesFace({
     return () => window.removeEventListener(INDEX_OPEN_TYPE_EVENT, onOpen);
   }, []);
 
+  // Tapping The Index's tab label comes back to the face's own home: the
+  // piece page closes, the unfolds and every filter clear.
+  useEffect(() => {
+    const onTabHome = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab !== 'index') return;
+      setDetail(null);
+      setOpenType(null);
+      setHeldBand(null);
+      setRegs([]);
+      setOccs([]);
+      setRuns([]);
+      setFind('');
+    };
+    window.addEventListener('ethaion:tab-home', onTabHome);
+    return () => window.removeEventListener('ethaion:tab-home', onTabHome);
+  }, []);
+
   // The URL reflects the open page (#index/piece/<id>) — a reload or a
   // shared link lands back on it, and clearing the hash closes it.
   useEffect(() => {
@@ -2139,6 +2156,19 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
     const onOpen = () => setFace('pieces');
     window.addEventListener(INDEX_OPEN_TYPE_EVENT, onOpen);
     return () => window.removeEventListener(INDEX_OPEN_TYPE_EVENT, onOpen);
+  }, []);
+
+  // Tapping the tab label returns to the Pieces face — the tab's home —
+  // and drops any maker filter a hand-off left behind.
+  useEffect(() => {
+    const onTabHome = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab !== 'index') return;
+      setFace('pieces');
+      setTypeFilter(null);
+      setMakerNamesFilter(null);
+    };
+    window.addEventListener('ethaion:tab-home', onTabHome);
+    return () => window.removeEventListener('ethaion:tab-home', onTabHome);
   }, []);
 
   // The maker directory — the catalog seed merged with persisted additions.

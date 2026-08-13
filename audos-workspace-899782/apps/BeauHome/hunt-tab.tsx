@@ -112,6 +112,16 @@ export function HuntTab({
     window.addEventListener(HUNT_ASK_EVENT, onAsk);
     return () => window.removeEventListener(HUNT_ASK_EVENT, onAsk);
   }, []);
+
+  // Tapping The Hunt's tab label comes back to its home face — Beau's Picks
+  // — whichever face (or ten-picks page inside one) was last open.
+  useEffect(() => {
+    const onTabHome = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab === 'hunt') setFace('picks');
+    };
+    window.addEventListener('ethaion:tab-home', onTabHome);
+    return () => window.removeEventListener('ethaion:tab-home', onTabHome);
+  }, []);
   const [loaded, setLoaded] = useState<HuntReader | null>(null);
 
   // The ledger's identity, so a logged or removed piece re-reads the record

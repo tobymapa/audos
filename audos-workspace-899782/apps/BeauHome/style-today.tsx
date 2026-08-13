@@ -18,7 +18,6 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   CloudRain,
   CloudSun,
   Loader2,
@@ -911,14 +910,9 @@ export function StyleMeToday({
   return (
     <div className="px-6 py-8 space-y-6 max-w-4xl mx-auto w-full pb-28">
       <div>
-        <button
-          type="button"
-          onClick={onBack}
-          className={`inline-flex items-center gap-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Wardrobe
-        </button>
-        <h3 className={`hab-section-head ${typography.color.primary} mt-2`}>
+        {/* No local back control: the app's floating chrome row already
+            carries this view's ← BACK to The Ledger. */}
+        <h3 className={`hab-section-head ${typography.color.primary}`}>
           What do I wear today?
         </h3>
         <p className={`${typography.size.sm} ${typography.color.secondary} mt-1.5 max-w-lg`}>

@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 import AgentChat from './AgentChat';
 import { useSpaceRuntime } from '../SpaceRuntimeContext';
-import { beauDarkRoom } from '../lib/colors';
+import { beauChatRoom } from '../lib/colors';
 import { looksLikePlaceholderName, smartTitle } from '../lib/smart-title';
 
 // Literal `window.__workspaceDb` references below matter: the platform
@@ -1155,10 +1155,12 @@ export default function BeauConversations({
   );
 
   return (
-    // Warm Editorial: the whole Beau surface (chat list + threads) lives in
-    // the dark room — ground #2b1e14, text #f7f2e9, accent #e3c184 — via the
-    // token override so every child inherits it.
-    <div className="h-full relative" style={beauDarkRoom}>
+    // The whole Beau surface (chat list + threads) shares the dashboard's
+    // warm cream/linen palette (founder's correction, August 2026) — the
+    // token override below hands it to every child, so the conversations
+    // list, the thread, the new-chat button and the folder controls all pick
+    // up the same ground, ink, buttons and type as the tabs.
+    <div className="h-full relative" style={beauChatRoom}>
       {view === 'thread' && activeThreadId ? renderThread() : renderList()}
 
       {/* Delete-conversation confirmation dialog */}

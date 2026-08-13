@@ -66,7 +66,7 @@ import {
 } from './photo-enhance';
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { OnboardingTour } from './onboarding-tour';
-import { ChromeNavBar, type CrumbPublication } from './crumb-trail';
+import { ChromeNavBar, ScrollToTop, type CrumbPublication } from './crumb-trail';
 import { HairlineRowsSkeleton, HomeSkeleton } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
@@ -1284,6 +1284,20 @@ function TabIcon({ icon }: { icon: string }) {
  * 'radar' is the old Reserve — the watch list. */
 const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar'];
 
+/**
+ * TAPPING A TAB ALWAYS GOES HOME (founder's correction, August 2026). The tab
+ * strip announces every tap on `ethaion:tab-home` — including a tap on the
+ * tab already showing — and each tab root listens for its own id and resets
+ * whatever sub-tab or detail page it was left on. Resets are plain setState
+ * calls to values the tab may already hold, so tapping the tab you are
+ * already at the top of changes nothing: no scroll jump, no reload, no
+ * refetch.
+ *
+ * The listeners match the event name as a literal rather than importing it
+ * from here: this module already imports every tab, so a shared constant
+ * exported from it would close an import cycle.
+ */
+
 /** What each tab reads as in the FLOATING breadcrumb (crumb-trail.tsx) —
  * the label after the ETHAION root when nothing deeper is on screen. */
 const TAB_TRAIL_LABELS: Record<TabId, string> = {
@@ -1324,7 +1338,7 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
           the fixed bottom bar; this strip only exists from sm up.
           With six tabs the strip scrolls horizontally on a narrow desktop
           window rather than crushing the labels. */}
-      <div className="hidden sm:block sticky top-0 z-30 bg-[var(--space-surface-card)] border-b border-[var(--space-text-primary)] flex-shrink-0">
+      <div className="hidden sm:block sticky top-0 z-30 bg-[var(--space-surface-card)] border-b border-[var(--space-text-primary)] flex-shrink-0 overflow-hidden">
         {/* The strip scrolls horizontally when it must, but never shows a
             scrollbar track — scrollbar-width: none (Firefox), -ms-overflow-style
             (legacy Edge) and ::-webkit-scrollbar (Chrome/Safari) all hidden. */}
@@ -1362,9 +1376,17 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
 
       {/* PHONE — the six tabs at the bottom, thumb height, 52pt targets,
           same order as the desktop header (Mobile spec M1). */}
+      {/* The bar never hides a tab: the six share the width when they fit and
+          the row scrolls horizontally (scrollbar hidden) when they don't. */}
       <nav
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex bg-[var(--space-surface-card)] border-t border-[var(--space-text-primary)]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="ethaion-tabnav sm:hidden fixed bottom-0 left-0 right-0 z-40 flex overflow-x-auto bg-[var(--space-surface-card)] border-t border-[var(--space-text-primary)]"
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorX: 'contain',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
         aria-label="Ethaion sections"
       >
         {TABS.map(({ id, short, icon }) => {
@@ -1375,7 +1397,7 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
               type="button"
               data-tour={tourAnchorFor(id) ? `${tourAnchorFor(id)}-m` : undefined}
               onClick={() => onChange(id)}
-              className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 uppercase transition-colors ${
+              className={`flex-1 flex-shrink-0 min-w-[54px] min-h-[52px] flex flex-col items-center justify-center gap-0.5 uppercase transition-colors ${
                 active
                   ? 'text-[var(--space-text-primary)] border-t-2 border-[var(--space-brand-primary)] -mt-px'
                   : 'text-[var(--color-neutral-600,#856c51)]'
@@ -1963,7 +1985,6 @@ export default function BeauHome() {
         onDone={(p) => {
           setProfile(p);
           setTab('wardrobe');
-          setOpenCategory(null);
           setOpenStyleToday(false);
           refreshAll();
           fetchPrefs().then(setPrefs).catch(() => undefined);
@@ -1987,6 +2008,10 @@ export default function BeauHome() {
         onChange={(t) => {
           setTab(t);
           setOpenStyleToday(false);
+          // Every tap goes to the tab's HOME, even a tap on the tab already
+          // showing: the roots listen for this and drop whatever sub-tab or
+          // detail page they were left on.
+          window.dispatchEvent(new CustomEvent('ethaion:tab-home', { detail: { tab: t } }));
         }}
       />
 
@@ -2168,21 +2193,13 @@ export default function BeauHome() {
 
         {/* Saved — bookmarks from Curated and every intake path. Routable view
             (no tab-bar slot); opened from the Curated tab's card or chat. */}
+        {/* No local back row here: the floating chrome already carries this
+            view's ← BACK (see crumbFallback above) and a second one under it
+            was the duplicate the founder called out. */}
         {tab === 'saved' && (
-          <div>
-            <div className="px-5 pt-4 max-w-4xl mx-auto w-full">
-              <button
-                type="button"
-                onClick={backToCurated}
-                className={`inline-flex items-center gap-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
-              >
-                <ArrowLeft className="w-3.5 h-3.5" /> The Rail
-              </button>
-            </div>
-            <Suspense fallback={<TabLoadingSkeleton />}>
-              <SavedTab />
-            </Suspense>
-          </div>
+          <Suspense fallback={<TabLoadingSkeleton />}>
+            <SavedTab />
+          </Suspense>
         )}
       </div>
       {/* Single chat entry point: the Ask Beau capsule in the chrome nav bar
@@ -2194,6 +2211,10 @@ export default function BeauHome() {
           Auto-shows once (localStorage-gated), never over the intake wizard
           — this branch only renders after onboarding completes. */}
       <OnboardingTour />
+
+      {/* Back to the top — a small capsule in the bottom-right corner, clear
+          of the phone's tab bar, shown only once the top has scrolled away. */}
+      <ScrollToTop />
 
       {/* The maker sheet — slides in from the right wherever a maker's name
           is clicked; carries its own ← CLOSE, Escape and backdrop-tap ways

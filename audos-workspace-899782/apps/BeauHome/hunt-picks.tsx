@@ -313,8 +313,15 @@ export function HuntPicks({
       setOpen({});
       setDetail(null);
     };
+    // Tapping the tab label itself does the same, even when The Hunt is
+    // already the tab on screen: the ten-pick page closes and the categories
+    // fold back to the shelf's own home.
     window.addEventListener('ethaion:tab-activated', onActivated);
-    return () => window.removeEventListener('ethaion:tab-activated', onActivated);
+    window.addEventListener('ethaion:tab-home', onActivated);
+    return () => {
+      window.removeEventListener('ethaion:tab-activated', onActivated);
+      window.removeEventListener('ethaion:tab-home', onActivated);
+    };
   }, []);
 
   // A category already unfolded when his RECORD changes re-draws itself —

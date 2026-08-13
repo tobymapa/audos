@@ -1,6 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   ChevronRight,
@@ -67,6 +66,7 @@ import { ARCHETYPE_PHOTOS, ARCHETYPE_PHOTO_SETS, ArchetypeIllo } from '../BeauHo
 import { HowToMeasureButton } from '../BeauHome/measure-guide';
 import { SaveProfileButton } from '../BeauHome/save-profile';
 import { TabHeader } from '../BeauHome/tab-header';
+import { CrumbPublisher, goToEthaionTab } from '../BeauHome/crumb-trail';
 import { fetchAvatarInputs, saveAvatarInputs } from '../BeauHome/body-profile';
 import {
   CLIMATE_OPTIONS,
@@ -1185,15 +1185,19 @@ function TasteReferencesScreen({ onBack }: { onBack: () => void }) {
   return (
     <div ref={rootRef} className="min-h-full bg-transparent">
       <div className="px-5 py-5 space-y-5 max-w-4xl mx-auto w-full pb-24">
+        {/* No local back control — this screen publishes its whereabouts to
+            the app's ONE floating back + breadcrumb row instead. */}
+        <CrumbPublisher
+          segs={[
+            { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
+            { label: 'The Dossier', onClick: onBack },
+            { label: 'Taste references' },
+          ]}
+          onBack={onBack}
+          backLabel="The Dossier"
+        />
         <div>
-          <button
-            type="button"
-            onClick={onBack}
-            className={`inline-flex items-center gap-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> The Dossier
-          </button>
-          <h3 className={`${typography.size['2xl']} ${typography.weight.semibold} ${typography.color.primary} mt-2`}>
+          <h3 className={`${typography.size['2xl']} ${typography.weight.semibold} ${typography.color.primary}`}>
             Taste references
           </h3>
           <p className={`${typography.size.xs} ${typography.color.muted} mt-0.5 max-w-md`}>
@@ -1556,6 +1560,18 @@ export default function YourStyle() {
 
   // Taste References — drill-down sub-screen.
   const [view, setView] = useState<'main' | 'taste-references'>('main');
+
+  // Tapping The Dossier's tab label comes back to the tab's home: the Taste
+  // references drill-down closes and every section folds away.
+  useEffect(() => {
+    const onTabHome = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab !== 'your-style') return;
+      setView('main');
+      setOpenIds({});
+    };
+    window.addEventListener('ethaion:tab-home', onTabHome);
+    return () => window.removeEventListener('ethaion:tab-home', onTabHome);
+  }, []);
   const [tasteCount, setTasteCount] = useState<number | null>(null);
   const profileEditVersion = useRef(0);
   const profileEditsPending = useRef(0);
@@ -1922,6 +1938,7 @@ export default function YourStyle() {
   }
 
   // Dedicated Taste References sub-screen — a full drill-down, not inline.
+  // Tapping The Dossier's own tab label closes it (see the listener below).
   if (view === 'taste-references') {
     return (
       <TasteReferencesScreen
