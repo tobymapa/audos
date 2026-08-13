@@ -86,6 +86,10 @@ function getPaymentAppId(spaceId: string) {
   return runtimeWindow.__APP_ID__ || runtimeWindow.__SPACE_ID__ || spaceId;
 }
 
+function isLocalOnlySessionId(value: unknown): boolean {
+  return typeof value === 'string' && /^(guest|ephemeral|anon)_/.test(value);
+}
+
 // Comprehensive list of second-level TLDs (country-code SLDs) that require 3-part domain
 const MULTI_LEVEL_TLDS = [
   // UK
@@ -235,10 +239,10 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (recoveredId) return recoveredId;
+        if (recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
       }
       const ssId = sessionStorage.getItem('space_session_id');
-      if (ssId) return ssId;
+      if (ssId && !isLocalOnlySessionId(ssId)) return ssId;
     } catch {
       // Storage unavailable (e.g. Edge tracking protection) — generate an
       // ephemeral session ID so chat and analytics still work for this page visit.
@@ -461,13 +465,13 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (recoveredId) {
+        if (recoveredId && !isLocalOnlySessionId(recoveredId)) {
           setSessionId(recoveredId);
           return recoveredId;
         }
       }
       const ssId = sessionStorage.getItem('space_session_id');
-      if (ssId) {
+      if (ssId && !isLocalOnlySessionId(ssId)) {
         setSessionId(ssId);
         return ssId;
       }

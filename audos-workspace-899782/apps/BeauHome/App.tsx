@@ -545,15 +545,10 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
     }
   };
 
-  const stepDone = (() => {
-    switch (step) {
-      case 0: return name.trim() !== '' || heightCm != null || weightKg != null || build != null || skinTone != null;
-      case 1: return true; // sizes are skippable — the Dossier nags instead
-      case 2: return archetypes.length > 0 || Object.keys(registerFreqs).length > 0;
-      case 3: return true; // the range is a signal, never a gate
-      default: return false;
-    }
-  })();
+  // Email verification happens before this wizard. Every profile question is
+  // optional, so Continue must remain available even when a step is blank;
+  // entered values are still persisted by commitStep.
+  const stepDone = true;
 
   // UP TO THREE directions (18a · M11) — the cap is the point: seven
   // overlapping tags tell him nothing.

@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 115; // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 116; // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -195,10 +195,10 @@ export default function EmailGate({
   // normal email/OTP registration can’t complete — always offer guest entry
   // there. Cloned workspaces (workspace-N) keep the flag-gated behavior.
   const isTemplatePreview = spaceId === 'genesis-space' || spaceId.startsWith('genesis-space-');
-  // Pass Nine: Ethaion is guest-first — entering never requires an email.
-  // The platform flag is intentionally ignored; guest entry is always on,
-  // and the email lives behind the in-app "Save your profile" flow instead.
-  const guestModeEnabled = true;
+  // A verified email-backed session is required before the profile wizard.
+  // Keeping guest entry disabled prevents local-only guest ids from reaching
+  // WorkspaceDB writes, which require a registered session.
+  const guestModeEnabled = false;
   const rawSocialProviders = (window as any).__SOCIAL_PROVIDERS__;
   const socialProviders: string[] = Array.isArray(rawSocialProviders) ? rawSocialProviders : [];
 
@@ -292,11 +292,10 @@ export default function EmailGate({
         const effectiveSessionId = session.workspaceSessionId || session.id;
 
         if (effectiveSessionId) {
-          // Guest sessions (and sessions saved in-app via "Save your
-          // profile") have no server-side OTP record — adopt them directly.
-          // The OTP verification path applies to gate-registered email
-          // sessions only.
-          if (session.isGuest || session.savedProfile) {
+          // Template previews have no server-side identity, so their local
+          // guest session is the only valid continuation. Real workspace
+          // sessions must pass the normal server-side verification below.
+          if (isTemplatePreview && session.isGuest) {
             setSessionId(effectiveSessionId);
             setStep('complete');
             return;
@@ -711,9 +710,12 @@ export default function EmailGate({
     }
 
     const registerBody = registerResult as SpaceRegisterResponseBody;
-    const effectiveSessionId =
-      registerBody.workspaceSessionId ||
-      `anon_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    const effectiveSessionId = registerBody.workspaceSessionId;
+    if (!effectiveSessionId) {
+      setError('The server returned an invalid session. Please try again.');
+      setLoading(false);
+      return;
+    }
 
     const sessionKey = `space_session_${spaceId}`;
     const session = {
@@ -1885,7 +1887,7 @@ export default function EmailGate({
               </button>
               <button
                 type="button"
-                onClick={handleGuestMode}
+                onClick={openLogin}
                 disabled={loading}
                 className="eg-link"
                 data-testid="button-register"
@@ -1913,7 +1915,7 @@ export default function EmailGate({
         </p>
         <button
           type="button"
-          onClick={handleGuestMode}
+          onClick={openLogin}
           disabled={loading}
           className="eg-btn"
           data-testid="button-enter-guest"
@@ -2048,7 +2050,7 @@ export default function EmailGate({
           <h2>Ready to start?</h2>
           <button
             type="button"
-            onClick={handleGuestMode}
+            onClick={openLogin}
             disabled={loading}
             className="eg-btn"
           >
@@ -2070,7 +2072,7 @@ export default function EmailGate({
             <button type="button" onClick={openLogin} className="eg-link">
               Sign in
             </button>
-            <button type="button" onClick={handleGuestMode} disabled={loading} className="eg-link">
+            <button type="button" onClick={openLogin} disabled={loading} className="eg-link">
               Register
             </button>
           </nav>
