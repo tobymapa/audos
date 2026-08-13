@@ -94,6 +94,7 @@ import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 import { usePlexMono } from './mono-type';
 import { SubTabs } from './sub-tabs';
 import { TabHeader } from './tab-header';
+import { CrumbPublisher, goToEthaionTab } from './crumb-trail';
 import { INDEX_OPEN_TYPE_EVENT, peekIndexTarget, takeIndexTarget, type IndexTarget } from './edit-links';
 import { PieceDetailPage } from './piece-detail-page';
 import { openMakerSheet } from './maker-sheet';
@@ -1862,6 +1863,17 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
 
   return (
     <div>
+      {/* The floating breadcrumb's read of this tab — ETHAION / THE INDEX /
+          [face]. A piece's own detail page publishes its deeper trail
+          through its CrumbHeader and wins over this while it is open. */}
+      <CrumbPublisher
+        segs={[
+          { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
+          { label: 'The Index', onClick: () => setFace('pieces') },
+          { label: face === 'pieces' ? 'Pieces' : 'Makers' },
+        ]}
+      />
+
       {/* ——— the shared tab masthead (tab-header.tsx), with the face toggle
           in its aside — the same block, indentation and rule every other
           primary tab carries. */}

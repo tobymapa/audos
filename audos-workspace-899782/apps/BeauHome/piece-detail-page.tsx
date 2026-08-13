@@ -7,14 +7,16 @@
  * The sections, in the screenshots' own order:
  *   1 · the head — name, the also-known-as line, the intro paragraph;
  *       AGAINST YOUR LEDGER at the right with the two calls to action
- *       (HUNT FOR ONE · LOG ONE I OWN) and Beau's reco control.
+ *       (BEAU'S PICKS or ASK BEAU TO SEARCH · LOG ONE I OWN — the old
+ *       HUNT FOR ONE is retired, August 2026).
  *   2 · the temperature band — the big range, the shared ruler with the
  *       band as a hatched block, the reader's YEAR plotted month by month
  *       on the same scale, and the day-count arithmetic beside it.
  *   3 · REGISTERS IT CARRIES · COLOURS TO BUY IT IN — two columns.
  *   4 · WHERE IT SUITS — the reader's city first, then the places his
- *       trips have logged, each with a verdict headline and Beau's line.
- *   5 · the CUTS — one card per cut, each with its own flat-lay upload.
+ *       trips have logged, as equal divided columns with a verdict
+ *       headline and Beau's line (rebuilt to the screenshot, August 2026).
+ *   5 · the CUTS — COMMENTED OUT (August 2026), kept to restore later.
  *   6 · WHO MAKES IT — the maker table, REF marked, priced, every name
  *       opening the maker sheet.
  *   7 · WHAT ELSE ANSWERS THIS BAND — the neighbours, bars on the same
@@ -525,17 +527,20 @@ export function PieceDetailPage({
             </div>
           )}
           <div className="flex flex-wrap" style={{ gap: '8px', marginTop: '14px' }}>
-            <OutlinedControl solid onClick={huntThis}>Hunt for one →</OutlinedControl>
-            <OutlinedControl onClick={logOne}>Log one I own</OutlinedControl>
-          </div>
-          <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: ROW_HAIRLINE }}>
+            {/* “Hunt for one” retired (founder's request, August 2026): a
+                piece that IS one of Beau's picks leads straight to The Hunt →
+                Beau's Picks; anything else hands the search to Ask Beau. */}
             {hasPicks ? (
-              <ControlLink onClick={huntThis}>See Beau's picks →</ControlLink>
+              <OutlinedControl solid onClick={huntThis}>Beau's Picks →</OutlinedControl>
             ) : (
-              <ControlLink onClick={() => openInAskBeau(`Find me a ${type.name.toLowerCase()} — the right cut, cloth and maker for me`)}>
+              <OutlinedControl
+                solid
+                onClick={() => openInAskBeau(`Find me a ${type.name.toLowerCase()} — the right cut, cloth and maker for me`)}
+              >
                 Ask Beau to search →
-              </ControlLink>
+              </OutlinedControl>
             )}
+            <OutlinedControl onClick={logOne}>Log one I own</OutlinedControl>
           </div>
         </div>
       </div>
@@ -635,26 +640,58 @@ export function PieceDetailPage({
         </section>
       </div>
 
-      {/* ——— 4 · where it suits */}
-      {places.length > 0 && (
-        <section>
-          <SectionHead title="Where it suits" note={`your city first, then everywhere you go ${MIDDOT} places from the Dossier`} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: '14px 20px', marginTop: '16px' }}>
-            {copy.places.map((place) => (
-              <div key={place.name} style={{ border: `1px solid ${HAIRLINE}`, background: PAPER, padding: '14px 16px 16px' }}>
+      {/* ——— 4 · where it suits — rebuilt to the founder's screenshot
+          (August 2026): a full-width header row, then the places as EQUAL
+          columns butted together with only a divider line between them.
+          The home city leads, then the logged places, then region/country
+          contexts; Beau writes each verdict from the piece's temperature
+          band, cloth weight and formality against the climate and register
+          of the place. No city set → the placeholder line, never a hidden
+          section. */}
+      <section>
+        <div
+          className="flex items-baseline justify-between flex-wrap"
+          style={{ gap: '4px 18px', paddingBottom: '8px', borderBottom: `1px solid ${RULE}`, marginTop: '34px' }}
+        >
+          <span style={mono(8.5, WALNUT)}>Where it suits — your city first, then everywhere you go</span>
+          <span style={mono(8, FAINT)}>Places from the Dossier</span>
+        </div>
+        {copy.places.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3">
+            {copy.places.slice(0, 3).map((place, i) => (
+              <div
+                key={place.name}
+                className={i > 0 ? 'sm:border-l border-t sm:border-t-0 border-[rgba(59,43,29,0.18)]' : ''}
+                style={{ padding: i > 0 ? '16px 18px 18px' : '16px 18px 18px 0' }}
+              >
                 <div className="flex items-baseline justify-between" style={{ gap: '10px' }}>
-                  <span style={{ ...serif(18, WALNUT) }}>{place.name}</span>
-                  <span style={mono(7, FAINT)}>{place.home ? 'your city' : `${place.trips} trip${place.trips === 1 ? '' : 's'}`}</span>
+                  <span style={{ ...serif(22, WALNUT), lineHeight: 1.1 }}>{place.name}</span>
+                  <span style={{ ...mono(7, FAINT), whiteSpace: 'nowrap' }}>
+                    {place.home
+                      ? 'Your city'
+                      : place.trips > 0
+                        ? `${place.trips} trip${place.trips === 1 ? '' : 's'} logged`
+                        : 'From your record'}
+                  </span>
                 </div>
-                <div style={{ ...mono(8.5, toneInk(place.tone)), marginTop: '8px' }}>{place.verdict}</div>
-                <p style={{ ...body(12.5, SECONDARY), margin: '8px 0 0', lineHeight: 1.55 }}>{place.why}</p>
+                <div style={{ ...mono(8.5, toneInk(place.tone)), marginTop: '10px' }}>{place.verdict}</div>
+                <p style={{ ...body(12.5, place.tone === 'wrong' ? FAINT : SECONDARY), margin: '8px 0 0', lineHeight: 1.55 }}>
+                  {place.why}
+                </p>
               </div>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <p style={{ ...body(13, FAINT), margin: '14px 0 0' }}>
+            Set your city in the Dossier and the verdicts fill in.
+          </p>
+        )}
+      </section>
 
-      {/* ——— 5 · the cuts */}
+      {/* ——— 5 · the cuts — COMMENTED OUT (founder's request, August 2026);
+          the section is hidden from view but kept intact so it can be
+          restored later. Remove this comment wrapper to bring it back. */}
+      {/*
       {type.cuts.length > 0 && (
         <section>
           <SectionHead title={copy.cutsHeading} />
@@ -665,6 +702,7 @@ export function PieceDetailPage({
           </div>
         </section>
       )}
+      */}
 
       {/* ——— 6 · who makes it */}
       <section>

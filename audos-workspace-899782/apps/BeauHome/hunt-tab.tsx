@@ -42,6 +42,7 @@ import { DOSSIER_DETAILS_EVENT } from './dossier-details';
 import { COVERAGE_PREFS_EVENT } from './coverage-prefs';
 import { SubTabs, type SubTabItem } from './sub-tabs';
 import { TabHeader } from './tab-header';
+import { CrumbPublisher, goToEthaionTab } from './crumb-trail';
 import { HUNT_ASK_EVENT, HUNT_OPEN_CATEGORY_EVENT, peekAskQuery, peekHuntTarget } from './edit-links';
 import type { CategoryBudget, StylePrefs, StyleProfile, WardrobePiece } from './profile-data';
 import { loadHuntReader, type HuntReader } from './hunt-reader';
@@ -51,6 +52,13 @@ import { HuntAsk } from './hunt-ask';
 import { HuntCalls } from './hunt-calls';
 
 type HuntFace = 'picks' | 'ask' | 'calls';
+
+/** What each face reads as in the app-wide floating breadcrumb. */
+const FACE_TRAIL: Record<HuntFace, string> = {
+  picks: "Beau's Picks",
+  ask: 'Ask Beau',
+  calls: 'Your Calls',
+};
 
 /** The standfirst changes with the face; the title never does. ONE short
  * sentence each, so the masthead wraps exactly as the other five tabs do. */
@@ -172,6 +180,17 @@ export function HuntTab({
 
   return (
     <div>
+      {/* The floating breadcrumb's read of this tab — ETHAION / THE HUNT /
+          [face]. A ten-picks page open inside a face publishes its own,
+          deeper trail and wins over this one while it is on screen. */}
+      <CrumbPublisher
+        segs={[
+          { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
+          { label: 'The Hunt', onClick: () => setFace('picks') },
+          { label: FACE_TRAIL[face] },
+        ]}
+      />
+
       {/* The shared tab masthead (tab-header.tsx) — the same block every
           other primary tab carries. The three face chips sit in its aside,
           in the same place and the same treatment as The Index's

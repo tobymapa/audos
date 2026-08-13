@@ -96,10 +96,12 @@ import {
   MUTED,
   PAGE,
   PAPER,
+  RULE,
   SERIF,
   WALNUT,
   body,
 } from './index-style';
+import { openInBeausPicks } from './edit-links';
 import { TabHeader } from './tab-header';
 import {
   AvoidList,
@@ -466,8 +468,13 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
       className="block min-w-0"
       style={{
         textAlign: side === 'l' ? 'right' : 'left',
-        // Widened by 50% from the reference's 110px (founder's correction).
-        maxWidth: '165px',
+        // ONE FIXED WIDTH for every callout box (founder's correction,
+        // August 2026): widened by 50% from the reference's 110px, and no
+        // longer sized to its own text — every clothing text box on the
+        // canvas draws at exactly this width, none wider or narrower.
+        width: '165px',
+        flexShrink: 0,
+        boxSizing: 'border-box',
         background: PAPER,
         border: `1px solid ${HAIRLINE}`,
         padding: '4px 8px',
@@ -1124,6 +1131,38 @@ export function FittingRoomTab({
          'Don\u2019t count a dashed piece as worn — it isn\u2019t in your Ledger yet.']),
   ].slice(0, 4);
 
+  // ------------------------------------------------------------------
+  // MISSING PIECES FOR THIS OCCASION (founder's request, August 2026).
+  // When the wardrobe cannot properly dress the selected occasion — the
+  // composed board is short of a full outfit, or the compose named a gap —
+  // the canvas says so plainly, and Beau's picks for the missing pieces
+  // close the tab, with the same categories one tap away in The Hunt →
+  // Beau's Picks.
+  // ------------------------------------------------------------------
+  const missingZones = useMemo(() => {
+    const covered = new Set(activeBoard.map((p) => zoneLabelFor(p)));
+    return ['Top', 'Bottom', 'Feet'].filter((zone) => !covered.has(zone));
+  }, [activeBoard]);
+  const fittingDrawn = !!fittings[fittingKey];
+  const insufficient =
+    !composing && (fittingDrawn ? activeBoard.length < 3 || !!entry.gapNote : pieces.length < 3);
+  /** A missing zone → the Hunt/Index category its replacement lives in. */
+  const zoneCategory: Record<string, string> = {
+    Top: 'tops',
+    Bottom: 'bottoms',
+    Feet: 'shoes',
+    'Outer layer': 'outerwear',
+    'Mid layer': 'knitwear',
+  };
+  const missingCategories = missingZones.map((zone) => zoneCategory[zone]).filter(Boolean);
+  const missingPicksPool =
+    missingCategories.length > 0
+      ? beauPicks.filter((p) => missingCategories.includes((p.category || '').toLowerCase()))
+      : [];
+  const missingPicks = (missingPicksPool.length > 0 ? missingPicksPool : beauPicks).slice(0, 8);
+  const openMissingInHunt = () =>
+    openInBeausPicks({ categoryId: missingCategories[0] || (missingPicks[0]?.category || 'tops').toLowerCase() });
+
   const railDays: RailDay[] = DAY_NAMES.map((name, i) => ({
     key: name,
     abbr: name.slice(0, 3),
@@ -1163,9 +1202,11 @@ export function FittingRoomTab({
         <div className="max-w-[1180px] mx-auto grid grid-cols-1 lg:grid-cols-[176px_minmax(0,1fr)_220px] xl:grid-cols-[188px_minmax(0,1fr)_232px] items-stretch">
           <div className="lg:border-r border-[rgba(59,43,29,0.18)] flex flex-col min-w-0">
             <DayRail days={railDays} />
-            {/* THE ALTERNATIVES — below the days, not beside the canvas
-                (founder's correction). On a phone they stay in the notes
-                column below the board instead. */}
+            {/* THE ALTERNATIVES — COMMENTED OUT (founder's request, August
+                2026): the swap-alternatives section is hidden from view but
+                kept intact so it can be restored later. Remove this comment
+                wrapper to bring it back. */}
+            {/*
             <div className="hidden lg:block" style={{ padding: '16px 14px 24px 0' }}>
               <SectionRule>Swap alternatives</SectionRule>
               {swaps.length > 0 ? (
@@ -1188,6 +1229,7 @@ export function FittingRoomTab({
                 </p>
               )}
             </div>
+            */}
           </div>
 
           {/* THE FITTING ITSELF */}
@@ -1264,6 +1306,30 @@ export function FittingRoomTab({
               </div>
               <div style={{ ...fitLabel(8, MUTED, '0.2em'), marginTop: '7px' }}>{bodyTag}</div>
               <p style={{ ...body(12, INK), margin: '14px auto 0', maxWidth: '66ch', lineHeight: 1.65 }}>{outfitDescription}</p>
+
+              {/* THE HONEST GAP — the wardrobe cannot dress this occasion
+                  properly; the fitting says so plainly and points at Beau's
+                  picks for the missing pieces at the foot of the page. */}
+              {insufficient && (
+                <div
+                  style={{
+                    margin: '18px auto 0',
+                    maxWidth: '440px',
+                    border: `1px solid ${RULE}`,
+                    background: PAPER,
+                    padding: '14px 16px 15px',
+                  }}
+                >
+                  <div style={{ fontFamily: SERIF, fontSize: '17px', lineHeight: 1.3, color: WALNUT }}>
+                    You don’t have the pieces for {meta.label.toLowerCase()} yet.
+                  </div>
+                  {entry.gapNote && <p style={{ ...body(12, MUTED), margin: '7px 0 0' }}>{entry.gapNote}</p>}
+                  <p style={{ ...body(12, MUTED), margin: '7px 0 0' }}>
+                    Beau’s picks for the missing pieces close this page — and sit in The Hunt → Beau’s Picks under
+                    their categories.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1273,6 +1339,9 @@ export function FittingRoomTab({
             <SectionRule>Style notes</SectionRule>
             <NoteList notes={styleNotes} />
 
+            {/* SWAP ALTERNATIVES (phone) — COMMENTED OUT (founder's
+                request, August 2026); kept intact to restore later. */}
+            {/*
             <div className="lg:hidden">
               <SectionRule className="mt-8">Swap alternatives</SectionRule>
               {swaps.length > 0 ? (
@@ -1295,6 +1364,7 @@ export function FittingRoomTab({
                 </p>
               )}
             </div>
+            */}
 
             <SectionRule className="mt-8">What not to do</SectionRule>
             <AvoidList notes={avoidNotes} />
@@ -1365,6 +1435,44 @@ export function FittingRoomTab({
                 <ShelfEmpty>Beau has nothing to add yet — log a few pieces in The Ledger and he’ll fill this shelf.</ShelfEmpty>
               )}
             </Shelf>
+
+            {/* BEAU'S PICKS FOR THE OCCASION — only when the wardrobe cannot
+                dress it: his recommendations for the missing pieces, with the
+                same categories one tap away in The Hunt → Beau's Picks. */}
+            {insufficient && missingPicks.length > 0 && (
+              <section aria-label={`Beau's picks for ${meta.label}`} style={{ marginTop: '26px' }}>
+                <div
+                  className="flex items-baseline justify-between gap-4 flex-wrap"
+                  style={{ paddingBottom: '8px', borderBottom: `1px solid ${HAIRLINE}` }}
+                >
+                  <span style={fitLabel(9, ACCENT_DEEP, '0.18em')}>
+                    Beau’s picks for {meta.label} · the pieces you’re missing
+                  </span>
+                  <button
+                    type="button"
+                    onClick={openMissingInHunt}
+                    className="hover:underline"
+                    style={{ ...fitLabel(9, ACCENT_DEEP, '0.14em'), background: 'transparent', border: 'none', padding: 0 }}
+                  >
+                    See them in The Hunt · Beau’s Picks →
+                  </button>
+                </div>
+                <p style={{ ...body(12.5, MUTED), margin: '10px 0 0', maxWidth: '70ch' }}>
+                  You don’t have the pieces for {meta.label.toLowerCase()} yet — these fill the gaps. Tap one to try
+                  it on the board; the same recommendations live in The Hunt under their categories.
+                </p>
+                <div className="flex flex-wrap gap-x-6 gap-y-7" style={{ paddingTop: '18px' }}>
+                  {missingPicks.map((piece) => (
+                    <ShelfCard
+                      key={`missing-${piece.key}`}
+                      piece={piece}
+                      selected={selectedKeys.has(piece.key)}
+                      onTap={() => toggleOnBoard(piece)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>

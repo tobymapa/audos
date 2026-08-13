@@ -66,7 +66,7 @@ import {
 } from './photo-enhance';
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { OnboardingTour } from './onboarding-tour';
-import { FloatingBackButton } from './floating-back';
+import { FloatingCrumbBar, type CrumbPublication } from './crumb-trail';
 import { HairlineRowsSkeleton, HomeSkeleton } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
@@ -1284,6 +1284,23 @@ function TabIcon({ icon }: { icon: string }) {
  * 'radar' is the old Reserve — the watch list. */
 const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated', 'radar'];
 
+/** What each tab reads as in the FLOATING breadcrumb (crumb-trail.tsx) —
+ * the label after the ETHAION root when nothing deeper is on screen. */
+const TAB_TRAIL_LABELS: Record<TabId, string> = {
+  wardrobe: 'The Ledger',
+  beau: 'The Edit',
+  'fitting-room': 'The Fitting',
+  hunt: 'The Hunt',
+  index: 'The Index',
+  'your-style': 'The Dossier',
+  curated: 'The Rail',
+  radar: 'The Reserve',
+  reads: 'Reads',
+  rail: 'The Rail',
+  saved: 'Saved',
+  dressed: 'Build a Look',
+};
+
 function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void }) {
   // Warm Editorial nav, two placements (six tabs since The Hunt returned):
   //  · DESKTOP — the tabs as a centred header strip, 47px tall. The
@@ -1891,16 +1908,42 @@ export default function BeauHome() {
   const closeStyleToday = useCallback(() => setOpenStyleToday(false), []);
   const backToWardrobe = useCallback(() => setTab('wardrobe'), []);
   const backToCurated = useCallback(() => setTab('curated'), []);
+  const goHome = useCallback(() => {
+    setTab('wardrobe');
+    setOpenStyleToday(false);
+  }, []);
 
-  // FLOATING BACK (founder's fix): the one back action the CURRENT view
-  // supports, if any — exactly the handler that view's own back button
-  // already calls. Top-level tab roots have none, so nothing floats there;
-  // the button itself only appears once the page is scrolled down.
-  const floatingBack =
-    tab === 'wardrobe' && openStyleToday ? closeStyleToday
-    : tab === 'dressed' ? backToWardrobe
-    : tab === 'saved' ? backToCurated
-    : null;
+  // THE FLOATING TRAIL'S FALLBACK (founder's request, August 2026): the
+  // active tab's own root trail — ETHAION / THE LEDGER and so on. Sub-pages
+  // publish deeper trails themselves (CrumbHeader / CrumbPublisher) and win
+  // over this while they are on screen; the three shell-owned sub-views
+  // (Style me today, Build a Look, Saved) publish here, with the same back
+  // handler their own back buttons call. A root tab view carries no back.
+  const crumbFallback = useMemo<CrumbPublication>(() => {
+    const home = { label: 'Ethaion', onClick: goHome };
+    if (tab === 'wardrobe' && openStyleToday) {
+      return {
+        segs: [home, { label: 'The Ledger', onClick: closeStyleToday }, { label: 'Style me today' }],
+        onBack: closeStyleToday,
+        backLabel: 'The Ledger',
+      };
+    }
+    if (tab === 'dressed') {
+      return {
+        segs: [home, { label: 'The Ledger', onClick: backToWardrobe }, { label: 'Build a Look' }],
+        onBack: backToWardrobe,
+        backLabel: 'The Ledger',
+      };
+    }
+    if (tab === 'saved') {
+      return {
+        segs: [home, { label: 'The Rail', onClick: backToCurated }, { label: 'Saved' }],
+        onBack: backToCurated,
+        backLabel: 'The Rail',
+      };
+    }
+    return { segs: [home, { label: TAB_TRAIL_LABELS[tab] || 'Home' }] };
+  }, [tab, openStyleToday, goHome, closeStyleToday, backToWardrobe, backToCurated]);
 
   if (!profileLoaded) {
     // Skeleton over spinner (Track J): ghost outlines of the page that's
@@ -2133,9 +2176,13 @@ export default function BeauHome() {
       {/* Single chat entry point: the Beau button in the shell header — no
           floating duplicates. */}
 
-      {/* Floating back — fixed top-left once the user scrolls down inside a
-          sub-view; mirrors that view's own back button exactly. */}
-      {floatingBack && <FloatingBackButton onBack={floatingBack} />}
+      {/* THE FLOATING TRAIL — the fixed top-left breadcrumb bar on every
+          page and sub-page: ← BACK │ ETHAION / THE INDEX / MAKERS. It shows
+          the deepest trail currently on screen (sub-pages publish their own
+          through CrumbHeader / CrumbPublisher) and falls back to the active
+          tab's root trail. It replaces the old scroll-triggered floating
+          back button (floating-back.tsx, kept on file). */}
+      <FloatingCrumbBar fallback={crumbFallback} />
 
       {/* First-run coach-mark tour + the quiet "?" re-trigger in the corner.
           Auto-shows once (localStorage-gated), never over the intake wizard

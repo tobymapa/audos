@@ -42,7 +42,7 @@ import { TabHeader } from './tab-header';
 import { matchGarmentTypeId } from './index-model';
 import { openInTheIndex } from './edit-links';
 import { openMakerSheet } from './maker-sheet';
-import { CrumbTrail } from './crumb-trail';
+import { CrumbPublisher, CrumbTrail, type CrumbSegment } from './crumb-trail';
 import {
   fetchMaterials,
   fetchPieceConditions,
@@ -642,12 +642,16 @@ export function LedgerTab({
         ? 'Nothing logged yet \u2014 start with one piece'
         : `${capWord(numberWord(model.categories.length))} categories ${MIDDOT} open one to see what is in it`;
 
-  const crumbs = [
-    'Ethaion',
-    'The Ledger',
-    q ? `“${q}”` : view === 'list' ? 'List' : 'Tiles',
-    openPiece ? openPiece.name : '',
-  ].filter(Boolean);
+  // Where you are inside the record — shown inline AND published to the
+  // app-wide floating breadcrumb. With a piece sheet open, the trail's
+  // Ledger segments climb back out of it.
+  const closePieceSheet = () => setOpenPieceId(null);
+  const trailSegs: CrumbSegment[] = [
+    { label: 'Ethaion' },
+    openPiece ? { label: 'The Ledger', onClick: closePieceSheet } : { label: 'The Ledger' },
+    { label: q ? `“${q}”` : view === 'list' ? 'List' : 'Tiles', onClick: openPiece ? closePieceSheet : undefined },
+    ...(openPiece ? [{ label: openPiece.name }] : []),
+  ];
 
   return (
     <div>
@@ -666,9 +670,15 @@ export function LedgerTab({
       />
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-        {/* Where you are inside the record — the app's shared trail. */}
+        {/* Where you are inside the record — the app's shared trail, also
+            feeding the floating breadcrumb in the top-left. */}
         <div style={{ paddingBottom: '14px' }}>
-          <CrumbTrail segs={crumbs.map((crumb) => ({ label: crumb }))} />
+          <CrumbPublisher
+            segs={trailSegs}
+            onBack={openPiece ? closePieceSheet : undefined}
+            backLabel={openPiece ? 'The Ledger' : undefined}
+          />
+          <CrumbTrail segs={trailSegs} />
         </div>
 
         {/* LOG A PIECE — a link in one end or a photograph in the other. */}

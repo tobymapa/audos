@@ -416,12 +416,14 @@ export function HarmonyBars({ colors }: { colors: string[] }) {
   );
 }
 
-/** “Style notes” — em-dash bullets in the accent. */
+/** “Style notes” — em-dash bullets in the accent. The body type is set at
+ * the SAME size as the “What not to do” list below it (founder's
+ * correction, August 2026) — the two panels must read identically. */
 export function NoteList({ notes }: { notes: string[] }) {
   return (
     <div className="flex flex-col gap-2.5" style={{ marginTop: '12px' }}>
       {notes.map((text, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '14px minmax(0,1fr)', gap: '8px', ...body(13.5, INK) }}>
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '14px minmax(0,1fr)', gap: '8px', ...body(12.5, INK) }}>
           <span style={{ color: ACCENT }} aria-hidden="true">
             —
           </span>

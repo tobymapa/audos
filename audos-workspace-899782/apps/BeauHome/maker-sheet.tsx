@@ -15,8 +15,13 @@
  *   hunt_directory_brands additions (their stored dossier JSON). A maker
  *   with no file at all still opens — Beau writes a short read from what
  *   he knows, cached, with a quiet deterministic line until it lands.
- * · The sheet always carries a visible ← CLOSE control, closes on Escape
- *   and on a backdrop tap — no dead-end overlay (founder's rule).
+ * · RESTYLED to the founder's screenshot (August 2026): MAKER · COUNTRY
+ *   top bar with an ×, the name in large serif, CITY · SINCE · tier line,
+ *   the tagline and description, the BEAU'S READ tinted callout with its
+ *   type tag, four data cells (RUNS IT CUTS · PRICE, NEW · YOUR LEDGER ·
+ *   STOCKED), the PIECES THEY CUT pills, and SEND TO THE HUNT · BACK TO
+ *   THE LIST. It closes on the ×, on Escape and on a backdrop tap — no
+ *   dead-end overlay (founder's rule).
  *
  * Every colour and type helper is the shared warm-editorial set
  * (index-style.tsx); nothing here sets a palette of its own.
@@ -33,20 +38,20 @@ import {
   type DirectoryBrandRow,
 } from './brands';
 import { garmentTypesForMaker } from './garment-types';
-import { FIELD_REGISTER_LABELS } from './index-model';
-import { openInTheIndex } from './edit-links';
+import { categoryName } from './index-model';
+import { openInAskBeau, openInTheIndex } from './edit-links';
 import { CLAUDE_HAIKU, callModel } from './claude';
 import type { StyleProfile, WardrobePiece } from './profile-data';
 import {
   ACCENT_DEEP,
   FAINT,
-  FAINTER,
   HAIRLINE,
   INK,
   MUTED,
   PAPER,
   RULE,
   SECONDARY,
+  TINT_SOFT,
   WALNUT,
   body,
   mono,
@@ -198,13 +203,15 @@ function useBeauMakerNote(
 // The host — mounted once in App.tsx; every surface opens it by event.
 // ---------------------------------------------------------------------------
 
-function FactRow({ label, children }: { label: string; children: React.ReactNode }) {
+/** One data cell of the founder's layout — the label above, the value
+ * beneath it, set in columns. */
+function DataCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ padding: '10px 0', borderBottom: '1px solid rgba(59,43,29,0.12)' }}>
+    <div style={{ padding: '12px 0', borderBottom: '1px solid rgba(59,43,29,0.12)' }}>
       <span className="block" style={mono(8, FAINT)}>
         {label}
       </span>
-      <span className="block" style={{ ...body(13, INK), marginTop: '4px', lineHeight: 1.55 }}>
+      <span className="block" style={{ ...body(13, INK), marginTop: '5px', lineHeight: 1.5 }}>
         {children}
       </span>
     </div>
@@ -280,8 +287,59 @@ export function MakerSheetHost({
 
   const p = brandProfile;
   const site = p?.websiteUrl || verifiedBrandWebsiteUrl(name);
-  const where = p ? [p.city, p.country].filter((v) => v && v !== '—').join(', ') : '';
   const close = () => setName(null);
+
+  // The dossier, read into the founder's layout (August 2026 restyle):
+  // MAKER · COUNTRY · the name · city · since · tier · the tagline · the
+  // description · BEAU'S READ · the four data cells · the piece pills · the
+  // two calls to action. Nothing is invented: a house not fully on file
+  // says so, cell by cell.
+  const country = p?.country && p.country !== '—' ? p.country : null;
+  const subLine =
+    [
+      p?.city && p.city !== '—' ? p.city : null,
+      p?.founded ? `Since ${p.founded}` : null,
+      p ? PRICE_BAND_SYMBOL[p.priceBand] : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'Not fully on file yet';
+  const signature = (p?.signaturePieces || [])[0] || null;
+  const tagline = p?.referenceFor
+    ? `The reference for ${p.referenceFor.toLowerCase()}.`
+    : signature
+      ? `Known for the ${signature.toLowerCase()}.`
+      : p?.construction && p.construction !== '—'
+        ? `${p.construction} — honest make, properly done.`
+        : 'Not fully on file yet — Beau adds the dossier as he learns the house.';
+  const readTag = !p
+    ? 'Special case'
+    : p.referenceFor
+      ? 'Benchmark'
+      : p.priceBand === 'accessible' || p.priceBand === 'mid'
+        ? 'Sleeper'
+        : 'Special case';
+  const runsItCuts = (() => {
+    const cats: string[] = [];
+    for (const t of types) {
+      const label = categoryName(t.category);
+      if (label && !cats.includes(label)) cats.push(label);
+    }
+    return cats.slice(0, 2).join(' · ') || '—';
+  })();
+  const priceNew = (() => {
+    if (!p) return '—';
+    const label = (p.priceRangeLabel || '').trim();
+    const bracket = label.match(/\(([^)]+)\)/);
+    const range = bracket ? bracket[1] : label && label !== '—' ? label : PRICE_BAND_LABELS[p.priceBand];
+    return `${range} · ${PRICE_BAND_SYMBOL[p.priceBand]}`;
+  })();
+  const ownedCount = pieces.filter((x) => (x.brand || '').trim().toLowerCase() === name.trim().toLowerCase()).length;
+  const yourLedger = ownedCount > 0 ? `${ownedCount} piece${ownedCount === 1 ? '' : 's'} of theirs` : '—';
+  const stocked = site ? 'Online' : p?.city && p.city !== '—' ? 'Travel to buy' : '—';
+  const sendToHunt = () => {
+    close();
+    openInAskBeau(`Hunt ${name} for me — which of their pieces is right for my wardrobe, and at what price?`);
+  };
 
   return (
     <div
@@ -303,93 +361,114 @@ export function MakerSheetHost({
           boxShadow: '-18px 0 48px rgba(36,26,18,0.3)',
         }}
       >
-        {/* The head — the way out first, then the name. */}
+        {/* The top bar — MAKER · COUNTRY, the × at the right. */}
         <div
           className="flex items-center justify-between sticky top-0"
           style={{ padding: '14px 22px', borderBottom: `1px solid ${HAIRLINE}`, background: PAPER, zIndex: 2 }}
         >
-          <span style={mono(8.5, FAINT)}>The maker's file</span>
+          <span style={mono(8.5, MUTED)}>Maker{country ? ` · ${country}` : ''}</span>
           <button
             type="button"
             onClick={close}
-            className="transition-colors hover:border-[#a8712c]"
-            style={{ ...mono(9, SECONDARY), border: `1px solid ${RULE}`, background: 'transparent', padding: '6px 13px', borderRadius: 0 }}
+            aria-label="Close the maker's file"
+            className="hover:opacity-70 transition-opacity"
+            style={{ ...serif(22, SECONDARY), lineHeight: 1, background: 'transparent', border: 'none', padding: '0 2px' }}
           >
-            ← Close
+            ×
           </button>
         </div>
 
         <div style={{ padding: '20px 22px 30px' }}>
-          <h3 style={{ ...serif(0), fontSize: 'clamp(26px, 6vw, 32px)', lineHeight: 1.1, margin: 0, color: WALNUT }}>{name}</h3>
-          <div style={{ ...mono(8.5, MUTED), marginTop: '8px' }}>
-            {[where || null, p?.founded ? `Since ${p.founded}` : null].filter(Boolean).join(' · ') || 'Not fully on file yet'}
-          </div>
+          {/* The name, and the city · since · price-tier line. */}
+          <h3 style={{ ...serif(0), fontSize: 'clamp(28px, 6vw, 34px)', lineHeight: 1.08, margin: 0, color: WALNUT }}>{name}</h3>
+          <div style={{ ...mono(8.5, MUTED), marginTop: '9px' }}>{subLine}</div>
 
-          {p?.description && <p style={{ ...body(14, INK), margin: '14px 0 0', maxWidth: '58ch' }}>{p.description}</p>}
+          <div aria-hidden="true" style={{ marginTop: '16px', borderTop: `1px solid ${RULE}` }} />
 
-          <div style={{ marginTop: '16px', borderTop: `1px solid ${RULE}` }}>
-            <FactRow label="Known for">
-              {p
-                ? [p.referenceFor, ...(p.signaturePieces || [])].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).slice(0, 4).join(' · ') || '—'
-                : '—'}
-            </FactRow>
-            <FactRow label="Cut & construction">
-              {p && p.construction && p.construction !== '—' ? `${p.construction} · ${p.constructionQuality}` : '—'}
-            </FactRow>
-            <FactRow label="Materials">{(p?.materials || []).join(' · ') || '—'}</FactRow>
-            <FactRow label="Registers">
-              {(p?.registers || []).map((r) => FIELD_REGISTER_LABELS[r] || r).join(' · ') || '—'}
-            </FactRow>
-            <FactRow label="Price">
-              {p
-                ? `${PRICE_BAND_SYMBOL[p.priceBand]} ${PRICE_BAND_LABELS[p.priceBand]}${p.priceRangeLabel && p.priceRangeLabel !== '—' && p.priceRangeLabel !== PRICE_BAND_LABELS[p.priceBand] ? ` · ${p.priceRangeLabel}` : ''}`
-                : '—'}
-            </FactRow>
-            <FactRow label="Sizing">{p?.sizingNote || '—'}</FactRow>
-          </div>
+          {/* Beau's one line on what the house is known for, then his fuller
+              read of what to buy them for and what to watch. */}
+          <h4 style={{ ...serif(19, WALNUT), fontStyle: 'italic', margin: '16px 0 0', lineHeight: 1.35 }}>{tagline}</h4>
+          {p?.description && (
+            <p style={{ ...body(13.5, INK), margin: '10px 0 0', lineHeight: 1.6, maxWidth: '58ch' }}>{p.description}</p>
+          )}
 
-          {/* The piece types they cut — each name crosses to its own page. */}
-          <div style={{ marginTop: '18px' }}>
-            <div style={{ ...mono(8.5, ACCENT_DEEP), paddingBottom: '8px', borderBottom: `1px solid ${RULE}` }}>
-              What they cut · {types.length > 0 ? `${types.length} type${types.length === 1 ? '' : 's'} on file` : 'not yet mapped'}
+          {/* BEAU'S READ — the tinted callout, tagged with how to read the
+              house: BENCHMARK · SLEEPER · SPECIAL CASE. */}
+          <div style={{ marginTop: '18px', background: TINT_SOFT, border: `1px solid ${HAIRLINE}`, padding: '14px 16px 15px' }}>
+            <div className="flex items-baseline justify-between" style={{ gap: '12px' }}>
+              <span style={mono(8.5, ACCENT_DEEP)}>Beau's read</span>
+              <span style={{ ...mono(8, MUTED), border: `1px solid ${RULE}`, padding: '2px 7px', whiteSpace: 'nowrap' }}>{readTag}</span>
             </div>
-            {types.length > 0 ? (
-              <div className="flex flex-col">
-                {types.slice(0, 10).map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      close();
-                      openInTheIndex({ typeId: t.id });
-                    }}
-                    className="text-left hover:underline"
-                    style={{
-                      ...serif(15.5, WALNUT),
-                      background: 'transparent',
-                      padding: '9px 0',
-                      borderBottom: '1px solid rgba(59,43,29,0.1)',
-                      border: 'none',
-                      borderRadius: 0,
-                    }}
-                  >
-                    {t.name} <span style={mono(7.5, FAINTER)}>its page →</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p style={{ ...body(12.5, FAINT), margin: '10px 0 0' }}>
-                No verified type mapping yet — Beau adds it as the directory learns the house.
-              </p>
-            )}
+            <p style={{ ...body(13, INK), margin: '9px 0 0', lineHeight: 1.6 }}>{note}</p>
           </div>
 
-          {/* Beau's read — for this reader, never a stock line. */}
-          <div style={{ marginTop: '20px', background: WALNUT, padding: '18px 20px 20px' }}>
-            <div style={{ ...mono(8.5, '#e3c184') }}>Beau · for you</div>
-            <p style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, color: '#fbf1de', margin: '9px 0 0' }}>
-              {note}
+          <div aria-hidden="true" style={{ marginTop: '18px', borderTop: `1px solid ${RULE}` }} />
+
+          {/* The data rows — label above, value below, in columns. */}
+          <div className="grid grid-cols-2" style={{ gap: '0 18px' }}>
+            <DataCell label="Runs it cuts">{runsItCuts}</DataCell>
+            <DataCell label="Price, new">{priceNew}</DataCell>
+            <DataCell label="Your ledger">{yourLedger}</DataCell>
+            <DataCell label="Stocked">{stocked}</DataCell>
+          </div>
+
+          <div aria-hidden="true" style={{ marginTop: '18px', borderTop: `1px solid ${RULE}` }} />
+
+          {/* The piece types they cut — each pill crosses to its own page
+              in The Index. */}
+          <div style={{ ...mono(8.5, ACCENT_DEEP), marginTop: '18px' }}>
+            Pieces they cut — {types.length} piece{types.length === 1 ? '' : 's'}
+          </div>
+          {types.length > 0 ? (
+            <div className="flex flex-wrap" style={{ gap: '8px', marginTop: '12px' }}>
+              {types.slice(0, 12).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    close();
+                    openInTheIndex({ typeId: t.id });
+                  }}
+                  title={`${t.name} — its page in The Index`}
+                  className="transition-colors hover:border-[#a8712c]"
+                  style={{
+                    ...serif(14.5, WALNUT),
+                    background: 'transparent',
+                    border: `1px solid ${RULE}`,
+                    borderRadius: '999px',
+                    padding: '7px 14px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {t.name} →
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p style={{ ...body(12.5, FAINT), margin: '10px 0 0' }}>
+              No verified type mapping yet — Beau adds it as the directory learns the house.
             </p>
+          )}
+
+          {/* The two ways on — hand the house to The Hunt, or step back. */}
+          <div className="flex flex-wrap" style={{ gap: '8px', marginTop: '24px' }}>
+            <button
+              type="button"
+              onClick={sendToHunt}
+              title="Hand this maker to The Hunt — Ask Beau opens with the brief filled in"
+              className="hover:opacity-90 transition-opacity"
+              style={{ ...mono(9, '#f6f0e5'), background: WALNUT, border: `1px solid ${WALNUT}`, padding: '12px 18px', whiteSpace: 'nowrap' }}
+            >
+              Send to the Hunt
+            </button>
+            <button
+              type="button"
+              onClick={close}
+              className="transition-colors hover:border-[#a8712c]"
+              style={{ ...mono(9, SECONDARY), background: 'transparent', border: `1px solid ${RULE}`, padding: '12px 18px', whiteSpace: 'nowrap' }}
+            >
+              Back to the list
+            </button>
           </div>
 
           {site && (
