@@ -42,6 +42,7 @@ import { DOSSIER_DETAILS_EVENT } from './dossier-details';
 import { COVERAGE_PREFS_EVENT } from './coverage-prefs';
 import { SubTabs, type SubTabItem } from './sub-tabs';
 import { TabHeader } from './tab-header';
+import { HUNT_OPEN_CATEGORY_EVENT, peekHuntTarget } from './edit-links';
 import type { CategoryBudget, StylePrefs, StyleProfile, WardrobePiece } from './profile-data';
 import { loadHuntReader, type HuntReader } from './hunt-reader';
 import { useHuntCalls } from './hunt-cards';
@@ -54,7 +55,7 @@ type HuntFace = 'picks' | 'ask' | 'calls';
 /** The standfirst changes with the face; the title never does. ONE short
  * sentence each, so the masthead wraps exactly as the other five tabs do. */
 const FACE_STANDFIRST: Record<HuntFace, string> = {
-  picks: 'Unfold a category and Beau names the three pieces to acquire next.',
+  picks: 'Unfold a category and Beau names the three sub-categories to hunt in \u2014 ten picks apiece.',
   ask: 'Ask him anything, or paste a link — he answers against your dossier.',
   calls: 'Every piece you have saved, favourited or passed — and why.',
 };
@@ -83,6 +84,16 @@ export function HuntTab({
   usePlexMono();
   const [face, setFace] = useState<HuntFace>('picks');
   const calls = useHuntCalls();
+
+  // A Gap row on The Edit deep-links straight into a category's picks: the
+  // face comes forward here, and Beau's Picks itself (hunt-picks.tsx) unfolds
+  // and scrolls to the category. Additive — nothing else about the tab moves.
+  useEffect(() => {
+    if (peekHuntTarget()) setFace('picks');
+    const onOpen = () => setFace('picks');
+    window.addEventListener(HUNT_OPEN_CATEGORY_EVENT, onOpen);
+    return () => window.removeEventListener(HUNT_OPEN_CATEGORY_EVENT, onOpen);
+  }, []);
   const [loaded, setLoaded] = useState<HuntReader | null>(null);
 
   // The ledger's identity, so a logged or removed piece re-reads the record

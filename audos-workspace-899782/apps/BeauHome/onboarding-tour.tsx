@@ -61,17 +61,17 @@ const STEPS: TourStep[] = [
   {
     anchor: 'tour-fitting',
     kicker: 'The Fitting',
-    body: 'The board opens on today\u2019s look, already dressed — a swap is one tap.',
+    body: 'Board opens on today\u2019s look, already dressed — a swap is one tap.',
   },
   {
     anchor: 'tour-fitting-board',
     kicker: 'The Fitting · The look',
-    body: 'Tap a day down the left, or an occasion along the top, and Beau re-dresses the board from what you own.',
+    body: 'Tap a day down the left, or an occasion along the top, and Beau re-dresses board from what you own.',
     navigate: { tab: 'fitting-room' },
   },
   {
     anchor: 'tour-fitting-shelf',
-    kicker: 'The Fitting · The board',
+    kicker: 'The Fitting · Board',
     body: 'Everything you can dress it in — what you own, what you saved in the Hunt and Beau\u2019s picks; anything not yours lands dashed.',
     navigate: { tab: 'fitting-room' },
   },

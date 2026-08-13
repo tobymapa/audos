@@ -311,8 +311,8 @@ function ShelfCard({
         aria-pressed={selected}
         className="block w-full text-left group relative"
         style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', userSelect: 'none' }}
-        title={selected ? `Take it off the board — ${piece.name}` : `Put it on the board — ${piece.name}`}
-        aria-label={`${selected ? 'Take off the board' : 'Put on the board'}: ${piece.name}${piece.brand ? ` by ${piece.brand}` : ''}`}
+        title={selected ? `Take it off board — ${piece.name}` : `Put it on board — ${piece.name}`}
+        aria-label={`${selected ? 'Take off board' : 'Put on board'}: ${piece.name}${piece.brand ? ` by ${piece.brand}` : ''}`}
       >
         <span
           className="relative block"
@@ -329,7 +329,7 @@ function ShelfCard({
               style={{ ...fitLabel(8, '#f4eee3', '0.14em'), background: WALNUT, padding: '4px 8px' }}
               aria-hidden="true"
             >
-              On the board
+              On board
             </span>
           )}
         </span>
@@ -409,7 +409,8 @@ interface MeasuredPiece {
 }
 
 function labelHeight(piece: BoardPiece): number {
-  const nameLines = (piece.name || '').length > 20 ? 2 : 1;
+  // The boxes widened by half (founder's correction), so a name wraps later.
+  const nameLines = (piece.name || '').length > 30 ? 2 : 1;
   return 9 + nameLines * 15 + 11 + (boardStatusOf(piece) ? 10 : 0);
 }
 
@@ -465,7 +466,8 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
       className="block min-w-0"
       style={{
         textAlign: side === 'l' ? 'right' : 'left',
-        maxWidth: '110px',
+        // Widened by 50% from the reference's 110px (founder's correction).
+        maxWidth: '165px',
         background: PAPER,
         border: `1px solid ${HAIRLINE}`,
         padding: '4px 8px',
@@ -575,7 +577,7 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
   if (pieces.length === 0) return <>{children}</>;
   return (
     <div>
-      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(100px,116px)_minmax(0,1fr)_minmax(100px,116px)] sm:gap-1">
+      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(150px,174px)_minmax(0,1fr)_minmax(150px,174px)] sm:gap-1">
         <div className="hidden sm:block relative" aria-hidden="true">
           {labels.filter((l) => l.side === 'l').map((l) => (
             <EdgeLabelBlock key={l.piece.key} label={l} />
@@ -1051,7 +1053,7 @@ export function FittingRoomTab({
   const onCount = (list: FittingPiece[]) => list.filter((p) => selectedKeys.has(p.key)).length;
   const shelfNote = (list: FittingPiece[]) => {
     const on = onCount(list);
-    return on > 0 ? `${on} on the board` : `${list.length} piece${list.length === 1 ? '' : 's'}`;
+    return on > 0 ? `${on} on board` : `${list.length} piece${list.length === 1 ? '' : 's'}`;
   };
 
   // ------------------------------------------------------------------
@@ -1093,7 +1095,7 @@ export function FittingRoomTab({
         fillsEmpty: !current,
         why: current
           ? `Instead of the ${current.name.toLowerCase()} — same slot, a different read.`
-          : `Takes the empty ${zone.toLowerCase()} — nothing on the board covers it.`,
+          : `Takes the empty ${zone.toLowerCase()} — nothing on board covers it.`,
       });
     }
     rows.sort((a, b) => Number(b.fillsEmpty) - Number(a.fillsEmpty));
@@ -1101,19 +1103,19 @@ export function FittingRoomTab({
   }, [activeBoard, ownedPieces]);
 
   const copy = entry.copy;
-  const outfitName = copy?.name || (composing ? 'Beau is dressing you\u2026' : activeBoard.length > 0 ? `The ${dayName} Fitting` : 'Nothing on the board yet');
+  const outfitName = copy?.name || (composing ? 'Beau is dressing you\u2026' : activeBoard.length > 0 ? `The ${dayName} Fitting` : 'Nothing on board yet');
   const bodyTag = [profile?.build, profile?.height_range, dayName, meta.label].filter(Boolean).join(' · ');
   const outfitDescription =
     copy?.description ||
     entry.reasoning ||
     (pieces.length < 3
       ? 'Log a few pieces in The Ledger and Beau will dress this board for you — until then, tap anything below to put it on.'
-      : 'Tap a day or an occasion and Beau re-dresses the board from the pieces you own.');
+      : 'Tap a day or an occasion and Beau re-dresses board from the pieces you own.');
   const styleNotes = copy?.notes && copy.notes.length > 0
     ? copy.notes
-    : ['Tap a piece below to put it on the board — tap it again to take it off.',
-       'Drag a piece to nudge it into place; the board keeps the arrangement.',
-       'Anything that isn\u2019t yours draws dashed, so the board never flatters you.'];
+    : ['Tap a piece below to put it on board — tap it again to take it off.',
+       'Drag a piece to nudge it into place; board keeps the arrangement.',
+       'Anything that isn\u2019t yours draws dashed, so board never flatters you.'];
   const avoidNotes = [
     ...(entry.gapNote ? [entry.gapNote] : []),
     ...(copy?.avoid && copy.avoid.length > 0
@@ -1181,7 +1183,7 @@ export function FittingRoomTab({
 
             {/* THE OUTFIT — the real cutouts, named at both edges. */}
             <section
-              aria-label="The outfit on the board"
+              aria-label="The outfit on board"
               className="relative mx-auto w-full"
               style={{ marginTop: '10px', minHeight: '376px' }}
             >
@@ -1223,8 +1225,9 @@ export function FittingRoomTab({
               )}
             </section>
 
-            {/* THE LOOK'S OWN LINE */}
-            <div className="text-center" style={{ marginTop: '10px' }}>
+            {/* THE LOOK'S OWN LINE — set three line-breaks lower than the
+                canvas above it (founder's correction). */}
+            <div className="text-center" style={{ marginTop: 'calc(10px + 3em)' }}>
               <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>
                 {outfitName}
               </div>
@@ -1248,13 +1251,13 @@ export function FittingRoomTab({
                     name={piece.name}
                     why={why}
                     onClick={() => toggleOnBoard(piece)}
-                    title={`Put it on the board — ${piece.name}`}
+                    title={`Put it on board — ${piece.name}`}
                   />
                 ))}
               </div>
             ) : (
               <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
-                Everything you own that suits this look is already on the board — log more pieces in The Ledger and
+                Everything you own that suits this look is already on board — log more pieces in The Ledger and
                 the swaps appear here.
               </p>
             )}
@@ -1271,7 +1274,7 @@ export function FittingRoomTab({
           <div className="max-w-[1180px] mx-auto">
             <div className="flex items-baseline justify-between gap-5 flex-wrap">
               <div className="min-w-0">
-                <div style={{ fontFamily: SERIF, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>The board</div>
+                <div style={{ fontFamily: SERIF, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>Board</div>
                 <p style={{ ...body(13.5, MUTED), margin: '6px 0 0', maxWidth: '64ch' }}>
                   Everything you can dress the fitting in: what you own, what you saved in the Hunt, and what Beau has
                   put up. Tap a piece to put it on — tap again, drag it out, or use the × to take it off.
@@ -1279,8 +1282,8 @@ export function FittingRoomTab({
               </div>
               <span style={fitLabel(9, ACCENT_DEEP, '0.16em')}>
                 {activeBoard.length > 0
-                  ? `${activeBoard.length} piece${activeBoard.length === 1 ? '' : 's'} on the board`
-                  : 'Nothing on the board yet'}
+                  ? `${activeBoard.length} piece${activeBoard.length === 1 ? '' : 's'} on board`
+                  : 'Nothing on board yet'}
               </span>
             </div>
 

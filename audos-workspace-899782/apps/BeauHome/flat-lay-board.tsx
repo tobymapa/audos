@@ -918,8 +918,8 @@ export function FlatLayBoard<T extends FlatLayPiece>({
                 onRemove(item.piece.key);
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              aria-label={`Take ${item.piece.name} off the board`}
-              title={`Take ${item.piece.name} off the board — it stays in your Ledger`}
+              aria-label={`Take ${item.piece.name} off board`}
+              title={`Take ${item.piece.name} off board — it stays in your Ledger`}
               className="absolute w-7 h-7 flex items-center justify-center bg-[var(--color-paper,#fbf8f1)] border border-[#241a12] text-[var(--color-text,#241a12)] hover:bg-[var(--color-accent-100,#fbf1de)] rounded-full"
               style={{ top: '1px', right: '1px', zIndex: 30, fontSize: '14px', lineHeight: 1 }}
             >
@@ -947,7 +947,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
           className="uppercase"
           style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', color: '#8A7F70' }}
         >
-          Not on the board yet
+          Not on board yet
         </p>
         <p style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.6, color: '#8A7F70', marginTop: '2px' }}>
           These have no clean cutout yet — the image is still being prepared, the only photography that

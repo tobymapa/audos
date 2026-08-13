@@ -345,7 +345,7 @@ export async function composeFittingBoard({
     return {
       pieceIds: targeted ? current : ids,
       reasoning: targeted
-        ? 'Beau couldn\u2019t adjust that just now \u2014 the board stands as it was.'
+        ? 'Beau couldn\u2019t adjust that just now \u2014 board stands as it was.'
         : 'A clean, weather-safe pairing from what you own.',
       gapNote: filtered.gapNote,
     };
