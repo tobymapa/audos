@@ -87,7 +87,7 @@ function getPaymentAppId(spaceId: string) {
 }
 
 function isLocalOnlySessionId(value: unknown): boolean {
-  return typeof value === 'string' && /^(guest|ephemeral|anon)_/.test(value);
+  return typeof value === 'string' && /^(guest|ephemeral|anon|csess_local)_/.test(value);
 }
 
 // Comprehensive list of second-level TLDs (country-code SLDs) that require 3-part domain
@@ -239,7 +239,7 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
+        if (session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
       }
       const ssId = sessionStorage.getItem('space_session_id');
       if (ssId && !isLocalOnlySessionId(ssId)) return ssId;
@@ -465,7 +465,7 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (recoveredId && !isLocalOnlySessionId(recoveredId)) {
+        if (session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) {
           setSessionId(recoveredId);
           return recoveredId;
         }

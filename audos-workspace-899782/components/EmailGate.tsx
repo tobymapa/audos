@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 123; // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 124; // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -114,13 +114,18 @@ function resolveRegisteredSessionId(body: SpaceRegisterResponseBody): string | n
   const candidates = [
     body.workspaceSessionId,
     body.sessionId,
-    body.id,
     nested?.workspaceSessionId,
     nested?.sessionId,
-    nested?.id,
   ];
   const found = candidates.find((value) => typeof value === 'string' && value.trim());
   return typeof found === 'string' ? found : null;
+}
+
+function createRegistrationSessionId(): string {
+  try {
+    if (typeof window.crypto?.randomUUID === 'function') return window.crypto.randomUUID();
+  } catch { /* fall through to a non-empty legacy-compatible id */ }
+  return `csess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 }
 
 // Snapshot of the JSON envelope returned by /api/auth/otp/space/{send,verify}.
@@ -192,7 +197,7 @@ export default function EmailGate({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<GateStep>('loading');
-  const [otpEnabled, setOtpEnabled] = useState(false);
+  const [otpEnabled, setOtpEnabled] = useState(true);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [marketingConsent, setMarketingConsent] = useState(false);
@@ -343,7 +348,12 @@ export default function EmailGate({
                 }
               }
             } catch (e) {
-              console.log('[EmailGate] OTP config check failed, using simple mode');
+              // This workspace’s profile storage requires a verified session.
+              // Re-authenticate instead of adopting an unverified cached id.
+              console.log('[EmailGate] OTP config check failed, requiring verification');
+              setOtpEnabled(true);
+              setStep('email');
+              return;
             }
           }
 
@@ -363,7 +373,9 @@ export default function EmailGate({
         const otpConfig = configData.config || configData;
         setOtpEnabled(otpConfig.enabled || false);
       } catch (e) {
-        setOtpEnabled(false);
+        // Fail closed for Ethaion: entering with an unverified registration
+        // only defers the failure to onboarding’s WorkspaceDB writes.
+        setOtpEnabled(true);
       }
     }
 
@@ -386,27 +398,25 @@ export default function EmailGate({
     try {
       const normalizedEmail = submittedEmail.toLowerCase();
 
-      // This workspace previously entered successfully after registration.
-      // Upfront OTP currently returns a generic “Required” validation error in
-      // App Preview, so keep entry on the registered-email path and let the
-      // app’s optional onboarding remain non-blocking.
-      const requireOtpAtEntry = false;
+      // OTP-enabled workspaces must establish and verify the canonical server
+      // session before the app mounts; WorkspaceDB rejects unverified ids.
+      const requireOtpAtEntry = otpEnabled;
       if (requireOtpAtEntry && workspaceId) {
         const attribution = getAttribution();
         const visitorId = getVisitorId();
-        const sessionId = `csess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        const sessionId = createRegistrationSessionId();
 
         const registerRes = await fetch(`/api/space/${spaceId}/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             email: normalizedEmail,
             sessionId,
             visitorId,
             attribution,
-            metadata: {},
+            metadata: { marketingConsent },
             workspaceId,
-            marketingConsent,
           }),
         });
 
@@ -648,28 +658,6 @@ export default function EmailGate({
     setLoading(false);
   };
 
-  const completeLocalEmailEntry = (normalizedEmail: string) => {
-    const localSessionId = `csess_local_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    const sessionKey = `space_session_${spaceId}`;
-    const session = {
-      id: localSessionId,
-      workspaceSessionId: localSessionId,
-      email: normalizedEmail,
-      timestamp: Date.now(),
-      verified: false,
-      localFallback: true,
-      metadata: { source: 'preview_registration_fallback' },
-    };
-    localStorage.setItem(sessionKey, JSON.stringify(session));
-    try {
-      window.dispatchEvent(new CustomEvent('audos:session-established', {
-        detail: { workspaceSessionId: localSessionId, email: normalizedEmail },
-      }));
-    } catch (e) {}
-    setSessionId(localSessionId);
-    completeGateEntry();
-  };
-
   const registerSession = async (emailValue = email) => {
     const normalizedEmail = emailValue.toLowerCase().trim();
 
@@ -701,19 +689,19 @@ export default function EmailGate({
 
     const attribution = getAttribution();
     const visitorId = getVisitorId();
-    const sessionId = `csess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    const sessionId = createRegistrationSessionId();
 
     const response = await fetch(`/api/space/${spaceId}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         email: normalizedEmail,
         sessionId,
         visitorId,
         attribution,
-        metadata: {},
+        metadata: { marketingConsent },
         workspaceId,
-        marketingConsent,
       }),
     });
 
@@ -724,14 +712,6 @@ export default function EmailGate({
         status: response.status,
         body: registerResult ?? registerRawText.slice(0, 200),
       });
-      const responseMessage = isRecord(registerResult)
-        ? String(registerResult.error || registerResult.message || '')
-        : registerRawText;
-      if (response.status === 400 && /required/i.test(responseMessage)) {
-        completeLocalEmailEntry(normalizedEmail);
-        setLoading(false);
-        return;
-      }
       setError(
         describeResponseFailure(
           response,
@@ -755,9 +735,15 @@ export default function EmailGate({
     }
 
     const registerBody = registerResult as SpaceRegisterResponseBody;
-    // A successful registration may omit the canonical id from its response;
-    // in that case the submitted sessionId is the registered identifier.
-    const effectiveSessionId = resolveRegisteredSessionId(registerBody) || sessionId;
+    // Only the server-returned workspace session is authenticated. The
+    // client-generated sessionId is request correlation, never a substitute
+    // for the canonical workspaceSessionId.
+    const effectiveSessionId = resolveRegisteredSessionId(registerBody);
+    if (!effectiveSessionId) {
+      setError('Could not create a workspace session. Please try again.');
+      setLoading(false);
+      return;
+    }
 
     const sessionKey = `space_session_${spaceId}`;
     const session = {

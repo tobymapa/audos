@@ -316,6 +316,13 @@ function writeLocalOnboardingProfile(profile: StyleProfile): void {
   } catch { /* the in-memory handoff still works for this visit */ }
 }
 
+function withLocalOnboardingCompletion(remote: StyleProfile | null): StyleProfile | null {
+  const local = readLocalOnboardingProfile();
+  return local?.onboarding_complete && !remote?.onboarding_complete
+    ? ({ ...(remote || {}), ...local } as StyleProfile)
+    : remote;
+}
+
 interface OnboardingProps {
   profile: StyleProfile | null;
   prefs: StylePrefs | null;
@@ -593,10 +600,22 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
   const skipAll = () => {
     if (saving) return;
     setSaveError(null);
-    // “Skip for now” performs no server write, so it cannot be blocked by
-    // session verification. The local completion marker keeps it skipped on
-    // refresh for this signed-in identity.
-    onDone(finishLocally(step, true));
+    // Exit immediately: optional onboarding must never wait on persistence.
+    // Keep the local marker authoritative, then mirror completion to the
+    // verified workspace session in the background when available.
+    const completed = finishLocally(step, true);
+    onDone(completed);
+    void saveProfile({
+      ...patchForStep(step),
+      onboarding_step: TOTAL_STEPS - 1,
+      onboarding_complete: true,
+    })
+      .then((fresh) => {
+        if (fresh) writeLocalOnboardingProfile(fresh);
+      })
+      .catch((error) => {
+        console.warn('[Ethaion] onboarding skip saved locally; server mirror unavailable:', error);
+      });
   };
 
   // Email verification happens before this wizard. Every profile question is
@@ -1603,17 +1622,12 @@ export default function BeauHome() {
     fetchProfile()
       .then((p) => {
         if (cancelled) return;
-        const local = readLocalOnboardingProfile();
-        const effective =
-          local?.onboarding_complete && !p?.onboarding_complete
-            ? ({ ...(p || {}), ...local } as StyleProfile)
-            : p;
-        setProfile(effective);
+        setProfile(withLocalOnboardingCompletion(p));
       })
       .catch((e) => {
         console.error('[Ethaion] failed to load profile:', e);
-        const local = readLocalOnboardingProfile();
-        if (!cancelled && local?.onboarding_complete) setProfile(local);
+        const local = withLocalOnboardingCompletion(null);
+        if (!cancelled && local) setProfile(local);
       })
       .finally(() => {
         if (!cancelled) setProfileLoaded(true);
@@ -1779,7 +1793,7 @@ export default function BeauHome() {
         setOpenStyleToday(true);
       }
       fetchProfile()
-        .then((p) => setProfile(p))
+        .then((p) => setProfile(withLocalOnboardingCompletion(p)))
         .catch(() => undefined);
     };
     window.addEventListener('ethaion:navigate', onNavigate);
@@ -1808,7 +1822,7 @@ export default function BeauHome() {
   // Beau and Your Style both broadcast profile changes. Re-read on focus too,
   // so a chat-authored edit is visible the moment the app comes forward.
   useEffect(() => {
-    const refreshProfile = () => fetchProfile().then(setProfile).catch(() => undefined);
+    const refreshProfile = () => fetchProfile().then((p) => setProfile(withLocalOnboardingCompletion(p))).catch(() => undefined);
     const onProfile = (e: Event) => {
       const fresh = (e as CustomEvent).detail?.profile as StyleProfile | undefined;
       if (fresh) setProfile(fresh);
