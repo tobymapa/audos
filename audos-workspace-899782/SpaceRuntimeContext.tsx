@@ -239,7 +239,7 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (session.authVersion === 3 && session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
+        if (session.authVersion === 4 && session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
       }
     } catch {
       // Storage unavailable (e.g. Edge tracking protection) — generate an
@@ -299,6 +299,20 @@ export function SpaceRuntimeProvider({
 
   const setSessionId = useCallback((newSessionId: string) => {
     setSessionIdRaw(newSessionId);
+    // SpaceRuntime and the injected WorkspaceDB SDK keep separate session
+    // state. Update both, then notify useWorkspaceDB hooks so reads and writes
+    // immediately use the same verified owner instead of a stale pre-auth id.
+    try {
+      const workspaceDb = (window as any).__workspaceDb;
+      if (typeof workspaceDb?.setSessionId === 'function') {
+        workspaceDb.setSessionId(newSessionId);
+      }
+    } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent('audos:session-established', {
+        detail: { workspaceSessionId: newSessionId, source: 'space-runtime' },
+      }));
+    } catch {}
     try {
       const stored = localStorage.getItem(`space_session_${spaceId}`);
       if (stored) {
@@ -394,7 +408,7 @@ export function SpaceRuntimeProvider({
           email: customerEmail,
           contactId: registerData.contactId || null,
           timestamp: Date.now(),
-          authVersion: 3,
+          authVersion: 4,
           isReturningUser: !!registerData.isReturningUser,
           metadata: registerData.metadata || { source: 'landing_page_checkout' },
         };
@@ -449,7 +463,16 @@ export function SpaceRuntimeProvider({
         '[SpaceRuntime] audos:session-established → adopting resumed sessionId:',
         resumedSessionId,
       );
-      setSessionId(resumedSessionId);
+      // The event already synchronized the WorkspaceDB SDK. Update context
+      // state directly to avoid re-dispatching the same event recursively.
+      setSessionIdRaw(resumedSessionId);
+      try {
+        const stored = localStorage.getItem(`space_session_${spaceId}`);
+        const session = stored ? JSON.parse(stored) : null;
+        if (session?.metadata && typeof session.metadata === 'object') {
+          setSessionMetadata(session.metadata);
+        }
+      } catch {}
     };
     window.addEventListener('audos:session-established', onSessionEstablished);
     return () =>
@@ -463,7 +486,7 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (session.authVersion === 3 && session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) {
+        if (session.authVersion === 4 && session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) {
           setSessionId(recoveredId);
           return recoveredId;
         }
