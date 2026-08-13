@@ -1262,8 +1262,8 @@ export default function SpaceDesktop({
               Settings toggle — both true toggles, no dead ends. Right-anchored
               inside the right-hand slot; neither their size nor their number
               can move the wordmark.
-              An app that carries the two in its OWN chrome nav bar (the
-              Ethaion app's sticky bar under its tab strip) announces itself,
+              An app that carries the two in its OWN chrome (the Ethaion
+              app's floating capsules under its tab strip) announces itself,
               and the corner empties so neither control is drawn twice. The
               slot itself stays — it is the mirror that keeps the wordmark
               centred. */}

@@ -1990,12 +1990,13 @@ export default function BeauHome() {
         }}
       />
 
-      {/* THE CHROME NAV BAR — the one secondary bar, sticky directly below
-          the tab strip: ← BACK │ ETHAION / THE INDEX / MAKERS on the left,
-          ASK BEAU and SETTINGS on the right, all in the same capsule. It
-          shows the deepest trail currently on screen (sub-pages publish
-          their own through CrumbHeader / CrumbPublisher) and falls back to
-          the active tab's root trail. */}
+      {/* THE FLOATING CHROME — not a row: a zero-height sticky rail just
+          under the tab strip that floats ← BACK and the page path on the
+          left, ASK BEAU and the settings gear on the right, every one of
+          them in the same capsule, with nothing across the middle. It shows
+          the deepest trail currently on screen (sub-pages publish their own
+          through CrumbHeader / CrumbPublisher) and falls back to the active
+          tab's root trail. */}
       <ChromeNavBar fallback={crumbFallback} />
 
       {/* Subtle first-load migration pill: every old piece is run through

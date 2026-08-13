@@ -15,10 +15,10 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
+import { Settings as SettingsIcon } from 'lucide-react';
 import {
   ACCENT_DEEP,
   FAINTER,
-  HAIRLINE,
   PAPER,
   RULE,
   SECONDARY,
@@ -39,21 +39,43 @@ export function goToEthaionTab(tab: string): void {
 }
 
 /**
- * THE NAV CAPSULE — the ONE text box every control in the chrome nav bar
- * wears: small-caps mono in deep accent on a transparent ground, a hairline
- * RULE border, 12px corners. “← BACK”, “ASK BEAU” and “SETTINGS” read as
- * one family because they are literally the same button (founder's rule).
+ * THE NAV CAPSULE — the ONE text box every chrome control wears: small-caps
+ * mono in deep accent, a hairline RULE border, 12px corners. “← BACK”, the
+ * page path, “ASK BEAU” and the settings gear read as one family because
+ * they are literally the same box (founder's rule).
+ *
+ * `floating` is the variant the free-floating chrome clusters use: the same
+ * box on a paper ground with a soft shadow, because out there it sits over
+ * the page itself and has to stay legible as content scrolls beneath it.
+ * In-page headers (CrumbHeader) keep the plain transparent box.
  */
+function pillBox(floating: boolean): React.CSSProperties {
+  return {
+    ...mono(8.5, ACCENT_DEEP),
+    border: `1px solid ${RULE}`,
+    background: floating ? PAPER : 'transparent',
+    padding: '7px 13px',
+    whiteSpace: 'nowrap',
+    borderRadius: '12px',
+    ...(floating ? { boxShadow: '0 2px 10px rgba(43,30,20,0.10)' } : null),
+  };
+}
+
 export function NavPill({
   children,
   onClick,
   title,
   ariaLabel,
+  floating = false,
+  icon = false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   title?: string;
   ariaLabel?: string;
+  floating?: boolean;
+  /** A symbol rather than a word — same box, tightened to a square. */
+  icon?: boolean;
 }) {
   return (
     <button
@@ -63,16 +85,23 @@ export function NavPill({
       aria-label={ariaLabel}
       className="transition-colors hover:bg-[rgba(168,113,44,0.08)]"
       style={{
-        ...mono(8.5, ACCENT_DEEP),
-        border: `1px solid ${RULE}`,
-        background: 'transparent',
-        padding: '7px 13px',
-        whiteSpace: 'nowrap',
-        borderRadius: '12px',
+        ...pillBox(floating),
+        ...(icon ? { padding: '7px 9px', display: 'inline-flex', alignItems: 'center' } : null),
       }}
     >
       {children}
     </button>
+  );
+}
+
+/** The same capsule with nothing to click — it wraps the page path so the
+ * trail reads as a text box in the same family as the buttons beside it
+ * (founder's correction). The segments inside stay individually clickable. */
+export function PillFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center" style={{ ...pillBox(true), whiteSpace: 'normal', minWidth: 0 }}>
+      {children}
+    </span>
   );
 }
 
@@ -151,28 +180,31 @@ export function CrumbHeader({
 }
 
 // ---------------------------------------------------------------------------
-// THE CHROME NAV BAR (founder's rearrangement, August 2026) — ONE secondary
-// bar directly under the tab strip, on EVERY page and sub-page, carrying
-// everything that used to float loose over the content:
+// THE FLOATING CHROME (founder's correction, August 2026) — NOT a bar. There
+// is NO row: no ground, no border and no band spanning the screen. Two
+// clusters of capsules float just under the tab strip, one pinned to each
+// side, with nothing at all between them:
 //
-//   [← BACK] │ ETHAION / THE INDEX / MAKERS      [ASK BEAU] [SETTINGS]
+//   [← BACK] [ETHAION / THE INDEX / MAKERS]              [ASK BEAU] [⚙]
 //
-// · LEFT — the back control and the small-caps path, ~0.5cm in from the
-//   left edge. Every surface that knows where it is PUBLISHES its trail
-//   with <CrumbPublisher segs onBack? /> (CrumbHeader does this
-//   automatically). The publisher renders a zero-size anchor, so a
-//   publisher inside a hidden, kept-mounted tab (display:none) is ignored —
-//   only what is actually on screen can win. Of all the VISIBLE
-//   publications the bar shows the deepest one (most segments); when
-//   nothing deeper is on screen it shows the fallback — the active tab's
-//   own root trail, which carries no back control. The ← BACK pill renders
-//   only when the winning publication carries an onBack — a root tab view
-//   never shows one (founder's rule).
-// · RIGHT — Ask Beau and Settings, ~0.5cm in from the right edge, wearing
-//   the SAME NavPill capsule as the back control.
-// · The bar is STICKY, not fixed: it sits between the tab strip and the
-//   content — never over it — and stays visible under the strip however far
-//   the page is scrolled.
+// · LEFT — the back control and the page path, each in its own capsule,
+//   ~0.5cm in from the left edge. Every surface that knows where it is
+//   PUBLISHES its trail with <CrumbPublisher segs onBack? /> (CrumbHeader
+//   does this automatically). The publisher renders a zero-size anchor, so
+//   a publisher inside a hidden, kept-mounted tab (display:none) is ignored
+//   — only what is actually on screen can win. Of all the VISIBLE
+//   publications the deepest one wins (most segments); when nothing deeper
+//   is on screen the fallback shows — the active tab's own root trail,
+//   which carries no back control. The ← BACK capsule renders only when the
+//   winning publication carries an onBack — a root tab view never shows one
+//   (founder's rule).
+// · RIGHT — Ask Beau and the settings GEAR, ~0.5cm in from the right edge,
+//   in the same capsule as everything on the left.
+// · THE RAIL that carries them has zero height and no background, so it
+//   takes up none of the page and the empty middle is click-through: the
+//   content underneath keeps its own full width and every tap in the gap
+//   between the two clusters reaches the page. Because the rail is sticky
+//   the clusters stay put under the tab strip however far the page scrolls.
 // · <ChromeNavBar fallback /> is mounted ONCE in App.tsx.
 // ---------------------------------------------------------------------------
 
@@ -221,12 +253,12 @@ export function CrumbPublisher({ segs, onBack, backLabel }: CrumbPublication) {
 }
 
 // Ask Beau and Settings belong to the SHELL (Desktop.tsx), not to this app,
-// so the bar asks for them by window event instead of reaching into the
-// shell's state.
+// so the floating chrome asks for them by window event instead of reaching
+// into the shell's state.
 export const ASK_BEAU_EVENT = 'ethaion:ask-beau';
 export const OPEN_SETTINGS_EVENT = 'ethaion:open-settings';
-/** Announced while the bar is on screen so the shell drops its own masthead
- * copies of the two controls — neither is ever drawn twice. */
+/** Announced while the floating chrome is on screen so the shell drops its
+ * own masthead copies of the two controls — neither is ever drawn twice. */
 export const CHROME_BAR_EVENT = 'ethaion:chrome-bar';
 /** The same fact as a window flag, because React runs a CHILD's effects
  * before its parent's: on first load this bar announces itself before the
@@ -234,7 +266,7 @@ export const CHROME_BAR_EVENT = 'ethaion:chrome-bar';
  * the event only has to carry later changes. */
 export const CHROME_BAR_FLAG = '__ethaionChromeNavBar';
 
-/** The sticky bar itself — mounted once, under the tab strip. */
+/** The floating chrome itself — mounted once, under the tab strip. */
 export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -276,43 +308,57 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
   const segs = shown.segs || [];
   return (
     <div
-      // Sticky UNDER the tab strip: top-0 on a phone (where the strip moves
-      // to the bottom bar and this is the first thing in the page), and from
-      // sm up just under the strip's 47px row — 46px, a hair of deliberate
-      // overlap, because the strip's higher z-index paints over the seam and
-      // a 1px gap would show a sliver of scrolling content between the two.
-      className="sticky top-0 sm:top-[46px] z-[28] flex items-center justify-between flex-shrink-0"
-      style={{
-        gap: '12px',
-        // The paper ground, hairline and soft shadow of the composer it grew
-        // out of — so the bar reads as floating over the page beneath it.
-        background: PAPER,
-        borderBottom: `1px solid ${HAIRLINE}`,
-        boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
-        // ~0.5cm in from BOTH edges of the screen (founder's rule).
-        padding: '7px 19px',
-      }}
+      // THE RAIL — zero height and no ground of its own, so it is not a row:
+      // it adds nothing to the page and paints nothing across it. Sticky so
+      // the clusters hold their place under the tab strip as the page
+      // scrolls: top-0 on a phone (where the strip moves to the bottom bar
+      // and this is the first thing in the page), and from sm up 46px — just
+      // inside the strip's 47px row, whose higher z-index covers the seam.
+      className="sticky top-0 sm:top-[46px] z-[28] flex-shrink-0"
+      style={{ height: 0 }}
     >
-      <div className="flex items-center flex-wrap" style={{ gap: '10px', minWidth: 0 }}>
-        {shown.onBack && (
-          <>
-            <BackPill onClick={shown.onBack} />
-            <span aria-hidden="true" style={{ width: '1px', height: '16px', background: RULE, flexShrink: 0 }} />
-          </>
-        )}
-        {segs.length > 0 && <CrumbTrail segs={segs} />}
-      </div>
-      <div className="flex items-center flex-shrink-0" style={{ gap: '10px' }}>
-        <NavPill
-          onClick={() => window.dispatchEvent(new Event(ASK_BEAU_EVENT))}
-          title="Talk to Beau — tap again to come back"
-          ariaLabel="Ask Beau"
-        >
-          Ask Beau
-        </NavPill>
-        <NavPill onClick={() => window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT))} title="Settings" ariaLabel="Settings">
-          Settings
-        </NavPill>
+      <div
+        className="absolute flex items-start justify-between"
+        style={{
+          top: '9px',
+          // ~0.5cm in from BOTH edges of the screen (founder's rule).
+          left: '19px',
+          right: '19px',
+          gap: '12px',
+          // The middle is empty AND click-through — only the capsules
+          // themselves take a tap.
+          pointerEvents: 'none',
+        }}
+      >
+        <div className="flex items-center flex-wrap" style={{ gap: '8px', minWidth: 0, pointerEvents: 'auto' }}>
+          {shown.onBack && <NavPill floating onClick={shown.onBack}>← Back</NavPill>}
+          {segs.length > 0 && (
+            <PillFrame>
+              <CrumbTrail segs={segs} />
+            </PillFrame>
+          )}
+        </div>
+        <div className="flex items-center flex-shrink-0" style={{ gap: '8px', pointerEvents: 'auto' }}>
+          <NavPill
+            floating
+            onClick={() => window.dispatchEvent(new Event(ASK_BEAU_EVENT))}
+            title="Talk to Beau — tap again to come back"
+            ariaLabel="Ask Beau"
+          >
+            Ask Beau
+          </NavPill>
+          {/* Settings is the GEAR itself (founder's correction) — same
+              capsule, same accent ink, a symbol instead of the word. */}
+          <NavPill
+            floating
+            icon
+            onClick={() => window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT))}
+            title="Settings"
+            ariaLabel="Settings"
+          >
+            <SettingsIcon width={14} height={14} strokeWidth={1.6} aria-hidden="true" />
+          </NavPill>
+        </div>
       </div>
     </div>
   );
