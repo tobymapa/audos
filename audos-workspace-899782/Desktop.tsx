@@ -408,6 +408,11 @@ export default function SpaceDesktop({
   // Settings mounts lazily on first open (it fetches subscription status),
   // then stays mounted so the slide-out animation works on close.
   const [hasOpenedSettings, setHasOpenedSettings] = useState(false);
+  // True while the open app carries its own chrome nav bar with Ask Beau and
+  // Settings in it (the Ethaion app's sticky bar under its tab strip). The
+  // masthead then drops its own copies of the two, so neither is drawn twice;
+  // every other surface — the onboarding flow, another app — keeps them.
+  const [appOwnsChromeControls, setAppOwnsChromeControls] = useState(false);
   useEffect(() => {
     if (overlayView === 'settings') setHasOpenedSettings(true);
   }, [overlayView]);
@@ -705,6 +710,34 @@ export default function SpaceDesktop({
     setMobileView('chat');
     trackEvent('agent_view_opened', { source: 'app_home_header' });
   };
+
+  // --- The open app's own chrome nav bar --------------------------------
+  // The Ethaion app carries Ask Beau and Settings in the sticky nav bar under
+  // its tab strip (apps/BeauHome/crumb-trail.tsx). It cannot reach into this
+  // shell's state, so it asks for the two by window event; the ref keeps the
+  // toggles current without re-binding the listeners on every render. The
+  // bar's presence arrives as a window flag as well as an event, because a
+  // child's effects run before this parent's on first load.
+  const chromeActionsRef = useRef({ askBeau: toggleAgentView, openSettings: toggleSettings });
+  chromeActionsRef.current = { askBeau: toggleAgentView, openSettings: toggleSettings };
+  useEffect(() => {
+    const readFlag = () => setAppOwnsChromeControls(!!(window as unknown as Record<string, unknown>).__ethaionChromeNavBar);
+    const onAskBeau = () => chromeActionsRef.current.askBeau();
+    const onOpenSettings = () => chromeActionsRef.current.openSettings();
+    const onChromeBar = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { active?: boolean } | undefined;
+      setAppOwnsChromeControls(!!detail?.active);
+    };
+    readFlag();
+    window.addEventListener('ethaion:ask-beau', onAskBeau);
+    window.addEventListener('ethaion:open-settings', onOpenSettings);
+    window.addEventListener('ethaion:chrome-bar', onChromeBar as EventListener);
+    return () => {
+      window.removeEventListener('ethaion:ask-beau', onAskBeau);
+      window.removeEventListener('ethaion:open-settings', onOpenSettings);
+      window.removeEventListener('ethaion:chrome-bar', onChromeBar as EventListener);
+    };
+  }, []);
 
   // Show email gate for customer mode if no session (from context)
   const publicAppBypass = (() => {
@@ -1203,9 +1236,12 @@ export default function SpaceDesktop({
       // with a 1px accent rule running out from each side, utilities
       // right-aligned, all on a --paper header. No pictorial mark or logo
       // image appears in the app masthead.
+      // TWO-THIRDS HEIGHT (founder's chrome rearrangement): the bar is
+      // compressed from 88/104px to 59/69px — padding only, the wordmark
+      // keeps its own size and stays readable.
       return (
         <div
-          className="grid items-center px-4 flex-shrink-0 border-b border-[var(--space-border-default)] bg-[var(--space-surface-card)] min-h-[88px] sm:min-h-[104px]"
+          className="grid items-center px-4 flex-shrink-0 border-b border-[var(--space-border-default)] bg-[var(--space-surface-card)] min-h-[59px] sm:min-h-[69px]"
           style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}
         >
           {/* Three columns, and the two outer ones are minmax(0,1fr) — so they
@@ -1222,11 +1258,18 @@ export default function SpaceDesktop({
               {runtimeTheme.branding.name}
             </span>
           </div>
-          {/* Clean top-right corner: the Beau chat toggle plus a distinct
+          {/* The top-right corner: the Beau chat toggle plus a distinct
               Settings toggle — both true toggles, no dead ends. Right-anchored
               inside the right-hand slot; neither their size nor their number
-              can move the wordmark. */}
+              can move the wordmark.
+              An app that carries the two in its OWN chrome nav bar (the
+              Ethaion app's sticky bar under its tab strip) announces itself,
+              and the corner empties so neither control is drawn twice. The
+              slot itself stays — it is the mirror that keeps the wordmark
+              centred. */}
           <div className="flex items-center justify-end gap-2 min-w-0">
+            {!appOwnsChromeControls && (
+            <>
             <button
               onClick={toggleAgentView}
               className="flex items-center gap-1.5 px-3 sm:px-4 min-h-[42px] rounded text-[13px] font-medium flex-shrink-0 bg-transparent text-[var(--color-accent-700,#7c4a17)] border border-[var(--color-accent,#a8712c)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-all"
@@ -1250,6 +1293,8 @@ export default function SpaceDesktop({
               >
                 <SettingsIcon className="w-4 h-4" />
               </button>
+            )}
+            </>
             )}
           </div>
         </div>

@@ -66,7 +66,7 @@ import {
 } from './photo-enhance';
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { OnboardingTour } from './onboarding-tour';
-import { FloatingCrumbBar, type CrumbPublication } from './crumb-trail';
+import { ChromeNavBar, type CrumbPublication } from './crumb-trail';
 import { HairlineRowsSkeleton, HomeSkeleton } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
@@ -1990,6 +1990,14 @@ export default function BeauHome() {
         }}
       />
 
+      {/* THE CHROME NAV BAR — the one secondary bar, sticky directly below
+          the tab strip: ← BACK │ ETHAION / THE INDEX / MAKERS on the left,
+          ASK BEAU and SETTINGS on the right, all in the same capsule. It
+          shows the deepest trail currently on screen (sub-pages publish
+          their own through CrumbHeader / CrumbPublisher) and falls back to
+          the active tab's root trail. */}
+      <ChromeNavBar fallback={crumbFallback} />
+
       {/* Subtle first-load migration pill: every old piece is run through
           background removal + white-card normalization without blocking the
           wardrobe. */}
@@ -2176,16 +2184,10 @@ export default function BeauHome() {
           </div>
         )}
       </div>
-      {/* Single chat entry point: the Beau button in the shell header — no
-          floating duplicates. */}
-
-      {/* THE FLOATING TRAIL — the fixed top-left breadcrumb bar on every
-          page and sub-page: ← BACK │ ETHAION / THE INDEX / MAKERS. It shows
-          the deepest trail currently on screen (sub-pages publish their own
-          through CrumbHeader / CrumbPublisher) and falls back to the active
-          tab's root trail. It replaces the old scroll-triggered floating
-          back button (floating-back.tsx, kept on file). */}
-      <FloatingCrumbBar fallback={crumbFallback} />
+      {/* Single chat entry point: the Ask Beau capsule in the chrome nav bar
+          above — no floating duplicates. (It replaced both the old
+          scroll-triggered floating back button, floating-back.tsx, and the
+          shell masthead's own Beau/Settings corner.) */}
 
       {/* First-run coach-mark tour + the quiet "?" re-trigger in the corner.
           Auto-shows once (localStorage-gated), never over the intake wizard
