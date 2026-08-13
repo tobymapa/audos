@@ -131,6 +131,11 @@ export async function composeFittingCopy(input: {
   weatherPhrase?: string | null;
   /** The build the outfit was drawn to, when the dossier carries one. */
   build?: string | null;
+  /** His complexion, when the dossier carries one — so the notes can speak
+   * to why these colours work on HIM (personalisation audit, August 2026). */
+  colouring?: string | null;
+  /** His style directions (archetypes), same audit. */
+  directions?: string[] | null;
   /** Beau's own one-line reason from the composition — the fallback prose. */
   reasoning?: string | null;
 }): Promise<FittingCopy> {
@@ -154,6 +159,8 @@ export async function composeFittingCopy(input: {
     `DAY: ${input.dayName}`,
     input.weatherPhrase ? `WEATHER: ${input.weatherPhrase}` : null,
     input.build ? `HIS BUILD: ${input.build}` : null,
+    input.colouring ? `HIS COLOURING: ${input.colouring}` : null,
+    (input.directions || []).length > 0 ? `HIS STYLE DIRECTIONS: ${(input.directions || []).join(', ')}` : null,
     `THE OUTFIT ON THE BOARD:\n${outfit}`,
     input.reasoning ? `WHY YOU COMPOSED IT: ${input.reasoning}` : null,
   ]

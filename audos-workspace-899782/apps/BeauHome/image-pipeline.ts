@@ -926,6 +926,14 @@ function rowToRecord(row: any, dims?: { width: number; height: number } | null):
 
 let hydration: Promise<void> | null = null;
 
+/** Fired once the cutout store has hydrated from the DB. Surfaces that
+ * decide per-image whether a URL is a genuine stored cutout (the Fitting's
+ * flat-lay board, the shelf tiles) re-read on it — without this, a board
+ * painted BEFORE hydration mistook stored cutouts for raw photographs and
+ * held them out (they rendered blank/missing) until an unrelated
+ * re-render happened along. */
+export const CUTOUTS_HYDRATED_EVENT = 'ethaion:cutouts-hydrated';
+
 /**
  * Read the whole cutout store (and the Step 1 answers) into memory ONCE per
  * session, at app boot. Every surface then peeks synchronously and nothing
@@ -997,6 +1005,9 @@ export function hydrateImagePipelineStore(): Promise<void> {
       } catch (error) {
         console.warn('[Ethaion] source classification read failed:', error);
       }
+      try {
+        window.dispatchEvent(new Event(CUTOUTS_HYDRATED_EVENT));
+      } catch { /* no window (SSR) — nothing to notify */ }
     })();
   }
   return hydration;

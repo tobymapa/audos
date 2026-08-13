@@ -389,25 +389,28 @@ export function BeauTab(props: {
               <MapLegend />
             </div>
 
-            {view === 'ruler' ? (
-              <EditRuler
-                ruler={ruler}
-                reading={read}
-                pieces={pieces}
-                materials={materials}
-                warmth={warmth}
-                selected={cell}
-                onSelect={setCell}
-                ownedByCategory={ownedByCategory}
-              />
-            ) : (
-              <CategoryList
-                categories={categories}
-                subLines={read.subs}
-                open={openCategory}
-                onToggle={(id) => setOpenCategory((cur) => (cur === id ? null : id))}
-              />
-            )}
+            {/* The wardrobe map — anchored for the first-run tour. */}
+            <div data-tour="tour-edit-map">
+              {view === 'ruler' ? (
+                <EditRuler
+                  ruler={ruler}
+                  reading={read}
+                  pieces={pieces}
+                  materials={materials}
+                  warmth={warmth}
+                  selected={cell}
+                  onSelect={setCell}
+                  ownedByCategory={ownedByCategory}
+                />
+              ) : (
+                <CategoryList
+                  categories={categories}
+                  subLines={read.subs}
+                  open={openCategory}
+                  onToggle={(id) => setOpenCategory((cur) => (cur === id ? null : id))}
+                />
+              )}
+            </div>
 
             <GapTable
               gaps={gaps}

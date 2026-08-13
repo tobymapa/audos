@@ -50,7 +50,8 @@ import {
 import { findCatalogBrand, verifiedBrandWebsiteUrl, type BrandProfile } from './brands';
 import { warmthFor, type PieceWarmth } from './warmth-model';
 import { fetchDossierDetails } from './dossier-details';
-import { openInBeausPicks, openInAskBeau } from './edit-links';
+import { openInBeausPicks, openInAskBeau, openIndexMakers } from './edit-links';
+import { findNewMakers } from './maker-search';
 import { openMakerSheet } from './maker-sheet';
 import { CrumbHeader, goToEthaionTab } from './crumb-trail';
 import { usePieceDetailCopy, type DetailPlaceInput } from './piece-detail-ai';
@@ -397,6 +398,12 @@ export function PieceDetailPage({
   // The reader's places — the home city first, then trip destinations.
   const [places, setPlaces] = useState<DetailPlaceInput[]>([]);
   const [southern, setSouthern] = useState(false);
+  // ASK BEAU TO FIND MAKERS (August 2026) — the WHO MAKES IT control: Beau
+  // scouts five new houses for THIS piece type against the reader's record,
+  // files them into the maker directory, then lands him on The Index →
+  // Makers filtered to exactly those five.
+  const [findingMakers, setFindingMakers] = useState(false);
+  const [makersNote, setMakersNote] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     const dbAny = (window as any).__workspaceDb;
@@ -640,14 +647,10 @@ export function PieceDetailPage({
         </section>
       </div>
 
-      {/* ——— 4 · where it suits — rebuilt to the founder's screenshot
-          (August 2026): a full-width header row, then the places as EQUAL
-          columns butted together with only a divider line between them.
-          The home city leads, then the logged places, then region/country
-          contexts; Beau writes each verdict from the piece's temperature
-          band, cloth weight and formality against the climate and register
-          of the place. No city set → the placeholder line, never a hidden
-          section. */}
+      {/* ——— 4 · where it suits — COMMENTED OUT (founder's request, August
+          2026): the section is hidden from view but kept intact so it can
+          be restored later. Remove this comment wrapper to bring it back. */}
+      {/*
       <section>
         <div
           className="flex items-baseline justify-between flex-wrap"
@@ -687,6 +690,7 @@ export function PieceDetailPage({
           </p>
         )}
       </section>
+      */}
 
       {/* ——— 5 · the cuts — COMMENTED OUT (founder's request, August 2026);
           the section is hidden from view but kept intact so it can be
@@ -711,11 +715,37 @@ export function PieceDetailPage({
             <span style={serif(20)}>Who makes it</span>
             <span style={mono(8, FAINT)}>by price, with the references marked</span>
           </span>
-          <span className="inline-flex items-baseline" style={{ gap: '14px' }}>
+          <span className="inline-flex items-center flex-wrap" style={{ gap: '8px 14px' }}>
             <span style={mono(8, SECONDARY)}>{makers.length} maker{makers.length === 1 ? '' : 's'} on file</span>
+            <OutlinedControl
+              solid
+              onClick={() => {
+                if (findingMakers) return;
+                setFindingMakers(true);
+                setMakersNote(`Beau is searching for five new makers of the ${type.name.toLowerCase()}\u2026`);
+                void findNewMakers({ profile, pieces, pieceType: type })
+                  .then(({ added }) => {
+                    if (added.length > 0) {
+                      setMakersNote(null);
+                      openIndexMakers({ names: added });
+                    } else {
+                      setMakersNote('Beau could not reach his references just now — try again in a moment.');
+                    }
+                  })
+                  .catch(() => {
+                    setMakersNote('Beau could not reach his references just now — try again in a moment.');
+                  })
+                  .finally(() => setFindingMakers(false));
+              }}
+            >
+              {findingMakers ? 'Beau is searching…' : 'Ask Beau to find makers'}
+            </OutlinedControl>
             <ControlLink onClick={() => onMakersForType(type)}>All makers who cut it →</ControlLink>
           </span>
         </div>
+        {makersNote && (
+          <p aria-live="polite" style={{ ...body(12.5, SECONDARY), margin: '10px 0 0' }}>{makersNote}</p>
+        )}
         {makers.length > 0 ? (
           <div style={{ marginTop: '4px' }}>
             <div className="hidden md:grid grid-cols-[44px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_110px] items-baseline" style={{ gap: '16px', padding: '9px 0', borderBottom: `1px solid ${RULE}` }}>

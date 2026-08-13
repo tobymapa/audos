@@ -45,12 +45,13 @@ import {
 } from './brands';
 import { INDEX_GARMENT_TYPES, findGarmentType, type GarmentCategoryId, type GarmentType } from './garment-types';
 import { runOfType } from './garment-type-runs';
-import { TEMPERATURE_BAND_ORDER, type TemperatureBand } from './temperature-bands';
+import { TEMPERATURE_BAND_ORDER, temperatureBandLabel, temperatureBandRange, temperatureBandRank, type TemperatureBand } from './temperature-bands';
 import {
   FIELD_REGISTER_LABELS,
   RULER_HI,
   RULER_LO,
   VERDICT_TEXT,
+  categoryName,
   computeCategoryBandCounts,
   daysInSpan,
   matchGarmentTypeId,
@@ -95,7 +96,16 @@ import { usePlexMono } from './mono-type';
 import { SubTabs } from './sub-tabs';
 import { TabHeader } from './tab-header';
 import { CrumbPublisher, goToEthaionTab } from './crumb-trail';
-import { INDEX_OPEN_TYPE_EVENT, peekIndexTarget, takeIndexTarget, type IndexTarget } from './edit-links';
+import {
+  INDEX_OPEN_MAKERS_EVENT,
+  INDEX_OPEN_TYPE_EVENT,
+  peekIndexMakersTarget,
+  peekIndexTarget,
+  takeIndexMakersTarget,
+  takeIndexTarget,
+  type IndexTarget,
+} from './edit-links';
+import { findNewMakers } from './maker-search';
 import { PieceDetailPage } from './piece-detail-page';
 import { openMakerSheet } from './maker-sheet';
 
@@ -1030,6 +1040,173 @@ function makerCategorySet(p: BrandProfile): Set<GarmentCategoryId> {
   return set;
 }
 
+// ---------------------------------------------------------------------------
+// FILTER BY PIECE — the hierarchical selector at the top of the Makers face
+// (founder's request, August 2026): the same clothing categories The Hunt
+// and The Ledger carry, each unfolding into the temperature ranges inside
+// it, each of those unfolding into the individual piece types in
+// alphabetical order. Multi-select at every level; any selection filters
+// the maker rows to the houses that cut the selected pieces.
+// ---------------------------------------------------------------------------
+
+interface MakerTreeBand {
+  band: TemperatureBand;
+  types: GarmentType[];
+}
+
+interface MakerTreeCat {
+  id: GarmentCategoryId;
+  bands: MakerTreeBand[];
+}
+
+/** The canon read into the three-level tree once — categories in the app's
+ * canonical order, bands coldest first, types alphabetical. */
+const MAKER_TREE: MakerTreeCat[] = (() => {
+  const order: GarmentCategoryId[] = [];
+  const byCat = new Map<GarmentCategoryId, Map<TemperatureBand, GarmentType[]>>();
+  for (const t of INDEX_GARMENT_TYPES) {
+    if (!byCat.has(t.category)) {
+      byCat.set(t.category, new Map());
+      order.push(t.category);
+    }
+    const bands = byCat.get(t.category)!;
+    const list = bands.get(t.band) || [];
+    list.push(t);
+    bands.set(t.band, list);
+  }
+  return order.map((id) => ({
+    id,
+    bands: [...byCat.get(id)!.entries()]
+      .sort((a, b) => temperatureBandRank(a[0]) - temperatureBandRank(b[0]))
+      .map(([band, types]) => ({ band, types: [...types].sort((a, b) => a.name.localeCompare(b.name)) })),
+  }));
+})();
+
+function TreePill({ on, label, onClick, quiet = false }: { on: boolean; label: string; onClick: () => void; quiet?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className="transition-colors flex-shrink-0"
+      style={{
+        ...mono(8.5, on ? '#5c3413' : quiet ? FAINT : SECONDARY),
+        background: on ? 'rgba(168,113,44,0.14)' : 'transparent',
+        border: `1px solid ${on ? ACCENT_DEEP : HAIRLINE}`,
+        borderRadius: '999px',
+        padding: '5px 11px',
+        whiteSpace: 'nowrap',
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function TreeUnfold({ open, onClick, label }: { open: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      aria-label={label}
+      title={label}
+      className="flex-shrink-0 hover:opacity-70 transition-opacity"
+      style={{ ...mono(11, ACCENT), background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', letterSpacing: 0 }}
+    >
+      {open ? '\u2212' : '+'}
+    </button>
+  );
+}
+
+function MakerTreeFilter({
+  cats,
+  bands,
+  types,
+  onCats,
+  onBands,
+  onTypes,
+}: {
+  cats: string[];
+  bands: string[];
+  types: string[];
+  onCats: (next: string[]) => void;
+  onBands: (next: string[]) => void;
+  onTypes: (next: string[]) => void;
+}) {
+  const [openCats, setOpenCats] = useState<string[]>([]);
+  const [openBands, setOpenBands] = useState<string[]>([]);
+  const active = cats.length + bands.length + types.length > 0;
+  return (
+    <div style={{ padding: '10px 0 12px', borderBottom: `1px solid ${HAIRLINE}`, marginBottom: '14px' }}>
+      <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '6px 16px' }}>
+        <span style={mono(8, FAINT)}>Filter by piece · category → temperature → type · multi-select</span>
+        {active && (
+          <button
+            type="button"
+            onClick={() => {
+              onCats([]);
+              onBands([]);
+              onTypes([]);
+            }}
+            className="hover:opacity-70 transition-opacity"
+            style={{ ...mono(8, ACCENT_DEEP), background: 'transparent', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+          >
+            Clear the piece filter ×
+          </button>
+        )}
+      </div>
+      <div className="flex items-center flex-wrap" style={{ gap: '6px 8px', marginTop: '9px' }}>
+        {MAKER_TREE.map((cat) => (
+          <span key={cat.id} className="inline-flex items-center" style={{ gap: '2px' }}>
+            <TreePill on={cats.includes(cat.id)} label={categoryName(cat.id)} onClick={() => onCats(toggleIn(cats, cat.id))} />
+            <TreeUnfold
+              open={openCats.includes(cat.id)}
+              onClick={() => setOpenCats((cur) => toggleIn(cur, cat.id))}
+              label={`${openCats.includes(cat.id) ? 'Fold' : 'Unfold'} ${categoryName(cat.id)} — its temperature ranges`}
+            />
+          </span>
+        ))}
+      </div>
+      {MAKER_TREE.filter((cat) => openCats.includes(cat.id)).map((cat) => (
+        <div key={cat.id} style={{ margin: '9px 0 0 14px', paddingLeft: '12px', borderLeft: `1px solid ${HAIRLINE}` }}>
+          <span style={mono(7.5, FAINT)}>{categoryName(cat.id)} · by temperature</span>
+          <div className="flex items-center flex-wrap" style={{ gap: '6px 8px', marginTop: '6px' }}>
+            {cat.bands.map((b) => {
+              const key = `${cat.id}|${b.band}`;
+              return (
+                <span key={key} className="inline-flex items-center" style={{ gap: '2px' }}>
+                  <TreePill
+                    on={bands.includes(key)}
+                    quiet
+                    label={`${temperatureBandLabel(b.band)} · ${temperatureBandRange(b.band)}`}
+                    onClick={() => onBands(toggleIn(bands, key))}
+                  />
+                  <TreeUnfold
+                    open={openBands.includes(key)}
+                    onClick={() => setOpenBands((cur) => toggleIn(cur, key))}
+                    label={`${openBands.includes(key) ? 'Fold' : 'Unfold'} ${temperatureBandLabel(b.band)} — its piece types`}
+                  />
+                </span>
+              );
+            })}
+          </div>
+          {cat.bands
+            .filter((b) => openBands.includes(`${cat.id}|${b.band}`))
+            .map((b) => (
+              <div key={`${cat.id}|${b.band}|types`} className="flex items-center flex-wrap" style={{ gap: '5px 6px', margin: '7px 0 2px 14px' }}>
+                {b.types.map((t) => (
+                  <TreePill key={t.id} on={types.includes(t.id)} quiet label={t.name} onClick={() => onTypes(toggleIn(types, t.id))} />
+                ))}
+              </div>
+            ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const MAKER_GRID = 'grid grid-cols-[26px_22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_20px]';
 
 function FavStar({ active, onToggle, brand }: { active: boolean; onToggle: () => void; brand: string }) {
@@ -1214,6 +1391,8 @@ function MakersFace({
   profile,
   typeFilter,
   onClearTypeFilter,
+  namesFilter,
+  onClearNamesFilter,
 }: {
   entries: DirectoryEntry[];
   metaRows: BrandIndexEntry[];
@@ -1223,6 +1402,10 @@ function MakersFace({
   profile: StyleProfile | null;
   typeFilter: GarmentType | null;
   onClearTypeFilter: () => void;
+  /** “Ask Beau to find makers” lands here — the face opens filtered to
+   * exactly the makers Beau just filed. Null when no hand-off is held. */
+  namesFilter: string[] | null;
+  onClearNamesFilter: () => void;
 }) {
   const [find, setFind] = useState('');
   const [favesOnly, setFavesOnly] = useState(false);
@@ -1240,6 +1423,54 @@ function MakersFace({
   const [showRest, setShowRest] = useState(false);
   const [sort, setSort] = useState<SortState>({ col: 'rank', dir: 1 });
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // FILTER BY PIECE — the three-level tree's selections (category ids,
+  // `${categoryId}|${band}` keys, garment type ids).
+  const [treeCats, setTreeCats] = useState<string[]>([]);
+  const [treeBands, setTreeBands] = useState<string[]>([]);
+  const [treeTypes, setTreeTypes] = useState<string[]>([]);
+
+  // FIND 5 MORE MAKERS — the persistent search control (founder's request,
+  // August 2026): every press asks Beau for five houses NOT yet on file and
+  // files them in. The note under the toolbar says how it went.
+  const [findingMore, setFindingMore] = useState(false);
+  const [findNote, setFindNote] = useState<string | null>(null);
+  const findMore = () => {
+    if (findingMore) return;
+    setFindingMore(true);
+    setFindNote('Beau is out finding five more makers against your record\u2026');
+    void findNewMakers({ profile, pieces })
+      .then(({ added }) => {
+        if (added.length > 0) {
+          setFindNote(`${added.length} new maker${added.length === 1 ? '' : 's'} filed — ${added.join(' · ')}. Beau's note sits on each row.`);
+        } else {
+          setFindNote('Beau could not reach his references just now — try again in a moment.');
+        }
+      })
+      .catch(() => setFindNote('Beau could not reach his references just now — try again in a moment.'))
+      .finally(() => setFindingMore(false));
+  };
+
+  /** The makers the tree selection points at — null while nothing is held. */
+  const treeSelection = useMemo(() => {
+    if (treeCats.length + treeBands.length + treeTypes.length === 0) return null;
+    const makerKeys = new Set<string>();
+    const catSel = new Set(treeCats);
+    const addTypes = (list: GarmentType[]) => {
+      for (const t of list) for (const m of t.makers) makerKeys.add(m.toLowerCase());
+    };
+    for (const cat of MAKER_TREE) {
+      if (catSel.has(cat.id)) for (const b of cat.bands) addTypes(b.types);
+      for (const b of cat.bands) {
+        if (treeBands.includes(`${cat.id}|${b.band}`)) addTypes(b.types);
+      }
+    }
+    for (const id of treeTypes) {
+      const t = findGarmentType(id);
+      if (t) addTypes([t]);
+    }
+    return { makerKeys, cats: catSel };
+  }, [treeCats, treeBands, treeTypes]);
 
   // BEAU'S FIFTY — the shortlist chosen for THIS reader (model-written,
   // with a deterministic per-reader ranking until the call lands).
@@ -1314,11 +1545,23 @@ function MakersFace({
     return keys;
   }, [typeFilter]);
 
+  const namesFilterKeys = useMemo(
+    () => (namesFilter && namesFilter.length > 0 ? new Set(namesFilter.map((n) => n.trim().toLowerCase())) : null),
+    [namesFilter],
+  );
+
   const shown = useMemo(() => {
     const q = find.trim().toLowerCase();
     return entries.filter((e) => {
       const p = e.profile;
       const key = p.brand.toLowerCase();
+      if (namesFilterKeys && !namesFilterKeys.has(key)) return false;
+      if (treeSelection) {
+        const inTree =
+          treeSelection.makerKeys.has(key) ||
+          [...makerCategorySet(p)].some((c) => treeSelection.cats.has(c));
+        if (!inTree) return false;
+      }
       if (typeFilter) {
         // The arrow filters to the piece's CATEGORY — the canon's exact
         // type→maker names count as well, so a house named on the type's own
@@ -1341,13 +1584,14 @@ function MakersFace({
       if (stocked.length > 0 && !stocked.includes(stockedOf(p))) return false;
       return true;
     });
-  }, [entries, find, favesOnly, places, bands, makes, reads, stocked, metaMap, favOverrides, typeFilter, typeMakerKeys]);
+  }, [entries, find, favesOnly, places, bands, makes, reads, stocked, metaMap, favOverrides, typeFilter, typeMakerKeys, treeSelection, namesFilterKeys]);
 
-  const filtersHeld = (favesOnly ? 1 : 0) + places.length + bands.length + makes.length + reads.length + stocked.length + (find.trim() ? 1 : 0);
+  const treeHeld = treeCats.length + treeBands.length + treeTypes.length;
+  const filtersHeld = (favesOnly ? 1 : 0) + places.length + bands.length + makes.length + reads.length + stocked.length + (find.trim() ? 1 : 0) + treeHeld;
 
   // A held search, filter or type hand-off reads the WHOLE file, not just
   // the shortlist — nobody expects a search to miss a maker Beau didn't pick.
-  const searchingWholeFile = filtersHeld > 0 || !!typeFilter;
+  const searchingWholeFile = filtersHeld > 0 || !!typeFilter || !!namesFilterKeys;
 
   const rankOf = (e: DirectoryEntry): number => {
     const pick = pickMap.get(e.profile.brand.toLowerCase());
@@ -1416,7 +1660,11 @@ function MakersFace({
     setMakes([]);
     setReads([]);
     setStocked([]);
+    setTreeCats([]);
+    setTreeBands([]);
+    setTreeTypes([]);
     onClearTypeFilter();
+    onClearNamesFilter();
   };
 
   const toggleHeld = (brand: string) => {
@@ -1605,6 +1853,38 @@ function MakersFace({
 
   return (
     <div>
+      {/* ——— FILTER BY PIECE — the three-level selector at the top:
+          category → temperature range → piece type, multi-select. */}
+      <MakerTreeFilter
+        cats={treeCats}
+        bands={treeBands}
+        types={treeTypes}
+        onCats={setTreeCats}
+        onBands={setTreeBands}
+        onTypes={setTreeTypes}
+      />
+
+      {/* ——— the “Ask Beau to find makers” landing — the list is filtered
+          to exactly the houses Beau just filed. */}
+      {namesFilter && namesFilter.length > 0 && (
+        <div
+          className="flex items-center justify-between flex-wrap"
+          style={{ gap: '8px 16px', padding: '10px 13px', marginBottom: '4px', border: `1px solid ${ACCENT_DEEP}`, background: 'rgba(168,113,44,0.08)' }}
+        >
+          <span style={mono(8, DEEP)}>
+            Beau's new makers — {namesFilter.length} just filed · {namesFilter.join(' · ')}
+          </span>
+          <button
+            type="button"
+            onClick={onClearNamesFilter}
+            className="hover:opacity-70 transition-opacity"
+            style={{ ...mono(8, ACCENT_DEEP), background: 'transparent', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+          >
+            Show every maker ×
+          </button>
+        </div>
+      )}
+
       {/* ——— the hand-off banner — a piece's arrow filtered this list */}
       {typeFilter && (
         <div
@@ -1702,6 +1982,9 @@ function MakersFace({
           {' · column heads sort'}
         </span>
         <span className="flex items-center flex-wrap" style={{ gap: '8px 14px' }}>
+          <MonoButton solid disabled={findingMore} onClick={findMore}>
+            {findingMore ? 'Beau is searching…' : 'Find 5 more makers'}
+          </MonoButton>
           <span style={mono(7.5, FAINTER)}>
             Select up to four · {held.length} held
           </span>
@@ -1717,6 +2000,12 @@ function MakersFace({
           )}
         </span>
       </div>
+
+      {findNote && (
+        <p aria-live="polite" style={{ ...body(12.5, ACCENT_DEEP), margin: '0 0 10px', maxWidth: '90ch' }}>
+          {findNote}
+        </p>
+      )}
 
       {comparing && heldEntries.length >= 2 ? (
         <CompareSheet entries={heldEntries} ledger={ledgerBrands} onClose={() => setComparing(false)} />
@@ -1819,6 +2108,30 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
     setFace('makers');
   };
 
+  // “Ask Beau to find makers” (piece detail page) lands HERE: the Makers
+  // face comes forward filtered to exactly the houses Beau just filed.
+  // Dispatched AND parked like the other deep links, so a lazy Index still
+  // catches it on first mount.
+  const [makerNamesFilter, setMakerNamesFilter] = useState<string[] | null>(null);
+  useEffect(() => {
+    const applyTarget = (names: string[] | null | undefined) => {
+      const clean = (names || []).map((n) => String(n || '').trim()).filter(Boolean);
+      setFace('makers');
+      setMakerNamesFilter(clean.length > 0 ? clean : null);
+    };
+    const parked = peekIndexMakersTarget();
+    if (parked) {
+      takeIndexMakersTarget();
+      applyTarget(parked.names);
+    }
+    const onOpen = (e: Event) => {
+      takeIndexMakersTarget();
+      applyTarget(((e as CustomEvent).detail?.names || []) as string[]);
+    };
+    window.addEventListener(INDEX_OPEN_MAKERS_EVENT, onOpen);
+    return () => window.removeEventListener(INDEX_OPEN_MAKERS_EVENT, onOpen);
+  }, []);
+
   // The Edit's “→ The Index” deep link always lands on the Pieces face; the
   // face itself opens the type's entry (PiecesFace above).
   useEffect(() => {
@@ -1915,6 +2228,8 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
             profile={profile}
             typeFilter={typeFilter}
             onClearTypeFilter={() => setTypeFilter(null)}
+            namesFilter={makerNamesFilter}
+            onClearNamesFilter={() => setMakerNamesFilter(null)}
           />
         </div>
       </div>

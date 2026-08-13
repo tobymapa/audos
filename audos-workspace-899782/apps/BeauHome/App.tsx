@@ -1309,8 +1309,11 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
   //    52pt targets, same order; the slim top strip keeps the wordmark.
   const tourAnchorFor = (id: TabId) =>
     id === 'wardrobe' ? 'tour-ledger'
+    : id === 'beau' ? 'tour-edit'
     : id === 'fitting-room' ? 'tour-fitting'
     : id === 'hunt' ? 'tour-hunt'
+    : id === 'index' ? 'tour-index'
+    : id === 'your-style' ? 'tour-dossier'
     : undefined;
 
   return (

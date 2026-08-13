@@ -90,6 +90,7 @@ import {
   type DossierMeasurements,
 } from '../BeauHome/dossier-measurements';
 import { computeAndStoreClimateCurve } from '../BeauHome/climate-pipeline';
+import { CLAUDE_HAIKU, CLAUDE_SONNET, callModel } from '../BeauHome/claude';
 import { TEMPERATURE_BANDS } from '../BeauHome/temperature-bands';
 import {
   COVERAGE_PREFS_EVENT,
@@ -827,13 +828,60 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
 });
 
 /**
+ * AUTOFILL THE CLIMATE (founder's request, August 2026): the moment a city
+ * lands, Beau infers which of the six coarse climate options it lives in
+ * and writes it onto the dossier — no manual chip tap needed (the chips
+ * below stay editable and always win a correction). AI first — the city's
+ * NAME is what a person reasons from — with a deterministic fallback read
+ * from the freshly derived 8-band day histogram, so the field fills even
+ * when every transport is down. Returns the climate id, or null.
+ */
+async function inferClimateForCity(city: string, bands: number[] | null): Promise<string | null> {
+  const ids = CLIMATE_OPTIONS.map((c) => c.id);
+  const clean = (city || '').trim();
+  if (clean) {
+    try {
+      const raw = await callModel({
+        model: CLAUDE_HAIKU,
+        second: CLAUDE_SONNET,
+        system: [
+          {
+            text:
+              'You classify a city into ONE coarse climate id for a menswear wardrobe app. Return STRICT JSON only: {"climate": "<id>"} — the id MUST be exactly one of: temperate (four real seasons), mild-wet, cold-winters, hot-dry, hot-humid, tropical (hot year round). No prose, no markdown.',
+            cache: true,
+          },
+        ],
+        user: `The city: ${clean}. Which one id fits its climate best?`,
+        maxTokens: 60,
+        temperature: 0,
+      });
+      const match = raw ? raw.match(/\{[\s\S]*\}/) : null;
+      const parsed = match ? JSON.parse(match[0]) : null;
+      const id = String(parsed?.climate || '').trim().toLowerCase();
+      if (ids.includes(id)) return id;
+    } catch { /* the histogram fallback below still answers */ }
+  }
+  // The histogram fallback — coarse, but honest: read the derived days.
+  if (bands && bands.length === 8) {
+    const cold = (bands[0] || 0) + (bands[1] || 0);
+    const veryHot = (bands[6] || 0) + (bands[7] || 0);
+    const hot = (bands[5] || 0) + veryHot;
+    if (veryHot >= 200) return 'tropical';
+    if (hot >= 160) return 'hot-dry';
+    if (cold >= 55) return 'cold-winters';
+    return 'temperate';
+  }
+  return null;
+}
+
+/**
  * The Lifestyle city editor, wired to the CLIMATE PIPELINE (Data Layer
  * task, Deliverable 6): saving a typed place geocodes it (Open-Meteo, free,
  * no key) and derives the 8-band day histogram ONCE; “Use my location” does
  * the same from browser geolocation — permission-gated and always skippable.
  * Both store city + coordinates + histogram in dossier_details; every
  * failure steps down the ladder (the coarse climate chips below), never
- * blocks.
+ * blocks. Saving a city ALSO autofills the coarse climate field (above).
  */
 function ClimateCityEditor({
   details,
@@ -870,6 +918,13 @@ function ClimateCityEditor({
       } else {
         const cityLabel = (curve.city || draft).trim();
         if (cityLabel) onProfileCity(cityLabel);
+        // AUTOFILL THE CLIMATE — inferred from the city (AI first, the
+        // fresh histogram as the fallback) and written straight onto the
+        // dossier; the chips below reflect it and stay correctable.
+        try {
+          const climate = await inferClimateForCity(cityLabel, curve.bands || null);
+          if (climate) await saveDossierDetails({ climate });
+        } catch { /* the coarse chips below still work by hand */ }
         onStored(await fetchDossierDetails());
       }
     } catch {

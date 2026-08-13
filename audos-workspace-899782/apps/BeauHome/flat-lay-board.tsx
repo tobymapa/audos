@@ -82,6 +82,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { isTransparentCutout } from './photo-enhance';
+import { CUTOUTS_HYDRATED_EVENT } from './image-pipeline';
 import { bodyOrderRank, sortByBodyOrder } from './body-order';
 import { GARMENT_HEIGHT_RATIOS, garmentHeightRatioFor } from './garment-proportions';
 
@@ -636,6 +637,22 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   // on a solid ground INSIDE the composition — a white/solid box behind an
   // item image is exactly what a flat-lay must never show. An imageless piece
   // composes as its quiet transparent name placeholder.
+  // CUTOUT RECOGNITION IS RE-READ ONCE THE STORE HYDRATES (missing-pieces
+  // fix, August 2026): `isTransparentCutout` answers from the image_cutouts
+  // rows, which load asynchronously at boot — a board painted BEFORE they
+  // landed mistook genuine stored cutouts for raw photographs and held them
+  // out, which read as blank/missing pieces. The hydration event forces one
+  // re-render so every URL is re-judged against the full store.
+  const [, setCutoutTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setCutoutTick((n) => n + 1);
+    window.addEventListener(CUTOUTS_HYDRATED_EVENT, bump);
+    return () => window.removeEventListener(CUTOUTS_HYDRATED_EVENT, bump);
+  }, []);
+  // A cutout URL that RESOLVES but fails to LOAD (an expired or blocked
+  // file) must never leave an invisible <img> on the canvas — the piece
+  // falls back to its quiet named placeholder instead (same fix).
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
   const composes = (piece: T) => piece.flatLayReady !== false && (!piece.image || isTransparentCutout(piece.image));
   const composable = pieces.filter(composes);
 
@@ -865,9 +882,10 @@ export function FlatLayBoard<T extends FlatLayPiece>({
               }}
             />
           )}
-          {item.piece.image && isTransparentCutout(item.piece.image) ? (
+          {item.piece.image && isTransparentCutout(item.piece.image) && !brokenImages[item.piece.key] ? (
             /* The stored transparent PNG: it lies straight on the board with
-               nothing behind it and nothing done to it. */
+               nothing behind it and nothing done to it. A URL that fails to
+               load falls back to the named placeholder below. */
             <img
               src={item.piece.image}
               alt={item.piece.name}
@@ -875,6 +893,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
               loading="eager"
               decoding="async"
               draggable={false}
+              onError={() => setBrokenImages((cur) => ({ ...cur, [item.piece.key]: true }))}
               style={tray ? {
                 // `.today-piece img` governs the size — nothing is decided per
                 // piece here.

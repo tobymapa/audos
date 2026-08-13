@@ -75,6 +75,7 @@ import { registerGarmentImage, setGarmentRegenerating } from './canonical-garmen
 import {
   assessCutout,
   classifyImage,
+  hydrateImagePipelineStore,
   isStoredCutoutUrl,
   peekClassification,
   peekCutoutRecord,
@@ -272,7 +273,8 @@ export function garmentFieldsFromPiece(
 // assets come from IMG.LY's public CDN (pinned to the same version).
 // ---------------------------------------------------------------------------
 
-/* PHOTOROOM-ONLY: @imgly module loader disabled, preserved for restoration.
+// @imgly module loader — RESTORED (founder's request, August 2026): the
+// client-side remover is the FALLBACK for genuine Photoroom failures.
 const IMGLY_VERSION = '1.7.0';
 const IMGLY_MODULE_URL = `https://esm.sh/@imgly/background-removal@${IMGLY_VERSION}`;
 const IMGLY_PUBLIC_PATH = `https://staticimgly.com/@imgly/background-removal-data/${IMGLY_VERSION}/dist/`;
@@ -292,7 +294,6 @@ function loadBackgroundRemovalModule(): Promise<any> {
   }
   return imglyModulePromise;
 }
-*/
 
 /** A cleaned image, as either a URL (https or data:) or inline base64.
  * `provider` records which remover produced the cutout so normalization can
@@ -331,11 +332,13 @@ const PHOTOROOM_TIMEOUT_MS = 20000;
 /**
  * Whether the ~84MB client-side @imgly model may run when Photoroom fails.
  *
- * Off. See the long note in `removeBackgroundFromUrl` — this path was measured
- * consuming 91% of all non-idle CPU in a real session because a misconfigured
- * Photoroom key routed every garment into it.
+ * ON (founder's request, August 2026): Photoroom stays the PRIMARY remover;
+ * this fallback engages ONLY on a genuine Photoroom error/timeout, and it
+ * stays timeout-capped — so a Photoroom outage degrades to slower cutouts
+ * rather than uncut pieces. The CPU caution in `removeBackgroundFromUrl`
+ * still applies: keep the Photoroom key healthy and this path stays cold.
  */
-const ALLOW_CLIENT_SIDE_REMOVAL = false;
+const ALLOW_CLIENT_SIDE_REMOVAL = true;
 
 /**
  * Reject after `ms`, and — via `onTimeout` — stop the underlying work.
@@ -530,11 +533,11 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
   } catch (e) {
     console.warn('[Ethaion] server-side ingestion unavailable — the in-browser remover carries it:', e);
   }
-  // PHOTOROOM-ONLY (Pass Fifty — direct call). Photoroom is now the SOLE
-  // background remover: no client-side @imgly fallback and no two-tier logic.
-  // A Photoroom failure is SURFACED (logged and rethrown), never silently
-  // worked around, so the caller keeps the original photo and a later visit
-  // retries. The timeout only guards the single call.
+  // PHOTOROOM FIRST — the primary remover, purpose-built for clothing —
+  // with the client-side @imgly model RESTORED as the fallback (founder's
+  // request, August 2026): a GENUINE Photoroom failure (error, timeout,
+  // missing key) falls through to the fallback below instead of leaving
+  // the piece uncut.
   const photoroomAbort = new AbortController();
   try {
     return await withTimeout(
@@ -544,15 +547,10 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
       () => photoroomAbort.abort(),
     );
   } catch (photoroomError) {
-    console.error('[Ethaion] Photoroom background removal failed:', photoroomError);
-    throw photoroomError instanceof Error ? photoroomError : new Error(String(photoroomError));
+    console.warn('[Ethaion] Photoroom background removal failed — trying the client-side fallback:', photoroomError);
   }
 
-  // ===== LEGACY CLIENT-SIDE @imgly FALLBACK — disabled, preserved for
-  // restoration (re-enable with the @imgly module loader near the top). =====
-  /*
-
-  // 2. Fallback — client-side @imgly removal. DISABLED BY DEFAULT.
+  // 2. Fallback — client-side @imgly removal (Photoroom failed above).
   //
   // WHY: a DevTools profile of ordinary use measured 73 SECONDS of WebAssembly
   // inference out of a 295-second session — roughly 91% of all non-idle CPU,
@@ -604,7 +602,6 @@ async function removeBackgroundFromUrl(url: string): Promise<CleanImage> {
     () => sourceAbort.abort(),
   );
   return { url: await blobToDataUrl(blob), provider: 'imgly' };
-  */
 }
 
 // ---------------------------------------------------------------------------
@@ -1180,13 +1177,15 @@ const TIGHT_CROP_PAD_PX = 4;
  * PROVIDER-GATED (the white-garment fix): this full-strength erosion exists
  * for the local @imgly fallback, whose masks keep retailer-baked borders and
  * fringes. Photoroom's segmentation is already clean — running 4px of
- * erosion on it visibly ate into white and near-white garments — so a
- * Photoroom cut gets only the minimal pass below. */
-// const ALPHA_ERODE_PX = 4;
+ * erosion on it visibly ate into white and near-white garments — the
+ * Photoroom pass below is therefore lighter than the fallback's. */
+const ALPHA_ERODE_PX = 4;
 
-/** Erosion applied when Photoroom produced the mask — a single pixel, just
- * enough to soften any residual fringe without eating the garment. */
-// const PHOTOROOM_ERODE_PX = 1;
+/** Erosion applied when Photoroom produced the mask — RAISED to THREE
+ * iterations (founder's request, August 2026: “increase alpha erosion to
+ * 3–4 iterations”) so the retailer-baked frame lines that survive
+ * segmentation are eaten before the cut is stored. */
+const PHOTOROOM_ERODE_PX = 3;
 
 /**
  * GRAYSCALE EROSION of the alpha channel — each pass replaces every pixel's
@@ -1197,7 +1196,6 @@ const TIGHT_CROP_PAD_PX = 4;
  * Separable (horizontal pass then vertical pass), so it is O(pixels) per
  * iteration rather than O(pixels × kernel).
  */
-/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: number): void {
   const current = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i += 1) current[i] = data[i * 4 + 3];
@@ -1226,7 +1224,6 @@ function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: n
   }
   for (let i = 0; i < w * h; i += 1) data[i * 4 + 3] = current[i];
 }
-*/
 
 /**
  * HOLLOW-FRAME REMOVAL — the second half of the border-artifact cleanup
@@ -1244,7 +1241,6 @@ function erodeAlpha(data: Uint8ClampedArray, w: number, h: number, iterations: n
  * frame line ever can, and if EVERY region reads as a frame nothing is
  * stripped (that is a judgement failure, not a cleanup).
  */
-/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): void {
   const total = w * h;
   const labels = new Int32Array(total);
@@ -1311,7 +1307,6 @@ function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): vo
     if (drop.has(labels[i])) data[i * 4 + 3] = 0;
   }
 }
-*/
 
 /**
  * THE NORMALIZATION STEP — run ONCE at ingestion, never at render time.
@@ -1337,7 +1332,6 @@ function stripFrameComponents(data: Uint8ClampedArray, w: number, h: number): vo
  * the PNG so the caller can flag it for review instead of auto-publishing it
  * into a composition.
  */
-/* PHOTOROOM-ONLY: disabled, preserved for restoration.
 async function trimTransparent(
   image: CleanImage,
 ): Promise<{ dataUrl: string; quality: CutoutQuality; croppedWidth: number; croppedHeight: number }> {
@@ -1409,7 +1403,6 @@ async function trimTransparent(
   octx.drawImage(work, left, top, cw, ch, 0, 0, cw, ch);
   return { dataUrl: out.toDataURL('image/png'), quality, croppedWidth: out.width, croppedHeight: out.height };
 }
-*/
 
 /** URLs known to be OUR transparent cutouts (uploaded PNGs with real alpha).
  * Populated when a cutout is persisted and when one is read back from the
@@ -1962,18 +1955,39 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
       const cutout = await removeBackgroundFromUrl(source);
       const dataUrl = cutout.url
         || (cutout.base64 ? `data:${cutout.mimeType || 'image/png'};base64,${cutout.base64}` : '');
-      if (!dataUrl) throw new Error('Photoroom returned no usable image');
-      // SERVER-STORED CUTS ARRIVE AS URLS (cutout-server.ts): the PNG is
-      // already in object storage, so re-uploading it would be a wasted
-      // round trip — record it and move on. Base64 results (the in-browser
-      // fallback) upload exactly as before.
+      if (!dataUrl) throw new Error('background removal returned no usable image');
+      // NORMALIZATION RESTORED (founder's request, August 2026): the cut is
+      // eroded (three iterations on a Photoroom mask, four on the fallback's
+      // — the retailer-baked-frame fix), stripped of hollow frame regions,
+      // tight-cropped and judged (trimTransparent) BEFORE it is stored. A
+      // normalization failure falls back to storing the raw cut rather than
+      // losing the piece.
       let durable: string;
-      if (cutout.url && /^https?:\/\//i.test(cutout.url)) {
-        durable = cutout.url;
-        knownCutoutUrls.add(durable);
-        storeCutout(source, durable);
-      } else {
-        durable = await persistCutout(source, dataUrl);
+      let croppedWidth: number | null = null;
+      let croppedHeight: number | null = null;
+      let cutQuality: 'clean' | 'imperfect' = 'clean';
+      let reviewReasons: string[] = [];
+      try {
+        const cut = await trimTransparent(cutout);
+        durable = await persistCutout(source, cut.dataUrl);
+        croppedWidth = cut.croppedWidth;
+        croppedHeight = cut.croppedHeight;
+        if (cut.quality.verdict === 'imperfect') {
+          cutQuality = 'imperfect';
+          reviewReasons = [...cut.quality.reasons];
+        }
+      } catch (normError) {
+        console.warn('[Ethaion] cutout normalization failed — storing the raw cut:', normError);
+        // SERVER-STORED CUTS ARRIVE AS URLS (cutout-server.ts): the PNG is
+        // already in object storage, so re-uploading it would be a wasted
+        // round trip — record it and move on. Base64 results upload.
+        if (cutout.url && /^https?:\/\//i.test(cutout.url)) {
+          durable = cutout.url;
+          knownCutoutUrls.add(durable);
+          storeCutout(source, durable);
+        } else {
+          durable = await persistCutout(source, dataUrl);
+        }
       }
       // THREE SIZES PER CUTOUT (Efficiency §02) — derived once, at ingest
       // time, never on view; fire-and-forget.
@@ -1987,13 +2001,13 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
         flatLayReady: true,
         confidence: 'high',
         sourceQuality: 'unknown',
-        cutoutQuality: 'clean',
-        needsReview: false,
-        reviewReasons: [],
+        cutoutQuality: cutQuality,
+        needsReview: cutQuality !== 'clean',
+        reviewReasons,
         category,
         source,
-        croppedWidth: null,
-        croppedHeight: null,
+        croppedWidth,
+        croppedHeight,
       };
       settledAssets.set(source, asset);
       void saveCutoutRecord({
@@ -2009,8 +2023,8 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
         confidence: asset.confidence,
         category,
         pieceId: request.pieceId ?? null,
-        croppedWidth: null,
-        croppedHeight: null,
+        croppedWidth,
+        croppedHeight,
       });
       return asset;
     } catch (error) {
@@ -2483,7 +2497,11 @@ let migrationRunning = false;
 // transparency rule); the Pass Forty-Six B paper-card flag is retired.
 // v50: bumped with pipeline v5 (hollow-frame removal) so every piece is
 // re-cut once more from its original — the universal border-artifact fix.
-const BATCH_FLAG_KEY = 'bgRemovalV50';
+// v52: bumped for the FORCED REPROCESSING PASS (founder's request, August
+// 2026) — pieces whose display photo still carries its background are
+// re-cut through Photoroom (with the @imgly fallback) and the restored
+// erosion + tight-crop normalization.
+const BATCH_FLAG_KEY = 'bgRemovalV52';
 
 function batchFlagSet(): boolean {
   try {
@@ -2631,9 +2649,21 @@ export async function runPhotoMigration(
     // — no AI generation any more. There is NO other exemption: user-chosen
     // 'custom' photos are cut too, so every display image ends up a genuine
     // alpha-channel transparent PNG.
+    //
+    // THE FORCED REPROCESSING PASS (founder's request, August 2026): a
+    // piece whose DISPLAY photo is not a recognised transparent cutout —
+    // its background is still baked in — re-runs through the pipeline
+    // whatever its version stamp says. The cutout store must be hydrated
+    // FIRST, or every genuine stored cutout would read as an uncut
+    // photograph and re-process (and re-bill) for nothing.
+    await hydrateImagePipelineStore().catch(() => undefined);
+    const stillHasBackground = (piece: WardrobePiece): boolean => {
+      const display = String(piece.photo_url || '').trim();
+      return isHttpImage(display) && !isTransparentCutout(display);
+    };
     const targets = pieces.filter((piece) => {
       if (!isHttpImage(piece.photo_url) && !originals[piece.id]) return false;
-      return (normVersions[piece.id] || 0) < NORM_VERSION;
+      return (normVersions[piece.id] || 0) < NORM_VERSION || stillHasBackground(piece);
     });
     // True founder photos first — they are the best anchors.
     const rank = (piece: WardrobePiece) => (originals[piece.id] ? 0 : 1);
@@ -2650,7 +2680,13 @@ export async function runPhotoMigration(
     // piece is logged, its previous image kept, and the batch moves on.
     let done = 0;
     for (const piece of targets) {
-      const url = await regeneratePieceImage(piece.id, fieldsFor(piece), { anchorUrl: originals[piece.id] || null });
+      const url = await regeneratePieceImage(piece.id, fieldsFor(piece), {
+        anchorUrl: originals[piece.id] || null,
+        // A piece re-included because its display photo still carries a
+        // background must not settle on the stale cached cut — force the
+        // fresh Photoroom pass.
+        forceReprocess: stillHasBackground(piece),
+      });
       if (url) {
         changed += 1;
         console.log(`[Ethaion] background-removal batch: "${piece.name}" — success`);

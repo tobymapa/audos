@@ -1236,8 +1236,10 @@ export default function SpaceDesktop({
             >
               <MessageCircle className="w-3.5 h-3.5" />
               {/* Narrow viewports drop the verb so the right-hand controls stay
-                  slim enough for a truly centred wordmark to clear them. */}
-              <span className="hidden sm:inline">Ask&nbsp;</span>Beau
+                  slim enough for a truly centred wordmark to clear them. The
+                  flex gap already separates the words — a trailing &nbsp; here
+                  used to read as a DOUBLE space between ASK and BEAU. */}
+              <span className="hidden sm:inline">Ask</span>Beau
             </button>
             {!isBuilderView && (
               <button

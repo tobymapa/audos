@@ -103,6 +103,35 @@ function gateTempC(weatherLine?: string | null): number | null {
 
 const isSuit = (p: WardrobePiece) => p.slot === 'suit' || p.slot === 'dinner-suit';
 
+/**
+ * THE MAN, as every board compose must know him (personalisation audit,
+ * August 2026). The old block carried his archetypes ALONE — the board was
+ * composed blind to his frame, colouring and the registers of his life.
+ * Everything here is read from what he actually gave the Dossier; a fact
+ * he has not given is simply absent.
+ */
+function profileBlock(profile: StyleProfile | null): string | null {
+  if (!profile) return null;
+  const lines: string[] = [];
+  const archetypes = (Array.isArray(profile.archetypes) ? profile.archetypes : []).filter(Boolean);
+  if (archetypes.length > 0) lines.push(`HIS DIRECTION: ${archetypes.join(', ')}`);
+  const frame = [
+    profile.build ? `${String(profile.build).toLowerCase()} build` : null,
+    profile.height_range || null,
+    profile.fit_notes ? `fit note: ${profile.fit_notes}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+  if (frame) lines.push(`HIS FRAME: ${frame} — favour the silhouettes that flatter it.`);
+  if (profile.skin_tone) lines.push(`HIS COLOURING: ${profile.skin_tone} — weigh every colour pairing against it.`);
+  const occasions = (Array.isArray(profile.occasions) ? profile.occasions : []).filter(Boolean);
+  if (occasions.length > 0) lines.push(`HE DRESSES FOR: ${occasions.join(', ')}`);
+  if (profile.materials) lines.push(`HIS MATERIALS RULE: ${profile.materials}`);
+  const city = (profile as any)?.lifestyle?.city;
+  if (typeof city === 'string' && city.trim()) lines.push(`HOME CITY: ${city.trim()}`);
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
 /** Model ids → owned pieces: dedupe, one per category, suit-is-one-garment. */
 function sanitizeIds(ids: unknown, byId: Map<number, WardrobePiece>): number[] {
   if (!Array.isArray(ids)) return [];
@@ -254,9 +283,7 @@ export async function composeFittingBoard({
   // processed wardrobe instead of re-reading it, and any wardrobe change
   // rewrites the block so the stale prefix never matches.
   const wardrobeBlock = [
-    profile && Array.isArray(profile.archetypes) && profile.archetypes.length > 0
-      ? `HIS DIRECTION: ${profile.archetypes.join(', ')}`
-      : null,
+    profileBlock(profile),
     candidates.length > 0
       ? `HIS WARDROBE, ALREADY FILTERED TO WHAT TODAY ALLOWS (only these ids):\n${candidates
           .map((p) => pieceLine(p, materials, warmth))
@@ -457,9 +484,7 @@ export async function composeTripBoards({
   };
 
   const wardrobeBlock = [
-    profile && Array.isArray(profile.archetypes) && profile.archetypes.length > 0
-      ? `HIS DIRECTION: ${profile.archetypes.join(', ')}`
-      : null,
+    profileBlock(profile),
     pieces.length > 0
       ? `HIS WARDROBE (only these ids):\n${pieces.map((p) => pieceLine(p, materials)).join('\n')}`
       : 'HIS WARDROBE: empty — nothing logged yet.',

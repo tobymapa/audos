@@ -5,11 +5,13 @@
  * bottom-left corner of the shell (bottom-right is the photo-migration
  * pill's spot).
  *
- * Six stops, in the order a new customer meets the product — the
- * primary tabs AND their key sub-tabs / sections:
+ * The stops, in the tab strip's own order (August 2026 refresh):
  *   The Ledger · its categories
- *   The Fitting · the board's actions · the Board section
- *   The Hunt — where Beau's recommendations and the comparison bench live
+ *   The Edit · the wardrobe map
+ *   The Fitting · the board · the shelf
+ *   The Hunt · Beau's Picks (with Ask Beau and Your Calls beside it)
+ *   The Index · the piece pages · the Makers face and the maker search
+ *   The Dossier
  *
  * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
  * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
@@ -49,7 +51,7 @@ const STEPS: TourStep[] = [
   {
     anchor: 'tour-ledger',
     kicker: 'The Ledger',
-    body: 'Your pieces live here. Add one to get started — a photo or a few words is enough.',
+    body: 'Everything you own, by category. Add a piece to get started — a link, a photo or a few words is enough.',
     navigate: { tab: 'wardrobe' },
   },
   {
@@ -59,14 +61,25 @@ const STEPS: TourStep[] = [
     navigate: { tab: 'wardrobe' },
   },
   {
+    anchor: 'tour-edit',
+    kicker: 'The Edit',
+    body: 'Your year, and what it is missing — how much of it your wardrobe actually answers.',
+  },
+  {
+    anchor: 'tour-edit-map',
+    kicker: 'The Edit · The wardrobe map',
+    body: 'Categories down the side, temperature bands across the top. Tap any cell and Beau says what the blank costs you — and links straight to his picks for it.',
+    navigate: { tab: 'beau' },
+  },
+  {
     anchor: 'tour-fitting',
     kicker: 'The Fitting',
-    body: 'Board opens on today\u2019s look, already dressed — a swap is one tap.',
+    body: 'Opens on today\u2019s look, already dressed from what you own — a swap is one tap.',
   },
   {
     anchor: 'tour-fitting-board',
     kicker: 'The Fitting · The look',
-    body: 'Tap a day down the left, or an occasion along the top, and Beau re-dresses board from what you own.',
+    body: 'Tap a day down the left, or an occasion along the top, and Beau re-dresses the board from what you own.',
     navigate: { tab: 'fitting-room' },
   },
   {
@@ -78,7 +91,30 @@ const STEPS: TourStep[] = [
   {
     anchor: 'tour-hunt',
     kicker: 'The Hunt',
-    body: 'What Beau would buy next, category by category — plus a bench that compares up to four pieces you\u2019re weighing.',
+    body: 'Three faces: Beau\u2019s Picks, Ask Beau — one box for a question, a brief or a pasted link — and Your Calls, everything you\u2019ve tagged.',
+  },
+  {
+    anchor: 'tour-hunt-picks',
+    kicker: 'The Hunt · Beau\u2019s Picks',
+    body: 'Unfold a category and Beau names the sub-categories that matter most for you right now — ten researched picks behind each one.',
+    navigate: { tab: 'hunt' },
+  },
+  {
+    anchor: 'tour-index',
+    kicker: 'The Index',
+    body: 'The reference wing, two faces: Pieces — every classic type, with its own full page (band, colours, who makes it) a tap away — and Makers.',
+    navigate: { tab: 'index' },
+  },
+  {
+    anchor: 'tour-index',
+    kicker: 'The Index · Makers',
+    body: 'Every maker on file, filterable by piece. Ask Beau to find makers on any piece page — or press “Find 5 more makers” — and he files new houses with his note on each.',
+    navigate: { tab: 'index' },
+  },
+  {
+    anchor: 'tour-dossier',
+    kicker: 'The Dossier',
+    body: 'Everything Beau knows about you — frame, colouring, sizes, city (the climate fills itself in). Correct any of it and he uses the change immediately.',
   },
 ];
 

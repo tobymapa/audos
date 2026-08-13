@@ -43,7 +43,8 @@ export function BackPill({
   onClick,
 }: {
   /** The parent surface's name — “The Index”, “Beau's Picks”. Omit for a
-   * bare “← BACK”. */
+   * bare “← BACK”. The label renders ALL-CAPS through the shared mono()
+   * helper (textTransform: uppercase), the founder's breadcrumb rule. */
   label?: string;
   onClick: () => void;
 }) {
@@ -58,7 +59,7 @@ export function BackPill({
         background: 'transparent',
         padding: '7px 13px',
         whiteSpace: 'nowrap',
-        borderRadius: 0,
+        borderRadius: '12px',
       }}
     >
       ← Back{label ? ` · ${label}` : ''}
@@ -227,13 +228,19 @@ export function FloatingCrumbBar({ fallback }: { fallback: CrumbPublication }) {
       style={{
         // Below the sticky tab strip (47px + a breath), clear of its hits.
         top: '58px',
-        left: '12px',
+        // The SAME inset the shell header gives the Settings corner (px-4 —
+        // 16px) so the bar never touches the left edge (founder's rule).
+        left: '16px',
         gap: '10px',
-        maxWidth: 'min(92vw, 680px)',
+        maxWidth: 'min(90vw, 680px)',
+        // The “Ask Beau” composer's own treatment (AgentChatView): card
+        // ground, hairline border, rounded-2xl corners, soft double shadow.
+        // Every label inside is ALL-CAPS via the shared mono() helper.
         background: PAPER,
         border: `1px solid ${HAIRLINE}`,
-        boxShadow: '0 2px 12px rgba(36,26,18,0.12)',
-        padding: shown.onBack ? '5px 14px 5px 5px' : '8px 14px',
+        borderRadius: '16px',
+        boxShadow: '0 8px 28px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05)',
+        padding: shown.onBack ? '5px 16px 5px 5px' : '8px 16px',
       }}
     >
       {shown.onBack && (

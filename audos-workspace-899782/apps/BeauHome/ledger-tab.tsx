@@ -561,14 +561,20 @@ export function LedgerTab({
   );
   const hits = useMemo(() => filtered.reduce((n, c) => n + c.pieces.length, 0), [filtered]);
 
-  // The page opens on the category the record argues with most — the first
-  // unfold is never an empty one.
-  const defaultOpen = useMemo(() => {
-    const arguing = [...model.categories].filter((c) => c.toLookAt > 0).sort((a, b) => b.toLookAt - a.toLookAt)[0];
-    const first = arguing || model.categories.filter((c) => c.owned > 0)[0];
-    return first ? [first.id] : [];
-  }, [model.categories]);
-  const open = openIds ?? defaultOpen;
+  // EVERY category starts FOLDED (founder's correction, August 2026): the
+  // page never opens a category on its own — the reader unfolds what he
+  // wants. Navigating away and back also resets to all-folded (below).
+  const open = openIds ?? [];
+
+  // Coming BACK to the tab folds everything again — the shell announces
+  // each activation of a kept-mounted tab (ethaion:tab-activated).
+  useEffect(() => {
+    const onActivated = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab === 'wardrobe') setOpenIds(null);
+    };
+    window.addEventListener('ethaion:tab-activated', onActivated);
+    return () => window.removeEventListener('ethaion:tab-activated', onActivated);
+  }, []);
   // A search opens whatever it found, so nothing hides behind a closed rule.
   const openNow = q ? filtered.filter((c) => c.pieces.length > 0).map((c) => c.id) : open;
   const allOpen = open.length >= model.categories.length;

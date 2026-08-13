@@ -24,6 +24,9 @@ export const HUNT_OPEN_CATEGORY_EVENT = 'ethaion:hunt-open-category';
 export const INDEX_OPEN_TYPE_EVENT = 'ethaion:index-open-type';
 /** Ask Beau, pre-filled — the piece detail page's “Ask Beau to search”. */
 export const HUNT_ASK_EVENT = 'ethaion:hunt-ask';
+/** The Index's MAKERS face, filtered to a set of maker names — the landing
+ * after “Ask Beau to find makers” files its five new houses. */
+export const INDEX_OPEN_MAKERS_EVENT = 'ethaion:index-open-makers';
 
 export interface HuntTarget {
   /** An Index category id — 'shoes', 'outerwear'… */
@@ -37,6 +40,11 @@ export interface IndexTarget {
   typeId: string;
 }
 
+export interface IndexMakersTarget {
+  /** Maker names the Makers face opens filtered to (empty = unfiltered). */
+  names: string[];
+}
+
 /** How long a parked request stays valid — long enough for a lazy tab to
  * finish loading, short enough that it never surprises the reader later. */
 const PARK_MS = 6000;
@@ -44,6 +52,7 @@ const PARK_MS = 6000;
 let parkedHunt: HuntTarget | null = null;
 let parkedIndex: IndexTarget | null = null;
 let parkedAsk: string | null = null;
+let parkedIndexMakers: IndexMakersTarget | null = null;
 
 function goToTab(tab: string): void {
   window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab } }));
@@ -92,6 +101,30 @@ export function openInAskBeau(query: string): void {
   window.setTimeout(() => {
     if (parkedAsk === ask) parkedAsk = null;
   }, PARK_MS);
+}
+
+/** Open The Index's Makers face, filtered to the named makers. Dispatched
+ * AND parked like the other deep links, so a lazy Index still lands on it. */
+export function openIndexMakers(target: IndexMakersTarget): void {
+  parkedIndexMakers = target;
+  goToTab('index');
+  window.dispatchEvent(new CustomEvent(INDEX_OPEN_MAKERS_EVENT, { detail: target }));
+  window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent(INDEX_OPEN_MAKERS_EVENT, { detail: target }));
+  }, 420);
+  window.setTimeout(() => {
+    if (parkedIndexMakers === target) parkedIndexMakers = null;
+  }, PARK_MS);
+}
+
+export function peekIndexMakersTarget(): IndexMakersTarget | null {
+  return parkedIndexMakers;
+}
+
+export function takeIndexMakersTarget(): IndexMakersTarget | null {
+  const held = parkedIndexMakers;
+  parkedIndexMakers = null;
+  return held;
 }
 
 /** Read the parked request without clearing it — for a parent that only

@@ -301,6 +301,22 @@ export function HuntPicks({
     return () => window.removeEventListener(HUNT_OPEN_CATEGORY_EVENT, onOpen);
   }, []);
 
+  // EVERY category starts FOLDED when the reader comes back to The Hunt
+  // (founder's correction, August 2026). The tab is kept mounted, so the
+  // shell's activation event is what says "he navigated back" — the drawn
+  // shelves are kept (states), only the unfolds reset. A deep link from The
+  // Edit re-opens its own category through the event above, which fires
+  // again after activation.
+  useEffect(() => {
+    const onActivated = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab !== 'hunt') return;
+      setOpen({});
+      setDetail(null);
+    };
+    window.addEventListener('ethaion:tab-activated', onActivated);
+    return () => window.removeEventListener('ethaion:tab-activated', onActivated);
+  }, []);
+
   // A category already unfolded when his RECORD changes re-draws itself —
   // the engine's cache key moved with the facts, so this reads the new ones
   // rather than spending again on the old. A tag deliberately does not
@@ -356,7 +372,7 @@ export function HuntPicks({
         </span>
       </div>
 
-      <section aria-label="Beau's picks, by category">
+      <section aria-label="Beau's picks, by category" data-tour="tour-hunt-picks">
         {HUNT_CATEGORIES.map((category) => (
           <CategoryRow
             key={category.id}

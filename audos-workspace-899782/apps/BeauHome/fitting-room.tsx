@@ -648,6 +648,15 @@ export function FittingRoomTab({
   const dayName = DAY_NAMES[day];
   const fittingKey = `${day}:${occasion}`;
 
+  // THE LOOK'S DESCRIPTION IS FOLDED (founder's correction, August 2026):
+  // the paragraph under the outfit title starts collapsed behind a small
+  // toggle so it never inflates the canvas column — and folds again when
+  // the reader moves to another day or occasion.
+  const [aboutOpen, setAboutOpen] = useState(false);
+  useEffect(() => {
+    setAboutOpen(false);
+  }, [fittingKey]);
+
   // The composed week, seeded from module memory so a tab switch is free.
   const [fittings, setFittings] = useState<Record<string, FittingEntry>>(() => ({ ...fittingMemory }));
   useEffect(() => {
@@ -723,6 +732,8 @@ export function FittingRoomTab({
       dayName: dayLabel,
       weatherPhrase: weatherPhrase(),
       build: profile?.build || null,
+      colouring: profile?.skin_tone || null,
+      directions: profile?.archetypes || null,
       reasoning,
     })
       .then((copy) => patchFitting(key, (cur) => ({ ...cur, copy })))
@@ -1253,12 +1264,13 @@ export function FittingRoomTab({
             </div>
 
             {/* THE OUTFIT — the real cutouts, named at both edges. The
-                canvas is HALF its former height (founder's correction): it
-                closes roughly where the day rail beside it ends. */}
+                canvas is HALVED AGAIN (founder's correction, August 2026):
+                with the description folded away below, the board draws at
+                half its former rendered height. */}
             <section
               aria-label="The outfit on board"
               className="relative mx-auto w-full"
-              style={{ marginTop: '10px', minHeight: '190px' }}
+              style={{ marginTop: '10px', minHeight: '95px' }}
             >
               <div
                 aria-hidden="true"
@@ -1267,8 +1279,8 @@ export function FittingRoomTab({
                   left: '50%',
                   top: '46%',
                   transform: 'translate(-50%,-50%)',
-                  width: '170px',
-                  height: '170px',
+                  width: '110px',
+                  height: '110px',
                   borderRadius: '50%',
                   background: 'radial-gradient(circle, rgba(251,248,241,0.9) 0%, rgba(244,238,227,0) 70%)',
                   pointerEvents: 'none',
@@ -1280,7 +1292,7 @@ export function FittingRoomTab({
                     pieces={activeBoard}
                     onRemove={removeFromBoard}
                     seed={`fitting-${fittingKey}`}
-                    canvasMaxWidth="340px"
+                    canvasMaxWidth="170px"
                   />
                 </AnnotatedBoard>
               </div>
@@ -1298,14 +1310,27 @@ export function FittingRoomTab({
               )}
             </section>
 
-            {/* THE LOOK'S OWN LINE — set three line-breaks lower than the
-                canvas above it (founder's correction). */}
-            <div className="text-center" style={{ marginTop: 'calc(10px + 3em)' }}>
+            {/* THE LOOK'S OWN LINE — the title stays; the DESCRIPTION is
+                tucked beneath it in a collapsed state (founder's correction,
+                August 2026), so it adds nothing to the canvas column's
+                height until the reader asks for it. */}
+            <div className="text-center" style={{ marginTop: '14px' }}>
               <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>
                 {outfitName}
               </div>
               <div style={{ ...fitLabel(8, MUTED, '0.2em'), marginTop: '7px' }}>{bodyTag}</div>
-              <p style={{ ...body(12, INK), margin: '14px auto 0', maxWidth: '66ch', lineHeight: 1.65 }}>{outfitDescription}</p>
+              <button
+                type="button"
+                onClick={() => setAboutOpen((v) => !v)}
+                aria-expanded={aboutOpen}
+                className="inline-flex items-center gap-1.5 hover:underline"
+                style={{ ...fitLabel(8.5, ACCENT_DEEP, '0.14em'), background: 'transparent', border: 'none', marginTop: '9px', cursor: 'pointer' }}
+              >
+                {aboutOpen ? 'Hide the note \u25be' : 'About this look \u25b8'}
+              </button>
+              {aboutOpen && (
+                <p style={{ ...body(12, INK), margin: '10px auto 0', maxWidth: '66ch', lineHeight: 1.65 }}>{outfitDescription}</p>
+              )}
 
               {/* THE HONEST GAP — the wardrobe cannot dress this occasion
                   properly; the fitting says so plainly and points at Beau's
