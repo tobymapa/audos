@@ -90,6 +90,13 @@ function isLocalOnlySessionId(value: unknown): boolean {
   return typeof value === 'string' && /^(guest|ephemeral|anon)_/.test(value);
 }
 
+function isPersistedSessionUsable(session: any, sessionId: unknown): sessionId is string {
+  if (typeof sessionId !== 'string' || isLocalOnlySessionId(sessionId)) return false;
+  // Canonical platform sessions are wses_ ids. authVersion 2 marks sessions
+  // that this gate has explicitly upgraded through OTP verification.
+  return sessionId.startsWith('wses_') || session?.authVersion === 2;
+}
+
 // Comprehensive list of second-level TLDs (country-code SLDs) that require 3-part domain
 const MULTI_LEVEL_TLDS = [
   // UK
@@ -239,10 +246,10 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
+        if (isPersistedSessionUsable(session, recoveredId)) return recoveredId;
       }
       const ssId = sessionStorage.getItem('space_session_id');
-      if (ssId && !isLocalOnlySessionId(ssId)) return ssId;
+      if (ssId?.startsWith('wses_')) return ssId;
     } catch {
       // Storage unavailable (e.g. Edge tracking protection) — generate an
       // ephemeral session ID so chat and analytics still work for this page visit.
@@ -465,13 +472,13 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (recoveredId && !isLocalOnlySessionId(recoveredId)) {
+        if (isPersistedSessionUsable(session, recoveredId)) {
           setSessionId(recoveredId);
           return recoveredId;
         }
       }
       const ssId = sessionStorage.getItem('space_session_id');
-      if (ssId && !isLocalOnlySessionId(ssId)) {
+      if (ssId?.startsWith('wses_')) {
         setSessionId(ssId);
         return ssId;
       }
