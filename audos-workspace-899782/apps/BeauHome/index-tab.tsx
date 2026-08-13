@@ -19,8 +19,11 @@
  *    first, chosen against their profile, ledger and named gaps, each with
  *    a one-line justification — then the reader's own additions (a name or
  *    a pasted link auto-researches into a full dossier), then the rest of
- *    the directory on demand. Every column head sorts. Favourites, the
- *    five-verdict legend and the select-to-compare flow carry over.
+ *    the directory on demand. ADD YOUR OWN MAKER sits in its own section
+ *    directly under the find row; every row says who filed it (SOURCE —
+ *    Beau or you) and the source control reads either alone. Every column
+ *    head sorts. Favourites, the five-verdict legend and the
+ *    select-to-compare flow carry over.
  *
  * Everything on the page is REAL, PER-READER data: the taxonomy
  * (garment-types.ts + garment-type-runs.ts), spans and verdicts
@@ -366,7 +369,9 @@ function BandStrip({
   return (
     <div style={{ paddingBottom: '16px' }}>
       <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '4px 16px', paddingBottom: '7px' }}>
-        <span style={mono(7.5, FAINT)}>Temperature · click a band to hold it</span>
+        {/* The numbers are apparent temperature in °C — said plainly, so a
+            band reads as a temperature range and not an unexplained pair. */}
+        <span style={mono(9.5, FAINT)}>Temperature range in °C · click a band to hold it</span>
         {city ? (
           <span style={mono(7.5, ACCENT_DEEP)}>{city}</span>
         ) : (
@@ -381,10 +386,10 @@ function BandStrip({
         )}
       </div>
       <div className="overflow-x-auto">
-        <div style={{ minWidth: '640px' }}>
+        <div style={{ minWidth: '780px' }}>
           <div
             className="grid"
-            style={{ gridTemplateColumns: `repeat(${TEMPERATURE_BAND_ORDER.length}, minmax(74px, 1fr))`, border: `1px solid ${RULE}` }}
+            style={{ gridTemplateColumns: `repeat(${TEMPERATURE_BAND_ORDER.length}, minmax(90px, 1fr))`, border: `1px solid ${RULE}` }}
           >
             {TEMPERATURE_BAND_ORDER.map((band, i) => {
               const count = counts[band] || 0;
@@ -405,7 +410,7 @@ function BandStrip({
                     background: isHeld ? 'rgba(168,113,44,0.14)' : 'transparent',
                   }}
                 >
-                  <span style={{ ...mono(7.5, count > 0 ? SECONDARY : FAINTER), display: 'block' }}>{BAND_CELL_LABELS[band]}</span>
+                  <span style={{ ...mono(10, count > 0 ? SECONDARY : FAINTER), display: 'block', whiteSpace: 'nowrap' }}>{BAND_CELL_LABELS[band]}</span>
                   <span
                     style={{
                       ...serif(24, count > 0 ? WALNUT : FAINTER),
@@ -489,7 +494,7 @@ function SpanBar({ span, owned, gap }: { span: TempSpan; owned: boolean; gap: bo
 }
 
 /** The degree header the bars hang from — mirrors the row grid. */
-const PIECE_GRID = 'grid grid-cols-[minmax(148px,220px)_14px_minmax(0,1fr)_78px_54px_30px]';
+const PIECE_GRID = 'grid grid-cols-[minmax(148px,220px)_14px_minmax(0,1fr)_78px_72px_30px]';
 
 function PieceAxisHeader() {
   return (
@@ -500,14 +505,15 @@ function PieceAxisHeader() {
         {AXIS_MARKS.map((deg) => (
           <span
             key={deg}
-            style={{ ...mono(7.5, FAINT), position: 'absolute', left: `${pct(deg)}%`, bottom: '3px', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}
+            style={{ ...mono(10, FAINT), position: 'absolute', left: `${pct(deg)}%`, bottom: '3px', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}
           >
             {deg}°
           </span>
         ))}
       </div>
       <span aria-hidden style={{ height: '20px' }} />
-      <span aria-hidden style={{ height: '20px' }} />
+      {/* The column the range figures fall under — named in °C. */}
+      <span style={{ ...mono(9.5, FAINT), height: '20px', display: 'block', textAlign: 'right', whiteSpace: 'nowrap' }}>Temp °C</span>
       <span aria-hidden style={{ height: '20px' }} />
     </div>
   );
@@ -892,7 +898,7 @@ function PiecesFace({
                           <span style={{ ...mono(7.5, pieceVerdictColor(verdict)), textAlign: 'right', whiteSpace: 'nowrap' }}>
                             {verdict ? VERDICT_TEXT[verdict] : '—'}
                           </span>
-                          <span style={{ ...mono(8, SECONDARY), textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <span style={{ ...mono(10.5, SECONDARY), textAlign: 'right', whiteSpace: 'nowrap' }}>
                             {span ? `${span.lo}–${span.hi}°` : '—'}
                           </span>
                           {/* The arrow hands off to the MAKERS face, filtered to
@@ -1013,6 +1019,64 @@ const STOCKED_LABELS: Record<'ships-online' | 'travel', string> = {
   travel: 'Travel to buy',
 };
 
+// ---------------------------------------------------------------------------
+// SOURCE — who put the row on the list. A house the reader named himself (or
+// imported from a list) reads YOU; everything else on file is Beau's own
+// recommendation against the reader's profile and ledger.
+// ---------------------------------------------------------------------------
+
+type MakerSource = 'beau' | 'you';
+
+const SOURCE_LABELS: Record<MakerSource, string> = { beau: 'Beau', you: 'You' };
+
+const SOURCE_TITLES: Record<MakerSource, string> = {
+  beau: "Beau's own recommendation, read against your profile",
+  you: 'Added by you — Beau researched the row and filled it in',
+};
+
+function sourceOf(entry: DirectoryEntry): MakerSource {
+  return entry.source === 'user' ? 'you' : 'beau';
+}
+
+/** The SOURCE control — All · Beau · You, one segmented chip that sits with
+ * the other filters above the table. */
+function SourceChips({ held, onChange }: { held: MakerSource | 'all'; onChange: (next: MakerSource | 'all') => void }) {
+  const options: Array<{ id: MakerSource | 'all'; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'beau', label: 'Beau' },
+    { id: 'you', label: 'You' },
+  ];
+  return (
+    <span className="inline-flex items-center flex-shrink-0" style={{ gap: '9px' }}>
+      <span style={mono(8, FAINT)}>Source</span>
+      <span className="inline-flex" role="group" aria-label="Who put the maker on the list">
+        {options.map((o, i) => {
+          const on = held === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onChange(o.id)}
+              aria-pressed={on}
+              className="transition-colors"
+              style={{
+                ...mono(8.5, on ? DEEP : SECONDARY),
+                background: on ? 'rgba(168,113,44,0.12)' : 'transparent',
+                border: `1px solid ${on ? ACCENT_DEEP : RULE}`,
+                borderLeftWidth: i > 0 ? 0 : 1,
+                padding: '8px 12px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </span>
+    </span>
+  );
+}
+
 /** maker name (lowercased) → the categories on file: the canon's own
  * type→maker links merged with the catalog's per-brand category map, so a
  * category filter always finds the full bench of verified makers. */
@@ -1099,7 +1163,21 @@ const MAKER_TREE: MakerTreeCat[] = (() => {
   }));
 })();
 
-function TreePill({ on, label, onClick, quiet = false }: { on: boolean; label: string; onClick: () => void; quiet?: boolean }) {
+function TreePill({
+  on,
+  label,
+  onClick,
+  quiet = false,
+  size = 8.5,
+}: {
+  on: boolean;
+  label: string;
+  onClick: () => void;
+  quiet?: boolean;
+  /** The temperature pills carry the larger type — a range is a figure the
+   * reader has to read, not a whisper. */
+  size?: number;
+}) {
   return (
     <button
       type="button"
@@ -1107,7 +1185,7 @@ function TreePill({ on, label, onClick, quiet = false }: { on: boolean; label: s
       aria-pressed={on}
       className="transition-colors flex-shrink-0"
       style={{
-        ...mono(8.5, on ? '#5c3413' : quiet ? FAINT : SECONDARY),
+        ...mono(size, on ? '#5c3413' : quiet ? FAINT : SECONDARY),
         background: on ? 'rgba(168,113,44,0.14)' : 'transparent',
         border: `1px solid ${on ? ACCENT_DEEP : HAIRLINE}`,
         borderRadius: '999px',
@@ -1188,7 +1266,7 @@ function MakerTreeFilter({
       </div>
       {MAKER_TREE.filter((cat) => openCats.includes(cat.id)).map((cat) => (
         <div key={cat.id} style={{ margin: '9px 0 0 14px', paddingLeft: '12px', borderLeft: `1px solid ${HAIRLINE}` }}>
-          <span style={mono(7.5, FAINT)}>{categoryName(cat.id)} · by temperature</span>
+          <span style={mono(9.5, FAINT)}>{categoryName(cat.id)} · by temperature range in °C</span>
           <div className="flex items-center flex-wrap" style={{ gap: '6px 8px', marginTop: '6px' }}>
             {cat.bands.map((b) => {
               const key = `${cat.id}|${b.band}`;
@@ -1197,6 +1275,7 @@ function MakerTreeFilter({
                   <TreePill
                     on={bands.includes(key)}
                     quiet
+                    size={10.5}
                     label={`${temperatureBandLabel(b.band)} · ${temperatureBandRange(b.band)}`}
                     onClick={() => onBands(toggleIn(bands, key))}
                   />
@@ -1224,7 +1303,7 @@ function MakerTreeFilter({
   );
 }
 
-const MAKER_GRID = 'grid grid-cols-[26px_22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_20px]';
+const MAKER_GRID = 'grid grid-cols-[26px_22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_58px_20px]';
 
 function FavStar({ active, onToggle, brand }: { active: boolean; onToggle: () => void; brand: string }) {
   return (
@@ -1326,6 +1405,7 @@ function CompareSheet({
     { label: 'Price, new', of: (e) => priceNewOf(e.profile) },
     { label: 'Stocked', of: (e) => STOCKED_LABELS[stockedOf(e.profile)] },
     { label: "Beau's read", of: (e) => READ_LABELS[readOf(e)] },
+    { label: 'Source', of: (e) => SOURCE_LABELS[sourceOf(e)] },
     { label: 'Quality', of: (e) => (Number.isFinite(e.profile.qualityScore) && !isStubProfile(e.profile) ? `${e.profile.qualityScore}/10` : '—') },
     { label: 'Signature pieces', of: (e) => (e.profile.signaturePieces || []).slice(0, 3).join(' · ') || '—' },
     { label: 'On your ledger', of: (e) => (ledger.has(e.profile.brand.toLowerCase()) ? 'Yes' : '—') },
@@ -1367,7 +1447,7 @@ function CompareSheet({
 
 // ——— column sorting — every head sorts, ascending then descending.
 
-type SortCol = 'rank' | 'maker' | 'where' | 'defines' | 'price' | 'stocked' | 'read';
+type SortCol = 'rank' | 'maker' | 'where' | 'defines' | 'price' | 'stocked' | 'read' | 'source';
 interface SortState {
   col: SortCol;
   dir: 1 | -1;
@@ -1431,6 +1511,8 @@ function MakersFace({
   const [makes, setMakes] = useState<string[]>([]);
   const [reads, setReads] = useState<string[]>([]);
   const [stocked, setStocked] = useState<string[]>([]);
+  // SOURCE — the whole file, Beau's own recommendations, or your additions.
+  const [sourceHeld, setSourceHeld] = useState<MakerSource | 'all'>('all');
   const [held, setHeld] = useState<string[]>([]);
   const [comparing, setComparing] = useState(false);
   const [openMaker, setOpenMaker] = useState<string | null>(null);
@@ -1599,12 +1681,14 @@ function MakersFace({
       }
       if (reads.length > 0 && !reads.includes(readOf(e))) return false;
       if (stocked.length > 0 && !stocked.includes(stockedOf(p))) return false;
+      if (sourceHeld !== 'all' && sourceOf(e) !== sourceHeld) return false;
       return true;
     });
-  }, [entries, find, favesOnly, places, bands, makes, reads, stocked, metaMap, favOverrides, typeFilter, typeMakerKeys, treeSelection, namesFilterKeys]);
+  }, [entries, find, favesOnly, places, bands, makes, reads, stocked, sourceHeld, metaMap, favOverrides, typeFilter, typeMakerKeys, treeSelection, namesFilterKeys]);
 
   const treeHeld = treeCats.length + treeBands.length + treeTypes.length;
-  const filtersHeld = (favesOnly ? 1 : 0) + places.length + bands.length + makes.length + reads.length + stocked.length + (find.trim() ? 1 : 0) + treeHeld;
+  const filtersHeld =
+    (favesOnly ? 1 : 0) + places.length + bands.length + makes.length + reads.length + stocked.length + (sourceHeld === 'all' ? 0 : 1) + (find.trim() ? 1 : 0) + treeHeld;
 
   // A held search, filter or type hand-off reads the WHOLE file, not just
   // the shortlist — nobody expects a search to miss a maker Beau didn't pick.
@@ -1632,6 +1716,8 @@ function MakersFace({
         return (a: DirectoryEntry, b: DirectoryEntry) => stockedOf(a.profile).localeCompare(stockedOf(b.profile));
       case 'read':
         return (a: DirectoryEntry, b: DirectoryEntry) => READ_ORDER.indexOf(readOf(a)) - READ_ORDER.indexOf(readOf(b));
+      case 'source':
+        return (a: DirectoryEntry, b: DirectoryEntry) => sourceOf(a).localeCompare(sourceOf(b));
       default:
         return (a: DirectoryEntry, b: DirectoryEntry) => rankOf(a) - rankOf(b);
     }
@@ -1677,6 +1763,7 @@ function MakersFace({
     setMakes([]);
     setReads([]);
     setStocked([]);
+    setSourceHeld('all');
     setTreeCats([]);
     setTreeBands([]);
     setTreeTypes([]);
@@ -1750,6 +1837,7 @@ function MakersFace({
     const p = e.profile;
     const key = p.brand.toLowerCase();
     const read = readOf(e);
+    const src = sourceOf(e);
     const onLedger = ledgerBrands.has(key);
     const open = openMaker === p.brand;
     const pick = pickMap.get(key) || null;
@@ -1758,7 +1846,7 @@ function MakersFace({
       <div key={p.brand}>
         <div className={`${MAKER_GRID} items-center`} style={{ gap: '0 12px', padding: '11px 0', borderBottom: ROW_HAIRLINE }}>
           <span style={{ ...mono(8, pick ? ACCENT_DEEP : FAINTER), whiteSpace: 'nowrap' }}>
-            {pick ? pick.rank : e.source === 'user' ? 'you' : ''}
+            {pick ? pick.rank : ''}
           </span>
           <TickBox on={held.includes(p.brand)} disabled={held.length >= 4} onToggle={() => toggleHeld(p.brand)} brand={p.brand} />
           <FavStar active={isFav(p.brand)} onToggle={() => void toggleFav(p.brand)} brand={p.brand} />
@@ -1792,6 +1880,9 @@ function MakersFace({
           <span style={{ ...mono(8, SECONDARY), whiteSpace: 'nowrap' }}>{priceNewOf(p)}</span>
           <span style={body(12.5, SECONDARY)}>{STOCKED_LABELS[stockedOf(p)]}</span>
           <span style={mono(7.5, READ_COLORS[read])}>{READ_LABELS[read]}</span>
+          <span title={SOURCE_TITLES[src]} style={{ ...mono(7.5, src === 'you' ? ACCENT_DEEP : SECONDARY), whiteSpace: 'nowrap' }}>
+            {SOURCE_LABELS[src]}
+          </span>
           <button
             type="button"
             onClick={() => hideIndexMaker(p.brand)}
@@ -1815,42 +1906,79 @@ function MakersFace({
     </div>
   );
 
-  const addMakerBlock = (
-    <div style={{ padding: '14px 0 6px' }}>
-      <div className="flex items-center flex-wrap" style={{ gap: '10px 12px' }}>
-        <span style={{ ...mono(8, FAINT), flexShrink: 0 }}>Add your own maker</span>
-        <label className="flex items-center min-w-0 flex-1" style={{ border: `1px solid ${RULE}`, padding: '9px 13px', maxWidth: '420px', background: 'transparent' }}>
-          <input
-            type="text"
-            value={addValue}
-            onChange={(e) => setAddValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void addMaker();
-            }}
-            placeholder='a name, or paste a link — “Sartoria Ripense”, “drakes.com”'
-            className="min-w-0 flex-1 bg-transparent outline-none"
-            style={{ ...body(14, INK), lineHeight: 1.3 }}
-          />
-        </label>
-        <MonoButton solid disabled={addBusy || !addValue.trim()} onClick={() => void addMaker()}>
-          {addBusy ? 'Adding…' : 'Add to the list'}
-        </MonoButton>
-        <MonoButton disabled={addBusy} onClick={() => fileRef.current?.click()}>
-          Upload a list · CSV, XLSX, TXT
-        </MonoButton>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv,.xlsx,.xls,.txt,text/plain,text/csv"
-          className="hidden"
-          onChange={(e) => void onFile(e.target.files?.[0] || null)}
-        />
+  /** ADD YOUR OWN MAKER — its own section, set off from the find row above
+   * it: the label on the left, the two ways in side by side (a name or a
+   * pasted link; a whole list uploaded at once), the descriptor under them,
+   * and the status line while Beau is out researching. */
+  const addMakerSection = (
+    <section
+      aria-label="Add your own maker"
+      style={{
+        border: `1px solid ${HAIRLINE}`,
+        borderLeft: `2px solid ${ACCENT_DEEP}`,
+        background: 'rgba(168,113,44,0.045)',
+        padding: '14px 16px 15px',
+        marginBottom: '6px',
+      }}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-[146px_minmax(0,1fr)]" style={{ gap: '9px 18px' }}>
+        <span style={{ ...mono(8, ACCENT_DEEP), paddingTop: '11px' }}>Add your own maker</span>
+        <div className="min-w-0">
+          <div className="flex items-center flex-wrap" style={{ gap: '10px 12px' }}>
+            <label
+              className="flex items-center min-w-0 flex-1"
+              style={{ border: `1px solid ${RULE}`, padding: '9px 13px', maxWidth: '360px', background: PAPER }}
+            >
+              <input
+                type="text"
+                value={addValue}
+                onChange={(e) => setAddValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void addMaker();
+                }}
+                placeholder='a name, or paste a link — “Sartoria Ripense”, “drakes.com”'
+                className="min-w-0 flex-1 bg-transparent outline-none"
+                style={{ ...body(14, INK), lineHeight: 1.3 }}
+              />
+            </label>
+            <MonoButton solid disabled={addBusy || !addValue.trim()} onClick={() => void addMaker()}>
+              {addBusy ? 'Adding…' : 'Add to the list'}
+            </MonoButton>
+            <MonoButton disabled={addBusy} onClick={() => fileRef.current?.click()} title="One maker per line, or in the first column">
+              Upload a list · CSV, XLSX, TXT
+            </MonoButton>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.xlsx,.xls,.txt,text/plain,text/csv"
+              className="hidden"
+              onChange={(e) => void onFile(e.target.files?.[0] || null)}
+            />
+          </div>
+          <p style={{ ...body(12.5, FAINT), margin: '9px 0 0', maxWidth: '74ch' }}>
+            Name a maker or paste their link and Beau researches them — country, speciality, price point, what they're known for — and files the full row himself.
+          </p>
+          {notice && (
+            <div
+              aria-live="polite"
+              className="inline-flex items-center"
+              style={{
+                ...mono(8, DEEP),
+                gap: '9px',
+                marginTop: '11px',
+                border: `1px solid ${ACCENT_DEEP}`,
+                background: 'rgba(168,113,44,0.12)',
+                padding: '7px 11px',
+                lineHeight: 1.5,
+              }}
+            >
+              <span aria-hidden style={{ width: '5px', height: '5px', borderRadius: '999px', background: ACCENT_DEEP, flexShrink: 0 }} />
+              {notice}
+            </div>
+          )}
+        </div>
       </div>
-      <p style={{ ...body(12.5, FAINT), margin: '8px 0 0', maxWidth: '70ch' }}>
-        Name a maker or paste their link and Beau researches them — country, speciality, price point, what they're known for — and files the full row himself.
-      </p>
-      {notice && <div style={{ ...mono(8, ACCENT_DEEP), paddingTop: '10px' }}>{notice}</div>}
-    </div>
+    </section>
   );
 
   const columnHeads = (
@@ -1864,6 +1992,7 @@ function MakersFace({
       <SortHead label="Price, new" col="price" sort={sort} onSort={onSort} />
       <SortHead label="Stocked" col="stocked" sort={sort} onSort={onSort} />
       <SortHead label="Beau's read" col="read" sort={sort} onSort={onSort} />
+      <SortHead label="Source" col="source" sort={sort} onSort={onSort} />
       <span aria-hidden />
     </div>
   );
@@ -1975,7 +2104,13 @@ function MakersFace({
           active={stocked}
           onToggle={(id) => setStocked((cur) => toggleIn(cur, id))}
         />
+        {/* SOURCE — the whole file, Beau's own picks, or your own additions. */}
+        <SourceChips held={sourceHeld} onChange={setSourceHeld} />
       </div>
+
+      {/* ——— ADD YOUR OWN MAKER — its own section, directly under the find
+          row: a name or a link, or a whole list at once. */}
+      {addMakerSection}
 
       {/* ——— the verdict legend */}
       <div
@@ -2027,13 +2162,10 @@ function MakersFace({
       {comparing && heldEntries.length >= 2 ? (
         <CompareSheet entries={heldEntries} ledger={ledgerBrands} onClose={() => setComparing(false)} />
       ) : shown.length === 0 ? (
-        <div>
-          <p style={{ ...body(14, SECONDARY), padding: '20px 0' }}>No maker on file answers this combination — reset the filters to see every house.</p>
-          {addMakerBlock}
-        </div>
+        <p style={{ ...body(14, SECONDARY), padding: '20px 0' }}>No maker on file answers this combination — reset the filters to see every house.</p>
       ) : (
         <div className="overflow-x-auto">
-          <div style={{ minWidth: '900px' }}>
+          <div style={{ minWidth: '960px' }}>
             {grouped ? (
               <>
                 {/* ——— BEAU'S FIFTY — the shortlist, strongest first */}
@@ -2048,10 +2180,15 @@ function MakersFace({
                   sortedPicks.map(renderRow)
                 )}
 
-                {/* ——— YOUR OWN ADDITIONS — add a maker below the fifty */}
+                {/* ——— YOUR OWN ADDITIONS — filed by the section at the top */}
                 {sectionHead('Your makers', 'Added by you — Beau researches each one and fills the row')}
-                {addMakerBlock}
-                {userShown.length > 0 && userShown.map(renderRow)}
+                {userShown.length > 0 ? (
+                  userShown.map(renderRow)
+                ) : (
+                  <p style={{ ...body(13.5, SECONDARY), padding: '13px 0' }}>
+                    None of your own yet — name a maker in ADD YOUR OWN MAKER at the top of the page and Beau files the row.
+                  </p>
+                )}
 
                 {/* ——— THE REST OF THE FILE — on demand */}
                 {restShown.length > 0 && (
@@ -2067,7 +2204,6 @@ function MakersFace({
               <>
                 {columnHeads}
                 {flatRows.map(renderRow)}
-                {addMakerBlock}
               </>
             )}
           </div>
