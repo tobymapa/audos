@@ -20,6 +20,7 @@ function db(): any {
 
 export const NA_STORE_KEY = 'ethaion_coverage_na_v1';
 export const MUTED_STORE_KEY = 'ethaion_muted_registers_v1';
+export const FREQ_STORE_KEY = 'ethaion_register_freqs_v1';
 export const COVERAGE_PREFS_EVENT = 'ethaion:coverage-prefs-changed';
 
 export interface CoveragePrefRow {
@@ -102,7 +103,7 @@ export async function fetchMutedRegisters(): Promise<string[]> {
 }
 
 /** Insert-or-update one preference row; fires the change event. */
-async function upsertPref(kind: 'na' | 'muted', prefKey: string, value: boolean): Promise<void> {
+async function upsertPref(kind: 'na' | 'muted' | 'frequency', prefKey: string, value: boolean | string): Promise<void> {
   try {
     const rows = await readRows();
     const existing = rows.find((r) => (r.kind || '') === kind && (r.pref_key || '') === prefKey);
@@ -115,6 +116,62 @@ async function upsertPref(kind: 'na' | 'muted', prefKey: string, value: boolean)
   } catch (e) {
     console.warn('[Ethaion] coverage preference write failed (the local mirror still holds it):', e);
   }
+}
+
+// ---------------------------------------------------------------------------
+// REGISTER FREQUENCIES (onboarding screen 3 · M11 · the dossier's register
+// frequencies): how often each dress register actually comes up —
+// 'most-days' · 'weekly' · 'rarely' · 'never'. Stored as kind='frequency'
+// rows in the SAME coverage_prefs table; 'never' also MUTES the register
+// (and any other answer un-mutes it), so The Edit's map and Beau's
+// assessment honour the answer immediately.
+// ---------------------------------------------------------------------------
+
+export type RegisterFrequency = 'most-days' | 'weekly' | 'rarely' | 'never';
+
+export const REGISTER_FREQUENCY_LABELS: Record<RegisterFrequency, string> = {
+  'most-days': 'Most days',
+  weekly: 'Weekly',
+  rarely: 'Rarely',
+  never: 'Not for me',
+};
+
+/** register id → frequency, newest row per register winning. */
+export function frequenciesFromRows(rows: CoveragePrefRow[] | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const seen = new Set<string>();
+  for (const row of rows || []) {
+    if ((row.kind || '').trim() !== 'frequency') continue;
+    const key = (row.pref_key || '').trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    if (row.pref_value) out[key] = String(row.pref_value);
+  }
+  return out;
+}
+
+export async function fetchRegisterFrequencies(): Promise<Record<string, string>> {
+  try {
+    const freqs = frequenciesFromRows(await readRows());
+    storeLocalJson(FREQ_STORE_KEY, freqs);
+    return freqs;
+  } catch {
+    return loadLocalJson<Record<string, string>>(FREQ_STORE_KEY, {});
+  }
+}
+
+/** Persist one register's frequency — 'never' mutes the register too. */
+export function writeRegisterFrequency(register: string, freq: RegisterFrequency): void {
+  const local = loadLocalJson<Record<string, string>>(FREQ_STORE_KEY, {});
+  local[register] = freq;
+  storeLocalJson(FREQ_STORE_KEY, local);
+  void upsertPref('frequency', register, freq);
+  // The consequence, applied at the source: never → muted; anything else
+  // un-mutes. The muted mirror follows the same rule.
+  const muted = loadLocalJson<string[]>(MUTED_STORE_KEY, []);
+  const nextMuted = freq === 'never' ? [...new Set([...muted, register])] : muted.filter((r) => r !== register);
+  storeLocalJson(MUTED_STORE_KEY, nextMuted);
+  void upsertPref('muted', register, freq === 'never');
 }
 
 /** Persist a per-cell doesn't-apply override (localStorage + DB). */

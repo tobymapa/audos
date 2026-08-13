@@ -60,6 +60,22 @@ export interface DossierDetails {
   paletteNotes: string | null;
   styleReferences: string[];
   climate: string | null;
+  /** Resolved home city (display only) — the climate pipeline stores it
+   * alongside the derived curve, which is what band arithmetic uses. */
+  city: string | null;
+  /** Coordinates of the resolved home location — stored so the climate
+   * pipeline can recompute without re-geocoding. Null until a location is
+   * set (geolocation or geocoded typed place). */
+  cityLat: number | null;
+  cityLng: number | null;
+  /** Register ids (of the SIX — brands.ts ALL_REGISTERS) excluded from
+   * Index recommendations. Empty means all six are active. */
+  mutedRegisters: string[];
+  /** The derived 8-integer day histogram, coldest band first (below-0 …
+   * above-30), summing ~365. null until the climate pipeline has run. */
+  climateBands: number[] | null;
+  /** 'geolocation' | 'geocoded' | 'stock' — how climateBands was derived. */
+  climateSource: string | null;
 }
 
 export const EMPTY_DOSSIER_DETAILS: DossierDetails = {
@@ -69,6 +85,12 @@ export const EMPTY_DOSSIER_DETAILS: DossierDetails = {
   paletteNotes: null,
   styleReferences: [],
   climate: null,
+  city: null,
+  cityLat: null,
+  cityLng: null,
+  mutedRegisters: [],
+  climateBands: null,
+  climateSource: null,
 };
 
 /** Hair colour is a tap, not a free-text box — Beau reasons over the id. */
@@ -117,6 +139,27 @@ function parseReferences(value: unknown): string[] {
   return [];
 }
 
+/** The stored climate histogram — exactly 8 finite numbers, or null. */
+function parseClimateBands(value: unknown): number[] | null {
+  let parsed: unknown = value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(parsed) || parsed.length !== 8) return null;
+  const nums = parsed.map((n) => Number(n));
+  return nums.every((n) => Number.isFinite(n)) ? nums : null;
+}
+
+/** A finite coordinate or null — decimal columns can arrive as strings. */
+function parseCoord(value: unknown): number | null {
+  const n = typeof value === 'string' ? Number(value) : (value as number);
+  return Number.isFinite(n) ? (n as number) : null;
+}
+
 function rowToDetails(row: any): DossierDetails {
   return {
     id: Number(row?.id) || 0,
@@ -125,6 +168,12 @@ function rowToDetails(row: any): DossierDetails {
     paletteNotes: row?.palette_notes || null,
     styleReferences: parseReferences(row?.style_references),
     climate: row?.climate || null,
+    city: row?.city || null,
+    cityLat: parseCoord(row?.city_lat),
+    cityLng: parseCoord(row?.city_lng),
+    mutedRegisters: parseReferences(row?.muted_registers),
+    climateBands: parseClimateBands(row?.climate_bands),
+    climateSource: row?.climate_source || null,
   };
 }
 
@@ -147,6 +196,12 @@ export interface DossierDetailsPatch {
   paletteNotes?: string | null;
   styleReferences?: string[];
   climate?: string | null;
+  city?: string | null;
+  cityLat?: number | null;
+  cityLng?: number | null;
+  mutedRegisters?: string[];
+  climateBands?: number[] | null;
+  climateSource?: string | null;
 }
 
 /**
@@ -164,6 +219,21 @@ export async function saveDossierDetails(patch: DossierDetailsPatch): Promise<Do
     const clean = (patch.styleReferences || []).map((r) => r.trim()).filter(Boolean).slice(0, 12);
     fields.style_references = JSON.stringify(clean);
   }
+  if ('city' in patch) fields.city = (patch.city || '').trim() || null;
+  if ('cityLat' in patch) fields.city_lat = Number.isFinite(patch.cityLat as number) ? patch.cityLat : null;
+  if ('cityLng' in patch) fields.city_lng = Number.isFinite(patch.cityLng as number) ? patch.cityLng : null;
+  if ('mutedRegisters' in patch) {
+    const clean = [...new Set((patch.mutedRegisters || []).map((r) => r.trim()).filter(Boolean))];
+    fields.muted_registers = JSON.stringify(clean);
+  }
+  if ('climateBands' in patch) {
+    const bands = patch.climateBands;
+    fields.climate_bands =
+      Array.isArray(bands) && bands.length === 8 && bands.every((n) => Number.isFinite(n))
+        ? JSON.stringify(bands.map((n) => Math.round(n)))
+        : null;
+  }
+  if ('climateSource' in patch) fields.climate_source = patch.climateSource || null;
 
   try {
     const { data } = await ws().from('dossier_details').orderBy('created_at', 'desc').limit(1).get();

@@ -7,10 +7,14 @@
  *    platform's server-side cheerio scraper — a browser cannot read
  *    cross-origin pages), failing soft to the domain stem and the favicon
  *    service so a blocked page never blocks the entry.
- *  · UPLOAD A FILE — parseBrandImportFile reads a .txt (one entry per line)
- *    or .xlsx (first column of data rows; SheetJS loaded once from its
- *    official CDN, the same loader the discovery log uses) into a list of
- *    {name, url, logoUrl} entries, URL-vs-plain-name detected per line.
+ *  · UPLOAD A FILE — parseBrandImportFile reads a .txt (one entry per line),
+ *    a .csv (first column of data rows) or .xlsx (first column of data rows;
+ *    SheetJS loaded once from its official CDN, the same loader the
+ *    discovery log uses) into a list of {name, url, logoUrl} entries,
+ *    URL-vs-plain-name detected per line. Each entry then auto-categorises
+ *    as KNOWN (already in the maker database — no review), NEW (auto-
+ *    created — no review) or AMBIGUOUS (looksAmbiguousMakerName — the only
+ *    rows the user is asked to confirm).
  *
  * The personal per-brand file (status / note / known for / specialisations /
  * signature pieces / logo) lives in the SAME `brand_index` table the
@@ -233,10 +237,10 @@ function toEntries(values: string[]): BrandImportEntry[] {
 
 /**
  * Parse an uploaded brand list into import entries. `.txt` reads one entry
- * per line; `.xlsx` reads the FIRST COLUMN of the first sheet's data rows.
- * Lines/cells that read as URLs come back with the URL and a favicon logo;
- * plain names come back as-is. Throws with a human-readable message when
- * the file can't be read.
+ * per line; `.csv` and `.xlsx` read the FIRST COLUMN of the first sheet's
+ * data rows. Lines/cells that read as URLs come back with the URL and a
+ * favicon logo; plain names come back as-is. Throws with a human-readable
+ * message when the file can't be read.
  */
 export async function parseBrandImportFile(file: File): Promise<BrandImportEntry[]> {
   const lower = (file.name || '').toLowerCase();
@@ -250,9 +254,46 @@ export async function parseBrandImportFile(file: File): Promise<BrandImportEntry
     const firstColumn = rows.map((row) => (Array.isArray(row) ? String(row[0] ?? '').trim() : '')).filter(Boolean);
     return toEntries(firstColumn);
   }
+  if (lower.endsWith('.csv')) {
+    // A CSV parses through the same SheetJS reader the .xlsx path uses —
+    // quoted cells, embedded commas and BOMs all handled, first column read.
+    const XLSX = await loadSheetJS();
+    const text = await file.text();
+    const wb = XLSX.read(text, { type: 'string' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) throw new Error('That CSV has no readable rows — check the file and try again.');
+    const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+    const firstColumn = rows.map((row) => (Array.isArray(row) ? String(row[0] ?? '').trim() : '')).filter(Boolean);
+    return toEntries(firstColumn);
+  }
   if (lower.endsWith('.txt') || file.type.startsWith('text/')) {
     const text = await file.text();
     return toEntries(text.split(/\r?\n/));
   }
-  throw new Error('That file type isn\u2019t supported — a .txt (one brand per line) or .xlsx (brands in the first column) works.');
+  throw new Error('That file type isn\u2019t supported — a .txt (one brand per line), a .csv or an .xlsx (brands in the first column) works.');
+}
+
+// ---------------------------------------------------------------------------
+// Ambiguity — which rows the user must confirm (import resolution)
+// ---------------------------------------------------------------------------
+
+/**
+ * True when a parsed cell does NOT confidently read as a maker's name —
+ * these are the ONLY rows shown for review; Known and New rows process
+ * silently. Deliberately conservative: a real maker name should never be
+ * held up, so only sentence-shaped, price-shaped or note-shaped values
+ * flag. URL rows are never ambiguous — the domain names the maker.
+ */
+export function looksAmbiguousMakerName(entry: BrandImportEntry): { ambiguous: boolean; why: string } {
+  if (entry.url) return { ambiguous: false, why: '' };
+  const name = (entry.name || '').trim();
+  const words = name.split(/\s+/).filter(Boolean);
+  if (name.length > 42) return { ambiguous: true, why: 'Longer than a maker\u2019s name usually runs — it may be a note or a description.' };
+  if (words.length > 4) return { ambiguous: true, why: `${words.length} words — reads more like a sentence than a maker.` };
+  if (/[£$€¥]|\b\d+([.,]\d+)?\s*(gbp|usd|eur)\b/i.test(name)) return { ambiguous: true, why: 'Carries a price — it may be a listing, not a maker.' };
+  if (/[?!;:]/.test(name)) return { ambiguous: true, why: 'Punctuated like a note, not a name.' };
+  if (/^\d+$/.test(name.replace(/\s+/g, ''))) return { ambiguous: true, why: 'All digits — probably a row number or a size.' };
+  if (/\b(shirt|trouser|jacket|coat|shoe|boot|loafer|sneaker|size|colou?r|men'?s|womens?)\b/i.test(name) && words.length > 1)
+    return { ambiguous: true, why: 'Names a garment — it may be a piece, not its maker.' };
+  return { ambiguous: false, why: '' };
 }

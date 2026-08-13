@@ -18,9 +18,7 @@
  *  · useBeauFifty — the fifty-maker shortlist the Makers face leads with:
  *    fifty houses chosen for THIS reader from the merged directory, each
  *    with a one-line justification.
- *  · usePieceBeauRead — Beau's read of one garment TYPE.
- *  · useLedgerPieceRead — Beau's read of ONE PIECE THE READER OWNS, at the
- *    top of the detail card their own row opens.
+ *  · usePieceBeauRead — Beau's read at the top of a type's inline entry.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { CLAUDE_HAIKU, CLAUDE_SONNET, callClaude } from './claude';
@@ -33,7 +31,6 @@ import {
   spanOf,
   verdictFor,
   type IndexModel,
-  type LedgerPieceRead,
 } from './index-model';
 import type { StyleProfile, WardrobePiece } from './profile-data';
 
@@ -386,48 +383,8 @@ function fiftyFallback(entries: DirectoryEntry[], facts: FiftyFacts, profile: St
       return { brand: p.brand, why, score };
     })
     .sort((a, b) => b.score - a.score || a.brand.localeCompare(b.brand));
-  // THE COVERAGE RULE. A shortlist ranked on score alone clusters on the
-  // categories the catalog is deepest in (shoes, outerwear) and can leave a
-  // whole kind of piece unrepresented — so the fifty are drawn round-robin
-  // across the eleven categories, strongest house first within each, and the
-  // remaining places go to the next-best whatever they make. Every piece type
-  // therefore reaches the recommendations, and the arrow from a piece row
-  // still has the whole file behind it (index-maker-rows makersForCategory
-  // guarantees at least ten there).
-  const byCategory = new Map<string, Array<{ brand: string; why: string; score: number }>>();
-  for (const s of scored) {
-    for (const cat of MAKER_CATS.get(s.brand.toLowerCase()) || new Set<GarmentCategoryId>()) {
-      const list = byCategory.get(cat) || [];
-      list.push(s);
-      byCategory.set(cat, list);
-    }
-  }
-  const chosen: Array<{ brand: string; why: string }> = [];
-  const taken = new Set<string>();
-  const cats = [...byCategory.keys()];
-  let round = 0;
-  while (chosen.length < 50 && round < 12) {
-    let addedThisRound = false;
-    for (const cat of cats) {
-      if (chosen.length >= 50) break;
-      const list = byCategory.get(cat) || [];
-      const next = list.find((s) => !taken.has(s.brand));
-      if (!next) continue;
-      taken.add(next.brand);
-      chosen.push(next);
-      addedThisRound = true;
-    }
-    if (!addedThisRound) break;
-    round += 1;
-  }
-  for (const s of scored) {
-    if (chosen.length >= 50) break;
-    if (taken.has(s.brand)) continue;
-    taken.add(s.brand);
-    chosen.push(s);
-  }
   return {
-    picks: chosen.slice(0, 50).map((s, i) => ({ brand: s.brand, why: s.why, rank: i + 1 })),
+    picks: scored.slice(0, 50).map((s, i) => ({ brand: s.brand, why: s.why, rank: i + 1 })),
     generated: false,
   };
 }
@@ -449,7 +406,7 @@ async function generateFifty(
   const want = Math.min(50, candidates.length);
   const task = {
     text:
-      `Task: BEAU'S FIFTY — the curated maker shortlist heading the Index's Makers face. From the CANDIDATES ONLY (never a name outside the list), choose the ${want} houses that serve THIS wearer best — weigh their style directions, colouring, proportions, budget signals, city and climate, what they already own and the gaps their board names. Order matters: strongest first. COVER THE WHOLE WARDROBE: every kind of piece named in the candidates\u2019 \u201cmakes\u201d field must be answered by several houses \u2014 never fill the list with shoes and outerwear because the file is deepest there. For each, "why" is ONE line (max 110 characters), specific to this wearer — the piece it answers, the direction it serves, or the gap it fills; never a generic compliment. Return JSON: {"picks": [{"name": "<exact candidate name>", "why": "..."}]} — exactly ${want} picks, names verbatim from the candidate list.`,
+      `Task: BEAU'S FIFTY — the curated maker shortlist heading the Index's Makers face. From the CANDIDATES ONLY (never a name outside the list), choose the ${want} houses that serve THIS wearer best — weigh their style directions, colouring, proportions, budget signals, city and climate, what they already own and the gaps their board names. Order matters: strongest first. For each, "why" is ONE line (max 110 characters), specific to this wearer — the piece it answers, the direction it serves, or the gap it fills; never a generic compliment. Return JSON: {"picks": [{"name": "<exact candidate name>", "why": "..."}]} — exactly ${want} picks, names verbatim from the candidate list.`,
     cache: true,
   };
   const user =
@@ -651,131 +608,6 @@ export function usePieceBeauRead(type: GarmentType | null, model: IndexModel, pr
 
   if (!type) return null;
   return copy || pieceReadFallback(type, model);
-}
-
-// ---------------------------------------------------------------------------
-// ONE PIECE THE READER OWNS — Beau's read at the top of the detail card a
-// piece row opens on the Pieces face.
-// ---------------------------------------------------------------------------
-
-function pieceFactLines(read: LedgerPieceRead, model: IndexModel, siblings: number): string[] {
-  const p = read.piece;
-  const city = model.climate.city;
-  const days = read.span ? daysInSpan(model.climate, read.span) : null;
-  const where = city ? ' in ' + city : '';
-  const dayCount = days != null ? String(days) : 'unknown';
-  const lines = [
-    `The piece, in their own words: “${p.name}”.`,
-    `Category: ${read.category || 'unplaced'}.`,
-    `Maker: ${read.brand || 'none recorded'}.`,
-    `Cloth: ${read.material || 'not recorded'}.`,
-    `Colours: ${(p.colors || []).join(', ') || 'not recorded'}.`,
-    `Seasons tagged: ${(p.seasons || []).join(', ') || 'none'}.`,
-    read.span
-      ? `Comfortable range read from the piece: ${read.span.lo}–${read.span.hi}° apparent.`
-      : 'No temperature range — judged by material and place, not weather.',
-    'Days a year that range earns' + where + ': ' + dayCount + '.',
-    'Other pieces they own in the same category: ' + siblings + '.',
-  ];
-  if (read.type) {
-    lines.push('The garment type it answers to: ' + read.type.name + '.');
-    lines.push('Verified makers of that type: ' + (read.type.makers.slice(0, 6).join(', ') || 'none on file') + '.');
-  }
-  return lines;
-}
-
-/** The deterministic read — the same facts, as arithmetic, so the card is
- * personalised from the first paint whether or not a call lands. */
-function ledgerPieceFallback(read: LedgerPieceRead, model: IndexModel, siblings: number): string {
-  const city = model.climate.city;
-  const days = read.span ? daysInSpan(model.climate, read.span) : null;
-  const spell = (n: number) => (n > 99 ? String(n) : numberWord(n));
-  const dayLine = days != null ? 'about ' + spell(days) + ' days a year' + (city ? ' in ' + city : '') : null;
-  const cloth = read.material ? read.material.toLowerCase() : null;
-  if (!read.span) {
-    const opener = cloth ? 'Weather does not judge this one — the ' + cloth + ' does.' : 'Weather does not judge this one.';
-    return opener + ' It earns its place on how often it is the right register, not on the temperature.';
-  }
-  const range = read.span.lo + '–' + read.span.hi + '°';
-  const opener = cloth ? capWord(cloth) + ' — it answers ' + range : 'It answers ' + range;
-  const middle = dayLine ? ', which is ' + dayLine + '. ' : '. ';
-  const close =
-    read.span.hi - read.span.lo >= 20
-      ? 'A wide band, so it carries most of your year — the piece to replace properly when it goes.'
-      : siblings > 1
-        ? 'You own ' + spell(siblings) + ' in this category; buy the next one for a band this does not reach.'
-        : 'The only piece answering this stretch of your year — a second would earn its keep.';
-  return opener + middle + close;
-}
-
-const OWNED_PIECE_TASK = {
-  text:
-    'Task: ONE PIECE THE WEARER ALREADY OWNS, opened from their own ledger on the Index. Write Beau\u2019s read of THAT PIECE for THIS wearer: one or two short sentences (max 300 characters) \u2014 what it is doing for them, read from its cloth, its colours, the temperature range it answers and how much of their year that range covers, plus their colouring, proportions and style directions; end with a concrete recommendation (wear it more in a named register, keep it for one job, replace it, or what to buy alongside it). Never invent a maker, a cloth or a piece that is not in the facts. Return JSON with one key, read.',
-  cache: true,
-};
-
-export function useLedgerPieceRead(
-  read: LedgerPieceRead | null,
-  model: IndexModel,
-  profile: StyleProfile | null,
-  siblings = 0,
-): string | null {
-  const city = model.climate.city;
-  const factKey = useMemo(() => {
-    if (!read) return null;
-    return fingerprint({
-      id: read.piece.id,
-      name: read.piece.name,
-      cat: read.category,
-      brand: read.brand,
-      material: read.material,
-      colors: read.piece.colors || [],
-      span: read.span,
-      city,
-      siblings,
-      profile: profileSignature(profile),
-    });
-  }, [read, city, siblings, profile]);
-  const key = read && factKey ? 'ethaion:index-tab-copy:v1:owned:' + read.piece.id + ':' + factKey : null;
-  const [copy, setCopy] = useState<string | null>(() => (key ? readCache<string>(key) : null));
-
-  useEffect(() => {
-    if (!read || !key) return;
-    const cached = readCache<string>(key);
-    if (cached) {
-      setCopy(cached);
-      return;
-    }
-    setCopy(null);
-    let alive = true;
-    const user = 'The wearer \u2014 ' + profileLine(profile, city) + '.\n' + pieceFactLines(read, model, siblings).join('\n');
-    const job =
-      (inflight.get(key) as Promise<string | null>) ||
-      callClaude({
-        model: CLAUDE_HAIKU,
-        system: [VOICE, OWNED_PIECE_TASK],
-        user,
-        maxTokens: 320,
-        temperature: 0.5,
-      })
-        .then((raw) => cleanLine(parseJson(raw)?.read, 340))
-        .finally(() => inflight.delete(key));
-    inflight.set(key, job);
-    job
-      .then((text) => {
-        if (!text) return;
-        writeCache(key, text);
-        if (alive) setCopy(text);
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-
-  if (!read) return null;
-  return copy || ledgerPieceFallback(read, model, siblings);
 }
 
 /** The capitalised-word helper is re-exported for the tab's own fallbacks. */
