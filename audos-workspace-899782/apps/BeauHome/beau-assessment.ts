@@ -55,6 +55,8 @@ import {
   type StylePrefs,
   type WardrobePiece,
 } from './profile-data';
+import { fetchDossierDetails, type DossierDetails } from './dossier-details';
+import { fetchAvatarInputs, type AvatarInputs } from './body-profile';
 import { fetchSemanticTags, type SemanticTags } from './semantic-tags';
 import { brandLayerSignature, buildBrandReferenceLayer, type BrandReferenceEntry } from './brand-reference';
 import {
@@ -297,6 +299,8 @@ function buildUserMessage(
   budgets: Record<string, CategoryBudget> | undefined,
   prefs: StylePrefs | null,
   measurements: StyleMeasurements | null,
+  details: DossierDetails | null,
+  avatar: AvatarInputs,
   dismissed: DismissedRecommendation[],
   brandLayer: BrandReferenceEntry[],
   mutedRegisters: string[],
@@ -331,7 +335,8 @@ function buildUserMessage(
 
   const payload = {
     profile: {
-      height: label.height(profile?.height_range) || null,
+      height: avatar.heightCm ? `${avatar.heightCm} cm` : label.height(profile?.height_range) || null,
+      weight: avatar.weightKg ? `${avatar.weightKg} kg` : null,
       chest: measurements?.chest_cm || null,
       waist: measurements?.waist_cm || null,
       inseam: measurements?.inseam_cm || null,
@@ -340,11 +345,16 @@ function buildUserMessage(
       shoeSize: measurements?.shoe_size
         ? `${measurements.shoe_size}${measurements.shoe_size_system ? ` ${measurements.shoe_size_system}` : ''}`
         : null,
-      skinTone: label.skinTone(profile?.skin_tone) || null,
-      bodyType: label.build(profile?.build) || null,
+      skinTone: label.skinTone(avatar.skinTone || profile?.skin_tone) || null,
+      bodyType: avatar.bodyType || label.build(profile?.build) || null,
+      hairColour: details?.hairColour || null,
+      paletteNotes: details?.paletteNotes || null,
+      styleReferences: details?.styleReferences || [],
       budgetRange: budgetRangeSummary(budgets, profile),
       lifestyle: lifestyleSummary(profile),
-      homeCity: homeCity(profile),
+      homeCity: details?.city || homeCity(profile),
+      climate: details?.climate || null,
+      climateBands: details?.climateBands || null,
       inHisOwnWords: prefs?.free_text || null,
     },
     selectedArchetypes: archetypeNames,
@@ -398,10 +408,13 @@ function callClaude(model: string, system: string, user: string, maxTokens: numb
 }
 
 async function callGptFallback(system: string, user: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 45_000);
   try {
     const res = await fetch('/proxy/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
@@ -420,6 +433,8 @@ async function callGptFallback(system: string, user: string): Promise<string | n
   } catch (e) {
     console.warn('[Ethaion] assessment fallback call failed:', e);
     return null;
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
@@ -530,6 +545,8 @@ function fingerprintOf(
   pieces: WardrobePiece[],
   taggedCount: number,
   measurements: StyleMeasurements | null,
+  details: DossierDetails | null,
+  avatar: AvatarInputs,
   dismissed: DismissedRecommendation[],
   brandLayer: BrandReferenceEntry[],
   mutedRegisters: string[],
@@ -552,14 +569,32 @@ function fingerprintOf(
         homeCity(profile),
       ].join('~')
     : 'no-profile';
-  const body = measurements
-    ? [measurements.chest_cm, measurements.waist_cm, measurements.inseam_cm, measurements.shoulder_cm, measurements.clothing_size, measurements.shoe_size].join('~')
-    : 'no-measurements';
+  const body = [
+    avatar.heightCm,
+    avatar.weightKg,
+    avatar.bodyType,
+    avatar.skinTone,
+    measurements?.chest_cm,
+    measurements?.waist_cm,
+    measurements?.inseam_cm,
+    measurements?.shoulder_cm,
+    measurements?.clothing_size,
+    measurements?.shoe_size,
+  ].join('~');
+  const dossier = [
+    details?.hairColour,
+    details?.paletteNotes,
+    (details?.styleReferences || []).join(','),
+    details?.city,
+    details?.climate,
+    (details?.climateBands || []).join(','),
+  ].join('~');
   return [
-    'v5', // bumped: pass signals (suppressed types) joined the reasoning context
+    'v6', // full Dossier climate/colour and exact body profile joined the context
     wardrobe,
     prof,
     body,
+    dossier,
     `tagged:${taggedCount}`,
     `dismissed:${dismissalSignature(dismissed)}`,
     `brands:${brandLayerSignature(brandLayer)}`,
@@ -680,9 +715,18 @@ export async function getBeauAssessment(input: BeauAssessmentInput): Promise<Bea
     }
 
     onPhase?.('Beau is pulling out his notes\u2026');
-    const [tags, measurements, dismissed, mutedIds, passSignals] = await Promise.all([
+    const [tags, measurements, details, avatar, dismissed, mutedIds, passSignals] = await Promise.all([
       fetchSemanticTags(),
       fetchStyleMeasurements(),
+      fetchDossierDetails().catch(() => null),
+      fetchAvatarInputs().catch(() => ({
+        heightCm: null,
+        heightUnit: 'cm' as const,
+        weightKg: null,
+        weightUnit: 'kg' as const,
+        bodyType: null,
+        skinTone: null,
+      })),
       fetchDismissedRecommendations(),
       fetchMutedRegisters().catch(() => [] as string[]),
       fetchPassSignals().catch(() => EMPTY_PASS_SIGNALS),
@@ -697,7 +741,7 @@ export async function getBeauAssessment(input: BeauAssessmentInput): Promise<Bea
       prefersShortSizing: needsShortSizing(profile, measurements),
     });
     const taggedCount = pieces.filter((p) => tags[p.id] && (tags[p.id].canonicalCategory || tags[p.id].subType)).length;
-    const fingerprint = fingerprintOf(profile, pieces, taggedCount, measurements, dismissed, brandLayer, mutedRegisters, passSignals);
+    const fingerprint = fingerprintOf(profile, pieces, taggedCount, measurements, details, avatar, dismissed, brandLayer, mutedRegisters, passSignals);
     // Human-readable names for the prompt's suppressed-type list.
     const suppressedTypes = passSignals.suppressedTypes.map((t) => t.replace(/-/g, ' '));
 
@@ -715,7 +759,7 @@ export async function getBeauAssessment(input: BeauAssessmentInput): Promise<Bea
       }
     }
 
-    const { message, untaggedCount } = buildUserMessage(profile, pieces, tags, budgets, prefs, measurements, dismissed, brandLayer, mutedRegisters, suppressedTypes);
+    const { message, untaggedCount } = buildUserMessage(profile, pieces, tags, budgets, prefs, measurements, details, avatar, dismissed, brandLayer, mutedRegisters, suppressedTypes);
 
     onPhase?.('Beau is reading your wardrobe against your directions\u2026');
     let engine: BeauAssessmentResult['engine'] = 'claude-sonnet';

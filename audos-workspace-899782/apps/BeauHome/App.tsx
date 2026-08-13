@@ -568,7 +568,25 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
         setSaving(false);
       }
     },
-    [patchForStep, name, heightCm, heightUnit, weightKg, weightUnit, footStr, footUnit, build, hairColour, currency],
+    [
+      patchForStep,
+      name,
+      hairColour,
+      heightCm,
+      heightUnit,
+      weightKg,
+      weightUnit,
+      footStr,
+      footUnit,
+      build,
+      clothingSize,
+      waistStr,
+      waistUnit,
+      shoeSize,
+      shoeSystem,
+      registerFreqs,
+      currency,
+    ],
   );
 
   const finishLocally = useCallback(
@@ -644,6 +662,47 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
       .catch((error) => {
         console.warn('[Ethaion] onboarding skip saved locally; server mirror unavailable:', error);
       });
+  };
+
+  // Skip one optional page without writing its blank companion fields. The
+  // global Skip for now above remains the direct route to the dashboard.
+  const skipStep = async () => {
+    if (saving) return;
+    setSaveError(null);
+    const last = step >= TOTAL_STEPS - 1;
+    if (last) {
+      // The last page is individually skippable too. Finish without writing
+      // that page's blank fields; Skip for now remains the all-pages shortcut.
+      const completed = {
+        ...localDraft,
+        onboarding_step: TOTAL_STEPS - 1,
+        onboarding_complete: true,
+      } as StyleProfile;
+      setLocalDraft(completed);
+      writeLocalOnboardingProfile(completed);
+      onDone(completed);
+      void saveProfile({
+        onboarding_step: TOTAL_STEPS - 1,
+        onboarding_complete: true,
+      }).catch((error) => {
+        console.warn('[Ethaion] final onboarding step skip saved locally; server mirror unavailable:', error);
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      const fresh = await saveProfile({ onboarding_step: step + 1 });
+      if (fresh) setLocalDraft(fresh);
+      setStep((current) => current + 1);
+    } catch (error) {
+      console.warn('[Ethaion] onboarding step skip; continuing locally:', error);
+      const next = { ...localDraft, onboarding_step: step + 1 } as StyleProfile;
+      setLocalDraft(next);
+      writeLocalOnboardingProfile(next);
+      setStep((current) => current + 1);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Email verification happens before this wizard. Every profile question is
@@ -1268,11 +1327,20 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
               {saveError}
             </p>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={skipStep}
+            disabled={saving}
+            className={`${typography.size.xs} ${typography.color.muted} hover:underline disabled:opacity-40`}
+          >
+            Skip this step
+          </button>
           <button
             type="button"
             onClick={skipAll}
-            className={`${typography.size.xs} ${typography.color.muted} hover:underline`}
+            disabled={saving}
+            className={`${typography.size.xs} ${typography.color.muted} hover:underline disabled:opacity-40`}
           >
             Skip for now
           </button>
@@ -1543,6 +1611,8 @@ function TabLoadingSkeleton() {
 export default function BeauHome() {
   const [profile, setProfile] = useState<StyleProfile | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileBootAttempt, setProfileBootAttempt] = useState(0);
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [budgets, setBudgets] = useState<Record<string, CategoryBudget>>({});
   const [prefs, setPrefs] = useState<StylePrefs | null>(null);
   const [materials, setMaterials] = useState<Record<number, string>>({});
@@ -1644,20 +1714,44 @@ export default function BeauHome() {
   // ---------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
+    let profileSettled = false;
+
+    const settleProfile = () => {
+      if (cancelled || profileSettled) return;
+      profileSettled = true;
+      setProfileLoaded(true);
+    };
+    const profileTimeoutId = window.setTimeout(() => {
+      if (cancelled || profileSettled) return;
+      setProfile((current) => current ?? readLocalOnboardingProfile());
+      setProfileLoadFailed(true);
+      settleProfile();
+    }, 15_000);
 
     // --- Phase 1: first-paint data ---
     fetchProfile()
       .then((p) => {
         if (cancelled) return;
+        // A response that arrives just after the timeout is still useful:
+        // replace the retry screen with the real profile instead of forcing
+        // the user to ask for the same read again.
+        setProfileLoadFailed(false);
         setProfile(withLocalOnboardingCompletion(p) ?? readLocalOnboardingProfile());
       })
       .catch((e) => {
+        if (cancelled || profileSettled) return;
         console.error('[Ethaion] failed to load profile:', e);
         const local = withLocalOnboardingCompletion(null);
-        if (!cancelled && local) setProfile(local);
+        if (local) {
+          setProfile(local);
+          setProfileLoadFailed(false);
+        } else {
+          setProfileLoadFailed(true);
+        }
       })
       .finally(() => {
-        if (!cancelled) setProfileLoaded(true);
+        window.clearTimeout(profileTimeoutId);
+        settleProfile();
       });
     fetchCategoryBudgets()
       .then((b) => {
@@ -1678,6 +1772,7 @@ export default function BeauHome() {
     if (auditsKicked) {
       return () => {
         cancelled = true;
+        window.clearTimeout(profileTimeoutId);
       };
     }
     auditsKicked = true;
@@ -1722,8 +1817,9 @@ export default function BeauHome() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(profileTimeoutId);
     };
-  }, []);
+  }, [profileBootAttempt]);
 
   // Piece edits close immediately and publish this optimistic patch. Keeping
   // the overlay at the app root prevents any unrelated render from briefly
@@ -2074,6 +2170,31 @@ export default function BeauHome() {
     // Skeleton over spinner (Track J): ghost outlines of the page that's
     // coming, so opening the wardrobe feels instant rather than waited-for.
     return <HomeSkeleton />;
+  }
+
+  const storedForRetry = profile ?? readLocalOnboardingProfile();
+  const canProceedWithoutRemote =
+    !!storedForRetry?.onboarding_complete ||
+    (readSessionReturningUser() && !!storedForRetry && profileHasExistingData(storedForRetry));
+  if (profileLoadFailed && !canProceedWithoutRemote) {
+    return (
+      <div className="min-h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className={`${typography.size.sm} ${typography.color.secondary}`}>
+          We couldn&apos;t load your saved wardrobe.
+        </p>
+        <button
+          type="button"
+          className={`px-6 py-3 rounded-xl ${typography.size.sm} ${tw.button.primary}`}
+          onClick={() => {
+            setProfileLoadFailed(false);
+            setProfileLoaded(false);
+            setProfileBootAttempt((attempt) => attempt + 1);
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
 
   // Completed profiles always bypass onboarding. For a verified returning

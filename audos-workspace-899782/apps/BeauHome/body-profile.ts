@@ -107,6 +107,9 @@ export async function saveAvatarInputs(patch: Partial<AvatarInputs>): Promise<Av
       await db().from('avatar_profiles').insert(record);
     }
     await fetchProfileRow(true);
+    try {
+      window.dispatchEvent(new CustomEvent('ethaion:measurements', { detail: { avatar: merged } }));
+    } catch { /* non-fatal */ }
   } catch (e) {
     console.warn('[Ethaion] saving the body profile failed:', e);
   }

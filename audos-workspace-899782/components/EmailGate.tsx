@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 127; // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 129; // v129: bound every auth/session recovery request and render a visible restoring state instead of a blank screen. // v128: reload once after verification so the injected WorkspaceDB client boots under the canonical verified owner; the SDK has no runtime session-switch API, so in-place entry left profile reads on the pre-auth identity. // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -36,6 +36,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // memory-crash restart, etc.) does not throw inside `response.json()` and
 // get swallowed into the generic "Connection error" copy. Always returns
 // an object instead of throwing — callers inspect `response.ok` themselves.
+const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+
+async function fetchAuth(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = AUTH_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 async function parseResponseBody(response: Response): Promise<ParsedResponseBody> {
   let rawText = '';
   try {
@@ -324,7 +340,7 @@ export default function EmailGate({
         // workspaceSessionId that owns their profile and wardrobe rows.
         if (session.email && workspaceId && !isTemplatePreview) {
           try {
-            const canonicalRes = await fetch(`/api/space/${spaceId}/register`, {
+            const canonicalRes = await fetchAuth(`/api/space/${spaceId}/register`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
@@ -386,13 +402,13 @@ export default function EmailGate({
           }
           if (workspaceId) {
             try {
-              const configRes = await fetch(`/api/auth/otp/space/config/${workspaceId}`);
+              const configRes = await fetchAuth(`/api/auth/otp/space/config/${workspaceId}`);
               const configData = await configRes.json();
               const otpConfig = configData.config || configData;
 
               if (otpConfig.enabled) {
                 setOtpEnabled(true);
-                const checkRes = await fetch(`/api/auth/otp/space/check-session?workspaceId=${workspaceId}&sessionUuid=${encodeURIComponent(effectiveSessionId)}`, {
+                const checkRes = await fetchAuth(`/api/auth/otp/space/check-session?workspaceId=${workspaceId}&sessionUuid=${encodeURIComponent(effectiveSessionId)}`, {
                   credentials: 'include'
                 });
                 const checkData = await checkRes.json();
@@ -438,7 +454,7 @@ export default function EmailGate({
 
     if (workspaceId) {
       try {
-        const configRes = await fetch(`/api/auth/otp/space/config/${workspaceId}`);
+        const configRes = await fetchAuth(`/api/auth/otp/space/config/${workspaceId}`);
         const configData = await configRes.json();
         const otpConfig = configData.config || configData;
         setOtpEnabled(otpConfig.enabled || false);
@@ -475,7 +491,7 @@ export default function EmailGate({
         const attribution = getAttribution();
         const visitorId = getVisitorId();
 
-        const registerRes = await fetch(`/api/space/${spaceId}/register`, {
+        const registerRes = await fetchAuth(`/api/space/${spaceId}/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -547,7 +563,7 @@ export default function EmailGate({
 
         // WorkspaceDB writes require a server-verified session. First-time
         // emails must complete OTP too; registration alone is not verification.
-        const response = await fetch('/api/auth/otp/space/send', {
+        const response = await fetchAuth('/api/auth/otp/space/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -607,7 +623,7 @@ export default function EmailGate({
       }
 
       const normalizedEmail = email.toLowerCase().trim();
-      const response = await fetch('/api/auth/otp/space/verify', {
+      const response = await fetchAuth('/api/auth/otp/space/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -654,7 +670,7 @@ export default function EmailGate({
 
     try {
       const normalizedEmail = email.toLowerCase().trim();
-      const response = await fetch('/api/auth/otp/space/send', {
+      const response = await fetchAuth('/api/auth/otp/space/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -764,7 +780,7 @@ export default function EmailGate({
 
     const attribution = getAttribution();
     const visitorId = getVisitorId();
-    const response = await fetch(`/api/space/${spaceId}/register`, {
+    const response = await fetchAuth(`/api/space/${spaceId}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -887,18 +903,37 @@ export default function EmailGate({
     }
   };
 
-  // SpaceRuntime now synchronizes the verified session directly into the
-  // injected WorkspaceDB client, so normal sign-in can complete in place.
-  // Forced-visitor preview still needs one reload to remove its URL override.
+  // WorkspaceDB’s documented client has no setSessionId/session-switch API.
+  // It captures the visitor identity when the page boots, so entering the app
+  // in place after OTP leaves profile reads and writes scoped to the pre-auth
+  // identity. Persist the verified canonical session first (done above), then
+  // perform exactly one navigation: the next boot hydrates SpaceRuntime and
+  // WorkspaceDB from the same verified owner and EmailGate no longer mounts.
   const completeGateEntry = () => {
     try {
-      if (typeof window !== 'undefined' && (window as any).__AUDOS_FORCE_VISITOR__ === true) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('as');
-        window.location.replace(url.toString());
+      if (typeof window !== 'undefined') {
+        if ((window as any).__AUDOS_FORCE_VISITOR__ === true) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('as');
+          window.location.replace(url.toString());
+          return;
+        }
+        const reloadKey = `ethaion_auth_reload_${spaceId}`;
+        if (sessionStorage.getItem(reloadKey)) {
+          // The verified session should have been adopted on the new boot. If
+          // EmailGate mounted again, fail visibly instead of reloading forever.
+          sessionStorage.removeItem(reloadKey);
+          setError('We could not finish restoring your session. Please sign in again.');
+          setStep('email');
+          return;
+        }
+        sessionStorage.setItem(reloadKey, String(Date.now()));
+        window.location.reload();
         return;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[EmailGate] post-auth reload failed; completing in place:', e);
+    }
     setStep('complete');
   };
 
@@ -1234,8 +1269,8 @@ export default function EmailGate({
     { quote: 'Fewer, better pieces, chosen with intention — a wardrobe that still feels right at 45.', name: 'The principle' },
   ];
   const faqs = [
-    { q: 'Do I need an account or email to start?', a: 'No. Tap “Start now” and you’re in — the onboarding, The Ledger, The Rail and Beau all work as a guest, no email asked. When you want your profile to survive the browser closing, tap “Save your profile” inside (top of The Dossier) and leave an email — entirely your call.' },
-    { q: 'Do I need a credit card?', a: 'No — no credit card, and no email either. Start as a guest and save your profile only if you want it kept.' },
+    { q: 'Do I need an account or email to start?', a: 'Enter your email to register or sign in. New accounts can skip any onboarding step — or skip the whole wizard for now — and returning accounts go straight to their saved dashboard.' },
+    { q: 'Do I need a credit card?', a: 'No. Registration is free and no credit card is required.' },
     { q: 'What is inside?', a: 'Beau — your personal menswear advisor — plus The Ledger (your wardrobe record), The Rail (his recommendations, matched to your profile), and Maker Scout for discovering obscure, high-value makers.' },
     { q: 'Is my data private?', a: 'Yes. Your profile and wardrobe are stored privately for your account and used only to personalise your recommendations.' },
   ];
@@ -1453,7 +1488,23 @@ export default function EmailGate({
     </div>
   );
 
-  if (step === 'loading' || step === 'complete') {
+  if (step === 'loading') {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ fontFamily: bodyFontStack, background: gateGradient, color: textPrimary }}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          <span className="text-sm">Restoring your wardrobe…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'complete') {
     return null;
   }
 
@@ -2208,7 +2259,7 @@ export default function EmailGate({
                 Welcome back to {brandName}
               </h2>
               <p className="eg-modal-sub mb-5">
-                Sign in with the email you saved your profile with — or continue as a guest below.
+                Sign in with the email you saved your profile with, or enter a new email to register.
               </p>
               {renderLoginPanel(true)}
             </div>

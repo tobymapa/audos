@@ -299,15 +299,10 @@ export function SpaceRuntimeProvider({
 
   const setSessionId = useCallback((newSessionId: string) => {
     setSessionIdRaw(newSessionId);
-    // SpaceRuntime and the injected WorkspaceDB SDK keep separate session
-    // state. Update both, then notify useWorkspaceDB hooks so reads and writes
-    // immediately use the same verified owner instead of a stale pre-auth id.
-    try {
-      const workspaceDb = (window as any).__workspaceDb;
-      if (typeof workspaceDb?.setSessionId === 'function') {
-        workspaceDb.setSessionId(newSessionId);
-      }
-    } catch {}
+    // Update SpaceRuntime immediately for shell state and notify custom
+    // listeners. The injected WorkspaceDB client has no documented runtime
+    // session-switch API; EmailGate reloads once after verification so that
+    // client boots under this same canonical owner.
     try {
       window.dispatchEvent(new CustomEvent('audos:session-established', {
         detail: { workspaceSessionId: newSessionId, source: 'space-runtime' },
@@ -323,6 +318,17 @@ export function SpaceRuntimeProvider({
       }
     } catch {}
   }, [spaceId]);
+
+  // EmailGate uses a one-shot reload so WorkspaceDB boots under the verified
+  // owner. Once this provider has hydrated that owner, clear the guard; a
+  // future genuine sign-in in the same tab is then free to perform its own
+  // required reload.
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      sessionStorage.removeItem(`ethaion_auth_reload_${spaceId}`);
+    } catch { /* storage unavailable — EmailGate still has a visible fallback */ }
+  }, [sessionId, spaceId]);
 
   // Auto-session: When the page loads from a Stripe payment_success redirect with no existing session,
   // pull the customer email from the Stripe session, register a workspace session, and bypass the EmailGate.

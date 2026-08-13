@@ -27,6 +27,8 @@ import {
   type IndexModel,
 } from './index-model';
 import type { StyleProfile, WardrobePiece } from './profile-data';
+import { DOSSIER_DETAILS_EVENT, fetchDossierDetails, type DossierDetails } from './dossier-details';
+import { EMPTY_INPUTS, fetchAvatarInputs, type AvatarInputs } from './body-profile';
 
 // ---------------------------------------------------------------------------
 // Shapes
@@ -252,6 +254,8 @@ async function generateDetailCopy(
   model: IndexModel,
   pieces: WardrobePiece[],
   profile: StyleProfile | null,
+  details: DossierDetails | null,
+  avatar: AvatarInputs,
   places: DetailPlaceInput[],
 ): Promise<PieceDetailCopy | null> {
   const span = spanOf(type);
@@ -263,8 +267,14 @@ async function generateDetailCopy(
 
   const profileBits = [
     (profile?.archetypes || []).length > 0 ? `style directions: ${(profile?.archetypes || []).join(', ')}` : null,
-    profile?.build ? `build: ${profile.build}` : null,
-    profile?.skin_tone ? `colouring: ${profile.skin_tone}` : null,
+    avatar.heightCm ? `height: ${avatar.heightCm} cm` : profile?.height_range ? `height range: ${profile.height_range}` : null,
+    avatar.weightKg ? `weight: ${avatar.weightKg} kg` : null,
+    avatar.bodyType || profile?.build ? `build: ${avatar.bodyType || profile?.build}` : null,
+    avatar.skinTone || profile?.skin_tone ? `complexion: ${avatar.skinTone || profile?.skin_tone}` : null,
+    details?.hairColour ? `hair: ${details.hairColour}` : null,
+    details?.paletteNotes ? `his colour note: ${details.paletteNotes}` : null,
+    (details?.styleReferences || []).length > 0 ? `style references: ${(details?.styleReferences || []).join(', ')}` : null,
+    details?.climate ? `climate: ${details.climate}` : null,
     city ? `home city: ${city}` : null,
   ]
     .filter(Boolean)
@@ -387,8 +397,30 @@ export function usePieceDetailCopy(
   profile: StyleProfile | null,
   places: DetailPlaceInput[],
 ): PieceDetailCopy | null {
+  const [personal, setPersonal] = useState<{ details: DossierDetails | null; avatar: AvatarInputs } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      void Promise.all([
+        fetchDossierDetails().catch(() => null),
+        fetchAvatarInputs().catch(() => ({ ...EMPTY_INPUTS })),
+      ]).then(([details, avatar]) => {
+        if (alive) setPersonal({ details, avatar });
+      });
+    };
+    load();
+    window.addEventListener(DOSSIER_DETAILS_EVENT, load);
+    window.addEventListener('ethaion:measurements', load);
+    return () => {
+      alive = false;
+      window.removeEventListener(DOSSIER_DETAILS_EVENT, load);
+      window.removeEventListener('ethaion:measurements', load);
+    };
+  }, []);
+
   const key = useMemo(() => {
-    if (!type) return null;
+    if (!type || !personal) return null;
     const fp = fingerprint({
       id: type.id,
       city: model.climate.city,
@@ -399,12 +431,18 @@ export function usePieceDetailCopy(
       places: places.map((p) => `${p.name}:${p.trips}`),
       profile: {
         archetypes: profile?.archetypes || [],
-        build: profile?.build || null,
-        skin: profile?.skin_tone || null,
+        build: personal.avatar.bodyType || profile?.build || null,
+        skin: personal.avatar.skinTone || profile?.skin_tone || null,
+        height: personal.avatar.heightCm || profile?.height_range || null,
+        weight: personal.avatar.weightKg || null,
+        hair: personal.details?.hairColour || null,
+        palette: personal.details?.paletteNotes || null,
+        references: personal.details?.styleReferences || [],
+        climate: personal.details?.climate || null,
       },
     });
     return `ethaion:piece-detail:v1:${type.id}:${fp}`;
-  }, [type, model, pieces, profile, places]);
+  }, [type, model, pieces, profile, places, personal]);
 
   const fallback = useMemo(() => (type ? fallbackCopy(type, model, places) : null), [type, model, places]);
   const [copy, setCopy] = useState<PieceDetailCopy | null>(() => (key ? readCache(key) : null));
@@ -423,7 +461,7 @@ export function usePieceDetailCopy(
     const timer = window.setTimeout(() => {
       const job =
         inflight.get(key) ||
-        generateDetailCopy(type, model, pieces, profile, places).finally(() => inflight.delete(key));
+        generateDetailCopy(type, model, pieces, profile, personal!.details, personal!.avatar, places).finally(() => inflight.delete(key));
       inflight.set(key, job);
       job
         .then((result) => {

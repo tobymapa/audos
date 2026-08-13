@@ -53,6 +53,26 @@ function ws(): any {
   return (window as any).__workspaceDb;
 }
 
+/** A model transport must always settle: otherwise every caller waiting on
+ * callModel keeps its skeleton visible forever. Forty-five seconds leaves
+ * room for a large personalised response while still handing control to the
+ * next model tier when a proxy connection stalls. */
+const MODEL_REQUEST_TIMEOUT_MS = 45_000;
+
+async function fetchModel(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs = MODEL_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 /**
  * Call Claude through the secrets proxy. Returns the response text, or
  * null on ANY failure — callers keep their own fallbacks (another model
@@ -81,7 +101,7 @@ export async function callClaude({
       ...(b.cache ? { cache_control: { type: 'ephemeral' } } : {}),
     }));
   try {
-    const res = await fetch(`/api/workspaces/${runtime.workspaceId}/secrets/proxy`, {
+    const res = await fetchModel(`/api/workspaces/${runtime.workspaceId}/secrets/proxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Workspace-DB-Token': runtime.token },
       body: JSON.stringify({
@@ -166,7 +186,7 @@ async function callPlatformGpt({
   json: boolean;
 }): Promise<string | null> {
   try {
-    const res = await fetch('/proxy/openai/v1/chat/completions', {
+    const res = await fetchModel('/proxy/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

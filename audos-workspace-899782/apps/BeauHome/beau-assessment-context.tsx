@@ -43,6 +43,7 @@ import {
 import type { CategoryBudget, StylePrefs, StyleProfile, WardrobePiece } from './profile-data';
 import { REASSESS_REQUESTED_EVENT, setReassessStatus } from './reassess-queue';
 import { TASTE_MEMORY_EVENT } from './taste-memory';
+import { DOSSIER_DETAILS_EVENT } from './dossier-details';
 
 export interface BeauAssessmentStore {
   result: BeauAssessmentResult | null;
@@ -245,6 +246,25 @@ export function BeauAssessmentProvider({
     const onTasteMemory = () => queueReload(1500);
     window.addEventListener(TASTE_MEMORY_EVENT, onTasteMemory);
     return () => window.removeEventListener(TASTE_MEMORY_EVENT, onTasteMemory);
+  }, [queueReload]);
+
+  // City/climate, hair colour, palette notes and named style references live
+  // in Dossier companion rows rather than StyleProfile. They now participate
+  // in the assessment fingerprint, so a Dossier save queues the same quiet
+  // background refresh as a wardrobe or profile change.
+  useEffect(() => {
+    const onDossier = () => queueReload(1500);
+    window.addEventListener(DOSSIER_DETAILS_EVENT, onDossier);
+    return () => window.removeEventListener(DOSSIER_DETAILS_EVENT, onDossier);
+  }, [queueReload]);
+
+  // Exact measurements and avatar/body figures also live outside
+  // StyleProfile. Both save paths publish this event, so changes to height,
+  // weight, build, skin tone or sizes cannot leave a cached read stale.
+  useEffect(() => {
+    const onMeasurements = () => queueReload(1500);
+    window.addEventListener('ethaion:measurements', onMeasurements);
+    return () => window.removeEventListener('ethaion:measurements', onMeasurements);
   }, [queueReload]);
 
   // Fresh Layer 1 tags landing sharpen the read — one pass per sweep.

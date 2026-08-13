@@ -303,7 +303,7 @@ export default function SpaceDesktop({
   LoadingSpinner,
   initialAppId
 }: SpaceDesktopProps) {
-  const { sessionId, email, isBootstrappingSession, trackEvent, subscriptionReady, subscription } = useSpaceRuntime();
+  const { sessionId, isBootstrappingSession, trackEvent, subscriptionReady, subscription } = useSpaceRuntime();
   const isMobile = useIsMobile(); // JS-based media query to prevent double-mounting AgentChat
 
   // The thread/apps sidebar is builder scaffolding (conversation list, app
