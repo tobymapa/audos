@@ -364,7 +364,6 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
     return Math.min(Math.max(saved, 0), TOTAL_STEPS - 1);
   });
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [localDraft, setLocalDraft] = useState<StyleProfile>(() =>
     profile || ({} as StyleProfile),
   );
@@ -589,67 +588,84 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
     ],
   );
 
-  const finishLocally = useCallback(
+  /** Snapshot the answers so far into the local draft, synchronously.
+   *
+   * Every navigation below is driven off THIS, never off a server response.
+   * Onboarding is entirely optional, so a slow, rejected or hanging write must
+   * not be able to hold anyone on this screen — which is what a blocking save
+   * did before. */
+  const localSnapshot = useCallback(
     (s: number, complete: boolean): StyleProfile => {
       const next = {
         ...localDraft,
         ...patchForStep(s),
-        onboarding_step: Math.min(s + 1, TOTAL_STEPS - 1),
+        onboarding_step: complete ? TOTAL_STEPS - 1 : Math.min(s + 1, TOTAL_STEPS - 1),
         onboarding_complete: complete,
       } as StyleProfile;
       setLocalDraft(next);
       writeLocalOnboardingProfile(next);
-      trackFunnelEvent(complete ? 'onboarding_complete' : `step_${s + 1}_complete`, {
-        step: s + 1,
-        total_steps: TOTAL_STEPS,
-        persistence: 'local_fallback',
-      });
       return next;
     },
     [localDraft, patchForStep],
   );
 
-  const confirmCompletedProfile = async (fresh: StyleProfile | null): Promise<StyleProfile> => {
-    let confirmed = fresh;
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      if (confirmed?.onboarding_complete) return confirmed;
-      await new Promise((resolve) => window.setTimeout(resolve, 80 * (attempt + 1)));
-      confirmed = await fetchProfile();
-    }
-    throw new Error('Your profile did not finish saving. Please try once more.');
-  };
+  /** Mirror a step to the server behind the user. Whatever they typed is
+   * already in the local draft, so a failed write costs the mirror, never the
+   * flow — and the next load reconciles from the server anyway. */
+  const mirrorStep = useCallback(
+    (s: number, extra: Record<string, unknown> = {}) => {
+      void commitStep(s, extra)
+        .then((fresh) => {
+          if (fresh) writeLocalOnboardingProfile(fresh);
+        })
+        .catch((error) => {
+          console.warn('[Ethaion] onboarding step saved locally; server mirror unavailable:', error);
+        });
+    },
+    [commitStep],
+  );
 
-  const advance = async () => {
-    if (saving) return;
-    setSaveError(null);
+  /** Continue. Shows the next page (or the dashboard) at once and sends the
+   * answers up behind it. */
+  const advance = () => {
     const last = step >= TOTAL_STEPS - 1;
-    try {
-      if (last) {
-        const fresh = await commitStep(step, { onboarding_complete: true });
-        const confirmed = await confirmCompletedProfile(fresh);
-        writeLocalOnboardingProfile(confirmed);
-        onDone(confirmed);
-      } else {
-        const fresh = await commitStep(step);
-        if (fresh) setLocalDraft(fresh);
-        setStep((current) => current + 1);
-      }
-    } catch (error) {
-      // Optional onboarding must never become an auth wall. Preserve the
-      // answers locally and continue even when WorkspaceDB rejects a write.
-      console.warn('[Ethaion] onboarding server save unavailable; continuing locally:', error);
-      const fallback = finishLocally(step, last);
-      if (last) onDone(fallback);
-      else setStep((current) => current + 1);
-    }
+    const snapshot = localSnapshot(step, last);
+    mirrorStep(step, last ? { onboarding_complete: true } : {});
+    if (last) onDone(snapshot);
+    else setStep((current) => current + 1);
   };
 
+  /** Skip this page. Unconditional: no validation, no session check, and
+   * nothing in flight to wait for. This page's blank fields are simply never
+   * written. */
+  const skipStep = () => {
+    const last = step >= TOTAL_STEPS - 1;
+    const next = {
+      ...localDraft,
+      onboarding_step: last ? TOTAL_STEPS - 1 : step + 1,
+      onboarding_complete: last,
+    } as StyleProfile;
+    setLocalDraft(next);
+    writeLocalOnboardingProfile(next);
+    trackFunnelEvent(last ? 'onboarding_complete' : 'onboarding_step_skipped', {
+      step: step + 1,
+      total_steps: TOTAL_STEPS,
+    });
+    if (last) onDone(next);
+    else setStep((current) => current + 1);
+    void saveProfile({
+      onboarding_step: last ? TOTAL_STEPS - 1 : step + 1,
+      ...(last ? { onboarding_complete: true } : {}),
+    }).catch((error) => {
+      console.warn('[Ethaion] onboarding skip saved locally; server mirror unavailable:', error);
+    });
+  };
+
+  /** Skip the whole wizard, from any page. Straight to the dashboard, keeping
+   * whatever has been filled in so far. */
   const skipAll = () => {
-    setSaveError(null);
-    // Exit immediately: optional onboarding must never wait on persistence.
-    // Keep the local marker authoritative, then mirror completion to the
-    // verified workspace session in the background when available.
-    const completed = finishLocally(step, true);
+    const completed = localSnapshot(step, true);
+    trackFunnelEvent('onboarding_skipped', { step: step + 1, total_steps: TOTAL_STEPS });
     onDone(completed);
     void saveProfile({
       ...patchForStep(step),
@@ -664,50 +680,9 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
       });
   };
 
-  // Skip one optional page without writing its blank companion fields. The
-  // global Skip for now above remains the direct route to the dashboard.
-  const skipStep = async () => {
-    if (saving) return;
-    setSaveError(null);
-    const last = step >= TOTAL_STEPS - 1;
-    if (last) {
-      // The last page is individually skippable too. Finish without writing
-      // that page's blank fields; Skip for now remains the all-pages shortcut.
-      const completed = {
-        ...localDraft,
-        onboarding_step: TOTAL_STEPS - 1,
-        onboarding_complete: true,
-      } as StyleProfile;
-      setLocalDraft(completed);
-      writeLocalOnboardingProfile(completed);
-      onDone(completed);
-      void saveProfile({
-        onboarding_step: TOTAL_STEPS - 1,
-        onboarding_complete: true,
-      }).catch((error) => {
-        console.warn('[Ethaion] final onboarding step skip saved locally; server mirror unavailable:', error);
-      });
-      return;
-    }
-    setSaving(true);
-    try {
-      const fresh = await saveProfile({ onboarding_step: step + 1 });
-      if (fresh) setLocalDraft(fresh);
-      setStep((current) => current + 1);
-    } catch (error) {
-      console.warn('[Ethaion] onboarding step skip; continuing locally:', error);
-      const next = { ...localDraft, onboarding_step: step + 1 } as StyleProfile;
-      setLocalDraft(next);
-      writeLocalOnboardingProfile(next);
-      setStep((current) => current + 1);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Email verification happens before this wizard. Every profile question is
-  // optional, so Continue must remain available even when a step is blank;
-  // entered values are still persisted by commitStep.
+  // Every question on every page is optional, so Continue is always
+  // available; anything actually filled in still reaches the profile through
+  // mirrorStep above.
   const stepDone = true;
 
   // UP TO THREE directions (18a · M11) — the cap is the point: seven
@@ -1319,41 +1294,47 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
         </div>
       </div>
 
-      {/* Footer: continue + skip */}
+      {/* Footer: continue + skip. Both skips are ALWAYS live — there is no
+          validation to satisfy, no session to check and nothing in flight to
+          wait for, because every question on every page is optional. */}
       <div className="px-5 py-4 border-t border-[var(--space-border-default)] bg-[var(--space-surface-card)] flex-shrink-0">
-        <div className="max-w-xl mx-auto flex flex-col gap-2">
-          {saveError && (
-            <p className={`${typography.size.xs} text-[var(--space-semantic-danger)]`} role="alert">
-              {saveError}
-            </p>
-          )}
-          <div className="flex items-center gap-3 flex-wrap">
+        <div className="max-w-xl mx-auto flex items-center gap-3 flex-wrap">
           <button
             type="button"
             onClick={skipStep}
-            disabled={saving}
-            className={`${typography.size.xs} ${typography.color.muted} hover:underline disabled:opacity-40`}
+            data-testid="button-skip-step"
+            className={`${typography.size.xs} ${typography.color.muted} hover:underline`}
           >
             Skip this step
           </button>
           <button
             type="button"
             onClick={skipAll}
-            disabled={saving}
-            className={`${typography.size.xs} ${typography.color.muted} hover:underline disabled:opacity-40`}
+            data-testid="button-skip-onboarding"
+            className={`px-4 py-2.5 rounded-xl ${typography.size.xs} ${tw.button.secondary}`}
           >
             Skip for now
           </button>
+          {/* The background mirror, visible but never in the way: the answers
+              are already kept locally, so this is information, not a wait. */}
+          {saving && (
+            <span
+              className={`${typography.size.xs} ${typography.color.muted} inline-flex items-center gap-1.5`}
+              role="status"
+            >
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Saving
+            </span>
+          )}
           <div className="flex-1" />
           <button
             type="button"
             onClick={advance}
-            disabled={!stepDone || saving}
-            className={`px-6 py-3 rounded-xl ${typography.size.sm} flex items-center gap-2 ${tw.button.primary} disabled:opacity-40 disabled:cursor-not-allowed`}
+            disabled={!stepDone}
+            data-testid="button-onboarding-continue"
+            className={`px-6 py-3 rounded-xl ${typography.size.sm} flex items-center gap-2 ${tw.button.primary}`}
           >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : step === TOTAL_STEPS - 1 ? (
+            {step === TOTAL_STEPS - 1 ? (
               <>
                 Meet your wardrobe <Sparkles className="w-4 h-4" />
               </>
@@ -1363,7 +1344,6 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
               </>
             )}
           </button>
-          </div>
         </div>
       </div>
     </div>
@@ -1726,7 +1706,7 @@ export default function BeauHome() {
       setProfile((current) => current ?? readLocalOnboardingProfile());
       setProfileLoadFailed(true);
       settleProfile();
-    }, 15_000);
+    }, 8_000);
 
     // --- Phase 1: first-paint data ---
     fetchProfile()
@@ -2172,11 +2152,15 @@ export default function BeauHome() {
     return <HomeSkeleton />;
   }
 
+  // A failed profile read earns the retry screen only when there is something
+  // to lose: a session the server calls a returning user, and nothing kept
+  // locally to carry on with. A first-time visitor goes into onboarding
+  // instead — every answer is held locally as they go, so the flow still works
+  // while a read is failing, and nobody is stranded on an error they have no
+  // way to act on.
   const storedForRetry = profile ?? readLocalOnboardingProfile();
-  const canProceedWithoutRemote =
-    !!storedForRetry?.onboarding_complete ||
-    (readSessionReturningUser() && !!storedForRetry && profileHasExistingData(storedForRetry));
-  if (profileLoadFailed && !canProceedWithoutRemote) {
+  const needsRemoteProfile = !storedForRetry && readSessionReturningUser();
+  if (profileLoadFailed && needsRemoteProfile) {
     return (
       <div className="min-h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
         <p className={`${typography.size.sm} ${typography.color.secondary}`}>
@@ -2197,21 +2181,29 @@ export default function BeauHome() {
     );
   }
 
-  // Completed profiles always bypass onboarding. For a verified returning
-  // email, meaningful existing profile data is also enough even if a legacy
-  // row predates the onboarding_complete flag.
+  // ONBOARDING IS A FIRST RUN, NEVER A GATE.
+  //
+  // It is shown only to an account with nothing on file yet. A completed flag,
+  // any real profile data, or a session the register endpoint told us belongs
+  // to a returning user all send the visitor straight to the dashboard.
+  // Everything the wizard asks is optional and editable later in The Dossier,
+  // so skipping it for an existing account costs nothing — whereas putting
+  // someone who already has a wardrobe back through it is the failure this
+  // rewrite exists to remove.
   const storedProfile = profile ?? readLocalOnboardingProfile();
-  const effectiveProfile =
-    storedProfile &&
-    !storedProfile.onboarding_complete &&
-    readSessionReturningUser() &&
-    profileHasExistingData(storedProfile)
-      ? ({ ...storedProfile, onboarding_complete: true } as StyleProfile)
-      : storedProfile;
-  if (!effectiveProfile?.onboarding_complete) {
+  const alreadyOnboarded =
+    !!storedProfile?.onboarding_complete ||
+    profileHasExistingData(storedProfile) ||
+    // A row that exists but predates the completed flag, on a session the
+    // server calls a returning user. `isReturningUser` alone is NOT enough:
+    // it is true for any email the CRM has seen (a landing-page lead, say),
+    // and dropping one of those onto an empty dashboard would be worse than
+    // offering them the wizard they can skip in one tap.
+    (!!storedProfile && readSessionReturningUser());
+  if (!alreadyOnboarded) {
     return (
       <Onboarding
-        profile={effectiveProfile}
+        profile={storedProfile}
         prefs={prefs}
         onDone={(p) => {
           setProfile(p);
@@ -2227,6 +2219,13 @@ export default function BeauHome() {
       />
     );
   }
+
+  // Past this point the dashboard always has a profile object to read, even
+  // for a returning account whose row predates the onboarding_complete flag.
+  const effectiveProfile: StyleProfile = {
+    ...((storedProfile || {}) as StyleProfile),
+    onboarding_complete: true,
+  };
 
   return (
     <BeauAssessmentProvider profile={effectiveProfile} pieces={pieces} budgets={budgets} prefs={prefs}>

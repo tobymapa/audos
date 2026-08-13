@@ -90,6 +90,17 @@ function isLocalOnlySessionId(value: unknown): boolean {
   return typeof value === 'string' && /^(guest|ephemeral|anon|csess_local)_/.test(value);
 }
 
+/**
+ * A session the gate marked provisional: the server issued it, but it is not
+ * the durable workspace session the data API reads and writes under. Hydrating
+ * it here would skip the gate entirely, and with it the one chance to exchange
+ * it for the durable session once the server has one — so leave these to
+ * EmailGate, which adopts the same id anyway if nothing better comes back.
+ */
+function isProvisionalSession(session: { provisional?: unknown }): boolean {
+  return session?.provisional === true;
+}
+
 // Comprehensive list of second-level TLDs (country-code SLDs) that require 3-part domain
 const MULTI_LEVEL_TLDS = [
   // UK
@@ -239,11 +250,14 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        // `verified` plus the server-issued id is the durable contract. Do not
-        // reject otherwise-valid sessions solely because they predate the
-        // client-only authVersion marker; that forced returning users back
-        // through the gate and could strand the shell in its loading path.
-        if (session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
+        // A server-issued id IS the contract, on its own. The old extra
+        // `verified === true` condition threw away every session that had not
+        // been through an OTP round-trip, so a signed-in visitor was sent back
+        // to the gate on each reload — the loop this rewrite removes. A local
+        // placeholder id is still refused: it owns nothing on the server.
+        if (recoveredId && !isLocalOnlySessionId(recoveredId) && !isProvisionalSession(session)) {
+          return recoveredId;
+        }
       }
     } catch {
       // Storage unavailable (e.g. Edge tracking protection) — generate an
@@ -303,10 +317,10 @@ export function SpaceRuntimeProvider({
 
   const setSessionId = useCallback((newSessionId: string) => {
     setSessionIdRaw(newSessionId);
-    // Update SpaceRuntime immediately for shell state and notify custom
-    // listeners. The injected WorkspaceDB client has no documented runtime
-    // session-switch API; EmailGate reloads once after verification so that
-    // client boots under this same canonical owner.
+    // Update the shell immediately, then broadcast. The injected WorkspaceDB
+    // client listens for `audos:session-established` (and its useWorkspaceDB
+    // hooks re-read on it), so the identity switches in place — signing in
+    // never needs a page reload.
     try {
       window.dispatchEvent(new CustomEvent('audos:session-established', {
         detail: { workspaceSessionId: newSessionId, source: 'space-runtime' },
@@ -323,16 +337,14 @@ export function SpaceRuntimeProvider({
     } catch {}
   }, [spaceId]);
 
-  // EmailGate uses a one-shot reload so WorkspaceDB boots under the verified
-  // owner. Once this provider has hydrated that owner, clear the guard; a
-  // future genuine sign-in in the same tab is then free to perform its own
-  // required reload.
+  // Clean up the guard key the old reload-after-sign-in dance left behind.
+  // Nothing reads it any more; this only stops it lingering in the storage of
+  // a browser that went through the previous flow.
   useEffect(() => {
-    if (!sessionId) return;
     try {
       sessionStorage.removeItem(`ethaion_auth_reload_${spaceId}`);
-    } catch { /* storage unavailable — EmailGate still has a visible fallback */ }
-  }, [sessionId, spaceId]);
+    } catch { /* storage unavailable — nothing depends on this */ }
+  }, [spaceId]);
 
   // Auto-session: When the page loads from a Stripe payment_success redirect with no existing session,
   // pull the customer email from the Stripe session, register a workspace session, and bypass the EmailGate.
@@ -496,7 +508,10 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) {
+        // Same rule as the initial hydration above. By the time anything calls
+        // this the gate has already settled, so a provisional id is the best
+        // there is and is accepted rather than failing the file operation.
+        if (recoveredId && !isLocalOnlySessionId(recoveredId)) {
           setSessionId(recoveredId);
           return recoveredId;
         }

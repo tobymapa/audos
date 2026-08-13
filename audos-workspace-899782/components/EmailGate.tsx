@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 130; // v130: preserve an existing canonical session during boot, recover only genuinely missing ids, and enter restored sessions without a second reload. // v129: bound every auth/session recovery request and render a visible restoring state instead of a blank screen. // v128: reload once after verification so the injected WorkspaceDB client boots under the canonical verified owner; the SDK has no runtime session-switch API, so in-place entry left profile reads on the pre-auth identity. // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 131; // v131: auth rewritten from scratch — ONE register call resolves the session for both Sign in and Register, the client never supplies a sessionId, the identity switches in place (no OTP detour, no post-auth reload, no null render), and every entry point settles in either the signed-in shell or the sign-in form, so no path can leave a blank screen or a spinner that never resolves. // v130: preserve an existing canonical session during boot, recover only genuinely missing ids, and enter restored sessions without a second reload. // v129: bound every auth/session recovery request and render a visible restoring state instead of a blank screen. // v128: reload once after verification so the injected WorkspaceDB client boots under the canonical verified owner; the SDK has no runtime session-switch API, so in-place entry left profile reads on the pre-auth identity. // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -36,7 +36,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // memory-crash restart, etc.) does not throw inside `response.json()` and
 // get swallowed into the generic "Connection error" copy. Always returns
 // an object instead of throwing — callers inspect `response.ok` themselves.
-const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+// Every auth request is bounded. A hung endpoint has to surface as a plain,
+// retryable failure — never as a screen that waits forever.
+const AUTH_REQUEST_TIMEOUT_MS = 10_000;
+
+// Hard floor on the gate’s boot state. However the session restore ends, the
+// visitor has either the shell or the sign-in form by now.
+const BOOT_TIMEOUT_MS = 12_000;
+
+// Stamped on the stored session; bumped whenever its shape changes. v5 is the
+// register-only session: reaching the app no longer depends on an OTP
+// round-trip, so `verified` is not part of the contract any more.
+const AUTH_VERSION = 5;
 
 async function fetchAuth(
   input: RequestInfo | URL,
@@ -125,6 +136,23 @@ interface SpaceRegisterResponseBody {
   data?: Record<string, unknown>;
 }
 
+/**
+ * The DURABLE workspace session, if the server issued one.
+ *
+ * This is the only field that ever carries one, and it is the only kind of id
+ * the WorkspaceDB data API will read or write under: anything else is refused
+ * with 403 SESSION_VERIFICATION_REQUIRED. The server issues it once an email
+ * has a verified workspace session and returns null otherwise, handing back a
+ * per-call provisional browser session (`csess_…`) instead.
+ */
+function resolveDurableSessionId(body: SpaceRegisterResponseBody): string | null {
+  const nested = isRecord(body.data) ? body.data : null;
+  const candidates = [body.workspaceSessionId, nested?.workspaceSessionId];
+  const found = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof found === 'string' ? found : null;
+}
+
+/** Any session id the response carries, durable one first. */
 function resolveRegisteredSessionId(body: SpaceRegisterResponseBody): string | null {
   const nested = isRecord(body.data) ? body.data : null;
   const candidates = [
@@ -146,13 +174,59 @@ function registeredResponseValue(
   return top[key] ?? nested?.[key];
 }
 
-// Snapshot of the JSON envelope returned by /api/auth/otp/space/{send,verify}.
-interface OtpResponseBody {
-  success?: boolean;
-  resendCooldown?: number;
-  attemptsRemaining?: number;
-  expiresIn?: number;
+// The session this space keeps in localStorage under `space_session_{spaceId}`.
+// It is read by the space runtime, the injected WorkspaceDB client, Settings
+// and the app’s own profile helpers, so the shape only ever grows and every
+// field is optional. `workspaceSessionId` is the canonical id.
+interface StoredSession {
+  id?: string;
+  sessionId?: string;
+  workspaceSessionId?: string;
+  email?: string | null;
+  contactId?: string | null;
+  isReturningUser?: boolean;
+  metadata?: Record<string, unknown>;
+  isGuest?: boolean;
+  // True when the id is a provisional browser session rather than a durable
+  // workspace one. Such a session gets the visitor in, but the data API will
+  // not read or write under it, so the gate keeps trying to upgrade it.
+  provisional?: boolean;
+  // The inverse of `provisional`, kept because other surfaces already read it:
+  // useAgentChatRuntime only loads a conversation history for a session marked
+  // verified. A durable workspace session is by definition a verified one —
+  // the server will not issue one for an unverified email.
+  verified?: boolean;
+  authVersion?: number;
+  timestamp?: number;
 }
+
+/** The id on a stored session, whichever key an older writer used. */
+function sessionIdOf(session: StoredSession | null): string | null {
+  const candidates = [session?.workspaceSessionId, session?.sessionId, session?.id];
+  const found = candidates.find((value) => typeof value === 'string' && value.trim());
+  return typeof found === 'string' ? found : null;
+}
+
+/** Locally minted ids (old guest and template-preview sessions). They own
+ * whatever that browser logged, but they are not server sessions, so an email
+ * can always be resolved to something better. */
+function isLocalSessionId(value: string | null): boolean {
+  return !!value && /^(guest|ephemeral|anon|csess_local)_/.test(value);
+}
+
+/** What the register endpoint tells us about the resolved identity. */
+interface ResolvedSession {
+  id: string;
+  /** Whether `id` is the durable workspace session (see above). */
+  durable: boolean;
+  contactId: string | null;
+  isReturningUser: boolean;
+  metadata: Record<string, unknown>;
+}
+
+type ResolveResult =
+  | { ok: true; session: ResolvedSession }
+  | { ok: false; error: string };
 
 interface EmailGateProps {
   spaceId: string;
@@ -167,7 +241,10 @@ interface EmailGateProps {
   themeTokens?: DesktopThemeTokens;
 }
 
-type GateStep = 'loading' | 'email' | 'code' | 'complete';
+// 'loading' — restoring a stored session. 'email' — the form is on screen.
+// 'complete' — a session was adopted and the shell takes over. There is no
+// fourth state, and every path through the gate ends in one of the last two.
+type GateStep = 'loading' | 'email' | 'complete';
 
 // Derive a usable color set from a single hex primary color
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -211,15 +288,14 @@ export default function EmailGate({
 }: EmailGateProps) {
   const { setSessionId } = useSpaceRuntime();
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<GateStep>('loading');
-  const [otpEnabled, setOtpEnabled] = useState(true);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  // Which CTA opened the panel. Register and Sign in hit the same endpoint —
+  // it is idempotent per email — so this only decides the copy.
+  const [authMode, setAuthMode] = useState<'register' | 'signin'>('register');
   const [entered, setEntered] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   // Keep the email field uncontrolled: several iOS/password-manager autofill
@@ -228,26 +304,43 @@ export default function EmailGate({
   // character. Submission always reads the native input value directly.
   const emailInputRef = useRef<HTMLInputElement>(null);
 
-  // App Preview does not always inject __WORKSPACE_ID__, but registration and
-  // OTP both require it. This source belongs to one workspace, so use its
-  // stable id as the preview-safe fallback.
+  // App Preview does not always inject __WORKSPACE_ID__, but registration
+  // requires it. This source belongs to one workspace, so its stable id is
+  // the preview-safe fallback.
   const workspaceId =
     (window as any).__WORKSPACE_ID__ || '3460cb2c-8c4f-405c-83a2-057f8b58da27';
   const gdprEnabled = !!(window as any).__GDPR_ENABLED__;
-  // Template previews (genesis-space*) aren’t tied to a workspace, so the
-  // normal email/OTP registration can’t complete — always offer guest entry
-  // there. Cloned workspaces (workspace-N) keep the flag-gated behavior.
+  // `?as=visitor` preview: hold the logged-out landing page whatever is in
+  // storage, so the founder can review what a first-time visitor sees.
+  const forceVisitor = (window as any).__AUDOS_FORCE_VISITOR__ === true;
+  // Template previews (genesis-space*) are not attached to a workspace, so
+  // server-side registration can never succeed there.
   const isTemplatePreview = spaceId === 'genesis-space' || spaceId.startsWith('genesis-space-');
-  // A verified email-backed session is required before the profile wizard.
-  // Keeping guest entry disabled prevents local-only guest ids from reaching
-  // WorkspaceDB writes, which require a registered session.
-  const guestModeEnabled = false;
   const rawSocialProviders = (window as any).__SOCIAL_PROVIDERS__;
   const socialProviders: string[] = Array.isArray(rawSocialProviders) ? rawSocialProviders : [];
 
   useEffect(() => {
     storeAttribution();
-    checkExistingSession();
+    let settled = false;
+    // The watchdog is the guarantee, not the plan: if the restore below is
+    // somehow still pending, the visitor gets the sign-in form rather than a
+    // spinner with no end.
+    const watchdog = window.setTimeout(() => {
+      if (settled) return;
+      console.warn('[EmailGate] session restore timed out; showing sign-in');
+      setStep((current) => (current === 'loading' ? 'email' : current));
+    }, BOOT_TIMEOUT_MS);
+    restoreSession()
+      .catch((err) => {
+        console.error('[EmailGate] session restore threw; showing sign-in:', err);
+        setStep((current) => (current === 'loading' ? 'email' : current));
+      })
+      .finally(() => {
+        settled = true;
+        window.clearTimeout(watchdog);
+      });
+    return () => window.clearTimeout(watchdog);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spaceId]);
 
   // Pre-fill email from localStorage when loaded inside the onboarding walkthrough
@@ -264,14 +357,6 @@ export default function EmailGate({
       emailInputRef.current.value = email;
     }
   }, [email]);
-
-  // Resend cooldown timer
-  useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendCooldown]);
 
   // Landing hero entrance animation (client-only; defaults visible if JS is slow)
   useEffect(() => {
@@ -317,629 +402,312 @@ export default function EmailGate({
     return () => root.removeEventListener('scroll', onScroll);
   }, [step]);
 
-  const checkExistingSession = async () => {
-    // `?as=visitor` preview: never adopt a stored session — skip straight to the
-    // logged-out email form instead of jumping to the empty 'complete' state.
-    const forceVisitor = typeof window !== 'undefined' && (window as any).__AUDOS_FORCE_VISITOR__ === true;
-    const sessionKey = `space_session_${spaceId}`;
-    // Guest sessions live in sessionStorage (they end when the browser
-    // closes); saved profiles live in localStorage. Check both — a saved
-    // profile wins, a mid-session guest reload keeps its session.
-    const existingSession = forceVisitor
-      ? null
-      : localStorage.getItem(sessionKey) || sessionStorage.getItem(sessionKey);
+  // -------------------------------------------------------------------
+  // AUTH — one way in, no detours, no dead ends.
+  //
+  // POST /api/space/:spaceId/register is the whole of both flows, for both
+  // Register and Sign in. The client never invents or sends a session id —
+  // the server assigns it (the session-management contract documents
+  // `sessionId` as "optional, omitted for new clients"), which is what
+  // stops a known email from forking a second identity.
+  //
+  // WHAT THE SERVER ACTUALLY RETURNS, as of this rewrite:
+  //  - `workspaceSessionId` — the DURABLE session, and the only kind the
+  //    data API will read or write under. Issued once an email has a
+  //    verified workspace session, which is how Sign in picks up the
+  //    profile and wardrobe that already belong to that address.
+  //  - `sessionId` — a provisional browser session (`csess_…`), different
+  //    on every call, issued when there is no durable one yet.
+  //
+  // We take the durable id when there is one and the provisional id
+  // otherwise, because letting someone in beats stranding them: the app
+  // holds their onboarding answers locally either way. A provisional
+  // session is marked as such and re-resolved on the next boot, so it
+  // upgrades itself to the durable id the moment the server issues one,
+  // with no action from the visitor.
+  //
+  // The identity is switched IN PLACE. The injected WorkspaceDB client
+  // exposes setSessionId() and re-reads on the platform’s
+  // `audos:session-established` event, so there is nothing to gain from
+  // reloading the page after signing in — and with no reload there is no
+  // boot cycle to get caught in.
+  //
+  // Every path below settles in exactly one of two states: 'complete' (a
+  // session was adopted) or 'email' (the form is on screen, with a reason
+  // if something failed). A slow, failing or missing endpoint can only
+  // ever produce the second one.
+  // -------------------------------------------------------------------
 
-    if (existingSession) {
+  const storedSessionKey = `space_session_${spaceId}`;
+
+  const readStoredSession = (): StoredSession | null => {
+    try {
+      const raw = localStorage.getItem(storedSessionKey) || sessionStorage.getItem(storedSessionKey);
+      if (!raw || !raw.startsWith('{')) return null;
+      const parsed = JSON.parse(raw) as unknown;
+      return isRecord(parsed) ? (parsed as StoredSession) : null;
+    } catch {
+      // Storage blocked (private mode, tracking protection). Signing in for
+      // this visit still works; nothing in here may throw.
+      return null;
+    }
+  };
+
+  const writeStoredSession = (session: StoredSession) => {
+    try {
+      localStorage.setItem(storedSessionKey, JSON.stringify(session));
+    } catch { /* the in-memory session still carries this visit */ }
+  };
+
+  // Point every consumer of the identity at the same id, in the order they
+  // read it: the WorkspaceDB client first, so the very next query already
+  // carries X-Session-Id, then the space runtime — whose setSessionId
+  // broadcasts `audos:session-established`, which is what makes the
+  // useWorkspaceDB hooks re-read as the new owner.
+  const adoptSession = (id: string) => {
+    try {
+      const injected = (window as any).__workspaceDb;
+      if (injected && typeof injected.setSessionId === 'function') injected.setSessionId(id);
+    } catch { /* the SDK also re-reads the id from storage on its next call */ }
+    setSessionId(id);
+  };
+
+  // The gate’s only network call.
+  const resolveSessionForEmail = async (
+    normalizedEmail: string,
+    source: string,
+  ): Promise<ResolveResult> => {
+    try {
+      const response = await fetchAuth(`/api/space/${spaceId}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          // Deliberately no `sessionId`: the server mints or matches it. A
+          // client-made id is what used to create a second, empty identity
+          // for an email that already had a wardrobe.
+          email: normalizedEmail,
+          visitorId: getVisitorId(),
+          attribution: getAttribution(),
+          metadata: { marketingConsent, source },
+          workspaceId,
+        }),
+      });
+
+      const { data, rawText } = await parseResponseBody(response);
+
+      if (!response.ok || !isRecord(data)) {
+        console.error('[EmailGate] register failed', {
+          status: response.status,
+          body: data ?? rawText.slice(0, 200),
+        });
+        return {
+          ok: false,
+          error: describeResponseFailure(
+            response,
+            data,
+            rawText,
+            'We could not sign you in just now. Please try again.',
+          ),
+        };
+      }
+
+      const body = data as SpaceRegisterResponseBody;
+      const durableId = resolveDurableSessionId(body);
+      const id = durableId || resolveRegisteredSessionId(body);
+      if (!id) {
+        console.error('[EmailGate] register returned no workspace session', rawText.slice(0, 200));
+        return { ok: false, error: 'The server did not return a session. Please try again.' };
+      }
+
+      const contactId = registeredResponseValue(body, 'contactId');
+      const metadata = registeredResponseValue(body, 'metadata');
+      return {
+        ok: true,
+        session: {
+          id,
+          durable: !!durableId,
+          contactId: typeof contactId === 'string' ? contactId : null,
+          isReturningUser: registeredResponseValue(body, 'isReturningUser') === true,
+          metadata: isRecord(metadata) ? (metadata as Record<string, unknown>) : {},
+        },
+      };
+    } catch (err) {
+      // Includes fetchAuth’s own timeout abort, so a hung request is just a
+      // failure the visitor can retry.
+      console.error('[EmailGate] register request failed:', err);
+      return {
+        ok: false,
+        error: 'Connection error. Please check your internet connection and try again.',
+      };
+    }
+  };
+
+  /** Persist the resolved identity, then hand the space over. */
+  const enterSpace = (
+    normalizedEmail: string,
+    resolved: ResolvedSession,
+    previous: StoredSession | null,
+  ) => {
+    // Carry a previous session’s extras (chat intake state and the like) only
+    // when it belongs to the same person.
+    const carried =
+      previous && (!previous.email || String(previous.email).toLowerCase() === normalizedEmail)
+        ? previous
+        : null;
+
+    writeStoredSession({
+      ...(carried || {}),
+      id: resolved.id,
+      sessionId: resolved.id,
+      // Only a DURABLE id belongs in `workspaceSessionId`: every reader in the
+      // space treats that field as the workspace identity, and a provisional
+      // browser session is not one. They all fall back to `id`, and writing
+      // undefined here also clears a stale value off a carried session.
+      workspaceSessionId: resolved.durable ? resolved.id : undefined,
+      email: normalizedEmail,
+      contactId: resolved.contactId ?? carried?.contactId ?? null,
+      isReturningUser: resolved.isReturningUser || carried?.isReturningUser === true,
+      metadata: resolved.metadata,
+      isGuest: false,
+      provisional: !resolved.durable,
+      verified: resolved.durable,
+      authVersion: AUTH_VERSION,
+      timestamp: Date.now(),
+    });
+
+    // `?as=visitor` pins the shell to the logged-out view, so entering in
+    // place would leave the gate on screen. The session is already stored:
+    // drop the flag and let the space boot signed in.
+    if (forceVisitor) {
       try {
-        const session = JSON.parse(existingSession);
-        let effectiveSessionId = session.workspaceSessionId || session.id;
+        const url = new URL(window.location.href);
+        url.searchParams.delete('as');
+        window.location.replace(url.toString());
+        return;
+      } catch { /* fall through and enter in place */ }
+    }
 
-        // Registration is email-idempotent only when the client does not
-        // supply a fresh session id. Recover by email only when an older cache
-        // genuinely has no usable server id. Re-registering every valid cached
-        // session created an unnecessary loading/reload cycle and could replace
-        // the identity that owns the user’s profile and wardrobe rows.
-        if (!effectiveSessionId && session.email && workspaceId && !isTemplatePreview) {
-          try {
-            const canonicalRes = await fetchAuth(`/api/space/${spaceId}/register`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                email: String(session.email).trim().toLowerCase(),
-                visitorId: getVisitorId(),
-                attribution: null,
-                metadata: { source: 'auth_identity_recovery' },
-                workspaceId,
-              }),
-            });
-            const { data: canonicalResult, rawText: canonicalRawText } =
-              await parseResponseBody(canonicalRes);
-            if (!canonicalRes.ok || !isRecord(canonicalResult)) {
-              throw new Error(
-                describeResponseFailure(
-                  canonicalRes,
-                  canonicalResult,
-                  canonicalRawText,
-                  'Could not reconnect your saved profile.',
-                ),
-              );
-            }
-            const canonicalBody = canonicalResult as SpaceRegisterResponseBody;
-            const canonicalSessionId = resolveRegisteredSessionId(canonicalBody);
-            if (!canonicalSessionId) throw new Error('No canonical workspace session was returned.');
-            effectiveSessionId = canonicalSessionId;
-            localStorage.setItem(sessionKey, JSON.stringify({
-              ...session,
-              id: canonicalSessionId,
-              workspaceSessionId: canonicalSessionId,
-              contactId:
-                registeredResponseValue(canonicalBody, 'contactId') ||
-                session.contactId ||
-                null,
-              isReturningUser:
-                typeof registeredResponseValue(canonicalBody, 'isReturningUser') === 'boolean'
-                  ? registeredResponseValue(canonicalBody, 'isReturningUser')
-                  : !!session.isReturningUser,
-              verified: session.verified === true,
-              authVersion: session.authVersion || 4,
-              timestamp: Date.now(),
-            }));
-          } catch (recoveryError) {
-            console.warn('[EmailGate] canonical session recovery failed:', recoveryError);
-            setStep('email');
-            return;
-          }
-        }
+    adoptSession(resolved.id);
+    setStep('complete');
+  };
 
-        if (effectiveSessionId) {
-          // Template previews have no server-side identity, so their local
-          // guest session is the only valid continuation. Real workspace
-          // sessions must pass the normal server-side verification below.
-          if (isTemplatePreview && session.isGuest) {
-            setSessionId(effectiveSessionId);
-            setStep('complete');
-            return;
-          }
-          if (workspaceId) {
-            try {
-              const configRes = await fetchAuth(`/api/auth/otp/space/config/${workspaceId}`);
-              const configData = await configRes.json();
-              const otpConfig = configData.config || configData;
+  /** Template previews have no workspace behind them, so registration can
+   * never succeed there. Enter on a local id so the landing page and the
+   * shell can still be reviewed. */
+  const enterTemplatePreview = (normalizedEmail: string) => {
+    const previewId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    writeStoredSession({
+      id: previewId,
+      sessionId: previewId,
+      workspaceSessionId: previewId,
+      email: normalizedEmail,
+      isGuest: true,
+      provisional: true,
+      authVersion: AUTH_VERSION,
+      timestamp: Date.now(),
+    });
+    adoptSession(previewId);
+    setStep('complete');
+  };
 
-              if (otpConfig.enabled) {
-                setOtpEnabled(true);
-                const checkRes = await fetchAuth(`/api/auth/otp/space/check-session?workspaceId=${workspaceId}&sessionUuid=${encodeURIComponent(effectiveSessionId)}`, {
-                  credentials: 'include'
-                });
-                const checkData = await checkRes.json();
+  /** BOOT. Terminal in every branch, and only one branch touches the network. */
+  const restoreSession = async () => {
+    if (forceVisitor) {
+      setStep('email');
+      return;
+    }
 
-                if (checkData.verified) {
-                  try {
-                    const recovered = JSON.parse(localStorage.getItem(sessionKey) || '{}');
-                    localStorage.setItem(sessionKey, JSON.stringify({
-                      ...recovered,
-                      id: effectiveSessionId,
-                      workspaceSessionId: effectiveSessionId,
-                      verified: true,
-                      authVersion: 4,
-                      timestamp: Date.now(),
-                    }));
-                  } catch { /* the in-memory session still works for this visit */ }
-                  // This session was already present before the page booted,
-                  // so WorkspaceDB initialized against the same canonical owner.
-                  // Enter in place; the one-shot reload is only needed after a
-                  // newly verified identity replaces the boot-time visitor.
-                  setSessionId(effectiveSessionId);
-                  setStep('complete');
-                  return;
-                } else {
-                  setStep('email');
-                  return;
-                }
-              }
-            } catch (e) {
-              // This workspace’s profile storage requires a verified session.
-              // Re-authenticate instead of adopting an unverified cached id.
-              console.log('[EmailGate] OTP config check failed, requiring verification');
-              setOtpEnabled(true);
-              setStep('email');
-              return;
-            }
-          }
+    const stored = readStoredSession();
+    const storedId = sessionIdOf(stored);
+    const storedEmail =
+      typeof stored?.email === 'string' ? stored.email.trim().toLowerCase() : '';
 
-          setSessionId(effectiveSessionId);
-          setStep('complete');
-          return;
-        }
-      } catch (e) {
-        console.error('Failed to parse session:', e);
+    // The ordinary returning visit. A durable session is already on this
+    // device and it is the identity that owns the profile and the wardrobe,
+    // so adopt it as it stands. Re-registering or re-verifying it here is
+    // what used to cost a round-trip — or a whole reload — before the
+    // dashboard, and could hand the session to a different owner.
+    if (storedId && !isLocalSessionId(storedId) && stored?.provisional !== true) {
+      adoptSession(storedId);
+      setStep('complete');
+      return;
+    }
+
+    // No session id, or only a provisional one. Ask the server to resolve the
+    // stored email: it hands back the durable workspace session as soon as it
+    // has one, which is how a provisional visit upgrades itself. A provisional
+    // answer when we already hold one changes nothing, so keep what we have
+    // rather than churning the id the local data is filed under.
+    if (storedEmail && !isTemplatePreview) {
+      const result = await resolveSessionForEmail(storedEmail, 'session_restore');
+      if (result.ok && (result.session.durable || !storedId)) {
+        enterSpace(storedEmail, result.session, stored);
+        return;
+      }
+      if (!result.ok) {
+        console.warn('[EmailGate] could not restore the saved session:', result.error);
       }
     }
 
-    if (workspaceId) {
-      try {
-        const configRes = await fetchAuth(`/api/auth/otp/space/config/${workspaceId}`);
-        const configData = await configRes.json();
-        const otpConfig = configData.config || configData;
-        setOtpEnabled(otpConfig.enabled || false);
-      } catch (e) {
-        // Fail closed for Ethaion: entering with an unverified registration
-        // only defers the failure to onboarding’s WorkspaceDB writes.
-        setOtpEnabled(true);
-      }
+    // A local-only id with no email still owns whatever that browser logged,
+    // so keep it rather than stranding the visitor on the landing page.
+    if (storedId) {
+      adoptSession(storedId);
+      setStep('complete');
+      return;
     }
 
     setStep('email');
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
 
+    // The field is uncontrolled (see emailInputRef above), so the native
+    // value is the source of truth on submit.
     const submittedEmail = (emailInputRef.current?.value || email).trim();
     if (!submittedEmail || !submittedEmail.includes('@')) {
       setError('Please enter a valid email address');
       return;
     }
 
+    const normalizedEmail = submittedEmail.toLowerCase();
     setEmail(submittedEmail);
     setError('');
     setLoading(true);
 
-    try {
-      const normalizedEmail = submittedEmail.toLowerCase();
-
-      // OTP-enabled workspaces must establish and verify the canonical server
-      // session before the app mounts; WorkspaceDB rejects unverified ids.
-      const requireOtpAtEntry = otpEnabled;
-      if (requireOtpAtEntry && workspaceId) {
-        const attribution = getAttribution();
-        const visitorId = getVisitorId();
-
-        const registerRes = await fetchAuth(`/api/space/${spaceId}/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            email: normalizedEmail,
-            visitorId,
-            attribution,
-            metadata: { marketingConsent },
-            workspaceId,
-          }),
-        });
-
-        const { data: registerResult, rawText: registerRawText } =
-          await parseResponseBody(registerRes);
-
-        if (!registerRes.ok) {
-          console.error('[EmailGate] register failed', {
-            status: registerRes.status,
-            body: registerResult ?? registerRawText.slice(0, 200),
-          });
-          setError(
-            describeResponseFailure(
-              registerRes,
-              registerResult,
-              registerRawText,
-              'Failed to create session. Please try again.',
-            ),
-          );
-          setLoading(false);
-          return;
-        }
-
-        if (!isRecord(registerResult)) {
-          console.error('[EmailGate] register returned an unparseable body', {
-            status: registerRes.status,
-            rawText: registerRawText.slice(0, 200),
-          });
-          setError('The server returned an unexpected response. Please try again.');
-          setLoading(false);
-          return;
-        }
-
-        const registerBody = registerResult as SpaceRegisterResponseBody;
-        const wsSessionId = resolveRegisteredSessionId(registerBody);
-        if (!wsSessionId) {
-          setError('Could not start a verified session. Please try again.');
-          setLoading(false);
-          return;
-        }
-        setPendingSessionId(wsSessionId);
-
-        if (typeof (window as any).fbq === 'function' && (window as any).__META_PIXEL_ID__) {
-          (window as any).fbq('init', (window as any).__META_PIXEL_ID__, { em: normalizedEmail.toLowerCase().trim() });
-        }
-        fireLeadEventWithRetry(normalizedEmail);
-
-        const sessionKey = `space_session_${spaceId}`;
-        const pendingSession = {
-          id: wsSessionId,
-          workspaceSessionId: wsSessionId,
-          email: normalizedEmail,
-          contactId: registeredResponseValue(registerBody, 'contactId') || null,
-          timestamp: Date.now(),
-          verified: false,
-          isReturningUser: registeredResponseValue(registerBody, 'isReturningUser') === true,
-          metadata: registeredResponseValue(registerBody, 'metadata') || {},
-        };
-        localStorage.setItem(sessionKey, JSON.stringify(pendingSession));
-
-        // WorkspaceDB writes require a server-verified session. First-time
-        // emails must complete OTP too; registration alone is not verification.
-        const response = await fetchAuth('/api/auth/otp/space/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ email: normalizedEmail, workspaceId, sessionUuid: wsSessionId }),
-        });
-
-        const { data: otpResult, rawText: otpRawText } = await parseResponseBody(response);
-
-        if (!response.ok) {
-          console.error('[EmailGate] otp send failed', {
-            status: response.status,
-            body: otpResult ?? otpRawText.slice(0, 200),
-          });
-          setError(
-            describeResponseFailure(
-              response,
-              otpResult,
-              otpRawText,
-              'Failed to send code. Please try again.',
-            ),
-          );
-          setLoading(false);
-          return;
-        }
-
-        const otpBody: OtpResponseBody = isRecord(otpResult) ? otpResult : {};
-        setResendCooldown(otpBody.resendCooldown ?? 60);
-        setStep('code');
-      } else {
-        await registerSession(submittedEmail);
-      }
-    } catch (err) {
-      console.error('[EmailGate] Network error in handleEmailSubmit:', err);
-      setError('Connection error. Please check your internet connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (code.length !== 4) {
-      setError('Please enter the 4-digit code');
-      return;
-    }
-
-    setError('');
-    setLoading(true);
-
-    try {
-      if (!pendingSessionId) {
-        setError('Session expired. Please start over.');
-        setStep('email');
-        setLoading(false);
-        return;
-      }
-
-      const normalizedEmail = email.toLowerCase().trim();
-      const response = await fetchAuth('/api/auth/otp/space/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: normalizedEmail, code, workspaceId, sessionUuid: pendingSessionId }),
-      });
-
-      const { data: verifyResult, rawText: verifyRawText } = await parseResponseBody(response);
-      const verifyBody: OtpResponseBody = isRecord(verifyResult) ? verifyResult : {};
-
-      if (!response.ok || !verifyBody.success) {
-        console.error('[EmailGate] otp verify failed', {
-          status: response.status,
-          body: verifyResult ?? verifyRawText.slice(0, 200),
-        });
-        if (typeof verifyBody.attemptsRemaining === 'number') {
-          setError(`Invalid code. ${verifyBody.attemptsRemaining} attempts remaining.`);
-        } else {
-          setError(
-            describeResponseFailure(
-              response,
-              verifyResult,
-              verifyRawText,
-              'Invalid code. Please try again.',
-            ),
-          );
-        }
-        setLoading(false);
-        return;
-      }
-
-      await completeVerifiedSession();
-    } catch (err) {
-      console.error('[EmailGate] Network error in handleCodeSubmit:', err);
-      setError('Connection error. Please check your internet connection and try again.');
-      setLoading(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    if (resendCooldown > 0 || !pendingSessionId) return;
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const normalizedEmail = email.toLowerCase().trim();
-      const response = await fetchAuth('/api/auth/otp/space/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: normalizedEmail, workspaceId, sessionUuid: pendingSessionId }),
-      });
-
-      const { data: resendResult, rawText: resendRawText } = await parseResponseBody(response);
-
-      if (response.ok) {
-        const resendBody: OtpResponseBody = isRecord(resendResult) ? resendResult : {};
-        setResendCooldown(resendBody.resendCooldown ?? 60);
-        setCode('');
-      } else {
-        console.error('[EmailGate] otp resend failed', {
-          status: response.status,
-          body: resendResult ?? resendRawText.slice(0, 200),
-        });
-        setError(
-          describeResponseFailure(
-            response,
-            resendResult,
-            resendRawText,
-            'Failed to resend code. Please try again.',
-          ),
-        );
-      }
-    } catch (err) {
-      console.error('[EmailGate] Network error in handleResendCode:', err);
-      setError('Connection error. Please check your internet connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const completeVerifiedSession = async () => {
-    const sessionKey = `space_session_${spaceId}`;
-    const normalizedEmail = email.toLowerCase().trim();
-    let verifiedMetadata: Record<string, unknown> = {};
-    let verifiedContactId: string | null = null;
-    let isReturningUser = false;
-    try {
-      const existingSession = localStorage.getItem(sessionKey);
-      if (existingSession) {
-        const parsed = JSON.parse(existingSession);
-        if (parsed.metadata) verifiedMetadata = parsed.metadata;
-        if (typeof parsed.contactId === 'string') verifiedContactId = parsed.contactId;
-        if (typeof parsed.isReturningUser === 'boolean') {
-          isReturningUser = parsed.isReturningUser;
-        }
-      }
-    } catch {}
-    const session = {
-      id: pendingSessionId,
-      workspaceSessionId: pendingSessionId,
-      email: normalizedEmail,
-      contactId: verifiedContactId,
-      timestamp: Date.now(),
-      verified: true,
-      authVersion: 4,
-      isReturningUser,
-      metadata: verifiedMetadata,
-    };
-    localStorage.setItem(sessionKey, JSON.stringify(session));
-
-    try {
-      window.dispatchEvent(new CustomEvent('audos:session-established', {
-        detail: {
-          workspaceSessionId: pendingSessionId,
-          email: normalizedEmail,
-        }
-      }));
-    } catch (e) {}
-
-    setSessionId(pendingSessionId!);
-    completeGateEntry();
-    setLoading(false);
-  };
-
-  const registerSession = async (emailValue = email) => {
-    const normalizedEmail = emailValue.toLowerCase().trim();
-
-    // Template previews have no workspace, so the server-side register can
-    // never succeed ("Could not resolve workspace from space."). Create a
-    // local preview session with the entered email instead.
     if (isTemplatePreview) {
-      const previewId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      const previewSession = {
-        id: previewId,
-        workspaceSessionId: previewId,
-        email: normalizedEmail,
-        isGuest: true,
-        timestamp: Date.now(),
-        verified: true,
-        metadata: {},
-      };
-      localStorage.setItem(`space_session_${spaceId}`, JSON.stringify(previewSession));
-      try {
-        window.dispatchEvent(new CustomEvent('audos:session-established', {
-          detail: { workspaceSessionId: previewId, email: normalizedEmail, isGuest: true },
-        }));
-      } catch (e) {}
-      setSessionId(previewId);
-      completeGateEntry();
+      enterTemplatePreview(normalizedEmail);
       setLoading(false);
       return;
     }
 
-    const attribution = getAttribution();
-    const visitorId = getVisitorId();
-    const response = await fetchAuth(`/api/space/${spaceId}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        email: normalizedEmail,
-        visitorId,
-        attribution,
-        metadata: { marketingConsent },
-        workspaceId,
-      }),
-    });
+    const result = await resolveSessionForEmail(
+      normalizedEmail,
+      authMode === 'signin' ? 'landing_sign_in' : 'landing_register',
+    );
 
-    const { data: registerResult, rawText: registerRawText } = await parseResponseBody(response);
-
-    if (!response.ok) {
-      console.error('[EmailGate] registerSession failed', {
-        status: response.status,
-        body: registerResult ?? registerRawText.slice(0, 200),
-      });
-      setError(
-        describeResponseFailure(
-          response,
-          registerResult,
-          registerRawText,
-          'Registration failed. Please try again.',
-        ),
-      );
+    if (!result.ok) {
+      // Stay on the form, with the reason. There is no third state to be
+      // stranded in.
+      setError(result.error);
       setLoading(false);
       return;
     }
 
-    if (!isRecord(registerResult)) {
-      console.error('[EmailGate] registerSession returned an unparseable body', {
-        status: response.status,
-        rawText: registerRawText.slice(0, 200),
-      });
-      setError('The server returned an unexpected response. Please try again.');
-      setLoading(false);
-      return;
-    }
-
-    const registerBody = registerResult as SpaceRegisterResponseBody;
-    // Only the server-returned workspace session is authenticated. The
-    // client-generated sessionId is request correlation, never a substitute
-    // for the canonical workspaceSessionId.
-    const effectiveSessionId = resolveRegisteredSessionId(registerBody);
-    if (!effectiveSessionId) {
-      setError('Could not create a workspace session. Please try again.');
-      setLoading(false);
-      return;
-    }
-
-    const sessionKey = `space_session_${spaceId}`;
-    const session = {
-      id: effectiveSessionId,
-      workspaceSessionId: effectiveSessionId,
-      email: normalizedEmail,
-      contactId: registeredResponseValue(registerBody, 'contactId') || null,
-      timestamp: Date.now(),
-      authVersion: 4,
-      isReturningUser: registeredResponseValue(registerBody, 'isReturningUser') === true,
-      metadata: registeredResponseValue(registerBody, 'metadata') || {},
-    };
-    localStorage.setItem(sessionKey, JSON.stringify(session));
-
+    // Analytics is fire-and-forget on purpose: it must never stand between
+    // the visitor and the dashboard.
     try {
-      window.dispatchEvent(new CustomEvent('audos:session-established', {
-        detail: {
-          workspaceSessionId: effectiveSessionId,
-          email: normalizedEmail,
-        }
-      }));
-    } catch (e) {}
-
-    if (typeof (window as any).fbq === 'function' && (window as any).__META_PIXEL_ID__) {
-      (window as any).fbq('init', (window as any).__META_PIXEL_ID__, { em: normalizedEmail.toLowerCase().trim() });
-    }
-    fireLeadEventWithRetry(normalizedEmail);
-
-    setSessionId(effectiveSessionId);
-    completeGateEntry();
-    setLoading(false);
-  };
-
-  const handleGuestMode = async () => {
-    setError('');
-    setLoading(true);
-
-    try {
-      const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      const sessionKey = `space_session_${spaceId}`;
-      const guestSession = {
-        id: guestId,
-        workspaceSessionId: guestId,
-        email: null,
-        isGuest: true,
-        timestamp: Date.now(),
-        verified: true,
-        metadata: {},
-      };
-      // Deliberately NOT persistent: sessionStorage only, so closing the
-      // browser ends a guest session and a return without saving starts
-      // onboarding fresh. "Save your profile" inside the app moves the
-      // session to localStorage with the user’s email.
-      sessionStorage.setItem(sessionKey, JSON.stringify(guestSession));
-      sessionStorage.setItem('space_session_id', guestId);
-
-      try {
-        window.dispatchEvent(new CustomEvent('audos:session-established', {
-          detail: { workspaceSessionId: guestId, isGuest: true },
-        }));
-      } catch (e) {}
-
-      setSessionId(guestId);
-      completeGateEntry();
-    } catch (err) {
-      setError('Could not continue as guest. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // WorkspaceDB’s documented client has no setSessionId/session-switch API.
-  // It captures the visitor identity when the page boots, so entering the app
-  // in place after OTP leaves profile reads and writes scoped to the pre-auth
-  // identity. Persist the verified canonical session first (done above), then
-  // perform exactly one navigation: the next boot hydrates SpaceRuntime and
-  // WorkspaceDB from the same verified owner and EmailGate no longer mounts.
-  const completeGateEntry = () => {
-    try {
-      if (typeof window !== 'undefined') {
-        if ((window as any).__AUDOS_FORCE_VISITOR__ === true) {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('as');
-          window.location.replace(url.toString());
-          return;
-        }
-        const reloadKey = `ethaion_auth_reload_${spaceId}`;
-        if (sessionStorage.getItem(reloadKey)) {
-          // The verified session should have been adopted on the new boot. If
-          // EmailGate mounted again, fail visibly instead of reloading forever.
-          sessionStorage.removeItem(reloadKey);
-          setError('We could not finish restoring your session. Please sign in again.');
-          setStep('email');
-          return;
-        }
-        sessionStorage.setItem(reloadKey, String(Date.now()));
-        window.location.reload();
-        return;
+      if (typeof (window as any).fbq === 'function' && (window as any).__META_PIXEL_ID__) {
+        (window as any).fbq('init', (window as any).__META_PIXEL_ID__, { em: normalizedEmail });
       }
-    } catch (e) {
-      console.warn('[EmailGate] post-auth reload failed; completing in place:', e);
-    }
-    setStep('complete');
+    } catch { /* non-fatal */ }
+    void fireLeadEventWithRetry(normalizedEmail);
+
+    enterSpace(normalizedEmail, result.session, readStoredSession());
+    setLoading(false);
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -1242,7 +1010,9 @@ export default function EmailGate({
   const heroVideoFallback = palette?.primaryScale?.['900'] || primaryColor;
   const loginPanelId = 'email-gate-login-panel';
 
-  const openLogin = () => {
+  const openLogin = (mode: 'register' | 'signin') => {
+    setAuthMode(mode);
+    setError('');
     setLoginOpen(true);
     setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>('[data-testid="input-email"]');
@@ -1379,7 +1149,7 @@ export default function EmailGate({
         </div>
       )}
 
-      <form onSubmit={handleEmailSubmit} className="space-y-4">
+      <form onSubmit={handleAuthSubmit} className="space-y-4">
         <div>
           <input
             ref={emailInputRef}
@@ -1441,7 +1211,7 @@ export default function EmailGate({
           className="eg-btn eg-btn--block"
           data-testid="button-continue"
         >
-          {loading ? 'Just a moment...' : 'Sign in'}
+          {loading ? 'Just a moment…' : authMode === 'signin' ? 'Sign in' : 'Register'}
           {!loading && <ArrowRight size={18} strokeWidth={2.6} />}
         </button>
       </form>
@@ -1477,23 +1247,14 @@ export default function EmailGate({
         </div>
       )}
 
-      {guestModeEnabled && (
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={handleGuestMode}
-            disabled={loading}
-            className="eg-link"
-            data-testid="button-guest-mode"
-          >
-            Continue as guest
-          </button>
-        </div>
-      )}
     </div>
   );
 
-  if (step === 'loading') {
+  // ONE status screen for both non-interactive states, and it is never
+  // `null`. The shell decides whether to mount the gate from the runtime
+  // session, so a gate that renders nothing while that session is still
+  // landing is exactly what produced the blank screen this rewrite removes.
+  if (step === 'loading' || step === 'complete') {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
@@ -1503,121 +1264,9 @@ export default function EmailGate({
       >
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-current border-t-transparent animate-spin" />
-          <span className="text-sm">Restoring your wardrobe…</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'complete') {
-    return null;
-  }
-
-  // OTP Code verification screen
-  if (step === 'code') {
-    return (
-      <div
-        className="min-h-screen flex flex-col overflow-y-auto"
-        style={{ fontFamily: bodyFontStack, background: gateGradient }}
-      >
-        <div className="flex-1 flex items-center justify-center px-6 py-12">
-          <div className="w-full max-w-sm">
-            <div className="text-center mb-10">
-              <div className="flex justify-center mb-4">
-                <div
-                  className="flex h-16 w-16 items-center justify-center rounded-2xl"
-                  style={{ backgroundColor: panelColor, border: `1px solid ${borderColor}`, boxShadow: `0 10px 24px ${colorWithAlpha(primaryColor, 0.16)}` }}
-                >
-                  <BrandMark size={52} />
-                </div>
-              </div>
-              <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: textPrimary, fontFamily: headingFontStack }}>
-                Check your inbox
-              </h1>
-              <p className="mt-2 text-sm" style={{ color: textMuted }}>
-                We sent a 4-digit code to<br />
-                <span className="font-medium" style={{ color: textPrimary }}>{email}</span>
-              </p>
-              <p className="mt-3 text-xs" style={{ color: textSubtle }}>
-                can’t find it? Check your spam or junk folder.
-              </p>
-            </div>
-
-            <form onSubmit={handleCodeSubmit} className="space-y-5">
-              <div>
-                <input
-                  type="text"
-                  name="one-time-code"
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  value={code}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    setCode(val);
-                    setError('');
-                  }}
-                  placeholder="0000"
-                  className="w-full px-4 py-3.5 text-center text-2xl tracking-[0.5em] font-mono rounded-xl focus:outline-none transition-all"
-                  style={{
-                    backgroundColor: panelColor,
-                    border: `2px solid ${error ? '#7d2a24' : borderColor}`,
-                    color: textPrimary,
-                  }}
-                  disabled={loading}
-                  autoFocus
-                  data-testid="input-code"
-                />
-                {error && (
-                  <p className="mt-2 text-xs" style={{ color: 'var(--space-semantic-danger)' }} data-testid="text-error">
-                    {error}
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || code.length !== 4}
-                className="w-full py-3.5 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
-                style={{
-                  backgroundColor: loading || code.length !== 4 ? colorWithAlpha(primaryColor, 0.3) : primaryColor,
-                  color: onPrimary,
-                  cursor: loading || code.length !== 4 ? 'not-allowed' : 'pointer',
-                  boxShadow: loading || code.length !== 4 ? 'none' : `0 10px 24px ${colorWithAlpha(primaryColor, 0.34)}`,
-                }}
-                data-testid="button-verify"
-              >
-                {loading ? 'Verifying...' : 'Verify code'}
-                {!loading && <ArrowRight size={18} strokeWidth={2.6} />}
-              </button>
-            </form>
-
-            <div className="text-center mt-6 space-x-4">
-              <button
-                onClick={handleResendCode}
-                disabled={resendCooldown > 0 || loading}
-                className="text-sm transition-colors"
-                style={{ color: resendCooldown > 0 ? textSubtle : textPrimary }}
-              >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
-              </button>
-              <span style={{ color: textSubtle }}>|</span>
-              <button
-                onClick={() => { setStep('email'); setCode(''); setError(''); }}
-                className="text-sm transition-colors"
-                style={{ color: textMuted }}
-              >
-                Change email
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="pb-8 text-center">
-          <p className="text-xs" style={{ color: textSubtle }}>
-            Your data is private and secure
-          </p>
+          <span className="text-sm">
+            {step === 'complete' ? 'Opening your wardrobe…' : 'Restoring your wardrobe…'}
+          </span>
         </div>
       </div>
     );
@@ -2033,7 +1682,7 @@ export default function EmailGate({
             <nav className="eg-header-links" aria-label="Account">
               <button
                 type="button"
-                onClick={openLogin}
+                onClick={() => openLogin('signin')}
                 className="eg-link"
                 data-testid="button-open-login"
               >
@@ -2041,7 +1690,7 @@ export default function EmailGate({
               </button>
               <button
                 type="button"
-                onClick={openLogin}
+                onClick={() => openLogin('register')}
                 disabled={loading}
                 className="eg-link"
                 data-testid="button-register"
@@ -2069,7 +1718,7 @@ export default function EmailGate({
         </p>
         <button
           type="button"
-          onClick={openLogin}
+          onClick={() => openLogin('register')}
           disabled={loading}
           className="eg-btn"
           data-testid="button-enter-guest"
@@ -2204,7 +1853,7 @@ export default function EmailGate({
           <h2>Ready to start?</h2>
           <button
             type="button"
-            onClick={openLogin}
+            onClick={() => openLogin('register')}
             disabled={loading}
             className="eg-btn"
           >
@@ -2212,7 +1861,7 @@ export default function EmailGate({
           </button>
           <p className="eg-cta-note">
             Already have an account?{' '}
-            <button type="button" onClick={openLogin} className="eg-link">
+            <button type="button" onClick={() => openLogin('signin')} className="eg-link">
               Sign in →
             </button>
           </p>
@@ -2223,10 +1872,10 @@ export default function EmailGate({
         <div className="eg-footer-inner">
           <span className="eg-footer-wordmark">{brandName}</span>
           <nav className="eg-header-links" aria-label="Account">
-            <button type="button" onClick={openLogin} className="eg-link">
+            <button type="button" onClick={() => openLogin('signin')} className="eg-link">
               Sign in
             </button>
-            <button type="button" onClick={openLogin} disabled={loading} className="eg-link">
+            <button type="button" onClick={() => openLogin('register')} disabled={loading} className="eg-link">
               Register
             </button>
           </nav>
@@ -2261,10 +1910,12 @@ export default function EmailGate({
             </button>
             <div className="px-5 py-6 sm:p-8">
               <h2 id="email-gate-login-title" className="eg-modal-title mb-2 pr-12">
-                Welcome back to {brandName}
+                {authMode === 'signin' ? `Welcome back to ${brandName}` : `Join ${brandName}`}
               </h2>
               <p className="eg-modal-sub mb-5">
-                Sign in with the email you saved your profile with, or enter a new email to register.
+                {authMode === 'signin'
+                  ? 'Enter the email you saved your profile with — your wardrobe will be waiting.'
+                  : 'Enter your email to begin. Everything after this is optional, and you can skip straight through.'}
               </p>
               {renderLoginPanel(true)}
             </div>
