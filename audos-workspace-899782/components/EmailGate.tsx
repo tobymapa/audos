@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 116; // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 117; // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -95,6 +95,8 @@ function describeResponseFailure(
 interface SpaceRegisterResponseBody {
   success?: boolean;
   workspaceSessionId?: string;
+  sessionId?: string;
+  id?: string;
   contactId?: string;
   email?: string;
   isReturningUser?: boolean;
@@ -416,12 +418,11 @@ export default function EmailGate({
         }
 
         const registerBody = registerResult as SpaceRegisterResponseBody;
-        const wsSessionId = registerBody.workspaceSessionId;
-        if (!wsSessionId) {
-          setError('The server returned an invalid session. Please try again.');
-          setLoading(false);
-          return;
-        }
+        // Some register deployments return workspaceSessionId, others return
+        // sessionId, and some acknowledge the submitted id without echoing it.
+        // All three represent the same registered session.
+        const wsSessionId =
+          registerBody.workspaceSessionId || registerBody.sessionId || registerBody.id || sessionId;
         setPendingSessionId(wsSessionId);
 
         if (typeof (window as any).fbq === 'function' && (window as any).__META_PIXEL_ID__) {
@@ -710,17 +711,15 @@ export default function EmailGate({
     }
 
     const registerBody = registerResult as SpaceRegisterResponseBody;
-    const effectiveSessionId = registerBody.workspaceSessionId;
-    if (!effectiveSessionId) {
-      setError('The server returned an invalid session. Please try again.');
-      setLoading(false);
-      return;
-    }
+    // A successful registration may omit the canonical id from its response;
+    // in that case the submitted sessionId is the registered identifier.
+    const effectiveSessionId =
+      registerBody.workspaceSessionId || registerBody.sessionId || registerBody.id || sessionId;
 
     const sessionKey = `space_session_${spaceId}`;
     const session = {
       id: effectiveSessionId,
-      workspaceSessionId: registerBody.workspaceSessionId || effectiveSessionId,
+      workspaceSessionId: effectiveSessionId,
       email: normalizedEmail,
       contactId: registerBody.contactId || null,
       timestamp: Date.now(),
@@ -732,7 +731,7 @@ export default function EmailGate({
     try {
       window.dispatchEvent(new CustomEvent('audos:session-established', {
         detail: {
-          workspaceSessionId: registerBody.workspaceSessionId,
+          workspaceSessionId: effectiveSessionId,
           email: normalizedEmail,
         }
       }));
