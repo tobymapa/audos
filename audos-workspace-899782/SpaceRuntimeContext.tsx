@@ -239,7 +239,11 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (session.authVersion === 4 && session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
+        // `verified` plus the server-issued id is the durable contract. Do not
+        // reject otherwise-valid sessions solely because they predate the
+        // client-only authVersion marker; that forced returning users back
+        // through the gate and could strand the shell in its loading path.
+        if (session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
       }
     } catch {
       // Storage unavailable (e.g. Edge tracking protection) — generate an
@@ -492,7 +496,7 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (session.authVersion === 4 && session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) {
+        if (session.verified === true && recoveredId && !isLocalOnlySessionId(recoveredId)) {
           setSessionId(recoveredId);
           return recoveredId;
         }
