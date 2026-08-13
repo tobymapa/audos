@@ -323,6 +323,35 @@ function withLocalOnboardingCompletion(remote: StyleProfile | null): StyleProfil
     : remote;
 }
 
+function readSessionReturningUser(): boolean {
+  const spaceId = (window as any).__SPACE_ID__ || 'workspace-899782';
+  try {
+    const raw =
+      localStorage.getItem(`space_session_${spaceId}`) ||
+      sessionStorage.getItem(`space_session_${spaceId}`);
+    if (!raw) return false;
+    return JSON.parse(raw).isReturningUser === true;
+  } catch {
+    return false;
+  }
+}
+
+function profileHasExistingData(profile: StyleProfile | null): boolean {
+  if (!profile) return false;
+  return !!(
+    profile.intent ||
+    profile.archetypes?.length ||
+    profile.occasions?.length ||
+    (profile.lifestyle && Object.keys(profile.lifestyle).length > 0) ||
+    profile.height_range ||
+    profile.build ||
+    profile.fit_notes ||
+    profile.skin_tone ||
+    profile.materials ||
+    profile.budget_range
+  );
+}
+
 interface OnboardingProps {
   profile: StyleProfile | null;
   prefs: StylePrefs | null;
@@ -598,7 +627,6 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
   };
 
   const skipAll = () => {
-    if (saving) return;
     setSaveError(null);
     // Exit immediately: optional onboarding must never wait on persistence.
     // Keep the local marker authoritative, then mirror completion to the
@@ -1244,7 +1272,6 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
           <button
             type="button"
             onClick={skipAll}
-            disabled={saving}
             className={`${typography.size.xs} ${typography.color.muted} hover:underline`}
           >
             Skip for now
@@ -1622,7 +1649,7 @@ export default function BeauHome() {
     fetchProfile()
       .then((p) => {
         if (cancelled) return;
-        setProfile(withLocalOnboardingCompletion(p));
+        setProfile(withLocalOnboardingCompletion(p) ?? readLocalOnboardingProfile());
       })
       .catch((e) => {
         console.error('[Ethaion] failed to load profile:', e);
@@ -1825,7 +1852,7 @@ export default function BeauHome() {
     const refreshProfile = () => fetchProfile().then((p) => setProfile(withLocalOnboardingCompletion(p))).catch(() => undefined);
     const onProfile = (e: Event) => {
       const fresh = (e as CustomEvent).detail?.profile as StyleProfile | undefined;
-      if (fresh) setProfile(fresh);
+      if (fresh) setProfile(withLocalOnboardingCompletion(fresh));
       else refreshProfile();
     };
     window.addEventListener('ethaion:profile', onProfile);
@@ -2049,11 +2076,21 @@ export default function BeauHome() {
     return <HomeSkeleton />;
   }
 
-  // Onboarding runs before anything else — and resumes mid-flow.
-  if (!profile || !profile.onboarding_complete) {
+  // Completed profiles always bypass onboarding. For a verified returning
+  // email, meaningful existing profile data is also enough even if a legacy
+  // row predates the onboarding_complete flag.
+  const storedProfile = profile ?? readLocalOnboardingProfile();
+  const effectiveProfile =
+    storedProfile &&
+    !storedProfile.onboarding_complete &&
+    readSessionReturningUser() &&
+    profileHasExistingData(storedProfile)
+      ? ({ ...storedProfile, onboarding_complete: true } as StyleProfile)
+      : storedProfile;
+  if (!effectiveProfile?.onboarding_complete) {
     return (
       <Onboarding
-        profile={profile}
+        profile={effectiveProfile}
         prefs={prefs}
         onDone={(p) => {
           setProfile(p);
@@ -2071,7 +2108,7 @@ export default function BeauHome() {
   }
 
   return (
-    <BeauAssessmentProvider profile={profile} pieces={pieces} budgets={budgets} prefs={prefs}>
+    <BeauAssessmentProvider profile={effectiveProfile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
       {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
           The Hunt · The Index · The Dossier (six tabs; on a phone they sit
@@ -2124,7 +2161,7 @@ export default function BeauHome() {
           <StyleMeToday
             pieces={pieces}
             materials={materials}
-            profile={profile}
+            profile={effectiveProfile}
             onBack={closeStyleToday}
             onChanged={refreshAll}
           />
@@ -2133,7 +2170,7 @@ export default function BeauHome() {
           <>
             <Suspense fallback={<TabLoadingSkeleton />}>
               <LedgerTab
-                profile={profile}
+                profile={effectiveProfile}
                 pieces={pieces}
                 prefs={prefs}
                 budgets={budgets}
@@ -2163,7 +2200,7 @@ export default function BeauHome() {
             {/* The Saved entry now renders inside CuratedTab as a plain
                 hairline row, directly under the standfirst (Pass Forty-One). */}
             <Suspense fallback={<HairlineRowsSkeleton rows={6} />}>
-              <CuratedTab profile={profile} budgets={budgets} pieces={pieces} prefs={prefs} onBudgetsSaved={setBudgets} />
+              <CuratedTab profile={effectiveProfile} budgets={budgets} pieces={pieces} prefs={prefs} onBudgetsSaved={setBudgets} />
             </Suspense>
           </div>
         </KeepMounted>
@@ -2183,7 +2220,7 @@ export default function BeauHome() {
                 </div>
               }
             >
-              <BeauTab profile={profile} budgets={budgets} pieces={pieces} prefs={prefs} />
+              <BeauTab profile={effectiveProfile} budgets={budgets} pieces={pieces} prefs={prefs} />
             </Suspense>
           </div>
         </KeepMounted>
@@ -2194,7 +2231,7 @@ export default function BeauHome() {
             the app lands here with its piece already rendering. */}
         <KeepMounted active={tab === 'fitting-room'}>
           <Suspense fallback={<TabLoadingSkeleton />}>
-            <FittingRoomTab profile={profile} budgets={budgets} pieces={pieces} prefs={prefs} />
+            <FittingRoomTab profile={effectiveProfile} budgets={budgets} pieces={pieces} prefs={prefs} />
           </Suspense>
         </KeepMounted>
 
@@ -2237,7 +2274,7 @@ export default function BeauHome() {
             tagged, sortable, changeable). Sits LEFT of The Index. */}
         <KeepMounted active={tab === 'hunt'}>
           <Suspense fallback={<TabLoadingSkeleton />}>
-            <HuntTab profile={profile} pieces={pieces} prefs={prefs} budgets={budgets} />
+            <HuntTab profile={effectiveProfile} pieces={pieces} prefs={prefs} budgets={budgets} />
           </Suspense>
         </KeepMounted>
 
@@ -2246,7 +2283,7 @@ export default function BeauHome() {
             LEFT of The Dossier in the strip. */}
         <KeepMounted active={tab === 'index'}>
           <Suspense fallback={<TabLoadingSkeleton />}>
-            <IndexTab pieces={pieces} profile={profile} />
+            <IndexTab pieces={pieces} profile={effectiveProfile} />
           </Suspense>
         </KeepMounted>
 
@@ -2293,7 +2330,7 @@ export default function BeauHome() {
           is clicked; carries its own ← CLOSE, Escape and backdrop-tap ways
           out. Renders nothing until asked. */}
       <Suspense fallback={null}>
-        <MakerSheetHost profile={profile} pieces={pieces} />
+        <MakerSheetHost profile={effectiveProfile} pieces={pieces} />
       </Suspense>
     </div>
     </BeauAssessmentProvider>

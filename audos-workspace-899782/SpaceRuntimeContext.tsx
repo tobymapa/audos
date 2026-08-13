@@ -239,10 +239,8 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
+        if (session.authVersion === 3 && session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) return recoveredId;
       }
-      const ssId = sessionStorage.getItem('space_session_id');
-      if (ssId && !isLocalOnlySessionId(ssId)) return ssId;
     } catch {
       // Storage unavailable (e.g. Edge tracking protection) — generate an
       // ephemeral session ID so chat and analytics still work for this page visit.
@@ -367,7 +365,6 @@ export function SpaceRuntimeProvider({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: customerEmail,
-            sessionId: `post_pay_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
             visitorId,
             attribution: null,
             metadata: { source: 'landing_page_checkout', stripeSessionId },
@@ -397,6 +394,7 @@ export function SpaceRuntimeProvider({
           email: customerEmail,
           contactId: registerData.contactId || null,
           timestamp: Date.now(),
+          authVersion: 3,
           isReturningUser: !!registerData.isReturningUser,
           metadata: registerData.metadata || { source: 'landing_page_checkout' },
         };
@@ -465,15 +463,10 @@ export function SpaceRuntimeProvider({
       if (stored) {
         const session = JSON.parse(stored);
         const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        if (session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) {
+        if (session.authVersion === 3 && session.verified !== false && recoveredId && !isLocalOnlySessionId(recoveredId)) {
           setSessionId(recoveredId);
           return recoveredId;
         }
-      }
-      const ssId = sessionStorage.getItem('space_session_id');
-      if (ssId && !isLocalOnlySessionId(ssId)) {
-        setSessionId(ssId);
-        return ssId;
       }
     } catch {
       // Storage unavailable — generate ephemeral session ID for this page visit

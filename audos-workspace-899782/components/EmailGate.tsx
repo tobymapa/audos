@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 124; // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 125; // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -121,11 +121,13 @@ function resolveRegisteredSessionId(body: SpaceRegisterResponseBody): string | n
   return typeof found === 'string' ? found : null;
 }
 
-function createRegistrationSessionId(): string {
-  try {
-    if (typeof window.crypto?.randomUUID === 'function') return window.crypto.randomUUID();
-  } catch { /* fall through to a non-empty legacy-compatible id */ }
-  return `csess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+function registeredResponseValue(
+  body: SpaceRegisterResponseBody,
+  key: 'contactId' | 'isReturningUser' | 'metadata',
+): unknown {
+  const top = body as unknown as Record<string, unknown>;
+  const nested = isRecord(body.data) ? body.data : null;
+  return top[key] ?? nested?.[key];
 }
 
 // Snapshot of the JSON envelope returned by /api/auth/otp/space/{send,verify}.
@@ -314,7 +316,64 @@ export default function EmailGate({
     if (existingSession) {
       try {
         const session = JSON.parse(existingSession);
-        const effectiveSessionId = session.workspaceSessionId || session.id;
+        let effectiveSessionId = session.workspaceSessionId || session.id;
+
+        // Registration is email-idempotent only when the client does not
+        // supply a fresh session id. Re-resolve cached sessions by email so
+        // users affected by the auth regression reconnect to the original
+        // workspaceSessionId that owns their profile and wardrobe rows.
+        if (session.email && workspaceId && !isTemplatePreview) {
+          try {
+            const canonicalRes = await fetch(`/api/space/${spaceId}/register`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                email: String(session.email).trim().toLowerCase(),
+                visitorId: getVisitorId(),
+                attribution: null,
+                metadata: { source: 'auth_identity_recovery' },
+                workspaceId,
+              }),
+            });
+            const { data: canonicalResult, rawText: canonicalRawText } =
+              await parseResponseBody(canonicalRes);
+            if (!canonicalRes.ok || !isRecord(canonicalResult)) {
+              throw new Error(
+                describeResponseFailure(
+                  canonicalRes,
+                  canonicalResult,
+                  canonicalRawText,
+                  'Could not reconnect your saved profile.',
+                ),
+              );
+            }
+            const canonicalBody = canonicalResult as SpaceRegisterResponseBody;
+            const canonicalSessionId = resolveRegisteredSessionId(canonicalBody);
+            if (!canonicalSessionId) throw new Error('No canonical workspace session was returned.');
+            effectiveSessionId = canonicalSessionId;
+            localStorage.setItem(sessionKey, JSON.stringify({
+              ...session,
+              id: canonicalSessionId,
+              workspaceSessionId: canonicalSessionId,
+              contactId:
+                registeredResponseValue(canonicalBody, 'contactId') ||
+                session.contactId ||
+                null,
+              isReturningUser:
+                typeof registeredResponseValue(canonicalBody, 'isReturningUser') === 'boolean'
+                  ? registeredResponseValue(canonicalBody, 'isReturningUser')
+                  : !!session.isReturningUser,
+              verified: false,
+              authVersion: 3,
+              timestamp: Date.now(),
+            }));
+          } catch (recoveryError) {
+            console.warn('[EmailGate] canonical session recovery failed:', recoveryError);
+            setStep('email');
+            return;
+          }
+        }
 
         if (effectiveSessionId) {
           // Template previews have no server-side identity, so their local
@@ -339,8 +398,19 @@ export default function EmailGate({
                 const checkData = await checkRes.json();
 
                 if (checkData.verified) {
+                  try {
+                    const recovered = JSON.parse(localStorage.getItem(sessionKey) || '{}');
+                    localStorage.setItem(sessionKey, JSON.stringify({
+                      ...recovered,
+                      id: effectiveSessionId,
+                      workspaceSessionId: effectiveSessionId,
+                      verified: true,
+                      authVersion: 3,
+                      timestamp: Date.now(),
+                    }));
+                  } catch { /* the in-memory session still works for this visit */ }
                   setSessionId(effectiveSessionId);
-                  setStep('complete');
+                  completeGateEntry();
                   return;
                 } else {
                   setStep('email');
@@ -404,7 +474,6 @@ export default function EmailGate({
       if (requireOtpAtEntry && workspaceId) {
         const attribution = getAttribution();
         const visitorId = getVisitorId();
-        const sessionId = createRegistrationSessionId();
 
         const registerRes = await fetch(`/api/space/${spaceId}/register`, {
           method: 'POST',
@@ -412,7 +481,6 @@ export default function EmailGate({
           credentials: 'include',
           body: JSON.stringify({
             email: normalizedEmail,
-            sessionId,
             visitorId,
             attribution,
             metadata: { marketingConsent },
@@ -469,11 +537,11 @@ export default function EmailGate({
           id: wsSessionId,
           workspaceSessionId: wsSessionId,
           email: normalizedEmail,
-          contactId: registerResult.contactId || null,
+          contactId: registeredResponseValue(registerBody, 'contactId') || null,
           timestamp: Date.now(),
           verified: false,
-          isReturningUser: !!registerResult.isReturningUser,
-          metadata: registerResult.metadata || {},
+          isReturningUser: registeredResponseValue(registerBody, 'isReturningUser') === true,
+          metadata: registeredResponseValue(registerBody, 'metadata') || {},
         };
         localStorage.setItem(sessionKey, JSON.stringify(pendingSession));
 
@@ -625,11 +693,15 @@ export default function EmailGate({
     const sessionKey = `space_session_${spaceId}`;
     const normalizedEmail = email.toLowerCase().trim();
     let verifiedMetadata: Record<string, unknown> = {};
+    let isReturningUser = false;
     try {
       const existingSession = localStorage.getItem(sessionKey);
       if (existingSession) {
         const parsed = JSON.parse(existingSession);
         if (parsed.metadata) verifiedMetadata = parsed.metadata;
+        if (typeof parsed.isReturningUser === 'boolean') {
+          isReturningUser = parsed.isReturningUser;
+        }
       }
     } catch {}
     const session = {
@@ -638,8 +710,8 @@ export default function EmailGate({
       email: normalizedEmail,
       timestamp: Date.now(),
       verified: true,
-      authVersion: 2,
-      isReturningUser: true,
+      authVersion: 3,
+      isReturningUser,
       metadata: verifiedMetadata,
     };
     localStorage.setItem(sessionKey, JSON.stringify(session));
@@ -689,15 +761,12 @@ export default function EmailGate({
 
     const attribution = getAttribution();
     const visitorId = getVisitorId();
-    const sessionId = createRegistrationSessionId();
-
     const response = await fetch(`/api/space/${spaceId}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
         email: normalizedEmail,
-        sessionId,
         visitorId,
         attribution,
         metadata: { marketingConsent },
@@ -750,10 +819,11 @@ export default function EmailGate({
       id: effectiveSessionId,
       workspaceSessionId: effectiveSessionId,
       email: normalizedEmail,
-      contactId: registerBody.contactId || null,
+      contactId: registeredResponseValue(registerBody, 'contactId') || null,
       timestamp: Date.now(),
-      isReturningUser: !!registerBody.isReturningUser,
-      metadata: registerBody.metadata || {},
+      authVersion: 3,
+      isReturningUser: registeredResponseValue(registerBody, 'isReturningUser') === true,
+      metadata: registeredResponseValue(registerBody, 'metadata') || {},
     };
     localStorage.setItem(sessionKey, JSON.stringify(session));
 
@@ -814,15 +884,13 @@ export default function EmailGate({
     }
   };
 
-  // `?as=visitor` preview forces the signed-out view even after a real
-  // sign-in: the gate would render nothing and the visitor would land on the
-  // blank-screen lock instead of the space. The session write is real (only
-  // reads are shadowed under the forced-visitor preview), so drop the
-  // as=visitor param and reload — the fresh session is adopted and the
-  // signed-in space opens.
+  // Reboot the real workspace after authentication so the injected
+  // WorkspaceDB client starts with the verified canonical session. This also
+  // removes forced-visitor preview mode and prevents piece writes from using
+  // the pre-auth token/session that existed when the bundle first mounted.
   const completeGateEntry = () => {
     try {
-      if (typeof window !== 'undefined' && (window as any).__AUDOS_FORCE_VISITOR__ === true) {
+      if (typeof window !== 'undefined' && !isTemplatePreview) {
         const url = new URL(window.location.href);
         url.searchParams.delete('as');
         window.location.replace(url.toString());
