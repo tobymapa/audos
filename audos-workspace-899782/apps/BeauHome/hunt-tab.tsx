@@ -42,7 +42,7 @@ import { DOSSIER_DETAILS_EVENT } from './dossier-details';
 import { COVERAGE_PREFS_EVENT } from './coverage-prefs';
 import { SubTabs, type SubTabItem } from './sub-tabs';
 import { TabHeader } from './tab-header';
-import { HUNT_OPEN_CATEGORY_EVENT, peekHuntTarget } from './edit-links';
+import { HUNT_ASK_EVENT, HUNT_OPEN_CATEGORY_EVENT, peekAskQuery, peekHuntTarget } from './edit-links';
 import type { CategoryBudget, StylePrefs, StyleProfile, WardrobePiece } from './profile-data';
 import { loadHuntReader, type HuntReader } from './hunt-reader';
 import { useHuntCalls } from './hunt-cards';
@@ -93,6 +93,16 @@ export function HuntTab({
     const onOpen = () => setFace('picks');
     window.addEventListener(HUNT_OPEN_CATEGORY_EVENT, onOpen);
     return () => window.removeEventListener(HUNT_OPEN_CATEGORY_EVENT, onOpen);
+  }, []);
+
+  // “Ask Beau to search” from a piece page lands on the Ask face with the
+  // box pre-filled — the face comes forward here; Ask Beau itself
+  // (hunt-ask.tsx) fills the box. Additive — nothing else moves.
+  useEffect(() => {
+    if (peekAskQuery()) setFace('ask');
+    const onAsk = () => setFace('ask');
+    window.addEventListener(HUNT_ASK_EVENT, onAsk);
+    return () => window.removeEventListener(HUNT_ASK_EVENT, onAsk);
   }, []);
   const [loaded, setLoaded] = useState<HuntReader | null>(null);
 

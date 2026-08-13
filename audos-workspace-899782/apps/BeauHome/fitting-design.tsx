@@ -299,10 +299,11 @@ export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; ac
 // THE DAY RAIL — a column of days down the left of the band (a row on a
 // phone). The active day carries the canvas wash and the gold tick.
 //
-// The seven days SHARE the column's full height (each cell flex: 1), so the
-// rail's last day ends exactly where the canvas beside it ends — the band
-// closes on one line rather than leaving the canvas running on below the
-// days (founder's correction).
+// The rail is COMPACT (founder's correction, August 2026): the days no
+// longer stretch to fill the column's height — each row is tight, so the
+// rail ends where its seventh day ends and the swap alternatives can sit
+// directly beneath it. The canvas beside it is sized to close on roughly
+// the same line.
 // ---------------------------------------------------------------------------
 
 export interface RailDay {
@@ -319,8 +320,8 @@ export interface RailDay {
 export function DayRail({ days, extra }: { days: RailDay[]; extra?: React.ReactNode }) {
   return (
     <div
-      className="flex lg:flex-col gap-[2px] overflow-x-auto lg:overflow-visible border-b lg:border-b-0 lg:border-r border-[rgba(59,43,29,0.18)]"
-      style={{ padding: '22px 0' }}
+      className="flex lg:flex-col gap-[2px] overflow-x-auto lg:overflow-visible border-b lg:border-b-0 border-[rgba(59,43,29,0.18)]"
+      style={{ padding: '14px 0' }}
       role="tablist"
       aria-label="Days"
     >
@@ -332,25 +333,25 @@ export function DayRail({ days, extra }: { days: RailDay[]; extra?: React.ReactN
           aria-selected={day.active}
           onClick={day.onSelect}
           title={day.title}
-          className="flex-shrink-0 lg:flex-1 lg:w-full transition-colors"
+          className="flex-shrink-0 lg:w-full transition-colors"
           style={{
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '5px',
-            padding: '14px 12px',
-            minWidth: '62px',
-            minHeight: '62px',
+            gap: '3px',
+            padding: '7px 10px',
+            minWidth: '58px',
+            minHeight: '46px',
             border: 'none',
             cursor: 'pointer',
             opacity: day.quiet && !day.active ? 0.55 : 1,
             background: day.active ? CANVAS : 'transparent',
           }}
         >
-          <span style={label(8.5, MUTED, '0.16em')}>{day.abbr}</span>
-          <span style={{ fontFamily: SERIF, fontSize: '22px', lineHeight: 1, color: day.active ? WALNUT : '#8d7c66' }}>{day.num}</span>
+          <span style={label(8, MUTED, '0.16em')}>{day.abbr}</span>
+          <span style={{ fontFamily: SERIF, fontSize: '19px', lineHeight: 1, color: day.active ? WALNUT : '#8d7c66' }}>{day.num}</span>
           <span
             aria-hidden="true"
             style={{
@@ -359,7 +360,7 @@ export function DayRail({ days, extra }: { days: RailDay[]; extra?: React.ReactN
               top: '50%',
               transform: 'translateY(-50%)',
               width: '2px',
-              height: '30px',
+              height: '24px',
               background: day.active ? ACCENT : 'transparent',
             }}
           />

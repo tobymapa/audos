@@ -1156,10 +1156,39 @@ export function FittingRoomTab({
           control, BELOW the masthead so the header itself stays uniform. */}
       <FittingContextBar right={`The Fitting · ${dayName}`} />
 
-      {/* 3 · THE BAND — the days, the fitting, the notes. */}
+      {/* 3 · THE BAND — the days (with the swap alternatives beneath them),
+          the fitting, the notes. The left column widened so the alternatives
+          read comfortably under the compact day rail (founder's correction). */}
       <div className="px-6 sm:px-10">
-        <div className="max-w-[1180px] mx-auto grid grid-cols-1 lg:grid-cols-[76px_minmax(0,1fr)_220px] xl:grid-cols-[84px_minmax(0,1fr)_232px] items-stretch">
-          <DayRail days={railDays} />
+        <div className="max-w-[1180px] mx-auto grid grid-cols-1 lg:grid-cols-[176px_minmax(0,1fr)_220px] xl:grid-cols-[188px_minmax(0,1fr)_232px] items-stretch">
+          <div className="lg:border-r border-[rgba(59,43,29,0.18)] flex flex-col min-w-0">
+            <DayRail days={railDays} />
+            {/* THE ALTERNATIVES — below the days, not beside the canvas
+                (founder's correction). On a phone they stay in the notes
+                column below the board instead. */}
+            <div className="hidden lg:block" style={{ padding: '16px 14px 24px 0' }}>
+              <SectionRule>Swap alternatives</SectionRule>
+              {swaps.length > 0 ? (
+                <div className="flex flex-col">
+                  {swaps.map(({ piece, why }) => (
+                    <SwapRow
+                      key={piece.key}
+                      swatch={swatchForPiece(piece.name, ownedColors.get(piece.key) || null)}
+                      name={piece.name}
+                      why={why}
+                      onClick={() => toggleOnBoard(piece)}
+                      title={`Put it on board — ${piece.name}`}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
+                  Everything you own that suits this look is already on board — log more pieces in The Ledger and
+                  the swaps appear here.
+                </p>
+              )}
+            </div>
+          </div>
 
           {/* THE FITTING ITSELF */}
           <div
@@ -1181,11 +1210,13 @@ export function FittingRoomTab({
               <HarmonyBars colors={harmony} />
             </div>
 
-            {/* THE OUTFIT — the real cutouts, named at both edges. */}
+            {/* THE OUTFIT — the real cutouts, named at both edges. The
+                canvas is HALF its former height (founder's correction): it
+                closes roughly where the day rail beside it ends. */}
             <section
               aria-label="The outfit on board"
               className="relative mx-auto w-full"
-              style={{ marginTop: '10px', minHeight: '376px' }}
+              style={{ marginTop: '10px', minHeight: '190px' }}
             >
               <div
                 aria-hidden="true"
@@ -1194,8 +1225,8 @@ export function FittingRoomTab({
                   left: '50%',
                   top: '46%',
                   transform: 'translate(-50%,-50%)',
-                  width: '250px',
-                  height: '250px',
+                  width: '170px',
+                  height: '170px',
                   borderRadius: '50%',
                   background: 'radial-gradient(circle, rgba(251,248,241,0.9) 0%, rgba(244,238,227,0) 70%)',
                   pointerEvents: 'none',
@@ -1207,7 +1238,7 @@ export function FittingRoomTab({
                     pieces={activeBoard}
                     onRemove={removeFromBoard}
                     seed={`fitting-${fittingKey}`}
-                    canvasMaxWidth="630px"
+                    canvasMaxWidth="340px"
                   />
                 </AnnotatedBoard>
               </div>
@@ -1236,31 +1267,34 @@ export function FittingRoomTab({
             </div>
           </div>
 
-          {/* THE NOTES */}
+          {/* THE NOTES — the alternatives moved under the day rail on a
+              desktop; on a phone they keep their old place here. */}
           <aside aria-label="Notes on this look" style={{ background: PAPER, padding: '26px 16px 32px' }}>
             <SectionRule>Style notes</SectionRule>
             <NoteList notes={styleNotes} />
 
-            <SectionRule className="mt-8">Swap alternatives</SectionRule>
-            {swaps.length > 0 ? (
-              <div className="flex flex-col">
-                {swaps.map(({ piece, why }) => (
-                  <SwapRow
-                    key={piece.key}
-                    swatch={swatchForPiece(piece.name, ownedColors.get(piece.key) || null)}
-                    name={piece.name}
-                    why={why}
-                    onClick={() => toggleOnBoard(piece)}
-                    title={`Put it on board — ${piece.name}`}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
-                Everything you own that suits this look is already on board — log more pieces in The Ledger and
-                the swaps appear here.
-              </p>
-            )}
+            <div className="lg:hidden">
+              <SectionRule className="mt-8">Swap alternatives</SectionRule>
+              {swaps.length > 0 ? (
+                <div className="flex flex-col">
+                  {swaps.map(({ piece, why }) => (
+                    <SwapRow
+                      key={piece.key}
+                      swatch={swatchForPiece(piece.name, ownedColors.get(piece.key) || null)}
+                      name={piece.name}
+                      why={why}
+                      onClick={() => toggleOnBoard(piece)}
+                      title={`Put it on board — ${piece.name}`}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
+                  Everything you own that suits this look is already on board — log more pieces in The Ledger and
+                  the swaps appear here.
+                </p>
+              )}
+            </div>
 
             <SectionRule className="mt-8">What not to do</SectionRule>
             <AvoidList notes={avoidNotes} />

@@ -18,7 +18,7 @@
  * to act on under it — each carrying the same Save · Favourite · Pass as
  * Beau's Picks, so a call made here files on Your Calls beside one made there.
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Trash2 } from 'lucide-react';
 import {
   ACCENT_DEEP,
@@ -56,6 +56,7 @@ import {
   type HuntReader,
 } from './hunt-reader';
 import { HuntButton, HuntCard, HuntPhoto, HuntWorkingLine, type HuntCallsState } from './hunt-cards';
+import { HUNT_ASK_EVENT, takeAskQuery } from './edit-links';
 
 let queueSeq = 0;
 function nextQueueId(): string {
@@ -248,6 +249,23 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
   const [error, setError] = useState<string | null>(null);
   // The photograph each result card painted, so a tag carries the picture.
   const photos = useRef<Map<string, string>>(new Map());
+
+  // “Ask Beau to search” from a piece page: the box FILLS with the brief —
+  // it never sends in the reader's name. Parked requests cover a tab that
+  // was still loading when the link was pressed.
+  useEffect(() => {
+    const parked = takeAskQuery();
+    if (parked) setText(parked);
+    const onAsk = (e: Event) => {
+      const query = String((e as CustomEvent).detail?.query || '').trim();
+      if (query) {
+        setText(query);
+        takeAskQuery();
+      }
+    };
+    window.addEventListener(HUNT_ASK_EVENT, onAsk);
+    return () => window.removeEventListener(HUNT_ASK_EVENT, onAsk);
+  }, []);
 
   const benchFull = queued.length >= ASK_QUEUE_LIMIT;
   const pastedUrl = useMemo(() => {

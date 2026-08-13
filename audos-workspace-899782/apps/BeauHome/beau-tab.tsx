@@ -42,6 +42,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlexMono } from './mono-type';
 import { ACCENT, ACCENT_DEEP, FAINT, INK, SECONDARY, WALNUT, body, mono, serif } from './index-style';
 import { TabHeader } from './tab-header';
+import { CrumbTrail } from './crumb-trail';
 import { fetchMaterials, type CategoryBudget, type StylePrefs, type StyleProfile, type WardrobePiece } from './profile-data';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
 import { useIndexClimate } from './index-model';
@@ -292,15 +293,23 @@ export function BeauTab(props: {
     () => ruler.rows.flatMap((r) => r.cells).find((c) => c.key === cell) || null,
     [ruler, cell],
   );
-  const crumbs = [
-    'The Edit',
-    view === 'ruler' ? 'By temperature' : 'By category',
-    view === 'ruler'
+  // The shared trail — ETHAION / THE EDIT / BY TEMPERATURE / [the cell] —
+  // each parent segment a link back up the read (founder's correction).
+  const crumbSegs = [
+    { label: 'Ethaion' },
+    { label: 'The Edit', onClick: () => setCell(null) },
+    {
+      label: view === 'ruler' ? 'By temperature' : 'By category',
+      onClick: view === 'ruler' ? () => setCell(null) : () => setOpenCategory(null),
+    },
+    ...(view === 'ruler'
       ? selectedCell
-        ? `${selectedCell.categoryName} \u00b7 ${selectedCell.bandLabel}`
-        : ''
-      : categories.find((c) => c.id === openCategory)?.name || '',
-  ].filter(Boolean);
+        ? [{ label: `${selectedCell.categoryName} \u00b7 ${selectedCell.bandLabel}` }]
+        : []
+      : openCategory
+        ? [{ label: categories.find((c) => c.id === openCategory)?.name || '' }].filter((s) => s.label)
+        : []),
+  ];
 
   const gapMeta = [
     `${gaps.length} gap${gaps.length === 1 ? '' : 's'}`,
@@ -358,14 +367,10 @@ export function BeauTab(props: {
           </p>
         ) : (
           <>
-            {/* The wayfinding line — where you are inside the read. */}
-            <div className="flex items-center flex-wrap" style={{ gap: '9px', paddingBottom: '14px' }}>
-              {crumbs.map((crumb, i) => (
-                <span key={crumb} className="flex items-center" style={{ gap: '9px' }}>
-                  <span style={mono(9.5, i === crumbs.length - 1 ? WALNUT : FAINT)}>{crumb}</span>
-                  {i < crumbs.length - 1 && <span style={mono(9.5, '#c3b7a3')}>/</span>}
-                </span>
-              ))}
+            {/* The wayfinding line — the app's shared trail; parent segments
+                step back up the read. */}
+            <div style={{ paddingBottom: '14px' }}>
+              <CrumbTrail segs={crumbSegs} />
             </div>
 
             {/* Read it · the two faces, and the legend the map is shaded by. */}

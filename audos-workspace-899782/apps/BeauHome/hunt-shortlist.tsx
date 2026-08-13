@@ -20,6 +20,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
+import { Info } from 'lucide-react';
 import {
   ACCENT,
   ACCENT_DEEP,
@@ -45,7 +46,9 @@ import { HairlineRowsSkeleton } from './skeleton';
 import { label as profileLabel } from './profile-data';
 import { hairColourLabel } from './dossier-details';
 import { REGISTER_FREQUENCY_LABELS, type RegisterFrequency } from './coverage-prefs';
-import { FIELD_REGISTER_LABELS } from './index-model';
+import { FIELD_REGISTER_LABELS, matchGarmentTypeId } from './index-model';
+import { openMakerSheet } from './maker-sheet';
+import { CrumbHeader, goToEthaionTab } from './crumb-trail';
 import {
   budgetLine,
   drawBenchRefill,
@@ -93,7 +96,9 @@ export function HuntSubRows({
 }) {
   return (
     <div>
-      {subs.map((sub) => (
+      {subs.map((sub) => {
+        const infoTypeId = matchGarmentTypeId({ name: sub.subName });
+        return (
         <div
           key={sub.subName}
           className="flex items-start justify-between gap-x-5 gap-y-2 flex-wrap md:flex-nowrap"
@@ -111,6 +116,18 @@ export function HuntSubRows({
           </div>
           <div className="flex items-center flex-shrink-0" style={{ gap: '16px', paddingTop: '5px' }}>
             <span style={mono(8.5, FAINT)}>You own {sub.youOwn}</span>
+            {infoTypeId && (
+              <button
+                type="button"
+                onClick={() => openInTheIndex({ typeId: infoTypeId })}
+                aria-label={`About ${sub.subName} — its page in the Index`}
+                title="About this piece — its page in the Index"
+                className="transition-colors hover:border-[#a8712c] flex items-center justify-center"
+                style={{ width: '31px', height: '31px', border: `1px solid ${RULE}`, background: 'transparent', color: SECONDARY, borderRadius: 0 }}
+              >
+                <Info className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onTenPicks(sub)}
@@ -127,7 +144,8 @@ export function HuntSubRows({
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -335,7 +353,19 @@ function PickRow({
 
       <div className="min-w-0">
         <div style={{ ...serif(18, WALNUT), lineHeight: 1.2 }}>{pick.pieceName}</div>
-        {pick.maker && <div style={{ ...mono(8.5, MUTED), marginTop: '4px' }}>{pick.maker}</div>}
+        {pick.maker && (
+          <div style={{ marginTop: '4px' }}>
+            <button
+              type="button"
+              onClick={() => openMakerSheet(pick.maker)}
+              title={`${pick.maker} — the maker's file`}
+              className="hover:underline"
+              style={{ ...mono(8.5, MUTED), background: 'transparent', border: 'none', padding: 0 }}
+            >
+              {pick.maker}
+            </button>
+          </div>
+        )}
         <div className="flex items-baseline flex-wrap" style={{ gap: '12px', marginTop: '6px' }}>
           {pick.retailerUrl && (
             <a
@@ -352,10 +382,11 @@ function PickRow({
             <button
               type="button"
               onClick={() => openInTheIndex({ typeId: pick.garmentTypeId! })}
-              className="hover:underline"
+              title="About this piece — its full page in the Index"
+              className="hover:underline inline-flex items-center gap-1"
               style={{ ...mono(8, SECONDARY), background: 'transparent', border: 'none', padding: 0 }}
             >
-              Look it up in the Index →
+              <Info className="w-3 h-3" strokeWidth={1.6} aria-hidden="true" /> The piece's page →
             </button>
           )}
         </div>
@@ -530,24 +561,19 @@ export function HuntTenPicksPage({
 
   return (
     <div ref={rootRef} style={{ scrollMarginTop: '80px' }}>
-      {/* The way back, and where you are. */}
-      <div
-        className="flex items-center flex-wrap"
-        style={{ gap: '14px', paddingBottom: '12px', borderBottom: `1px solid ${HAIRLINE}` }}
-      >
-        <button
-          type="button"
-          onClick={onBack}
-          className="hover:underline"
-          style={{ ...mono(9, ACCENT_DEEP), background: 'transparent', border: 'none', padding: 0 }}
-        >
-          ← Back
-        </button>
-        <span aria-hidden="true" style={mono(9, FAINTER)}>|</span>
-        <span style={mono(9, FAINT)}>{'Ethaion / The Hunt / Beau\u2019s Picks'}</span>
-      </div>
-      <div style={{ padding: '9px 0', borderBottom: `1px solid ${HAIRLINE}` }}>
-        <span style={mono(8.5, FAINT)}>{`Ethaion ${MIDDOT} The Hunt ${MIDDOT} Beau`}</span>
+      {/* The way back, and where you are — the app's shared treatment. */}
+      <div style={{ paddingBottom: '12px', borderBottom: `1px solid ${HAIRLINE}` }}>
+        <CrumbHeader
+          backLabel="Beau's Picks"
+          onBack={onBack}
+          segs={[
+            { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
+            { label: 'The Hunt', onClick: onBack },
+            { label: "Beau's Picks", onClick: onBack },
+            { label: category.name, onClick: onBack },
+            { label: sub.subName },
+          ]}
+        />
       </div>
 
       {/* The header — the sub-category and what Beau is picking against. */}

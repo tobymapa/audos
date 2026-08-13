@@ -17,6 +17,7 @@
  * Every colour, rule and type size here is the design's, drawn from the
  * shared Index tokens (index-style.tsx) — nothing sets a hue of its own.
  */
+import { Info } from 'lucide-react';
 import {
   ACCENT,
   ACCENT_DEEP,
@@ -101,7 +102,7 @@ function IndexButton({ typeId, block = false }: { typeId: string; block?: boolea
     <button
       type="button"
       onClick={() => openInTheIndex({ typeId })}
-      title="Open this piece's entry in The Index"
+      title="About this piece — its full page in The Index"
       className="transition-colors hover:border-[#a8712c]"
       style={{
         ...mono(9, SECONDARY),
@@ -113,7 +114,24 @@ function IndexButton({ typeId, block = false }: { typeId: string; block?: boolea
         width: block ? '100%' : undefined,
       }}
     >
-      In the Index →
+      The piece's page →
+    </button>
+  );
+}
+
+/** The small info control a sub-category row carries — the piece type's
+ * own full page in The Index. */
+function SubInfoButton({ typeId, label }: { typeId: string; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => openInTheIndex({ typeId })}
+      aria-label={`About ${label} — its page in the Index`}
+      title="About this piece — its page in the Index"
+      className="transition-colors hover:border-[#a8712c] flex items-center justify-center flex-shrink-0"
+      style={{ width: '30px', height: '30px', border: '1px solid rgba(59,43,29,0.28)', background: 'transparent', color: SECONDARY, borderRadius: 0 }}
+    >
+      <Info className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden="true" />
     </button>
   );
 }
@@ -141,7 +159,8 @@ function SubRow({ row, why }: { row: EditSubRow; why: string }) {
       <span style={mono(9.5, TIER_FG[row.tier])}>{TIER_LABEL[row.tier]}</span>
       <span style={{ ...body(13, INK), lineHeight: 1.5 }}>{why}</span>
       {row.tier === 'gap' ? (
-        <span className="md:justify-self-end">
+        <span className="md:justify-self-end flex items-center" style={{ gap: '6px' }}>
+          {row.typeId && <SubInfoButton typeId={row.typeId} label={row.label} />}
           <PicksButton
             categoryId={row.categoryId}
             subCategory={row.subCategory}
@@ -149,8 +168,9 @@ function SubRow({ row, why }: { row: EditSubRow; why: string }) {
           />
         </span>
       ) : (
-        <span className="md:justify-self-end" style={mono(9, FAINT)}>
-          {`${row.count} piece${row.count === 1 ? '' : 's'}`}
+        <span className="md:justify-self-end flex items-center" style={{ gap: '10px' }}>
+          <span style={mono(9, FAINT)}>{`${row.count} piece${row.count === 1 ? '' : 's'}`}</span>
+          {row.typeId && <SubInfoButton typeId={row.typeId} label={row.label} />}
         </span>
       )}
     </div>

@@ -36,8 +36,13 @@
  * labels, square corners, no shadows.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Info } from 'lucide-react';
 import { usePlexMono, capWord, numberWord } from './mono-type';
 import { TabHeader } from './tab-header';
+import { matchGarmentTypeId } from './index-model';
+import { openInTheIndex } from './edit-links';
+import { openMakerSheet } from './maker-sheet';
+import { CrumbTrail } from './crumb-trail';
 import {
   fetchMaterials,
   fetchPieceConditions,
@@ -140,6 +145,27 @@ function PieceFrame({ row, height }: { row: LedgerPieceRow; height: string }) {
   );
 }
 
+/** The small info control on a piece row — opens the piece TYPE's own full
+ * page in The Index (the reference read: band, registers, colours, cuts,
+ * makers), never the piece sheet. Renders nothing when the keyword read
+ * cannot place the piece. */
+function PieceTypeInfoButton({ row }: { row: LedgerPieceRow }) {
+  const typeId = matchGarmentTypeId({ name: row.name, slot: row.piece.slot, category: row.piece.category });
+  if (!typeId) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => openInTheIndex({ typeId })}
+      aria-label={`About this piece type — its page in the Index`}
+      title="About this piece type — its page in the Index"
+      className="transition-colors hover:border-[#a8712c] flex items-center justify-center flex-shrink-0"
+      style={{ width: '31px', height: '31px', border: '1px solid rgba(59,43,29,0.3)', background: 'transparent', color: SECONDARY, borderRadius: 0 }}
+    >
+      <Info className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden="true" />
+    </button>
+  );
+}
+
 function OpenButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -167,7 +193,19 @@ function PieceRow({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void }) 
       <div className="min-w-0">
         <div style={{ ...body(15, WALNUT), lineHeight: 1.3 }}>{row.name}</div>
         <div style={{ ...mono(9, MUTED), marginTop: '3px' }}>
-          {[row.maker, row.sub].filter(Boolean).join(` ${MIDDOT} `)}
+          {row.maker ? (
+            <button
+              type="button"
+              onClick={() => openMakerSheet(row.maker)}
+              title={`${row.maker} — the maker's file`}
+              className="hover:underline"
+              style={{ ...mono(9, MUTED), background: 'transparent', border: 'none', padding: 0 }}
+            >
+              {row.maker}
+            </button>
+          ) : null}
+          {row.maker && row.sub ? ` ${MIDDOT} ` : ''}
+          {row.sub || ''}
         </div>
       </div>
       <div className="col-span-2 md:col-span-1 flex flex-col" style={{ gap: '4px' }}>
@@ -180,7 +218,8 @@ function PieceRow({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void }) 
         <div style={mono(9.5, READ_INK[row.read])}>{row.read}</div>
         <div style={{ ...body(12.5, SECONDARY), marginTop: '4px', lineHeight: 1.45 }}>{row.note}</div>
       </div>
-      <div className="col-span-2 md:col-span-1 md:justify-self-end">
+      <div className="col-span-2 md:col-span-1 md:justify-self-end flex items-center" style={{ gap: '6px' }}>
+        <PieceTypeInfoButton row={row} />
         <OpenButton onClick={onOpen} />
       </div>
     </div>
@@ -627,14 +666,9 @@ export function LedgerTab({
       />
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-        {/* Where you are inside the record. */}
-        <div className="flex items-center flex-wrap" style={{ gap: '9px', paddingBottom: '14px' }}>
-          {crumbs.map((crumb, i) => (
-            <span key={`${crumb}-${i}`} className="flex items-center" style={{ gap: '9px' }}>
-              <span style={mono(9.5, i === crumbs.length - 1 ? WALNUT : FAINT)}>{crumb}</span>
-              {i < crumbs.length - 1 && <span style={mono(9.5, FAINTER)}>/</span>}
-            </span>
-          ))}
+        {/* Where you are inside the record — the app's shared trail. */}
+        <div style={{ paddingBottom: '14px' }}>
+          <CrumbTrail segs={crumbs.map((crumb) => ({ label: crumb }))} />
         </div>
 
         {/* LOG A PIECE — a link in one end or a photograph in the other. */}

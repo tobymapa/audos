@@ -98,6 +98,9 @@ const IndexTab = lazy(() => import('./index-tab').then((m) => ({ default: memo(m
 const HuntTab = lazy(() => import('./hunt-tab').then((m) => ({ default: memo(m.HuntTab) })));
 // The Ledger's own layout (the landing tab): everything he owns, by category.
 const LedgerTab = lazy(() => import('./ledger-tab').then((m) => ({ default: memo(m.LedgerTab) })));
+// The maker sheet — the app-wide maker popout, mounted once so a maker's
+// name is clickable from ANY tab (Index, Ledger, Hunt, the piece pages).
+const MakerSheetHost = lazy(() => import('./maker-sheet').then((m) => ({ default: memo(m.MakerSheetHost) })));
 
 /** Module-scoped so the housekeeping audits run at most ONCE per page load.
  * A StrictMode double-mount, or the app being closed and reopened from the
@@ -2138,6 +2141,13 @@ export default function BeauHome() {
           Auto-shows once (localStorage-gated), never over the intake wizard
           — this branch only renders after onboarding completes. */}
       <OnboardingTour />
+
+      {/* The maker sheet — slides in from the right wherever a maker's name
+          is clicked; carries its own ← CLOSE, Escape and backdrop-tap ways
+          out. Renders nothing until asked. */}
+      <Suspense fallback={null}>
+        <MakerSheetHost profile={profile} pieces={pieces} />
+      </Suspense>
     </div>
     </BeauAssessmentProvider>
   );
