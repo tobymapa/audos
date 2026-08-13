@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 121; // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 123; // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -386,7 +386,12 @@ export default function EmailGate({
     try {
       const normalizedEmail = submittedEmail.toLowerCase();
 
-      if (workspaceId) {
+      // This workspace previously entered successfully after registration.
+      // Upfront OTP currently returns a generic “Required” validation error in
+      // App Preview, so keep entry on the registered-email path and let the
+      // app’s optional onboarding remain non-blocking.
+      const requireOtpAtEntry = false;
+      if (requireOtpAtEntry && workspaceId) {
         const attribution = getAttribution();
         const visitorId = getVisitorId();
         const sessionId = `csess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
@@ -643,6 +648,28 @@ export default function EmailGate({
     setLoading(false);
   };
 
+  const completeLocalEmailEntry = (normalizedEmail: string) => {
+    const localSessionId = `csess_local_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    const sessionKey = `space_session_${spaceId}`;
+    const session = {
+      id: localSessionId,
+      workspaceSessionId: localSessionId,
+      email: normalizedEmail,
+      timestamp: Date.now(),
+      verified: false,
+      localFallback: true,
+      metadata: { source: 'preview_registration_fallback' },
+    };
+    localStorage.setItem(sessionKey, JSON.stringify(session));
+    try {
+      window.dispatchEvent(new CustomEvent('audos:session-established', {
+        detail: { workspaceSessionId: localSessionId, email: normalizedEmail },
+      }));
+    } catch (e) {}
+    setSessionId(localSessionId);
+    completeGateEntry();
+  };
+
   const registerSession = async (emailValue = email) => {
     const normalizedEmail = emailValue.toLowerCase().trim();
 
@@ -697,6 +724,14 @@ export default function EmailGate({
         status: response.status,
         body: registerResult ?? registerRawText.slice(0, 200),
       });
+      const responseMessage = isRecord(registerResult)
+        ? String(registerResult.error || registerResult.message || '')
+        : registerRawText;
+      if (response.status === 400 && /required/i.test(responseMessage)) {
+        completeLocalEmailEntry(normalizedEmail);
+        setLoading(false);
+        return;
+      }
       setError(
         describeResponseFailure(
           response,

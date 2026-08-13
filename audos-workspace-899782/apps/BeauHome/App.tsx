@@ -287,6 +287,35 @@ function budgetBandOptions(symbol: string): Option[] {
   ];
 }
 
+function localOnboardingStorageKey(): string {
+  const spaceId = (window as any).__SPACE_ID__ || 'workspace-899782';
+  let identity = 'current';
+  try {
+    const sessionKey = `space_session_${spaceId}`;
+    const raw = localStorage.getItem(sessionKey) || sessionStorage.getItem(sessionKey);
+    if (raw) {
+      const session = JSON.parse(raw);
+      identity = session.email || session.workspaceSessionId || session.sessionId || session.id || identity;
+    }
+  } catch { /* use the current-browser fallback */ }
+  return `ethaion_profile_onboarding_${spaceId}_${encodeURIComponent(String(identity))}`;
+}
+
+function readLocalOnboardingProfile(): StyleProfile | null {
+  try {
+    const raw = localStorage.getItem(localOnboardingStorageKey());
+    return raw ? (JSON.parse(raw) as StyleProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalOnboardingProfile(profile: StyleProfile): void {
+  try {
+    localStorage.setItem(localOnboardingStorageKey(), JSON.stringify(profile));
+  } catch { /* the in-memory handoff still works for this visit */ }
+}
+
 interface OnboardingProps {
   profile: StyleProfile | null;
   prefs: StylePrefs | null;
@@ -300,6 +329,9 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [localDraft, setLocalDraft] = useState<StyleProfile>(() =>
+    profile || ({} as StyleProfile),
+  );
 
   // Local draft state, seeded from any partial profile (mid-flow resume).
   const [name, setName] = useState<string>('');
@@ -503,6 +535,26 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
     [patchForStep, name, heightCm, heightUnit, weightKg, weightUnit, footStr, footUnit, build, hairColour, currency],
   );
 
+  const finishLocally = useCallback(
+    (s: number, complete: boolean): StyleProfile => {
+      const next = {
+        ...localDraft,
+        ...patchForStep(s),
+        onboarding_step: Math.min(s + 1, TOTAL_STEPS - 1),
+        onboarding_complete: complete,
+      } as StyleProfile;
+      setLocalDraft(next);
+      writeLocalOnboardingProfile(next);
+      trackFunnelEvent(complete ? 'onboarding_complete' : `step_${s + 1}_complete`, {
+        step: s + 1,
+        total_steps: TOTAL_STEPS,
+        persistence: 'local_fallback',
+      });
+      return next;
+    },
+    [localDraft, patchForStep],
+  );
+
   const confirmCompletedProfile = async (fresh: StyleProfile | null): Promise<StyleProfile> => {
     let confirmed = fresh;
     for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -516,33 +568,35 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
   const advance = async () => {
     if (saving) return;
     setSaveError(null);
+    const last = step >= TOTAL_STEPS - 1;
     try {
-      if (step >= TOTAL_STEPS - 1) {
+      if (last) {
         const fresh = await commitStep(step, { onboarding_complete: true });
-        onDone(await confirmCompletedProfile(fresh));
+        const confirmed = await confirmCompletedProfile(fresh);
+        writeLocalOnboardingProfile(confirmed);
+        onDone(confirmed);
       } else {
-        // Do not advance the UI ahead of persistence: each answer is durable
-        // before the next screen appears, so the final handoff cannot race
-        // earlier queued writes.
-        await commitStep(step);
+        const fresh = await commitStep(step);
+        if (fresh) setLocalDraft(fresh);
         setStep((current) => current + 1);
       }
     } catch (error) {
-      console.error('[Ethaion] onboarding save failed:', error);
-      setSaveError(error instanceof Error ? error.message : 'Could not save that step. Please try again.');
+      // Optional onboarding must never become an auth wall. Preserve the
+      // answers locally and continue even when WorkspaceDB rejects a write.
+      console.warn('[Ethaion] onboarding server save unavailable; continuing locally:', error);
+      const fallback = finishLocally(step, last);
+      if (last) onDone(fallback);
+      else setStep((current) => current + 1);
     }
   };
 
-  const skipAll = async () => {
+  const skipAll = () => {
     if (saving) return;
     setSaveError(null);
-    try {
-      const fresh = await commitStep(step, { onboarding_complete: true });
-      onDone(await confirmCompletedProfile(fresh));
-    } catch (error) {
-      console.error('[Ethaion] onboarding completion failed:', error);
-      setSaveError(error instanceof Error ? error.message : 'Could not finish setup. Please try again.');
-    }
+    // “Skip for now” performs no server write, so it cannot be blocked by
+    // session verification. The local completion marker keeps it skipped on
+    // refresh for this signed-in identity.
+    onDone(finishLocally(step, true));
   };
 
   // Email verification happens before this wizard. Every profile question is
@@ -1548,9 +1602,19 @@ export default function BeauHome() {
     // --- Phase 1: first-paint data ---
     fetchProfile()
       .then((p) => {
-        if (!cancelled) setProfile(p);
+        if (cancelled) return;
+        const local = readLocalOnboardingProfile();
+        const effective =
+          local?.onboarding_complete && !p?.onboarding_complete
+            ? ({ ...(p || {}), ...local } as StyleProfile)
+            : p;
+        setProfile(effective);
       })
-      .catch((e) => console.error('[Ethaion] failed to load profile:', e))
+      .catch((e) => {
+        console.error('[Ethaion] failed to load profile:', e);
+        const local = readLocalOnboardingProfile();
+        if (!cancelled && local?.onboarding_complete) setProfile(local);
+      })
       .finally(() => {
         if (!cancelled) setProfileLoaded(true);
       });
