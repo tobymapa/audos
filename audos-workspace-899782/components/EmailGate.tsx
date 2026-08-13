@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 119; // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 120; // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -386,12 +386,14 @@ export default function EmailGate({
       if (workspaceId) {
         const attribution = getAttribution();
         const visitorId = getVisitorId();
+        const sessionId = `csess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
         const registerRes = await fetch(`/api/space/${spaceId}/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: normalizedEmail,
+            sessionId,
             visitorId,
             attribution,
             metadata: {},
