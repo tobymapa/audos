@@ -592,9 +592,11 @@ export function IndexMakersFace({
       {/* ——— add a maker: a name, a link, or a list */}
       {addMakerBlock}
 
-      {/* ——— find, favourites, the drop-downs */}
+      {/* ——— find, favourites, the drop-downs. hab-filter-bar keeps the row
+          stacking cleanly on a phone: the search box takes the line above the
+          chips, and every control in it stretches to the same height. */}
       <div
-        className="flex items-center flex-wrap"
+        className="flex items-center flex-wrap hab-filter-bar"
         style={{ gap: '10px 12px', padding: '16px 0', borderTop: '1px solid ' + HAIRLINE }}
       >
         <FindLine value={find} onChange={setFind} placeholder={'a maker \u2014 \u201cRubinacci\u201d, \u201cNaples\u201d'} />
@@ -602,7 +604,7 @@ export function IndexMakersFace({
           type="button"
           onClick={() => setFavesOnly((f) => !f)}
           aria-pressed={favesOnly}
-          className="transition-colors flex-shrink-0"
+          className="transition-colors flex-shrink-0 hab-tap"
           style={{
             ...mono(8.5, favesOnly ? DEEP : SECONDARY),
             background: favesOnly ? 'rgba(168,113,44,0.12)' : 'transparent',

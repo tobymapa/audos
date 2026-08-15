@@ -111,7 +111,7 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="transition-colors hover:border-[#a8712c]"
+      className="transition-colors hover:border-[#a8712c] hab-tap"
       style={{
         ...mono(9.5, active ? WALNUT : SECONDARY),
         border: `1px solid ${active ? ACCENT : 'rgba(59,43,29,0.28)'}`,
@@ -172,7 +172,7 @@ function OpenButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="transition-colors hover:border-[#a8712c]"
+      className="transition-colors hover:border-[#a8712c] hab-tap"
       style={{ ...mono(9, SECONDARY), border: '1px solid rgba(59,43,29,0.3)', padding: '6px 12px', whiteSpace: 'nowrap' }}
     >
       Open
@@ -291,8 +291,12 @@ function CategoryBlock({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full text-left grid grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
-        style={{ gap: '18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
+        // The count and status shared the category's line, leaving the name
+        // about 130px of a 375px screen. Below md they drop to their own line
+        // under it; the row-gap is only ever used there, so the desktop
+        // single-line header is unchanged.
+        className="w-full text-left grid grid-cols-[26px_minmax(0,1fr)] md:grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+        style={{ gap: '7px 18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
       >
         <span style={{ ...mono(15, ACCENT), letterSpacing: 0 }}>{open ? '\u2212' : '+'}</span>
         <span className="min-w-0 block">
@@ -303,7 +307,7 @@ function CategoryBlock({
             {category.line}
           </span>
         </span>
-        <span className="flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
+        <span className="col-start-2 md:col-start-auto flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
           <span style={mono(9.5, category.toLookAt > 0 ? ACCENT_DEEP : FAINT)}>{category.status}</span>
           <span style={{ ...mono(11, SECONDARY), letterSpacing: 0 }}>{category.count}</span>
         </span>
@@ -416,7 +420,7 @@ function CutTable({
                       type="button"
                       onClick={() => onCall(row, call.id)}
                       aria-pressed={on}
-                      className="transition-colors hover:border-[#a8712c]"
+                      className="transition-colors hover:border-[#a8712c] hab-tap"
                       style={{
                         ...mono(9, on ? WALNUT : SECONDARY),
                         border: `1px solid ${on ? (retire ? 'rgba(59,43,29,0.5)' : ACCENT) : 'rgba(59,43,29,0.3)'}`,
@@ -714,7 +718,7 @@ export function LedgerTab({
         >
           <span style={mono(9, FAINT)}>Log a piece</span>
           <div
-            className="flex items-center flex-1"
+            className="flex items-center flex-1 hab-filter-field"
             style={{
               gap: '12px',
               border: '1px solid rgba(59,43,29,0.35)',
@@ -746,6 +750,7 @@ export function LedgerTab({
           <button
             type="button"
             onClick={logIt}
+            className="hab-tap"
             style={{
               fontFamily: 'var(--space-font-heading)',
               fontSize: '13px',
@@ -764,7 +769,7 @@ export function LedgerTab({
           <button
             type="button"
             onClick={() => openPhotoPicker.current?.()}
-            className="transition-colors hover:border-[#a8712c]"
+            className="transition-colors hover:border-[#a8712c] hab-tap"
             style={{
               ...mono(9.5, SECONDARY),
               border: '1px solid rgba(59,43,29,0.4)',
@@ -799,6 +804,7 @@ export function LedgerTab({
             <button
               type="button"
               onClick={() => setOpenIds(allOpen ? [] : model.categories.map((c) => c.id))}
+              className="hab-tap"
               style={{
                 ...mono(9, ACCENT_DEEP),
                 marginLeft: '8px',
@@ -816,7 +822,7 @@ export function LedgerTab({
             </span>
           </div>
           <div
-            className="flex items-center"
+            className="flex items-center hab-filter-field"
             style={{
               gap: '12px',
               border: '1px solid rgba(59,43,29,0.3)',

@@ -152,7 +152,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-full ${typography.size.xs} border transition-colors ${
+      className={`hab-tap px-3.5 py-1.5 rounded-full ${typography.size.xs} border transition-colors ${
         active
           ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
           : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
@@ -289,7 +289,7 @@ function DossierNameTape({
           <div
             style={{
               fontFamily: "'IM Fell English', 'Cormorant Garamond', Georgia, serif",
-              fontSize: '14px',
+              fontSize: 'max(var(--eth-body, 0px), 14px)',
               letterSpacing: '0.2em',
               textTransform: 'uppercase',
               color: '#8A7F70',
@@ -349,7 +349,7 @@ function DossierNameTape({
       <p
         aria-live="polite"
         className="text-center"
-        style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', color: '#8B3A3A', minHeight: '16px', marginTop: '6px' }}
+        style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', color: '#8B3A3A', minHeight: '16px', marginTop: '6px' }}
       >
         {saved ? 'Saved.' : '\u00a0'}
       </p>
@@ -371,7 +371,7 @@ function DossierNameTape({
 const FIELD_LABEL: React.CSSProperties = {
   display: 'block',
   fontFamily: 'var(--space-font-family)',
-  fontSize: '10px',
+  fontSize: 'max(var(--eth-micro, 0px), 10px)',
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
   color: '#8A7F70',
@@ -381,12 +381,15 @@ const FIELD_LABEL: React.CSSProperties = {
 
 const FIELD_INPUT: React.CSSProperties = {
   fontFamily: 'var(--space-font-family)',
-  fontSize: '14px',
+  // A text box is the one place 15px is not enough: iOS Safari zooms the whole
+  // page in when a field smaller than 16px takes focus, and the reader then has
+  // to pinch back out to see the rest of the dossier.
+  fontSize: 'max(var(--eth-input, 0px), 14px)',
   color: '#241a12',
   background: '#FBF8F1',
   border: '1px solid #D9CFBE',
   borderRadius: '2px',
-  height: '38px',
+  height: 'var(--eth-field-h, 38px)',
   padding: '0 10px',
   boxSizing: 'border-box',
   outline: 'none',
@@ -398,7 +401,7 @@ const FIELD_WIDTH = '96px';
 
 const UNIT_HINT: React.CSSProperties = {
   fontFamily: 'var(--space-font-family)',
-  fontSize: '11px',
+  fontSize: 'max(var(--eth-label, 0px), 11px)',
   color: '#8A7F70',
 };
 
@@ -423,7 +426,7 @@ function InlineSwitch({
       className="inline-flex items-stretch flex-shrink-0"
       role="group"
       aria-label={label}
-      style={{ border: '1px solid #D9CFBE', borderRadius: '2px', height: '38px', overflow: 'hidden' }}
+      style={{ border: '1px solid #D9CFBE', borderRadius: '2px', height: 'var(--eth-field-h, 38px)', overflow: 'hidden' }}
     >
       {options.map((o) => {
         const on = o.id === active;
@@ -436,7 +439,7 @@ function InlineSwitch({
             className="transition-colors"
             style={{
               fontFamily: 'var(--space-font-family)',
-              fontSize: '10.5px',
+              fontSize: 'max(var(--eth-micro, 0px), 10.5px)',
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               padding: '0 9px',
@@ -477,13 +480,13 @@ function SaveButton({
         onClick={onClick}
         disabled={busy || disabled}
         className={`px-4 rounded ${typography.size.xs} ${tw.button.primary} inline-flex items-center gap-1.5 disabled:opacity-40`}
-        style={{ height: '38px' }}
+        style={{ height: 'var(--eth-field-h, 38px)' }}
       >
         {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
         {label}
       </button>
       {saved && (
-        <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: '#8B3A3A' }}>Saved.</span>
+        <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: '#8B3A3A' }}>Saved.</span>
       )}
     </div>
   );
@@ -530,7 +533,7 @@ function Section({ title, value, editing, onToggle, className = '', children }: 
             className="block uppercase"
             style={{
               fontFamily: 'var(--space-font-heading)',
-              fontSize: '12px',
+              fontSize: 'max(var(--eth-label, 0px), 12px)',
               letterSpacing: '0.18em',
               color: '#8A7F70',
             }}
@@ -540,7 +543,7 @@ function Section({ title, value, editing, onToggle, className = '', children }: 
           {!editing && (
             <span
               className={`block ${typography.color.primary}`}
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.5, marginTop: '6px' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.5, marginTop: '6px' }}
             >
               {value}
             </span>
@@ -551,9 +554,11 @@ function Section({ title, value, editing, onToggle, className = '', children }: 
             className={typography.color.brand}
             style={{
               fontFamily: 'var(--space-font-family)',
-              fontSize: '11px',
+              fontSize: 'max(var(--eth-label, 0px), 11px)',
               letterSpacing: '0.06em',
-              width: '30px',
+              // A width, not a cap: at the phone type floor "Done" is wider
+              // than 30px and was clipped by the fixed box.
+              minWidth: '30px',
               textAlign: 'right',
             }}
           >
@@ -780,7 +785,7 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
             </span>
             <span
               className="block text-left"
-              style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '9px', color: 'var(--color-neutral-600,#856c51)', marginTop: '6px' }}
+              style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 'max(var(--eth-micro, 0px), 9px)', color: 'var(--color-neutral-600,#856c51)', marginTop: '6px' }}
             >
               {photo.person}
             </span>
@@ -813,7 +818,7 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
           {primary && (
             <span
               className="uppercase whitespace-nowrap text-[var(--color-accent-700,#7c4a17)]"
-              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.1em' }}
+              style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 12px)', letterSpacing: '0.1em' }}
             >
               Primary
             </span>
@@ -822,7 +827,7 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
         {meta && (
           <span
             className="block text-[var(--color-neutral-800,#453325)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, marginTop: '9px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, marginTop: '9px' }}
           >
             {meta.detail}
           </span>
@@ -993,7 +998,7 @@ function ClimateCityEditor({
                     opacity: 0.75,
                   }}
                 />
-                <span className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '9px', marginTop: '2px' }}>
+                <span className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 9px)', marginTop: '2px' }}>
                   {bands[i] || 0}
                 </span>
               </div>
@@ -2237,7 +2242,7 @@ export default function YourStyle() {
             role="note"
             aria-label="Missing measurements Beau needs"
           >
-            <p className="uppercase" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', color: 'var(--color-accent-2,#7d2a24)' }}>
+            <p className="uppercase" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 11px)', letterSpacing: '0.16em', color: 'var(--color-accent-2,#7d2a24)' }}>
               Missing, and it costs you now
             </p>
             <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.25, marginTop: '6px' }}>
@@ -2247,7 +2252,7 @@ export default function YourStyle() {
                   ? 'He doesn\u2019t have your shoe size.'
                   : 'He doesn\u2019t have your waist.'}
             </p>
-            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, marginTop: '6px', maxWidth: '54ch' }}>
+            <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, marginTop: '6px', maxWidth: '54ch' }}>
               Every fit read Beau gives is guesswork until these are set — shoes judged without a size, trousers
               without a waist. {!measurements?.shoe_size && !measurements?.waist_cm ? 'Two fields fix it.' : 'One field fixes it.'}
             </p>
@@ -2262,7 +2267,7 @@ export default function YourStyle() {
               className="mt-3 inline-flex items-center gap-1.5 min-h-[44px] px-4 border transition-colors"
               style={{
                 fontFamily: 'var(--space-font-family)',
-                fontSize: '14px',
+                fontSize: 'max(var(--eth-body, 0px), 14px)',
                 borderColor: 'var(--color-accent-2,#7d2a24)',
                 color: 'var(--color-accent-2,#7d2a24)',
                 borderRadius: 0,
@@ -2514,7 +2519,7 @@ export default function YourStyle() {
             <div className="space-y-4">
               <span
                 className="block uppercase text-[var(--color-accent-700,#7c4a17)]"
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.14em' }}
+                style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 12px)', letterSpacing: '0.14em' }}
               >
                 Shoe sizes
               </span>
@@ -2559,7 +2564,7 @@ export default function YourStyle() {
             <div className="space-y-4 border-t border-[var(--space-border-default)] pt-5">
               <span
                 className="block uppercase text-[var(--color-accent-700,#7c4a17)]"
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.14em' }}
+                style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 12px)', letterSpacing: '0.14em' }}
               >
                 Clothes sizes
               </span>
@@ -2755,7 +2760,7 @@ export default function YourStyle() {
                           ? 'border-[var(--color-accent,#a8712c)] text-[var(--color-accent-800,#5c3413)]'
                           : 'border-[var(--color-neutral-300,#dccdb2)] text-[var(--color-neutral-700,#634e38)] hover:border-[var(--space-border-strong)] hover:text-[var(--space-text-primary)]'
                       }`}
-                      style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', letterSpacing: '0.12em', borderRadius: '4px', padding: '5px 12px' }}
+                      style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', letterSpacing: '0.12em', borderRadius: '4px', padding: '5px 12px' }}
                     >
                       {a.label}
                     </button>
@@ -2884,7 +2889,7 @@ export default function YourStyle() {
               <div className="border-t border-[var(--space-border-default)] pt-4">
                 <span
                   className="block uppercase text-[var(--color-accent-700,#7c4a17)]"
-                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.14em', marginBottom: '12px' }}
+                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 12px)', letterSpacing: '0.14em', marginBottom: '12px' }}
                 >
                   Colours that work on you
                 </span>
@@ -2893,7 +2898,7 @@ export default function YourStyle() {
                 </span>
                 <span className="flex items-center gap-[18px] flex-wrap">
                   {TONE_GUIDANCE[p.skin_tone].palette.map((c) => (
-                    <span key={c} className="inline-flex items-center gap-[7px]" style={{ fontSize: '13px' }}>
+                    <span key={c} className="inline-flex items-center gap-[7px]" style={{ fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
                       <span
                         className="w-4 h-4 rounded-full border border-[var(--space-border-strong)] inline-block"
                         style={{ background: swatchFor(c) }}
@@ -2910,7 +2915,7 @@ export default function YourStyle() {
               <div className="border-t border-[var(--space-border-default)] pt-4">
                 <span
                   className="block uppercase text-[var(--color-accent-700,#7c4a17)]"
-                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.14em', marginBottom: '14px' }}
+                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 12px)', letterSpacing: '0.14em', marginBottom: '14px' }}
                 >
                   What suits your frame — the specifics
                 </span>

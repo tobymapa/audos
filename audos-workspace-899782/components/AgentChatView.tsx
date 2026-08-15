@@ -289,10 +289,14 @@ const V_FAINT = '#a68e70';
 const V_HAIRLINE = 'rgba(59,43,29,0.14)';
 const V_CANVAS = '#f4eee3';
 
+// Every small-caps label in the chat is set through this helper, so the phone
+// reading floor (--eth-micro, declared in Desktop.tsx) is applied here once
+// rather than at each call site. The variable is 0px above the phone
+// breakpoint, so the size asked for is used exactly as written.
 function vMono(size: number, color: string, tracking = '0.1em') {
   return {
     fontFamily: V_MONO,
-    fontSize: `${size}px`,
+    fontSize: `max(var(--eth-micro, 0px), ${size}px)`,
     letterSpacing: tracking,
     textTransform: 'uppercase' as const,
     color,
@@ -308,7 +312,7 @@ const beauVoice = {
 } as const;
 
 /** The customer's words — the body face, smaller and quieter. */
-const yourVoice = { fontSize: '14px', lineHeight: 1.55, color: V_BODY } as const;
+const yourVoice = { fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, color: V_BODY } as const;
 
 export default function AgentChatView({ runtime }: AgentChatViewProps) {
   const {
@@ -614,7 +618,10 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           onPaste={handlePaste}
           placeholder={composerPlaceholder}
           className="beau-composer-field w-full border-0 bg-transparent focus:outline-none focus:ring-0 resize-none"
-          style={{ padding: '13px 20px 10px', fontSize: '14px', lineHeight: 1.45, color: V_BODY, minHeight: '38px' }}
+          // The composer is a text box, so it takes the 16px iOS floor rather
+          // than the body floor: below 16px Safari zooms the whole chat in the
+          // moment the field takes focus.
+          style={{ padding: '13px 20px 10px', fontSize: 'max(var(--eth-input, 0px), 14px)', lineHeight: 1.45, color: V_BODY, minHeight: '38px' }}
           rows={1}
           disabled={loading}
           data-testid="textarea-instruction"
@@ -707,7 +714,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
             data-testid={`button-beau-mode-${m.id}`}
           >
             <span style={{ ...vMono(8.5, active ? V_OXBLOOD : V_MUTED), whiteSpace: 'nowrap' }}>{m.title}</span>
-            <span className="truncate" style={{ fontSize: '11px', lineHeight: 1.3, color: '#8a7057' }}>{m.hint}</span>
+            <span className="truncate" style={{ fontSize: 'max(var(--eth-label, 0px), 11px)', lineHeight: 1.3, color: '#8a7057' }}>{m.hint}</span>
           </button>
         );
       })}
@@ -780,8 +787,8 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                         cursor: 'pointer',
                       }}
                     >
-                      <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: '9px', color: V_OXBLOOD }}>→</span>
-                      <span className="flex-1 min-w-0" style={{ fontSize: '14px', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
+                      <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: 'max(var(--eth-micro, 0px), 9px)', color: V_OXBLOOD }}>→</span>
+                      <span className="flex-1 min-w-0" style={{ fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
                     </button>
                   ))}
                 </div>
@@ -920,8 +927,8 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                           cursor: 'pointer',
                         }}
                       >
-                        <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: '9px', color: V_OXBLOOD }}>→</span>
-                        <span className="flex-1 min-w-0" style={{ fontSize: '14px', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
+                        <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: 'max(var(--eth-micro, 0px), 9px)', color: V_OXBLOOD }}>→</span>
+                        <span className="flex-1 min-w-0" style={{ fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
                       </button>
                     ))}
                   </div>
@@ -1095,8 +1102,8 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                   }}
                   data-testid={`starter-prompt-${prompt.slice(0, 24)}`}
                 >
-                  <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: '9px', color: V_OXBLOOD }}>→</span>
-                  <span className="flex-1 min-w-0" style={{ fontSize: '14px', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
+                  <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: 'max(var(--eth-micro, 0px), 9px)', color: V_OXBLOOD }}>→</span>
+                  <span className="flex-1 min-w-0" style={{ fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
                 </button>
               ))}
             </div>

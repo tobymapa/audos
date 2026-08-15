@@ -15,8 +15,11 @@
  *    the SAME height on all six tabs whatever sits in the aside.
  *  · TYPE — the title is `hab-page-title` (Cormorant 52px / 38px on a
  *    phone); the standfirst is `hab-standfirst` (Lora 16px) held to ONE
- *    line on every tab — keep the copy to one short sentence (about 70
+ *    line on a desktop — keep the copy to one short sentence (about 70
  *    characters), because anything longer is ellipsed rather than wrapped.
+ *    ON A PHONE IT WRAPS INSTEAD (hab-standfirst-line, Desktop.tsx): 70
+ *    characters do not fit in 375px, so holding the line there ellipsed
+ *    every tab's standfirst after about four words.
  *  · RULE — the same hairline closes every tab's masthead, edge to edge.
  *
  * ONE slot, so a tab's own furniture never becomes a second header:
@@ -57,7 +60,10 @@ export function TabHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="px-6 sm:px-10 pt-[52px] pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
+    // The 52px above the title clears the desktop tab strip. On a phone the
+    // strip is the fixed bottom bar, so that space was simply spent before the
+    // page said anything.
+    <div className="px-6 sm:px-10 pt-7 sm:pt-[52px] pb-6 sm:pb-8 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]">
       <div className="max-w-[1180px] mx-auto">
         <div
           className="grid grid-cols-1 md:grid-cols-[minmax(320px,1fr)_auto] gap-4 md:gap-10 md:items-end"
@@ -68,7 +74,7 @@ export function TabHeader({
               {title}
             </h2>
             <p
-              className={`hab-standfirst ${typography.color.secondary}`}
+              className={`hab-standfirst hab-standfirst-line ${typography.color.secondary}`}
               title={typeof standfirst === 'string' ? standfirst : undefined}
               style={{
                 margin: 0,

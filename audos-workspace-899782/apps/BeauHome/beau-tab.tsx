@@ -86,7 +86,7 @@ function ViewChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="transition-colors hover:border-[#a8712c]"
+      className="transition-colors hover:border-[#a8712c] hab-tap"
       style={{
         ...mono(9.5, active ? WALNUT : SECONDARY),
         border: `1px solid ${active ? ACCENT : 'rgba(59,43,29,0.28)'}`,

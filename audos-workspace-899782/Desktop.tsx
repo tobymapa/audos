@@ -1575,6 +1575,161 @@ export default function SpaceDesktop({
         @media (max-width: 640px){
           .px-6{padding-left:16px!important;padding-right:16px!important}
         }
+
+        /* ======================================================================
+           MOBILE TYPE FLOOR (phone legibility pass)
+
+           The tabs were set for a desktop reading distance: working labels at
+           9-11px, secondary copy at 12px, body at 13px. On a phone held at
+           arm's length those are too small to read comfortably, so this block
+           establishes THREE reading floors for phone widths and nothing else.
+
+           Two kinds of type read them:
+
+           1. Tailwind size utilities (text-xs, text-[11px], ...) are lifted
+              directly by the rules below.
+           2. Inline fontSize -- which is how most of the app sets type, and
+              which no stylesheet can raise -- is written as
+              max(var(--eth-body, 0px), 13px). The variable is 0px above the
+              breakpoint, so the size the call site asked for is used exactly
+              as written and the desktop layout cannot move; inside the query
+              it becomes the floor.
+
+           Editing a floor here therefore re-scales every tab at once, and any
+           new screen inherits it. The tiers are deliberately coarse so the
+           hierarchy survives: micro labels stay smaller than secondary copy,
+           which stays smaller than body.
+           ====================================================================== */
+        :root{--eth-micro:0px;--eth-label:0px;--eth-body:0px;--eth-serif:0px;}
+        @media (max-width: 639.98px){
+          :root{
+            --eth-micro:12px;   /* captions, axis labels, counts (was 8-10.5px) */
+            --eth-label:13.5px; /* field labels, chips, secondary copy (was 11-12.5px) */
+            --eth-body:15px;    /* body and card copy (was 13-14.5px) */
+            --eth-serif:17px;   /* Cormorant titles: a small x-height for its size */
+            /* Form furniture. A field whose height and type size are set
+               inline (which no stylesheet can raise) reads these instead:
+               --eth-field-h is the height a thumb can hit, and --eth-input is
+               the size below which iOS Safari zooms the page in on focus.
+               Both are undefined above the breakpoint, so var(--eth-field-h,
+               38px) resolves to the desktop value the call site wrote. */
+            --eth-field-h:46px;
+            --eth-input:16px;
+            /* The Edit's category-by-band matrix. It cannot stack (a matrix
+               only reads side by side), so instead it narrows: a shorter row
+               label and a smaller overall width put roughly twice as many
+               temperature bands on screen at once. */
+            --eth-map-label:104px;
+            --eth-map-min:540px;
+          }
+          /* ...and each row's label is pinned to the left edge, so the category
+             a cell belongs to is still readable once the matrix is scrolled. */
+          .hab-map-rowhead{position:sticky;left:0;z-index:2}
+          /* The Tailwind size utilities, mapped onto the same three tiers.
+             These select the utility class itself, so a responsive variant
+             (md:text-xs, which compiles to .md\:text-xs) is untouched. */
+          .text-\[7px\],.text-\[8px\],.text-\[9px\],.text-\[9\.5px\],.text-\[10px\],.text-\[10\.5px\]{font-size:12px!important}
+          .text-\[11px\],.text-\[11\.5px\],.text-\[12px\],.text-\[12\.5px\],.text-xs{font-size:13.5px!important}
+          .text-\[13px\],.text-\[13\.5px\],.text-\[14px\],.text-\[14\.5px\],.text-sm{font-size:15px!important}
+          /* House utilities from the sheet above. */
+          .hab-caption{font-size:12px}
+          .hab-kicker{font-size:12.5px}
+          .hab-standfirst{font-size:16px;line-height:1.6}
+          /* Every tab masthead holds its standfirst to one ellipsed line, which
+             is right for a 1180px column and wrong for a 375px one: about
+             seventy characters of copy became four words and a full stop. On a
+             phone the sentence wraps and is read in full. */
+          .hab-standfirst-line{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+          .hab-section-head{font-size:21px}
+          .hab-row-title{font-size:18px}
+          /* 16px is the size below which iOS Safari zooms the whole page in
+             when a field takes focus -- every text box gets it. */
+          input,textarea,select{font-size:16px}
+          .hab-input{min-height:46px;font-size:16px}
+          select{min-height:46px}
+        }
+
+        /* TOUCH TARGETS. .hab-tap marks a control a thumb has to hit -- a
+           filter chip, a dropdown, a sort toggle. It is inert on desktop (the
+           control keeps its compact editorial height) and grows to the 44px
+           minimum on a phone, so a dense desktop bar and a usable phone bar
+           are the same markup. .hab-filter-bar is its container: a wrapping
+           row on a phone rather than one wide line that overflows, and
+           .hab-filter-field is a control that needs the row to itself rather
+           than a third of one. */
+        @media (max-width: 639.98px){
+          .hab-tap{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+          .hab-filter-bar{display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:8px!important;width:100%}
+          .hab-filter-bar>*{min-width:0}
+          .hab-filter-field{flex:1 1 100%!important;min-height:46px}
+          /* A filter row's left-hand label takes the line above its chips
+             rather than a fixed 76px column of a 375px screen. */
+          .hab-tier-label{width:100%!important;padding-top:0!important;padding-bottom:1px}
+
+          /* A drop-down filter's tick list. Anchored under its own control it
+             is cut off by the right edge whenever the control has wrapped
+             there, so on a phone it becomes a bottom sheet across the full
+             width, with rows a thumb can hit and a visible tick. It stops
+             short of the bottom so the app's own tab bar stays reachable. */
+          .hab-filter-menu{
+            position:fixed!important;
+            top:auto!important;
+            bottom:calc(64px + env(safe-area-inset-bottom))!important;
+            left:12px!important;
+            right:12px!important;
+            min-width:0!important;
+            max-height:62vh!important;
+            padding:6px 0!important;
+          }
+          .hab-filter-menu>button{min-height:48px!important;padding-left:16px!important;padding-right:16px!important}
+          .hab-filter-menu>button>span:first-child{width:15px!important;height:15px!important}
+
+          /* A search box shares its line with the chips on a desktop bar; on a
+             phone it takes the line above them at full width. */
+          .hab-find-line{flex:1 1 100%!important;max-width:none!important;min-height:46px}
+
+          /* A bare glyph control (the favourite star, a row's dismiss cross)
+             is a ~13px hit area. It keeps its drawn size and gains an
+             invisible margin of tappable space around it, so the row's
+             baseline grid does not move. */
+          .hab-touch-icon{min-width:34px;min-height:34px;display:inline-flex;align-items:center;justify-content:center}
+
+          /* A WIDE TABLE, STACKED. A table with six columns and a several
+             hundred pixel minimum can only scroll sideways on a phone, which
+             hides half of every row behind a gesture. .hab-stack-table turns
+             each row into a card instead: the column heads go (a drop-down
+             beside the table carries the sort orders), every cell takes its own
+             line, and a cell that came from a named column announces itself
+             from its data-label so no value is left without its heading. */
+          .hab-stack-table{min-width:0!important;display:block}
+          .hab-stack-table thead{display:none}
+          .hab-stack-table tbody{display:block}
+          .hab-stack-table tr{
+            display:block;
+            padding:12px 12px 14px;
+            margin-bottom:10px;
+            border:1px solid var(--space-border-default);
+          }
+          .hab-stack-table td{
+            display:block;
+            width:auto!important;
+            max-width:none!important;
+            padding:6px 0 0 0!important;
+            border-bottom:none!important;
+            white-space:normal!important;
+          }
+          .hab-stack-table tr>td:first-child{padding-top:0!important}
+          .hab-stack-table td[data-label]::before{
+            content:attr(data-label);
+            display:block;
+            margin-bottom:2px;
+            font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+            font-size:11px;
+            letter-spacing:0.07em;
+            text-transform:uppercase;
+            color:var(--space-text-muted);
+          }
+        }
       `}</style>
 
       {/* Unified responsive shell — a single layout tree (sidebar | chat |

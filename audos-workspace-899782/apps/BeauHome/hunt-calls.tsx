@@ -125,7 +125,7 @@ function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState })
     passed: <X className="w-3 h-3" strokeWidth={1.6} aria-hidden="true" />,
   };
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center flex-wrap gap-1">
       {TAG_ORDER.map((tag) => {
         const active = call.tag === tag;
         const title = active
@@ -158,7 +158,7 @@ function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState })
                 tag,
               );
             }}
-            className="transition-colors flex items-center hover:bg-[rgba(168,113,44,0.06)]"
+            className="transition-colors flex items-center hover:bg-[rgba(168,113,44,0.06)] hab-tap"
             style={{
               ...mono(8, active ? ACCENT_DEEP : FAINTER),
               border: `1px solid ${active ? ACCENT_DEEP : HAIRLINE}`,
@@ -204,7 +204,7 @@ function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState })
           void calls.removeTag(call.cardKey);
         }}
         title="Take this call off entirely"
-        className="transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+        className="transition-colors hover:bg-[rgba(168,113,44,0.06)] hab-tap"
         style={{
           ...mono(8, FAINTER),
           border: `1px solid ${HAIRLINE}`,
@@ -258,6 +258,39 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
     window.open(call.productUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // SORTING WITHOUT COLUMN HEADS. Every head sorts, and on a phone the heads
+  // are not drawn (the table stacks into cards), so the same five orders are
+  // offered as one 46px control with its own direction toggle.
+  const mobileSortRow = (
+    <div className="flex sm:hidden items-stretch" style={{ gap: '8px', marginTop: '14px' }}>
+      <label className="flex items-center min-w-0 flex-1" style={{ border: `1px solid ${RULE}`, padding: '0 10px', gap: '8px' }}>
+        <span style={{ ...mono(8, FAINT), flexShrink: 0 }}>Sort</span>
+        <select
+          value={sort.key}
+          onChange={(e) => setSort({ key: e.target.value as SortKey, asc: true })}
+          aria-label="Sort your calls"
+          className="min-w-0 flex-1 bg-transparent outline-none"
+          style={{ ...body(13.5, INK), border: 'none' }}
+        >
+          {COLUMNS.map((column) => (
+            <option key={column.key} value={column.key}>
+              {column.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={() => setSort((cur) => ({ key: cur.key, asc: !cur.asc }))}
+        aria-label={sort.asc ? 'Sorting ascending — reverse it' : 'Sorting descending — reverse it'}
+        className="hab-tap flex-shrink-0"
+        style={{ ...mono(9, ACCENT_DEEP), border: `1px solid ${RULE}`, background: 'transparent', padding: '0 14px' }}
+      >
+        {sort.asc ? '↑' : '↓'}
+      </button>
+    </div>
+  );
+
   return (
     <div>
       <div style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
@@ -296,8 +329,15 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
           </button>
         </div>
       ) : (
+        <>
+        {mobileSortRow}
+        {/* hab-stack-table: six columns and a 900px minimum are a desktop
+            table. Rather than leaving a phone to scroll sideways through it,
+            each row becomes a stacked card whose cells name themselves from
+            their data-label. Above the breakpoint it is the same table it
+            always was. */}
         <div className="overflow-x-auto" style={{ marginTop: '16px', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: '900px' }}>
+          <table className="hab-stack-table" style={{ borderCollapse: 'collapse', width: '100%', minWidth: '900px' }}>
             <thead>
               <tr>
                 <th scope="col" style={{ borderBottom: `1px solid ${WALNUT}`, width: '86px', padding: '11px 14px 11px 0' }}>
@@ -375,16 +415,16 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
                       </span>
                     )}
                   </td>
-                  <td style={{ ...body(13, INK), padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top' }}>
+                  <td data-label="Maker" style={{ ...body(13, INK), padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top' }}>
                     {call.maker || '—'}
                   </td>
-                  <td style={{ ...body(13, INK), padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                  <td data-label="Price" style={{ ...body(13, INK), padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top', whiteSpace: 'nowrap' }}>
                     {call.priceGuide || '—'}
                   </td>
-                  <td style={{ padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top' }}>
+                  <td data-label="Your call" style={{ padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top' }}>
                     <StatusPill tag={call.tag} />
                   </td>
-                  <td style={{ ...mono(8.5, FAINT), padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                  <td data-label="Added" style={{ ...mono(8.5, FAINT), padding: '12px 14px 12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top', whiteSpace: 'nowrap' }}>
                     {whenLabel(call.taggedAt)}
                   </td>
                   <td style={{ padding: '12px 0', borderBottom: `1px solid ${HAIRLINE}`, verticalAlign: 'top' }}>
@@ -395,6 +435,7 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

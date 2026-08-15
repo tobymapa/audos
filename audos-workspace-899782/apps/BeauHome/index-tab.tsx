@@ -147,7 +147,7 @@ function MonoButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="transition-colors flex-shrink-0"
+      className="transition-colors flex-shrink-0 hab-tap"
       style={{
         ...mono(8.5, solid ? '#f6f0e5' : dim ? FAINTER : SECONDARY),
         background: solid ? WALNUT : 'transparent',
@@ -183,7 +183,7 @@ function FilterMenu({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="transition-colors"
+        className="transition-colors hab-tap"
         style={{
           ...mono(8.5, held ? DEEP : SECONDARY),
           background: held ? 'rgba(168,113,44,0.12)' : 'transparent',
@@ -198,8 +198,12 @@ function FilterMenu({
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} aria-hidden />
+          {/* On a phone hab-filter-menu re-anchors this list as a full-width
+              bottom sheet: hung off a control that has wrapped to the right of
+              a 375px screen, a 196px pane is cut off by the edge. */}
           <div
             role="listbox"
+            className="hab-filter-menu"
             style={{
               position: 'absolute',
               top: 'calc(100% + 4px)',
@@ -259,7 +263,7 @@ function FindLine({
 }) {
   return (
     <label
-      className="flex items-center min-w-0 flex-1"
+      className="flex items-center min-w-0 flex-1 hab-find-line"
       style={{ gap: '13px', border: `1px solid ${RULE}`, padding: '9px 13px', maxWidth, background: 'transparent' }}
     >
       <span style={mono(8.5, FAINT)}>Find</span>
@@ -272,7 +276,13 @@ function FindLine({
         style={{ ...body(14, INK), lineHeight: 1.3 }}
       />
       {value && (
-        <button type="button" onClick={() => onChange('')} aria-label="Clear the search" style={{ ...mono(9, FAINT), background: 'transparent' }}>
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="Clear the search"
+          className="hab-touch-icon"
+          style={{ ...mono(9, FAINT), background: 'transparent' }}
+        >
           ×
         </button>
       )}
@@ -834,8 +844,10 @@ function PiecesFace({
         />
       )}
 
-      {/* ——— the find line + drop-downs */}
-      <div className="flex items-center flex-wrap" style={{ gap: '10px 12px', paddingBottom: '22px' }}>
+      {/* ——— the find line + drop-downs. hab-filter-bar keeps the row stacking
+          cleanly on a phone: the search box takes the line above the chips and
+          every control in it stretches to the same height. */}
+      <div className="flex items-center flex-wrap hab-filter-bar" style={{ gap: '10px 12px', paddingBottom: '22px' }}>
         <FindLine value={find} onChange={setFind} placeholder='a piece — try “teba”, “raglan”, “overshirt”' maxWidth="400px" />
         <FilterMenu
           label="Formality"
@@ -1261,7 +1273,7 @@ function TreePill({
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className="transition-colors flex-shrink-0"
+      className="transition-colors flex-shrink-0 hab-tap"
       style={{
         ...mono(size, on ? '#5c3413' : quiet ? FAINT : SECONDARY),
         background: on ? 'rgba(168,113,44,0.14)' : 'transparent',
@@ -1285,7 +1297,7 @@ function TreeUnfold({ open, onClick, label }: { open: boolean; onClick: () => vo
       aria-expanded={open}
       aria-label={label}
       title={label}
-      className="flex-shrink-0 hover:opacity-70 transition-opacity"
+      className="flex-shrink-0 hover:opacity-70 transition-opacity hab-touch-icon"
       style={{ ...mono(11, ACCENT), background: 'transparent', border: 'none', padding: '2px 4px', cursor: 'pointer', letterSpacing: 0 }}
     >
       {open ? '\u2212' : '+'}
@@ -1381,7 +1393,18 @@ function MakerTreeFilter({
   );
 }
 
-const MAKER_GRID = 'grid grid-cols-[26px_22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_58px_20px]';
+// Eleven columns whose fixed widths alone come to about 630px, so on a phone
+// the row cannot be a table at all. Below lg it is a wrapping flex line
+// instead: the maker's name, verdict and controls on the first line and the
+// description on its own beneath them (see renderRow, where the columns that
+// only make sense in the wide grid are held back). From lg up the eleven-column
+// grid is exactly as it was.
+const MAKER_GRID_COLS =
+  'lg:grid-cols-[26px_22px_20px_minmax(128px,190px)_minmax(88px,118px)_minmax(0,1fr)_96px_88px_84px_58px_20px]';
+/** A data row: a wrapping line on a phone, the eleven-column grid from lg up. */
+const MAKER_GRID = `flex flex-wrap lg:grid ${MAKER_GRID_COLS}`;
+/** The column heads only exist where there are columns to head. */
+const MAKER_HEAD_GRID = `hidden lg:grid ${MAKER_GRID_COLS}`;
 
 function FavStar({ active, onToggle, brand }: { active: boolean; onToggle: () => void; brand: string }) {
   return (
@@ -1922,13 +1945,17 @@ function MakersFace({
     const cats = [...makerCategorySet(p)].map((c) => model.categories.find((mc) => mc.id === c)?.name || c);
     return (
       <div key={p.brand}>
-        <div className={`${MAKER_GRID} items-center`} style={{ gap: '0 12px', padding: '11px 0', borderBottom: ROW_HAIRLINE }}>
+        <div className={`${MAKER_GRID} items-center`} style={{ gap: '3px 12px', padding: '11px 0', borderBottom: ROW_HAIRLINE }}>
           <span style={{ ...mono(8, pick ? ACCENT_DEEP : FAINTER), whiteSpace: 'nowrap' }}>
             {pick ? pick.rank : ''}
           </span>
-          <TickBox on={held.includes(p.brand)} disabled={held.length >= 4} onToggle={() => toggleHeld(p.brand)} brand={p.brand} />
+          {/* Comparison is a wide-screen affordance (the sheet lays four houses
+              out side by side), so its tick does not take phone width. */}
+          <span className="hidden lg:block">
+            <TickBox on={held.includes(p.brand)} disabled={held.length >= 4} onToggle={() => toggleHeld(p.brand)} brand={p.brand} />
+          </span>
           <FavStar active={isFav(p.brand)} onToggle={() => void toggleFav(p.brand)} brand={p.brand} />
-          <span className="min-w-0">
+          <span className="min-w-0 max-lg:flex-1">
             <button
               type="button"
               onClick={() => openMakerSheet(p.brand)}
@@ -1939,12 +1966,17 @@ function MakersFace({
               {p.brand}
             </button>
             {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your rail</span>}
+            {/* Where and what it costs are their own columns on a wide screen;
+                on a phone they read as one line under the name. */}
+            <span className="lg:hidden block" style={{ ...mono(7, FAINT), marginTop: '3px' }}>
+              {[p.city || (p.country !== '—' ? p.country : ''), priceNewOf(p)].filter((v) => v && v !== '—').join(' · ')}
+            </span>
           </span>
-          <span className="min-w-0">
+          <span className="hidden lg:block min-w-0">
             <span style={{ ...body(13, INK), display: 'block', lineHeight: 1.3 }}>{p.city || (p.country !== '—' ? p.country : '—') || '—'}</span>
             {p.founded && <span style={{ ...mono(6.5, FAINT), display: 'block', marginTop: '3px' }}>Since {p.founded}</span>}
           </span>
-          <span className="min-w-0">
+          <span className="min-w-0 max-lg:order-last max-lg:basis-full">
             <span style={{ ...body(13.5, INK), display: 'block', lineHeight: 1.4 }}>
               {isStubProfile(p) ? <span style={{ color: FAINT }}>Beau is pulling the file on this maker.</span> : p.description}
             </span>
@@ -1955,10 +1987,10 @@ function MakersFace({
               </span>
             )}
           </span>
-          <span style={{ ...mono(8, SECONDARY), whiteSpace: 'nowrap' }}>{priceNewOf(p)}</span>
-          <span style={body(12.5, SECONDARY)}>{STOCKED_LABELS[stockedOf(p)]}</span>
+          <span className="hidden lg:inline" style={{ ...mono(8, SECONDARY), whiteSpace: 'nowrap' }}>{priceNewOf(p)}</span>
+          <span className="hidden lg:inline" style={body(12.5, SECONDARY)}>{STOCKED_LABELS[stockedOf(p)]}</span>
           <span style={mono(7.5, READ_COLORS[read])}>{READ_LABELS[read]}</span>
-          <span title={SOURCE_TITLES[src]} style={{ ...mono(7.5, src === 'you' ? ACCENT_DEEP : SECONDARY), whiteSpace: 'nowrap' }}>
+          <span className="hidden lg:inline" title={SOURCE_TITLES[src]} style={{ ...mono(7.5, src === 'you' ? ACCENT_DEEP : SECONDARY), whiteSpace: 'nowrap' }}>
             {SOURCE_LABELS[src]}
           </span>
           <button
@@ -1966,7 +1998,7 @@ function MakersFace({
             onClick={() => hideIndexMaker(p.brand)}
             aria-label={`Remove ${p.brand} from the list`}
             title="Remove from the list — restorable below"
-            className="justify-self-end hover:opacity-70 transition-opacity"
+            className="justify-self-end hover:opacity-70 transition-opacity hab-touch-icon max-lg:ml-auto"
             style={{ ...mono(9, FAINTER), background: 'transparent', padding: '2px 4px' }}
           >
             ×
@@ -2059,20 +2091,69 @@ function MakersFace({
     </section>
   );
 
-  const columnHeads = (
-    <div className={`${MAKER_GRID} items-end`} style={{ gap: '0 12px', borderBottom: `1px solid ${RULE}`, paddingBottom: '6px' }}>
-      <SortHead label="#" col="rank" sort={sort} onSort={onSort} />
-      <span aria-hidden />
-      <span aria-hidden />
-      <SortHead label="Maker" col="maker" sort={sort} onSort={onSort} />
-      <SortHead label="Where" col="where" sort={sort} onSort={onSort} />
-      <SortHead label="What defines them" col="defines" sort={sort} onSort={onSort} />
-      <SortHead label="Price, new" col="price" sort={sort} onSort={onSort} />
-      <SortHead label="Stocked" col="stocked" sort={sort} onSort={onSort} />
-      <SortHead label="Beau's read" col="read" sort={sort} onSort={onSort} />
-      <SortHead label="Source" col="source" sort={sort} onSort={onSort} />
-      <span aria-hidden />
+  // SORTING ON A PHONE. The column heads are the only way to re-sort the file,
+  // and below lg there are no columns to head, so the same eight orders are
+  // offered as one drop-down instead: a 46px control naming the order in
+  // words, with its own direction toggle beside it.
+  const SORT_LABELS: Array<{ col: SortCol; label: string }> = [
+    { col: 'rank', label: "Beau's order" },
+    { col: 'maker', label: 'Maker name' },
+    { col: 'where', label: 'Where' },
+    { col: 'defines', label: 'What defines them' },
+    { col: 'price', label: 'Price, new' },
+    { col: 'stocked', label: 'Stocked' },
+    { col: 'read', label: "Beau's read" },
+    { col: 'source', label: 'Source' },
+  ];
+
+  const mobileSortRow = (
+    <div className="flex lg:hidden items-stretch" style={{ gap: '8px', padding: '2px 0 10px' }}>
+      <label className="flex items-center min-w-0 flex-1" style={{ border: `1px solid ${RULE}`, padding: '0 10px', gap: '8px' }}>
+        <span style={{ ...mono(8, FAINT), flexShrink: 0 }}>Sort</span>
+        <select
+          value={sort.col}
+          onChange={(e) => setSort({ col: e.target.value as SortCol, dir: 1 })}
+          aria-label="Sort the makers"
+          className="min-w-0 flex-1 bg-transparent outline-none"
+          style={{ ...body(13.5, INK), border: 'none' }}
+        >
+          {SORT_LABELS.map((s) => (
+            <option key={s.col} value={s.col}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={() => setSort((cur) => ({ col: cur.col, dir: cur.dir === 1 ? -1 : 1 }))}
+        aria-label={sort.dir === 1 ? 'Sorting ascending — reverse it' : 'Sorting descending — reverse it'}
+        title={sort.dir === 1 ? 'Ascending' : 'Descending'}
+        className="hab-tap flex-shrink-0"
+        style={{ ...mono(9, ACCENT_DEEP), border: `1px solid ${RULE}`, background: 'transparent', padding: '0 14px' }}
+      >
+        {sort.dir === 1 ? '↑' : '↓'}
+      </button>
     </div>
+  );
+
+  const columnHeads = (
+    <>
+      {mobileSortRow}
+      <div className={`${MAKER_HEAD_GRID} items-end`} style={{ gap: '0 12px', borderBottom: `1px solid ${RULE}`, paddingBottom: '6px' }}>
+        <SortHead label="#" col="rank" sort={sort} onSort={onSort} />
+        <span aria-hidden />
+        <span aria-hidden />
+        <SortHead label="Maker" col="maker" sort={sort} onSort={onSort} />
+        <SortHead label="Where" col="where" sort={sort} onSort={onSort} />
+        <SortHead label="What defines them" col="defines" sort={sort} onSort={onSort} />
+        <SortHead label="Price, new" col="price" sort={sort} onSort={onSort} />
+        <SortHead label="Stocked" col="stocked" sort={sort} onSort={onSort} />
+        <SortHead label="Beau's read" col="read" sort={sort} onSort={onSort} />
+        <SortHead label="Source" col="source" sort={sort} onSort={onSort} />
+        <span aria-hidden />
+      </div>
+    </>
   );
 
   return (
@@ -2141,8 +2222,8 @@ function MakersFace({
         onReset={reset}
       />
 
-      {/* ——— the find line + drop-downs */}
-      <div className="flex items-center flex-wrap" style={{ gap: '10px 12px', paddingBottom: '16px' }}>
+      {/* ——— the find line + drop-downs (see the note on the Pieces face). */}
+      <div className="flex items-center flex-wrap hab-filter-bar" style={{ gap: '10px 12px', paddingBottom: '16px' }}>
         <FindLine value={find} onChange={setFind} placeholder='a maker — “Rubinacci”, “Naples”' maxWidth="320px" />
         <button
           type="button"

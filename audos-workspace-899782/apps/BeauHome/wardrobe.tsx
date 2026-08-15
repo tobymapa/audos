@@ -182,7 +182,7 @@ export function BudgetEditor({
       <button
         type="button"
         onClick={openEditor}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${typography.size.xs} border transition-colors ${
+        className={`hab-tap inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${typography.size.xs} border transition-colors ${
           hasBudget
             ? 'bg-[var(--space-surface-accent-soft)] border-[var(--space-brand-primary-200)] text-[var(--space-text-brand)]'
             : 'border-dashed border-[var(--space-border-strong)] text-[var(--space-text-muted)] hover:text-[var(--space-text-primary)]'
@@ -195,8 +195,12 @@ export function BudgetEditor({
     );
   }
 
+  // The two number boxes and the three controls came to about 320px on one
+  // line, which is wider than a phone once the category label beside them has
+  // taken its share. On a phone the range takes the first line and the
+  // controls the second, and every box and button is a 44px target.
   return (
-    <span className="inline-flex items-center gap-1.5 flex-wrap">
+    <span className="inline-flex items-center gap-1.5 flex-wrap max-sm:w-full">
       <span className={`${typography.size.xs} ${typography.color.muted}`}>{currencySymbol()}</span>
       <input
         type="number"
@@ -204,7 +208,7 @@ export function BudgetEditor({
         value={minVal}
         onChange={(e) => setMinVal(e.target.value)}
         placeholder="min"
-        className={`w-16 px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
+        className={`w-16 max-sm:flex-1 max-sm:min-h-[44px] px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
       />
       <span className={`${typography.size.xs} ${typography.color.muted}`}>– {currencySymbol()}</span>
       <input
@@ -213,13 +217,13 @@ export function BudgetEditor({
         value={maxVal}
         onChange={(e) => setMaxVal(e.target.value)}
         placeholder="max"
-        className={`w-16 px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
+        className={`w-16 max-sm:flex-1 max-sm:min-h-[44px] px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
       />
       <button
         type="button"
         onClick={() => void save(false)}
         disabled={busy}
-        className={`px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.primary} disabled:opacity-50 inline-flex items-center gap-1`}
+        className={`hab-tap max-sm:basis-full px-3 py-1 rounded-lg ${typography.size.xs} ${tw.button.primary} disabled:opacity-50 inline-flex items-center gap-1`}
       >
         {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
         Save
@@ -229,7 +233,7 @@ export function BudgetEditor({
           type="button"
           onClick={() => void save(true)}
           disabled={busy}
-          className={`px-2 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}
+          className={`hab-tap px-3 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}
         >
           Clear
         </button>
@@ -237,7 +241,7 @@ export function BudgetEditor({
       <button
         type="button"
         onClick={() => setEditing(false)}
-        className={`p-1 rounded-lg ${tw.button.ghost}`}
+        className={`hab-touch-icon p-1 rounded-lg ${tw.button.ghost}`}
         aria-label="Cancel"
       >
         <X className="w-3.5 h-3.5" />
@@ -264,7 +268,7 @@ export function BudgetFilters({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left"
+        className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3.5 text-left"
       >
         <span className="flex items-center gap-2 min-w-0">
           <SlidersHorizontal className={`w-4 h-4 ${tw.icon.primary} flex-shrink-0`} />
@@ -283,8 +287,8 @@ export function BudgetFilters({
         <div className="px-4 pb-4 border-t border-[var(--space-border-default)]">
           <div className="divide-y divide-[var(--space-border-default)]">
             {WARDROBE_CATEGORIES.map((cat) => (
-              <div key={cat.id} className="py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                <span className={`${typography.size.sm} ${typography.color.primary} min-w-[7rem]`}>{cat.label}</span>
+              <div key={cat.id} className="py-2.5 flex items-center justify-between gap-x-3 gap-y-2 flex-wrap">
+                <span className={`${typography.size.sm} ${typography.color.primary} sm:min-w-[7rem]`}>{cat.label}</span>
                 <BudgetEditor category={cat} budget={budgets[cat.id]} onSaved={onSaved} />
               </div>
             ))}
@@ -510,7 +514,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`px-3 py-1.5 min-h-[36px] rounded-full ${typography.size.xs} border transition-colors whitespace-nowrap ${
+      className={`hab-tap px-3.5 py-1.5 min-h-[36px] rounded-full ${typography.size.xs} border transition-colors whitespace-nowrap ${
         active
           ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
           : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'

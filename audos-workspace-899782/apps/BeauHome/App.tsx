@@ -211,7 +211,7 @@ function UnitSwitch<T extends string>({
                 ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
                 : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
             } ${i > 0 ? 'border-l-0' : ''}`}
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)' }}
           >
             {unitLabel}
           </button>
@@ -1565,7 +1565,11 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
                   ? 'text-[var(--space-text-primary)] border-t-2 border-[var(--space-brand-primary)] -mt-px'
                   : 'text-[var(--color-neutral-600,#856c51)]'
               }`}
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '9.5px', letterSpacing: '0.1em', fontWeight: active ? 600 : 400 }}
+              // The bottom bar is the app's primary navigation and its labels
+              // were the smallest type on the phone. They read at the micro
+              // floor; the row still shares the width when the six fit and
+              // scrolls when they do not.
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-micro, 0px), 9.5px)', letterSpacing: '0.1em', fontWeight: active ? 600 : 400 }}
               aria-current={active ? 'page' : undefined}
             >
               {/* TabIcon carries a right margin for the inline header row —

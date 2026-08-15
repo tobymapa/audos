@@ -294,9 +294,15 @@ function readableTextColor(hex: string): string {
 const LANDING_GOOD = '#a8712c';
 const LANDING_BAD = '#8c5a3c';
 
+// Every mono label on the landing page is set through this helper, so the
+// phone-width reading floor lives here rather than in dozens of call sites:
+// `--el-mono-min` is 0px on desktop (the size below is used exactly as
+// written) and is lifted to a legible minimum inside the page’s phone media
+// query. One variable therefore raises every kicker, caption and pill at
+// once, and no desktop size changes.
 const landingMono = (size: number, color: string, tracking = '0.07em') => ({
   fontFamily: "'IBM Plex Mono', monospace",
-  fontSize: `${size}px`,
+  fontSize: `max(var(--el-mono-min, 0px), ${size}px)`,
   letterSpacing: tracking,
   textTransform: 'uppercase' as const,
   color,
@@ -308,6 +314,37 @@ const landingSerif = (size: number, color: string) => ({
   fontWeight: 400,
   color,
 });
+
+/** A long paragraph that reads as an essay on a desktop column and as a wall
+ * of text on a 375px screen. On a phone the body clamps to a few lines behind
+ * a "Read on" control so several long entries can stack without burying the
+ * page; from 641px up the clamp and the control are both absent, so the
+ * desktop page is exactly as it was. All of the copy stays on the page — it is
+ * paced, not cut. */
+function LandingProse({
+  text,
+  style,
+  lines = 5,
+}: {
+  text: string;
+  style?: React.CSSProperties;
+  lines?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={open ? 'el-prose is-open' : 'el-prose'}>
+      <p
+        className="el-prose-body"
+        style={{ ...(style || {}), ['--el-prose-lines' as string]: String(lines) } as React.CSSProperties}
+      >
+        {text}
+      </p>
+      <button type="button" className="el-prose-more" onClick={() => setOpen(!open)} aria-expanded={open}>
+        {open ? 'Show less' : 'Read on'}
+      </button>
+    </div>
+  );
+}
 
 interface LandingPieceRow {
   label: string;
@@ -1806,10 +1843,14 @@ export default function EmailGate({
         }
         .eg-link:hover { color: var(--accent-deep); }
         /* ——— the landing page itself, on the reference’s own grammar ——— */
-        .el-page { width: 100%; max-width: 1440px; margin: 0 auto; background: #efe7d9; color: #3b2b1d; font-size: 15.5px; line-height: 1.6; }
+        /* The reading floors default to 0px, which means "use the size the
+           call site asked for". Only the phone media query at the foot of this
+           sheet raises them. */
+        .el-page { width: 100%; max-width: 1440px; margin: 0 auto; background: #efe7d9; color: #3b2b1d; font-size: 15.5px; line-height: 1.6; --el-mono-min: 0px; --el-body-min: 0px; }
         .el-nav {
           position: sticky; top: 0; z-index: 20;
           display: flex; align-items: center; gap: 40px;
+          flex-wrap: wrap;
           padding: 16px 56px;
           background: rgba(251,248,241,.94);
           backdrop-filter: blur(8px);
@@ -1857,9 +1898,112 @@ export default function EmailGate({
         }
         @media (max-width: 560px) {
           .el-doubts-grid, .el-refusals-grid { grid-template-columns: 1fr; }
-          .el-doubts-grid > div, .el-refusals-grid > div { border-right: none !important; }
           .el-hero-form { flex-direction: column; align-items: stretch; }
           .el-hero-form .el-submit, .el-hero-form .el-join-submit { justify-content: center; }
+          /* Stacked one-up, the entries need a rule between them and their own
+             full width — the desktop column’s right border and right padding
+             would otherwise leave four blocks of copy running together. */
+          .el-doubts-grid > div, .el-refusals-grid > div {
+            padding: 22px 0 24px !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(59,43,29,.2);
+          }
+          .el-doubts-grid > div:last-child, .el-refusals-grid > div:last-child { border-bottom: none; }
+        }
+
+        /* ——— PHONE PASS (≤640px) ———
+           Every rule below sits inside a max-width query, so the desktop page
+           set out above is untouched. Three jobs, in order:
+           1. TYPE — lift the mono labels and the body copy to a comfortable
+              reading floor via the two variables on .el-page.
+           2. ROOM — a 375px screen cannot afford a 56px (or even 24px) gutter,
+              so the page gutter, the hero and the plates all come in.
+           3. REFLOW — the masthead, the hero figures and Beau’s verdict card
+              were laid out on desktop geometry (wide rows, a 4-up mark grid, a
+              fixed 82px label column). They stack, and every control that a
+              thumb has to hit is at least 44px tall. */
+        @media (max-width: 640px) {
+          /* Nothing may scroll sideways. */
+          .eg-root { overflow-x: hidden; }
+
+          .el-page { --el-mono-min: 12px; --el-body-min: 15.5px; font-size: 16px; line-height: 1.62; }
+
+          /* Masthead. The section anchors are already hidden below 900px, so
+             this row is wordmark + Sign in + Create account; it is tightened
+             so all three fit a 375px screen on one line, and .el-nav’s
+             flex-wrap is the backstop if they ever cannot. */
+          .el-nav { padding: 11px 18px; gap: 12px; }
+          .el-nav-links { gap: 14px; font-size: 11px; }
+          .el-nav-links button.el-navlink { display: inline-flex; align-items: center; min-height: 44px; }
+          .el-navcta { min-height: 44px; padding: 12px 13px; }
+          .el-wordmark { font-size: 15px !important; letter-spacing: .17em !important; }
+          .el-wordmark-box { width: 21px !important; height: 21px !important; }
+
+          /* Gutters. */
+          .el-hero { padding: 32px 18px 40px; gap: 32px; }
+          .el-pad { padding-left: 18px !important; padding-right: 18px !important; }
+          .el-inset { margin-left: 18px !important; margin-right: 18px !important; }
+          .el-steps { margin-left: 18px !important; margin-right: 18px !important; }
+          .el-steps > div { padding: 22px 20px 26px !important; }
+          .el-hero h1 { font-size: clamp(32px, 9.2vw, 42px); line-height: 1.07; }
+
+          /* Fields and buttons. 16px is the size below which iOS Safari zooms
+             the whole page in on focus; 48px is a comfortable thumb target. */
+          .el-field, .el-join-field { min-height: 48px; font-size: 16px; padding: 12px 14px; }
+          .el-submit, .el-join-submit { min-height: 48px; font-size: 11px; justify-content: center; }
+          .eg-input { min-height: 48px; font-size: 16px; }
+          .eg-btn { min-height: 48px; font-size: 11px; }
+
+          /* The three hero figures sat in one row on a 44px gap, which is
+             wider than the screen. They share the width and wrap. */
+          .el-hero-stats { gap: 18px 24px !important; flex-wrap: wrap; margin-top: 32px !important; }
+          .el-hero-stats > div { flex: 1 1 86px; min-width: 0; }
+
+          /* Beau’s verdict card. The four score marks go two-up, and each test
+             row stacks its label above the finding instead of squeezing the
+             finding into what is left of a fixed 82px column. */
+          .el-pill { min-height: 44px; padding: 8px 13px !important; }
+          .el-verdict-marks { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 16px 12px !important; }
+          .el-verdict-head { display: none !important; }
+          .el-verdict-row { grid-template-columns: minmax(0,1fr) !important; gap: 3px !important; padding: 13px 16px !important; }
+
+          /* The plates keep their frame, not their desktop height. */
+          .el-plate-wide { height: 210px !important; padding: 8px !important; }
+          .el-plate-small { height: 175px !important; }
+
+          /* Justified setting opens rivers of white space in a 375px measure. */
+          .el-enemy p { text-align: left !important; }
+
+          .el-colophon { gap: 10px 22px !important; padding: 18px 18px !important; }
+        }
+
+        /* The "Read on" control is a phone affordance only: above 640px the
+           paragraph is always shown in full and the button never renders, so
+           the desktop page keeps reading straight through. */
+        .el-prose-more { display: none; }
+        @media (max-width: 640px) {
+          .el-prose .el-prose-body {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: var(--el-prose-lines, 5);
+            overflow: hidden;
+          }
+          .el-prose.is-open .el-prose-body { display: block; overflow: visible; }
+          .el-prose-more {
+            display: inline-flex;
+            align-items: center;
+            min-height: 40px;
+            padding: 0;
+            background: none;
+            border: none;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: #7c4a17;
+            border-bottom: 1px solid rgba(168,113,44,.45);
+            cursor: pointer;
+          }
         }
       `}</style>
 
@@ -1867,10 +2011,10 @@ export default function EmailGate({
         {/* ——— the sticky masthead ——— */}
         <div className="el-nav">
           <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
-            <div style={{ width: '24px', height: '24px', border: '1px solid #241a12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="el-wordmark-box" style={{ width: '24px', height: '24px', border: '1px solid #241a12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '15px', lineHeight: 1, color: '#241a12' }}>E</span>
             </div>
-            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '17px', letterSpacing: '.26em', color: '#241a12' }}>ETHAION</span>
+            <span className="el-wordmark" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '17px', letterSpacing: '.26em', color: '#241a12' }}>ETHAION</span>
           </div>
           <span style={{ flex: 1 }} />
           <div className="el-nav-links">
@@ -1924,20 +2068,20 @@ export default function EmailGate({
                 </button>
               </form>
               <div style={landingMono(9, '#a68e70')}>Free to join. You’re in straight away — no newsletter, no drops, no noise.</div>
-              <div style={{ fontSize: '13.5px', color: '#634e38' }}>
+              <div style={{ fontSize: 'max(var(--el-body-min, 0px), 13.5px)', color: '#634e38' }}>
                 Already have an account?{' '}
                 <button
                   type="button"
                   onClick={() => openLogin('signin')}
                   className="eg-link"
-                  style={{ fontSize: '13.5px', borderBottom: '1px solid rgba(168,113,44,.6)' }}
+                  style={{ fontSize: 'max(var(--el-body-min, 0px), 13.5px)', borderBottom: '1px solid rgba(168,113,44,.6)' }}
                 >
                   Sign in
                 </button>
               </div>
             </div>
 
-            <div data-rise="" data-delay="3" style={{ display: 'flex', gap: '44px', marginTop: '40px', paddingTop: '26px', borderTop: '1px solid rgba(59,43,29,.22)' }}>
+            <div className="el-hero-stats" data-rise="" data-delay="3" style={{ display: 'flex', gap: '44px', marginTop: '40px', paddingTop: '26px', borderTop: '1px solid rgba(59,43,29,.22)' }}>
               <div>
                 <div style={{ ...landingSerif(40, '#241a12'), lineHeight: 1, fontFeatureSettings: "'tnum'" }}>4</div>
                 <div style={{ ...landingMono(9, '#856c51'), marginTop: '6px' }}>doubts closed before you pay</div>
@@ -1986,7 +2130,7 @@ export default function EmailGate({
               <div style={{ ...landingMono(9, '#856c51', '0.05em'), marginTop: '5px', fontFeatureSettings: "'tnum'" }}>{LANDING_PIECES[verdictPiece].meta}</div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: '10px', padding: '14px 18px 0' }}>
+            <div className="el-verdict-marks" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: '10px', padding: '14px 18px 0' }}>
               {LANDING_PIECES[verdictPiece].rows.map((row) => (
                 <div key={row.label}>
                   <div style={{ height: '3px', background: row.good ? LANDING_GOOD : 'rgba(140,90,60,.35)' }} />
@@ -1998,7 +2142,7 @@ export default function EmailGate({
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '82px minmax(0,1fr)', gap: '10px', padding: '14px 18px 7px', ...landingMono(8, '#a68e70', '0.06em') }}>
+            <div className="el-verdict-head" style={{ display: 'grid', gridTemplateColumns: '82px minmax(0,1fr)', gap: '10px', padding: '14px 18px 7px', ...landingMono(8, '#a68e70', '0.06em') }}>
               <span>The test</span>
               <span>What Beau found</span>
             </div>
@@ -2006,6 +2150,7 @@ export default function EmailGate({
             {LANDING_PIECES[verdictPiece].rows.map((row) => (
               <div
                 key={row.label}
+                className="el-verdict-row"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '82px minmax(0,1fr)',
@@ -2017,7 +2162,7 @@ export default function EmailGate({
               >
                 <span style={landingMono(8.5, '#856c51', '0.05em')}>{row.label}</span>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '13.5px', lineHeight: 1.5, color: '#3b2b1d' }}>{row.note}</div>
+                  <div style={{ fontSize: 'max(var(--el-body-min, 0px), 13.5px)', lineHeight: 1.5, color: '#3b2b1d' }}>{row.note}</div>
                   <div style={{ ...landingMono(8.5, row.good ? '#7c4a17' : LANDING_BAD, '0.05em'), marginTop: '3px' }}>{row.mark2}</div>
                 </div>
               </div>
@@ -2041,7 +2186,7 @@ export default function EmailGate({
             <h2 data-rise="" style={{ margin: 0, fontSize: 'clamp(30px, 3vw, 42px)', fontWeight: 400, lineHeight: 1.06, color: '#241a12' }}>
               Regret is the enemy. Ignorance at the till is how it gets in.
             </h2>
-            <p data-rise="" data-delay="1" style={{ margin: 0, fontSize: '15.5px', lineHeight: 1.62, textAlign: 'justify' }}>
+            <p data-rise="" data-delay="1" style={{ margin: 0, fontSize: 'max(var(--el-body-min, 0px), 15.5px)', lineHeight: 1.62, textAlign: 'justify' }}>
               You search until you’re tired — tab after tab, thread after thread — buy anyway, and find out whether it
               was right after the money is gone. Quality is opaque at the till. Fit only reveals itself in wear. The
               run ends and you can’t build on the piece. Ethaion closes that gap before your money moves: Beau holds
@@ -2052,7 +2197,7 @@ export default function EmailGate({
         </div>
 
         {/* ——— Plate I ——— */}
-        <div className="el-inset" data-screen-label="Plate" data-rise="" style={{ margin: '56px 56px 0', position: 'relative', height: '400px', border: '1px solid #3b2b1d', padding: '11px', background: '#fbf8f1' }}>
+        <div className="el-inset el-plate-wide" data-screen-label="Plate" data-rise="" style={{ margin: '56px 56px 0', position: 'relative', height: '400px', border: '1px solid #3b2b1d', padding: '11px', background: '#fbf8f1' }}>
           <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
             <img
               src={LANDING_PLATE_WIDE}
@@ -2077,8 +2222,12 @@ export default function EmailGate({
               <div key={d.n} data-rise="" data-delay={String(i)} style={{ padding: '22px 22px 30px 0', borderRight: '1px solid rgba(59,43,29,.2)' }}>
                 <div style={{ ...landingMono(9, '#a8712c', '0.06em'), fontFeatureSettings: "'tnum'" }}>{d.n}</div>
                 <div style={{ ...landingSerif(26, '#241a12'), marginTop: '10px', lineHeight: 1.1 }}>{d.title}</div>
-                <p style={{ margin: '10px 0 0', fontSize: '13.5px', lineHeight: 1.55, color: '#3b2b1d' }}>{d.body}</p>
-                <div style={{ marginTop: '13px', paddingTop: '11px', borderTop: '1px solid rgba(168,113,44,.4)', fontSize: '13px', lineHeight: 1.5, color: '#7c4a17' }}>
+                <LandingProse
+                  text={d.body}
+                  lines={5}
+                  style={{ margin: '10px 0 0', fontSize: 'max(var(--el-body-min, 0px), 13.5px)', lineHeight: 1.55, color: '#3b2b1d' }}
+                />
+                <div style={{ marginTop: '13px', paddingTop: '11px', borderTop: '1px solid rgba(168,113,44,.4)', fontSize: 'max(var(--el-body-min, 0px), 13px)', lineHeight: 1.5, color: '#7c4a17' }}>
                   <em>{d.answer}</em>
                 </div>
               </div>
@@ -2091,11 +2240,15 @@ export default function EmailGate({
           {LANDING_STEPS.map((s, i) => (
             <div key={s.n} data-rise="" data-delay={String(i)} style={{ padding: '26px 26px 30px', borderRight: '1px solid rgba(59,43,29,.2)' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: '#a8712c', fontFeatureSettings: "'tnum'" }}>{s.n}</span>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'max(var(--el-mono-min, 0px), 10px)', color: '#a8712c', fontFeatureSettings: "'tnum'" }}>{s.n}</span>
                 <span style={landingMono(8.5, '#7c4a17')}>{s.kicker}</span>
               </div>
               <div style={{ ...landingSerif(27, '#241a12'), marginTop: '12px', lineHeight: 1.08 }}>{s.title}</div>
-              <p style={{ margin: '11px 0 0', fontSize: '13.5px', lineHeight: 1.58, color: '#3b2b1d' }}>{s.body}</p>
+              <LandingProse
+                text={s.body}
+                lines={5}
+                style={{ margin: '11px 0 0', fontSize: 'max(var(--el-body-min, 0px), 13.5px)', lineHeight: 1.58, color: '#3b2b1d' }}
+              />
             </div>
           ))}
         </div>
@@ -2118,7 +2271,7 @@ export default function EmailGate({
             {LANDING_REFUSALS.map((r, i) => (
               <div key={r.title} data-rise="" data-delay={String(i)} style={{ padding: '20px 22px 26px 0', borderRight: '1px solid rgba(59,43,29,.2)' }}>
                 <div style={{ ...landingSerif(24, '#241a12'), lineHeight: 1.1 }}>{r.title}</div>
-                <p style={{ margin: '8px 0 0', fontSize: '13.5px', lineHeight: 1.55, color: '#3b2b1d' }}>{r.body}</p>
+                <p style={{ margin: '8px 0 0', fontSize: 'max(var(--el-body-min, 0px), 13.5px)', lineHeight: 1.55, color: '#3b2b1d' }}>{r.body}</p>
               </div>
             ))}
           </div>
@@ -2134,7 +2287,7 @@ export default function EmailGate({
                 everything else flows from — and <em>aion</em>, enduring time. A wardrobe that ages with you.
               </p>
             </div>
-            <div data-rise="" data-delay="1" style={{ position: 'relative', height: '220px', border: '1px solid rgba(59,43,29,.35)', padding: '9px', background: '#efe7d9' }}>
+            <div className="el-plate-small" data-rise="" data-delay="1" style={{ position: 'relative', height: '220px', border: '1px solid rgba(59,43,29,.35)', padding: '9px', background: '#efe7d9' }}>
               <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
                 <img
                   src={LANDING_PLATE_SMALL}
@@ -2188,12 +2341,12 @@ export default function EmailGate({
                 </button>
               </form>
               <div style={landingMono(9, 'rgba(232,222,208,.6)')}>Free to join. You’re in straight away — no newsletter, no drops, no noise.</div>
-              <div style={{ fontSize: '13.5px', color: 'rgba(232,222,208,.72)' }}>
+              <div style={{ fontSize: 'max(var(--el-body-min, 0px), 13.5px)', color: 'rgba(232,222,208,.72)' }}>
                 Already have an account?{' '}
                 <button
                   type="button"
                   onClick={() => openLogin('signin')}
-                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: '13.5px', color: '#c9a672', borderBottom: '1px solid rgba(201,166,114,.5)', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: 'max(var(--el-body-min, 0px), 13.5px)', color: '#c9a672', borderBottom: '1px solid rgba(201,166,114,.5)', cursor: 'pointer' }}
                 >
                   Sign in
                 </button>
@@ -2201,7 +2354,7 @@ export default function EmailGate({
               {/* CONTACT & INQUIRIES (founder’s request, August 2026) — this
                   slot used to carry the founder’s own story; it now carries
                   the way to reach him. */}
-              <p style={{ margin: '10px 0 0', paddingTop: '16px', borderTop: '1px solid rgba(232,222,208,.2)', fontSize: '13.5px', lineHeight: 1.6, color: 'rgba(232,222,208,.7)' }}>
+              <p style={{ margin: '10px 0 0', paddingTop: '16px', borderTop: '1px solid rgba(232,222,208,.2)', fontSize: 'max(var(--el-body-min, 0px), 13.5px)', lineHeight: 1.6, color: 'rgba(232,222,208,.7)' }}>
                 Questions or inquiries — write to{' '}
                 <a
                   href="mailto:toby.ethaion@gmail.com"
@@ -2215,7 +2368,7 @@ export default function EmailGate({
         </div>
 
         {/* ——— the colophon ——— */}
-        <div className="el-pad" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '12px 40px', padding: '18px 56px', background: '#fbf8f1', borderTop: '1px solid #3b2b1d', ...landingMono(9, '#856c51', '0.08em') }}>
+        <div className="el-pad el-colophon" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '12px 40px', padding: '18px 56px', background: '#fbf8f1', borderTop: '1px solid #3b2b1d', ...landingMono(9, '#856c51', '0.08em') }}>
           <span>Ethaion — building wardrobes with intention</span>
           <span>
             Inquiries —{' '}

@@ -116,7 +116,7 @@ function RemoveButton({ onClick, title }: { onClick: () => void; title: string }
         onClick();
       }}
       title={title}
-      className="transition-colors flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)]"
+      className="transition-colors flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)] hab-tap"
       style={{
         ...mono(8, FAINTER),
         border: `1px solid ${HAIRLINE}`,
@@ -372,13 +372,15 @@ function ArrivalsLinkField({ watchKey, host }: { watchKey: string; host: string 
           aria-label="The maker's new arrivals page"
           style={{
             ...body(12.5, INK),
+            // A text box under 16px makes iOS Safari zoom the page in on focus.
+            fontSize: 'max(var(--eth-input, 0px), 12.5px)',
             flex: '1 1 220px',
             minWidth: 0,
             background: PAPER,
             border: `1px solid ${HAIRLINE}`,
             outline: 'none',
             padding: '8px 10px',
-            minHeight: '38px',
+            minHeight: 'var(--eth-field-h, 38px)',
           }}
         />
         <button
@@ -388,7 +390,7 @@ function ArrivalsLinkField({ watchKey, host }: { watchKey: string; host: string 
             e.stopPropagation();
             save();
           }}
-          className="transition-colors flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)]"
+          className="transition-colors flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)] hab-tap"
           style={{
             ...mono(8, WALNUT),
             border: `1px solid ${RULE}`,
@@ -496,7 +498,7 @@ function BrandWatchRow({
               ask();
             }}
             title={`Ask Beau what is new at ${brand.pieceName}`}
-            className="transition-colors flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)]"
+            className="transition-colors flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)] hab-tap"
             style={{
               ...mono(8, alert ? ACCENT_DEEP : SECONDARY),
               border: `1px solid ${alert ? ACCENT_DEEP : HAIRLINE}`,
@@ -595,7 +597,7 @@ export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
           <button
             type="button"
             onClick={onGoToPicks}
-            className="transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+            className="transition-colors hover:bg-[rgba(168,113,44,0.06)] hab-tap"
             style={{
               ...mono(9, WALNUT),
               border: `1px solid ${RULE}`,

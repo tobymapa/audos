@@ -331,7 +331,7 @@ function ActionButton({
       title={title}
       aria-label={title}
       aria-pressed={active}
-      className="transition-colors flex items-center gap-1.5 flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)]"
+      className="transition-colors flex items-center gap-1.5 flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)] hab-tap"
       style={{
         ...mono(8.5, active ? ACCENT_DEEP : SECONDARY),
         background: active ? TINT : 'transparent',
@@ -415,7 +415,9 @@ export function HuntActionRow({ tag, onTag, onReplace, busy, watch }: HuntCardAc
 function CardNote({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <p className="flex gap-2.5" style={{ marginTop: '9px' }}>
-      <span style={{ ...mono(8, FAINT), flexShrink: 0, paddingTop: '3px', width: '52px' }}>{label}</span>
+      {/* A minimum, not a fixed width: at the phone type floor a label like
+          "Look for" is wider than 52px and was clipped by the old box. */}
+      <span style={{ ...mono(8, FAINT), flexShrink: 0, paddingTop: '3px', minWidth: '52px' }}>{label}</span>
       <span style={{ ...body(13, SECONDARY), lineHeight: 1.5, margin: 0 }}>{children}</span>
     </p>
   );
@@ -560,7 +562,7 @@ export function HuntButton({
       onClick={onClick}
       disabled={off}
       title={title}
-      className={`transition-colors inline-flex items-center gap-1.5 ${full ? 'w-full justify-center' : 'flex-shrink-0'}`}
+      className={`transition-colors inline-flex items-center gap-1.5 hab-tap ${full ? 'w-full justify-center' : 'flex-shrink-0'}`}
       style={{
         ...mono(9, solid ? ON_WALNUT : SECONDARY),
         background: solid ? WALNUT : 'transparent',

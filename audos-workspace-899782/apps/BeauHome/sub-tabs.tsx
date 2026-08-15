@@ -159,7 +159,10 @@ export function SubTabs<T extends string>({
             aria-selected={isActive}
             aria-pressed={isActive}
             onClick={() => onChange(item.id)}
-            className={`${variant}__tab ${styleA ? STYLE_A_BUTTON : indexFace ? 'transition-colors flex-shrink-0' : styleBClass(isActive)}`}
+            // hab-tap holds every variant of the chip to the 44px touch
+            // minimum on a phone (style B sat at 40px and the Index face
+            // variant at about 33px) and does nothing above the breakpoint.
+            className={`${variant}__tab hab-tap ${styleA ? STYLE_A_BUTTON : indexFace ? 'transition-colors flex-shrink-0' : styleBClass(isActive)}`}
             style={
               styleA
                 ? styleAButton(isActive)
