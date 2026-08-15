@@ -216,7 +216,7 @@ function TypeDot({ cx, cy, kind }: { cx: number; cy: number; kind: DotKind }) {
 
 const legendText: React.CSSProperties = {
   fontFamily: MONO,
-  fontSize: '9px',
+  fontSize: 'max(var(--eth-micro, 0px), 9px)',
   letterSpacing: '0.06em',
   textTransform: 'uppercase',
   color: LABEL_BROWN,
@@ -237,8 +237,8 @@ function LegendItem({ kind, label }: { kind: DotKind; label: string }) {
 export function AccentNote({ title, children, style }: { title: string; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{ borderLeft: `2px solid ${ACCENT}`, paddingLeft: '16px', ...style }}>
-      <div style={{ fontFamily: MONO, fontSize: '9px', letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED }}>{title}</div>
-      <p style={{ margin: '8px 0 0', fontFamily: BODY, fontSize: '14px', lineHeight: 1.6, color: INK }}>{children}</p>
+      <div style={{ fontFamily: MONO, fontSize: 'max(var(--eth-micro, 0px), 9px)', letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED }}>{title}</div>
+      <p style={{ margin: '8px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, color: INK }}>{children}</p>
     </div>
   );
 }
@@ -248,7 +248,7 @@ export function AccentNote({ title, children, style }: { title: string; children
 export function OtherAxes({ rows }: { rows: Array<{ label: string; note: string; accent?: boolean }> }) {
   return (
     <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(59,43,29,0.18)' }}>
-      <div style={{ fontFamily: MONO, fontSize: '9px', letterSpacing: '0.07em', textTransform: 'uppercase', color: LABEL_BROWN }}>Other axes</div>
+      <div style={{ fontFamily: MONO, fontSize: 'max(var(--eth-micro, 0px), 9px)', letterSpacing: '0.07em', textTransform: 'uppercase', color: LABEL_BROWN }}>Other axes</div>
       <div className="flex flex-col" style={{ marginTop: '10px' }}>
         {rows.map((row, i) => (
           <div
@@ -256,8 +256,8 @@ export function OtherAxes({ rows }: { rows: Array<{ label: string; note: string;
             className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline"
             style={{ gap: '12px', padding: '10px 0', borderBottom: i < rows.length - 1 ? '1px solid rgba(59,43,29,0.14)' : 'none' }}
           >
-            <span style={{ fontFamily: BODY, fontSize: '13px', color: INK }}>{row.label}</span>
-            <span style={{ fontFamily: MONO, fontSize: '9px', letterSpacing: '0.04em', textTransform: 'uppercase', color: row.accent ? ACCENT : MUTED }}>
+            <span style={{ fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13px)', color: INK }}>{row.label}</span>
+            <span style={{ fontFamily: MONO, fontSize: 'max(var(--eth-micro, 0px), 9px)', letterSpacing: '0.04em', textTransform: 'uppercase', color: row.accent ? ACCENT : MUTED }}>
               {row.note}
             </span>
           </div>
@@ -275,7 +275,7 @@ export function CornerRow({ name, count, tone = WALNUT, last = false }: { name: 
       style={{ gap: '12px', padding: '12px 0', borderBottom: last ? 'none' : '1px solid rgba(59,43,29,0.16)' }}
     >
       <span style={{ fontFamily: SERIF, fontSize: '17px', color: WALNUT }}>{name}</span>
-      <span style={{ fontFamily: MONO, fontSize: '11px', color: tone }}>{count}</span>
+      <span style={{ fontFamily: MONO, fontSize: 'max(var(--eth-label, 0px), 11px)', color: tone }}>{count}</span>
     </div>
   );
 }
@@ -629,14 +629,14 @@ function PiecesQuadrant({ pieces, axes }: { pieces: WardrobePiece[]; axes: AxisP
             )}
           </svg>
         </PlotBox>
-        <p style={{ margin: '14px 0 0', maxWidth: '86ch', fontFamily: BODY, fontSize: '13px', lineHeight: 1.6, color: MUTED }}>
+        <p style={{ margin: '14px 0 0', maxWidth: '86ch', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.6, color: MUTED }}>
           Across · {axes.acrossLabel.toLowerCase()} · Up · {axes.upLabel.toLowerCase()}. Switch the axes above and the same
           pieces re-place themselves — the corners are renamed with them.
         </p>
       </div>
 
       <div>
-        <div style={{ fontFamily: MONO, fontSize: '9px', letterSpacing: '0.07em', textTransform: 'uppercase', color: LABEL_BROWN }}>
+        <div style={{ fontFamily: MONO, fontSize: 'max(var(--eth-micro, 0px), 9px)', letterSpacing: '0.07em', textTransform: 'uppercase', color: LABEL_BROWN }}>
           What each corner holds
         </div>
         <div className="flex flex-col" style={{ marginTop: '12px' }}>

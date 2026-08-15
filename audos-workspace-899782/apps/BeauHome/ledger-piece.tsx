@@ -131,7 +131,7 @@ const INPUT_STYLE: React.CSSProperties = {
   border: '1px solid rgba(59,43,29,0.3)',
   background: PAPER,
   fontFamily: 'var(--space-font-family)',
-  fontSize: '13.5px',
+  fontSize: 'max(var(--eth-body, 0px), 13.5px)',
   color: WALNUT,
   outline: 'none',
   borderRadius: 0,
@@ -885,7 +885,7 @@ export function LedgerPieceSheet({
                   onClick={onClose}
                   style={{
                     fontFamily: 'var(--space-font-heading)',
-                    fontSize: '13px',
+                    fontSize: 'max(var(--eth-serif, 0px), 13px)',
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                     padding: '9px 18px',

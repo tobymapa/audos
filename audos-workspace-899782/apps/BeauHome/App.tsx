@@ -1560,7 +1560,7 @@ function TabBar({ tab, onChange }: { tab: TabId; onChange: (t: TabId) => void })
               type="button"
               data-tour={tourAnchorFor(id) ? `${tourAnchorFor(id)}-m` : undefined}
               onClick={() => onChange(id)}
-              className={`flex-1 flex-shrink-0 min-w-[54px] min-h-[52px] flex flex-col items-center justify-center gap-0.5 uppercase transition-colors ${
+              className={`flex-1 flex-shrink-0 min-w-[56px] min-h-[52px] px-1 flex flex-col items-center justify-center gap-0.5 uppercase whitespace-nowrap transition-colors ${
                 active
                   ? 'text-[var(--space-text-primary)] border-t-2 border-[var(--space-brand-primary)] -mt-px'
                   : 'text-[var(--color-neutral-600,#856c51)]'

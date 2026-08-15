@@ -581,7 +581,7 @@ export default function MakerScout() {
                           setSelectedId(row.id);
                           setView('scout');
                         }}
-                        className={`w-full text-left ${tw.card.default} p-4 flex items-center gap-4 hover:border-[var(--space-brand-primary)]/50 transition-all group`}
+                        className={`w-full text-left ${tw.card.default} p-4 flex items-center gap-3 sm:gap-4 hover:border-[var(--space-brand-primary)]/50 transition-all group`}
                       >
                         <div className="flex-1 min-w-0">
                           <p className={`${typography.size.sm} ${typography.weight.medium} ${typography.color.primary} truncate`}>
@@ -592,7 +592,7 @@ export default function MakerScout() {
                           </p>
                         </div>
                         <span
-                          className={`${tw.badge.default} ${
+                          className={`${tw.badge.default} shrink-0 whitespace-nowrap ${
                             row.status === 'complete'
                               ? tw.badge.primary
                               : row.status === 'error'

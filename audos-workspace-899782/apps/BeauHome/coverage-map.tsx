@@ -158,7 +158,7 @@ function cellKey(rowId: string, register: string): string {
 
 const cellHead: React.CSSProperties = {
   fontFamily: 'var(--space-font-heading)',
-  fontSize: '11px',
+  fontSize: 'max(var(--eth-serif, 0px), 11px)',
   letterSpacing: '0.12em',
   fontWeight: 400,
   padding: '10px 10px',
@@ -358,7 +358,7 @@ export function CoverageMap({
       return (
         <span
           className="block px-2.5 py-2 text-[var(--color-neutral-500,#a68e70)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', fontStyle: 'italic' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', fontStyle: 'italic' }}
         >
           none · muted
         </span>
@@ -370,7 +370,7 @@ export function CoverageMap({
           type="button"
           onClick={() => toggleNa(rowId, register)}
           className="block w-full text-left min-h-[44px] px-2.5 py-2 text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-neutral-700,#634e38)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', fontStyle: 'italic' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', fontStyle: 'italic' }}
           title="Marked as not applying — tap to track it again"
         >
           Doesn’t apply
@@ -388,14 +388,14 @@ export function CoverageMap({
         >
           <span className="flex items-start gap-1.5">
             <Check className="w-3 h-3 flex-shrink-0" style={{ color: SAGE, marginTop: '3px' }} aria-hidden="true" />
-            <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.45 }}>
+            <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.45 }}>
               {state.labels.join(' · ')}
             </span>
           </span>
           {openCell === key && view === 'register' && (
             <span
               className="block text-[var(--color-neutral-700,#634e38)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', fontStyle: 'italic', marginTop: '4px' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', fontStyle: 'italic', marginTop: '4px' }}
             >
               {state.archetypes.length > 0
                 ? `Serves: ${state.archetypes.join(', ')}`
@@ -420,14 +420,14 @@ export function CoverageMap({
           <span className="flex items-baseline gap-2 flex-wrap">
             <span
               className={first ? 'text-[var(--color-accent-800,#5c3413)]' : 'text-[var(--color-neutral-700,#634e38)]'}
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.4 }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.4 }}
             >
               {state.label}
             </span>
             {state.rank != null && (
               <span
                 className="uppercase text-[var(--color-accent-700,#7c4a17)]"
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '9.5px', letterSpacing: '0.14em' }}
+                style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 9.5px)', letterSpacing: '0.14em' }}
               >
                 {RANK_WORDS[state.rank - 1]}
               </span>
@@ -438,7 +438,7 @@ export function CoverageMap({
           type="button"
           onClick={() => toggleNa(rowId, register)}
           className="block text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-neutral-700,#634e38)] mt-0.5"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '10.5px', fontStyle: 'italic' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-micro, 0px), 10.5px)', fontStyle: 'italic' }}
           title="Not part of how you dress? Mark it and this stops counting as a gap"
         >
           Doesn’t apply to me ›
@@ -462,11 +462,11 @@ export function CoverageMap({
         <div>
           {/* The numbered kicker (Edit cleanup) — the map opens the page's
               01–04 sequence. */}
-          <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.18em', marginBottom: '8px' }}>
+          <p className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.18em', marginBottom: '8px' }}>
             01 · Registers × categories
           </p>
           <h3 className={`hab-section-head ${typography.color.primary}`} style={{ marginBottom: '6px' }}>The coverage map</h3>
-          <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '62ch' }}>
+          <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, maxWidth: '62ch' }}>
             Rows are parts of the wardrobe; columns are registers. A filled cell names what covers it — in your
             words. An open cell names exactly what’s missing, and the top three carry their rank. Where a register
             doesn’t claim a category, the cell says so instead of counting against you.
@@ -495,7 +495,7 @@ export function CoverageMap({
                     ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
                     : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
                 } ${i > 0 ? 'border-l-0' : ''}`}
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em' }}
+                style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.12em' }}
                 title={disabled ? 'Choose your style directions in The Dossier to unlock this view' : undefined}
               >
                 {viewLabel}
@@ -525,7 +525,7 @@ export function CoverageMap({
                       ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
                       : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)]'
                   } ${i > 0 ? 'border-l-0' : ''} ${isMuted ? 'opacity-50' : ''}`}
-                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.1em' }}
+                  style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.1em' }}
                 >
                   {reg.label}
                 </button>
@@ -533,7 +533,7 @@ export function CoverageMap({
             })}
           </div>
           {/* The frequency line replaces the column head (M4). */}
-          <p className="mt-2.5 text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px' }}>
+          <p className="mt-2.5 text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12.5px)' }}>
             {muted.includes(mobileRegister)
               ? 'Muted — you don’t dress here, so nothing counts as a gap.'
               : `${registerCounts[mobileRegister]} piece${registerCounts[mobileRegister] === 1 ? '' : 's'} in this register · ${coveredCount(mobileRegister)} of ${COVERAGE_ROWS.length} categories covered`}
@@ -595,7 +595,7 @@ export function CoverageMap({
                       >
                         {col.label}
                         {isRegisterCol && (
-                          <span className="block normal-case" style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px', letterSpacing: '0.02em', marginTop: '2px' }}>
+                          <span className="block normal-case" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-micro, 0px), 10px)', letterSpacing: '0.02em', marginTop: '2px' }}>
                             {isMuted
                               ? 'Muted · you don’t dress here · '
                               : `${registerCounts[regId]} piece${registerCounts[regId] === 1 ? '' : 's'} · ${coveredCount(regId)} covered · `}
@@ -633,12 +633,12 @@ export function CoverageMap({
                             {filled ? (
                               <span className="flex items-start gap-1.5" style={{ ...coveredBoxStyle, padding: '8px 10px', display: 'flex' }}>
                                 <Check className="w-3 h-3 flex-shrink-0" style={{ color: SAGE, marginTop: '3px' }} aria-hidden="true" />
-                                <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.45 }}>
+                                <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.45 }}>
                                   {cell.labels.join(' · ')}
                                 </span>
                               </span>
                             ) : (
-                              <span className="block px-2.5 py-2 text-[var(--color-neutral-500,#a68e70)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', fontStyle: 'italic' }}>
+                              <span className="block px-2.5 py-2 text-[var(--color-neutral-500,#a68e70)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', fontStyle: 'italic' }}>
                                 Nothing here yet
                               </span>
                             )}
@@ -667,7 +667,7 @@ export function CoverageMap({
           accordion, never “Gap ›”). */}
       {view === 'register' && rankedGaps.length > 0 && (
         <div className="mt-5">
-          <p className="uppercase text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', marginBottom: '8px' }}>
+          <p className="uppercase text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', letterSpacing: '0.16em', marginBottom: '8px' }}>
             The priority — ranked by how much of your life each gap holds back
           </p>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -677,10 +677,10 @@ export function CoverageMap({
                 className="text-left px-3 py-2.5 min-h-[52px]"
                 style={i === 0 ? { border: '1.5px solid var(--color-accent,#a8712c)' } : { border: '1px dashed var(--color-divider,rgba(59,43,29,0.4))' }}
               >
-                <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em' }}>
+                <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 10px)', letterSpacing: '0.14em' }}>
                   {RANK_WORDS[i]}
                 </span>
-                <span className={`block ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.4 }}>
+                <span className={`block ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.4 }}>
                   {gapLabel(gap.rowId, gap.register)}
                 </span>
               </div>
@@ -695,7 +695,7 @@ export function CoverageMap({
         </p>
       )}
 
-      <p className={`${typography.size.xs} ${typography.color.muted} mt-4`} style={{ fontSize: '10px' }}>
+      <p className={`${typography.size.xs} ${typography.color.muted} mt-4`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
         Built from the classification Beau runs quietly behind each piece when you log it — no extra thinking, no
         renaming. Your pieces keep the names you gave them everywhere in the app. Mute a register you never dress
         for and Beau stops holding an opinion about it; mark a cell “doesn’t apply” and it stops counting as a gap.

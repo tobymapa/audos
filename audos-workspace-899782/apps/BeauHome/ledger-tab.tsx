@@ -741,7 +741,7 @@ export function LedgerTab({
                 border: 'none',
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
-                fontSize: '14px',
+                fontSize: 'max(var(--eth-body, 0px), 14px)',
                 color: WALNUT,
                 outline: 'none',
               }}
@@ -753,7 +753,7 @@ export function LedgerTab({
             className="hab-tap"
             style={{
               fontFamily: 'var(--space-font-heading)',
-              fontSize: '13px',
+              fontSize: 'max(var(--eth-serif, 0px), 13px)',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               padding: '8px 16px',
@@ -842,7 +842,7 @@ export function LedgerTab({
                 border: 'none',
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
-                fontSize: '13.5px',
+                fontSize: 'max(var(--eth-body, 0px), 13.5px)',
                 color: WALNUT,
                 outline: 'none',
               }}

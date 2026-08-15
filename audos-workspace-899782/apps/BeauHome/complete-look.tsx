@@ -122,7 +122,7 @@ export function CompleteTheLook({
     <section aria-label="Complete the look" className="mt-10">
       <div className="pb-3 border-b border-[var(--color-text,#3b2b1d)]">
         <h3 className={`hab-section-head ${typography.color.primary}`} style={{ marginBottom: '6px' }}>Complete the look</h3>
-        <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '62ch' }}>
+        <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, maxWidth: '62ch' }}>
           Pick an occasion and Beau assembles the outfit from what you own — every empty slot is a real gap, with
           his read on what should fill it and why.
         </p>
@@ -143,7 +143,7 @@ export function CompleteTheLook({
                   ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
                   : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
               } ${i > 0 ? 'border-l-0' : ''}`}
-              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em' }}
+              style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.12em' }}
             >
               {o.label}
             </button>
@@ -158,7 +158,7 @@ export function CompleteTheLook({
         {slotReads.some((s) => s.gap) && (
           <p
             className="text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, marginBottom: '12px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.5, marginBottom: '12px' }}
           >
             An open slot is a real gap — exactly the hole Beau would close next.
           </p>
@@ -168,7 +168,7 @@ export function CompleteTheLook({
             <div key={slot.id} className="min-w-0">
               <p
                 className="uppercase text-[var(--color-neutral-600,#856c51)]"
-                style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em', marginBottom: '6px' }}
+                style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 10px)', letterSpacing: '0.14em', marginBottom: '6px' }}
               >
                 {slot.label}
               </p>
@@ -177,7 +177,7 @@ export function CompleteTheLook({
                   <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontSize: '15px', fontWeight: 400, lineHeight: 1.25 }}>
                     {piece.name}
                   </p>
-                  <p className="text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', marginTop: '4px' }}>
+                  <p className="text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', marginTop: '4px' }}>
                     {REGISTER_LABEL[register]}
                   </p>
                 </div>
@@ -190,7 +190,7 @@ export function CompleteTheLook({
                   {/* THE GAP IS NAMED (6a) — never a bare “Gap ›”. */}
                   <span
                     className="block"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.4, color: 'var(--color-neutral-700,#634e38)' }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.4, color: 'var(--color-neutral-700,#634e38)' }}
                   >
                     {gapLabel(slot.row, register)}
                   </span>
@@ -206,8 +206,8 @@ export function CompleteTheLook({
         {gapAdvice.length > 0 && (
           <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}>
             {gapAdvice.map(({ slot, rec }) => (
-              <p key={slot.id} className={typography.color.secondary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.6, maxWidth: '62ch', marginTop: '6px' }}>
-                <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em', marginRight: '8px' }}>
+              <p key={slot.id} className={typography.color.secondary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.6, maxWidth: '62ch', marginTop: '6px' }}>
+                <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 10px)', letterSpacing: '0.14em', marginRight: '8px' }}>
                   {slot.label}
                 </span>
                 {`Beau recommends ${rec.pieceName.toLowerCase().startsWith('a ') || rec.pieceName.toLowerCase().startsWith('an ') ? rec.pieceName : `a ${rec.pieceName}`}${rec.whyNow ? ` — ${rec.whyNow.charAt(0).toLowerCase()}${rec.whyNow.slice(1)}` : '.'}`}
@@ -217,7 +217,7 @@ export function CompleteTheLook({
         )}
       </TicketFrame>
 
-      <p className={`${typography.size.xs} ${typography.color.muted} mt-3`} style={{ fontSize: '10px' }}>
+      <p className={`${typography.size.xs} ${typography.color.muted} mt-3`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
         Assembled from the same semantic read as the coverage map and Beau’s cached assessment — no extra thinking
         spent. Gap advice comes from his last reasoning pass; Re-assess above refreshes it.
       </p>

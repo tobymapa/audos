@@ -184,10 +184,10 @@ function OpenLink({ href, label }: { href: string; label: string }) {
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-baseline gap-1 hover:underline"
-      style={{ fontFamily: BODY, fontSize: '12.5px', color: ACCENT_DEEP }}
+      style={{ fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: ACCENT_DEEP }}
     >
       {label}
-      <span aria-hidden="true" style={{ fontSize: '10px', lineHeight: 1 }}>↗</span>
+      <span aria-hidden="true" style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)', lineHeight: 1 }}>↗</span>
     </a>
   );
 }
@@ -213,10 +213,10 @@ function PrimaryPick({ pick, typeName }: { pick: MatchRecommendation; typeName: 
           {pick.brandName}
         </a>
         {pick.whatTheyMake && (
-          <p style={{ margin: '3px 0 0', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.5, color: MUTED }}>{pick.whatTheyMake}</p>
+          <p style={{ margin: '3px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.5, color: MUTED }}>{pick.whatTheyMake}</p>
         )}
         {(pick.profileNote || pick.whyItFits) && (
-          <p style={{ margin: '8px 0 0', fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.55, color: INK, maxWidth: '52ch' }}>
+          <p style={{ margin: '8px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, color: INK, maxWidth: '52ch' }}>
             {pick.profileNote || pick.whyItFits}
           </p>
         )}
@@ -248,7 +248,7 @@ function SecondaryPick({ pick, typeName, last }: { pick: MatchRecommendation; ty
           {pick.brandName}
         </a>
         {(pick.whatTheyMake || pick.whyItFits) && (
-          <span className="block" style={{ marginTop: '2px', fontFamily: BODY, fontSize: '12px', lineHeight: 1.5, color: SECONDARY }}>
+          <span className="block" style={{ marginTop: '2px', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.5, color: SECONDARY }}>
             {pick.whatTheyMake || pick.whyItFits}
           </span>
         )}
@@ -330,7 +330,7 @@ export function PieceBrandPicks({
     return (
       <div style={{ marginTop: '16px', border: `1px dashed ${HAIR_STRONG}`, padding: '18px', textAlign: 'center' }}>
         <div style={mono(8.5, MUTED)}>Where to get a good one</div>
-        <p style={{ margin: '6px 0 0', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.55, color: SECONDARY }}>
+        <p style={{ margin: '6px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.55, color: SECONDARY }}>
           {busy ? 'Beau is reading the market for this piece…' : 'Nothing to recommend for this type yet — ask Beau in the chat and it lands here.'}
         </p>
       </div>
@@ -370,7 +370,7 @@ export function PieceBrandPicks({
         </div>
       )}
 
-      <p style={{ margin: '10px 0 0', fontFamily: BODY, fontSize: '11.5px', lineHeight: 1.5, color: MUTED, maxWidth: '68ch' }}>
+      <p style={{ margin: '10px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 11.5px)', lineHeight: 1.5, color: MUTED, maxWidth: '68ch' }}>
         {personal && picks.length > 0
           ? 'Ranked for your frame, colouring and the directions you actually wear — the link goes to the maker’s own page for this piece, not a shop front.'
           : 'Generally well-regarded makers for this piece. Fill in more of your dossier and Beau ranks them for you instead.'}

@@ -266,7 +266,7 @@ function SubcategoryCard({ sub, onOpen }: { sub: RailSubcategory; onOpen: () => 
       </span>
       <span
         className="block text-[var(--color-neutral-600,#856c51)]"
-        style={{ fontFamily: 'var(--space-font-family)', fontSize: '11.5px', lineHeight: 1.4, marginTop: '2px' }}
+        style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11.5px)', lineHeight: 1.4, marginTop: '2px' }}
       >
         Beau’s picks ›
       </span>
@@ -385,17 +385,17 @@ function ProductRecCard({
       )}
       <span className="flex items-baseline gap-2 flex-wrap" style={{ marginTop: '4px' }}>
         {product.brand && (
-          <span className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px' }}>
+          <span className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12.5px)' }}>
             {product.brand}
           </span>
         )}
         {product.price && (
-          <span className="text-[var(--color-neutral-600,#856c51)] tabular-nums" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px' }}>
+          <span className="text-[var(--color-neutral-600,#856c51)] tabular-nums" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12.5px)' }}>
             {product.price}
           </span>
         )}
         {product.live && (
-          <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '10px', letterSpacing: '0.14em' }}>
+          <span className="uppercase text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 10px)', letterSpacing: '0.14em' }}>
             From Beau’s live read
           </span>
         )}
@@ -403,7 +403,7 @@ function ProductRecCard({
       {product.note && (
         <span
           className="block text-[var(--color-neutral-800,#453325)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.55, marginTop: '8px' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, marginTop: '8px' }}
         >
           {product.note}
         </span>
@@ -428,7 +428,7 @@ function ProductRecCard({
             title={`${label} — open the product page`}
           >
             {destination ? `View at ${destination}` : 'Official page'}
-            <span aria-hidden="true" style={{ fontSize: '11px', lineHeight: 1 }}>↗</span>
+            <span aria-hidden="true" style={{ fontSize: 'max(var(--eth-label, 0px), 11px)', lineHeight: 1 }}>↗</span>
           </a>
         )}
         {/* SECONDARY — the same specific piece, hunted across the secondhand
@@ -539,7 +539,7 @@ function SubcategoryPage({
           className="flex items-center gap-3 flex-wrap mt-4 px-3 py-2"
           style={{ border: '1px dashed var(--color-divider,rgba(59,43,29,0.4))' }}
         >
-          <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+          <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
             Straight to the gap you tapped in The Edit:{' '}
             <span style={{ fontFamily: 'var(--space-font-heading)', letterSpacing: '0.06em' }}>
               {prefilter.category}
@@ -550,7 +550,7 @@ function SubcategoryPage({
             type="button"
             onClick={onClearPrefilter}
             className="hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent,#a8712c)' }}
           >
             Dismiss ×
           </button>
@@ -561,7 +561,7 @@ function SubcategoryPage({
           tobacco-gold hairline (Part 1.2). */}
       <div className="mt-6" style={{ borderBottom: '1px solid var(--color-accent,#a8712c)', paddingBottom: '10px' }}>
         {category && (
-          <p className="uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', marginBottom: '5px' }}>
+          <p className="uppercase text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.16em', marginBottom: '5px' }}>
             {category.label}
           </p>
         )}
@@ -570,7 +570,7 @@ function SubcategoryPage({
         </h3>
         <p
           className="text-[var(--color-neutral-700,#634e38)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.55, marginTop: '5px', maxWidth: '62ch' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, marginTop: '5px', maxWidth: '62ch' }}
         >
           Beau’s picks for this rail — specific pieces, real photographs, honest prices, and where to actually buy
           them.
@@ -593,7 +593,7 @@ function SubcategoryPage({
                 className="inline-flex items-center justify-center transition-colors"
                 style={{
                   fontFamily: 'var(--space-font-family)',
-                  fontSize: '12.5px',
+                  fontSize: 'max(var(--eth-label, 0px), 12.5px)',
                   lineHeight: 1,
                   borderRadius: 0,
                   padding: '0 12px',
@@ -625,7 +625,7 @@ function SubcategoryPage({
         ))}
       </div>
 
-      <p className={`${typography.size.xs} ${typography.color.muted} mt-8`} style={{ fontSize: '10px' }}>
+      <p className={`${typography.size.xs} ${typography.color.muted} mt-8`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
         Beau’s live read of your wardrobe leads this page; his standing classics hold it open where the live pass
         has not spoken. Every buy link is a real product page or a tightly filtered retailer search — never a brand
         homepage. “Spec sheet &amp; live picks” opens the tailor’s spec card and a fresh market hunt for that exact
@@ -647,13 +647,13 @@ function SpecTableRow({ term, detail }: { term: string; detail: string }) {
       <th
         scope="row"
         className="text-left uppercase text-[var(--color-neutral-600,#856c51)]"
-        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.12em', fontWeight: 400, padding: '9px 14px 9px 0', verticalAlign: 'top', borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))', whiteSpace: 'nowrap' }}
+        style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.12em', fontWeight: 400, padding: '9px 14px 9px 0', verticalAlign: 'top', borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))', whiteSpace: 'nowrap' }}
       >
         {term}
       </th>
       <td
         className={typography.color.primary}
-        style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, padding: '9px 0', verticalAlign: 'top', borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}
+        style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, padding: '9px 0', verticalAlign: 'top', borderTop: '1px solid var(--color-divider,rgba(59,43,29,0.18))' }}
       >
         {detail}
       </td>
@@ -670,7 +670,7 @@ function SpecSheet({ pick }: { pick: BeauRecommendation }) {
     <TicketFrame className="mt-4" padding="22px">
       <p
         className="uppercase text-[var(--color-neutral-600,#856c51)]"
-        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', marginBottom: '6px' }}
+        style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.16em', marginBottom: '6px' }}
       >
         Spec sheet
       </p>
@@ -678,7 +678,7 @@ function SpecSheet({ pick }: { pick: BeauRecommendation }) {
         {pick.pieceName}
       </h3>
       {pick.exampleBrand && (
-        <p className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', fontStyle: 'italic', marginTop: '4px' }}>
+        <p className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', fontStyle: 'italic', marginTop: '4px' }}>
           Maker: {pick.exampleBrand}
         </p>
       )}
@@ -696,11 +696,11 @@ function SpecSheet({ pick }: { pick: BeauRecommendation }) {
       {/* Colourway analysis — why this colour works on YOUR skin tone. */}
       <p
         className="text-[var(--color-neutral-800,#453325)] mt-4"
-        style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '58ch', paddingLeft: '16px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
+        style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, maxWidth: '58ch', paddingLeft: '16px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
       >
         <em
           className="block uppercase not-italic text-[var(--color-accent-700,#7c4a17)]"
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.12em', marginBottom: '5px' }}
+          style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', letterSpacing: '0.12em', marginBottom: '5px' }}
         >
           Colourway
         </em>
@@ -716,7 +716,7 @@ function SpecSheet({ pick }: { pick: BeauRecommendation }) {
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent,#a8712c)' }}
           >
             {link.kind === 'view' ? `View on ${link.retailer}` : `Buy at ${link.retailer}`} <ExternalLink className="w-3 h-3" />
           </a>
@@ -801,14 +801,14 @@ function AiPickCard({
         <p style={pieceNameType}>
           {pick.name}
           {pick.price ? (
-            <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', fontWeight: 400, color: 'var(--space-text-secondary)' }}>
+            <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', fontWeight: 400, color: 'var(--space-text-secondary)' }}>
               {' '}· {pick.price}
             </span>
           ) : null}
         </p>
         {pick.brand && <p style={{ ...pieceBrandType, marginTop: '2px' }}>{pick.brand}</p>}
         {pick.secondhand && (
-          <p className="mt-0.5" style={{ ...pieceMetaType, fontSize: '10px' }}>{pick.secondhand}</p>
+          <p className="mt-0.5" style={{ ...pieceMetaType, fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>{pick.secondhand}</p>
         )}
       </div>
       {pick.note && <p className={`${typography.size.xs} ${typography.color.secondary} mt-2 leading-relaxed`}>{pick.note}</p>}
@@ -968,7 +968,7 @@ function PickHuntPage({
       {/* Beau's reasoning, restated under the sheet. */}
       <div className="mt-4">
         {pick.archetypesServed.length > 0 && (
-          <p className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', fontStyle: 'italic', lineHeight: 1.5 }}>
+          <p className="text-[var(--color-accent-700,#7c4a17)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', fontStyle: 'italic', lineHeight: 1.5 }}>
             Serves your {pick.archetypesServed.join(' and ')} side{pick.archetypesServed.length > 1 ? 's' : ''}
           </p>
         )}
@@ -1016,7 +1016,7 @@ function PickHuntPage({
         </div>
       )}
 
-      <p className={`${typography.size.xs} ${typography.color.muted} mt-4`} style={{ fontSize: '10px' }}>
+      <p className={`${typography.size.xs} ${typography.color.muted} mt-4`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
         Save parks a pick in Saved (the card at the top of this tab) — the “bookmarked, not sure yet” stage. From there you can move it to
         The Reserve when you’re serious, or mark it purchased when it’s yours. “Build an outfit with this” checks a pick against
         what you already own before you commit.
@@ -1283,14 +1283,14 @@ export function CuratedTab({
         return (
           <p
             className="text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '62ch', marginBottom: '18px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, maxWidth: '62ch', marginBottom: '18px' }}
           >
             Beau is working from a part-filled profile — add {named} and these picks get sharper and more yours.{' '}
             <button
               type="button"
               onClick={() => goToTab('your-style')}
               className="text-[var(--color-accent,#a8712c)] hover:underline"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)' }}
             >
               Complete your style profile ›
             </button>
@@ -1305,7 +1305,7 @@ export function CuratedTab({
           onClick={() => goToTab('saved')}
           className="w-full grid grid-cols-[minmax(0,1fr)_18px] items-center gap-3 text-left py-[14px] group"
         >
-          <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}>
+          <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)' }}>
             Saved — your bookmarked picks
           </span>
           <span
@@ -1376,7 +1376,7 @@ export function CuratedTab({
                 </h4>
                 <p
                   className="text-[var(--color-neutral-700,#634e38)]"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.55, marginTop: '4px', maxWidth: '62ch' }}
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, marginTop: '4px', maxWidth: '62ch' }}
                 >
                   {category.blurb}
                 </p>
@@ -1410,7 +1410,7 @@ export function CuratedTab({
                       onClick={() => setOtherOpenFor(open ? null : category.id)}
                       aria-expanded={open}
                       className="inline-flex items-baseline gap-1.5 hover:underline"
-                      style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', color: 'var(--color-accent,#a8712c)' }}
+                      style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', color: 'var(--color-accent,#a8712c)' }}
                     >
                       Other {rowLabel} {open ? '×' : '→'}
                     </button>
@@ -1428,7 +1428,7 @@ export function CuratedTab({
                             className="w-full grid grid-cols-[minmax(0,1fr)_18px] items-center gap-3 text-left py-[11px] group"
                             aria-label={`${other.label} — see Beau's recommendations`}
                           >
-                            <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}>
+                            <span className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)' }}>
                               {other.label}
                             </span>
                             <span
@@ -1453,7 +1453,7 @@ export function CuratedTab({
         {!categoriesDone && <span ref={categorySentinelRef} aria-hidden="true" className="block" style={{ height: '1px' }} />}
       </div>
 
-      <p className={`${typography.size.xs} ${typography.color.muted} mt-8 flex items-start gap-1`} style={{ fontSize: '10px' }}>
+      <p className={`${typography.size.xs} ${typography.color.muted} mt-8 flex items-start gap-1`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
         <span>
           The rail runs in the standard menswear order — tops, knitwear, outerwear, bottoms, formalwear and base
           layers first, then shoes, then accessories, bags and headwear last. The drawings are signposts: tap one and Beau&rsquo;s specific product

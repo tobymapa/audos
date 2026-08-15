@@ -189,7 +189,7 @@ function BoardCard({
         ) : (
           <span
             className="absolute inset-0 flex items-center justify-center text-center px-1 text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', lineHeight: 1.4 }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', lineHeight: 1.4 }}
           >
             {BOARD_SLOT_LABELS[piece.slot]}
           </span>
@@ -197,12 +197,12 @@ function BoardCard({
       </span>
       <span
         className="block mt-1 text-[var(--color-text,#241a12)] leading-tight break-words"
-        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', fontWeight: 500 }}
+        style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', fontWeight: 500 }}
       >
         {piece.name}
       </span>
       {piece.brand && (
-        <span className="block leading-tight" style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px', color: 'var(--color-accent,#a8712c)' }}>
+        <span className="block leading-tight" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-micro, 0px), 10px)', color: 'var(--color-accent,#a8712c)' }}>
           {piece.brand}
         </span>
       )}
@@ -213,7 +213,7 @@ function BoardCard({
           aria-label={`Remove ${piece.name} from the board`}
           title="Remove from the board"
           className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[var(--color-paper,#fbf8f1)] border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)] rounded-full"
-          style={{ fontSize: '12px', lineHeight: 1 }}
+          style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1 }}
         >
           ×
         </button>
@@ -689,20 +689,20 @@ export function SavedOutfitsSection({
           aria-label="Outfit name"
           disabled={boardPieces.length === 0}
           className="flex-1 min-w-[180px] px-3 min-h-[44px] border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] text-[var(--color-text,#241a12)] focus:outline-none focus:border-[var(--color-accent,#a8712c)] disabled:opacity-50"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', borderRadius: 0 }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', borderRadius: 0 }}
         />
         <button
           type="button"
           onClick={() => void save()}
           disabled={saving || boardPieces.length === 0}
           className="px-4 min-h-[44px] inline-flex items-center gap-1.5 border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', borderRadius: 0 }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', borderRadius: 0 }}
         >
           {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           Save this outfit
         </button>
         {savedFlash && (
-          <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent-700,#7c4a17)' }}>
+          <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent-700,#7c4a17)' }}>
             Saved — it’s on the shelf below.
           </span>
         )}
@@ -712,7 +712,7 @@ export function SavedOutfitsSection({
       <section aria-label="Saved outfits" className="pt-6">
         <p
           className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', letterSpacing: '0.16em' }}
+          style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 13px)', letterSpacing: '0.16em' }}
         >
           Saved outfits
         </p>
@@ -731,7 +731,7 @@ export function SavedOutfitsSection({
                     <span className="block truncate" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 500, color: 'var(--color-text,#241a12)' }}>
                       {row.name}
                     </span>
-                    <span className="block truncate group-hover:underline" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-600,#856c51)' }}>
+                    <span className="block truncate group-hover:underline" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: 'var(--color-neutral-600,#856c51)' }}>
                       {pieces.length > 0 ? pieces.map((p) => p.name).join(' · ') : 'Empty board'}
                     </span>
                   </button>
@@ -742,7 +742,7 @@ export function SavedOutfitsSection({
                     aria-label={`Delete the saved outfit ${row.name}`}
                     title="Delete this saved outfit"
                     className="flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-accent-700,#7c4a17)] disabled:opacity-40"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)' }}
                   >
                     {deletingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '×'}
                   </button>
@@ -751,7 +751,7 @@ export function SavedOutfitsSection({
             })}
           </div>
         ) : (
-          <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+          <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
             Nothing saved yet — build a board above and give it a name.
           </p>
         )}

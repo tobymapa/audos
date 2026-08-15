@@ -81,9 +81,15 @@ import {
 
 const MIDDOT = ' \u00b7 ';
 
-/** The reference's column set, in its order. */
+/** The reference's column set, in its order.
+ *
+ * ON A PHONE the read column is dropped from the grid and moves INTO the
+ * maker cell, under the name, beside where and price: at 375px a 92px column
+ * of small-caps was breaking “Worth the money” over three lines and leaving
+ * about a hundred pixels for the house's own name. Four columns — rank,
+ * favourite, maker, remove — give the name the room instead. */
 const MAKER_GRID =
-  'grid grid-cols-[26px_20px_minmax(0,1fr)_92px_30px] lg:grid-cols-[26px_22px_20px_minmax(120px,186px)_minmax(84px,116px)_minmax(0,1fr)_96px_88px_86px_20px]';
+  'grid grid-cols-[22px_22px_minmax(0,1fr)_34px] sm:grid-cols-[26px_20px_minmax(0,1fr)_92px_34px] lg:grid-cols-[26px_22px_20px_minmax(120px,186px)_minmax(84px,116px)_minmax(0,1fr)_96px_88px_86px_20px]';
 
 const toggleIn = <T,>(list: T[], v: T): T[] => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -418,8 +424,13 @@ export function IndexMakersFace({
               {p.brand}
             </button>
             {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your rail</span>}
-            <span className="lg:hidden block" style={{ ...mono(7, FAINT), marginTop: '3px' }}>
-              {[where, priceNewOf(p)].filter((v) => v && v !== '\u2014').join(MIDDOT)}
+            <span className="lg:hidden flex items-baseline flex-wrap" style={{ gap: '2px 9px', marginTop: '4px' }}>
+              {/* Beau's read rides with the name below the sm breakpoint, where
+                  it has no column of its own. */}
+              <span className="sm:hidden" style={mono(7.5, READ_COLORS[read])}>
+                {READ_LABELS[read]}
+              </span>
+              <span style={mono(7, FAINT)}>{[where, priceNewOf(p)].filter((v) => v && v !== '\u2014').join(MIDDOT)}</span>
             </span>
           </span>
           <span className="hidden lg:block min-w-0">
@@ -442,13 +453,15 @@ export function IndexMakersFace({
           <span className="hidden lg:inline" style={body(12.5, SECONDARY)}>
             {STOCKED_LABELS[stockedOf(p)]}
           </span>
-          <span style={mono(7.5, READ_COLORS[read])}>{READ_LABELS[read]}</span>
+          <span className="hidden sm:inline" style={mono(7.5, READ_COLORS[read])}>
+            {READ_LABELS[read]}
+          </span>
           <button
             type="button"
             onClick={() => hideIndexMaker(p.brand)}
             aria-label={'Remove ' + p.brand + ' from the list'}
             title={'Remove from the list \u2014 restorable below'}
-            className="justify-self-end hover:opacity-70 transition-opacity"
+            className="justify-self-end hover:opacity-70 transition-opacity hab-touch-icon"
             style={{ ...mono(9, FAINTER), background: 'transparent', padding: '2px 4px' }}
           >
             {'\u00d7'}
@@ -473,10 +486,13 @@ export function IndexMakersFace({
 
   const addMakerBlock = (
     <div style={{ padding: '14px 0 6px' }}>
-      <div className="flex items-center flex-wrap" style={{ gap: '10px 12px' }}>
-        <span style={{ ...mono(8, FAINT), flexShrink: 0 }}>Add a maker</span>
+      {/* hab-filter-bar stacks this row on a phone: the label takes its own
+          line, the field the full width beneath it, and the two controls sit
+          side by side under that — instead of a ragged four-across strip. */}
+      <div className="flex items-center flex-wrap hab-filter-bar" style={{ gap: '10px 12px' }}>
+        <span className="hab-tier-label" style={{ ...mono(8, FAINT), flexShrink: 0 }}>Add a maker</span>
         <label
-          className="flex items-center min-w-0 flex-1"
+          className="flex items-center min-w-0 flex-1 hab-filter-field"
           style={{ border: '1px solid ' + RULE, padding: '8px 12px', maxWidth: '420px' }}
         >
           <input

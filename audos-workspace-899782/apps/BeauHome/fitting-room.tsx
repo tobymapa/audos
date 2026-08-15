@@ -368,7 +368,7 @@ const ShelfCard = memo(function ShelfCard({
           style={{ ...fitLabel(8, ACCENT_DEEP, '0.1em'), marginTop: '6px' }}
           title={`View the product page — ${piece.name}`}
         >
-          View product <span aria-hidden="true" style={{ fontSize: '9px', lineHeight: 1 }}>↗</span>
+          View product <span aria-hidden="true" style={{ fontSize: 'max(var(--eth-micro, 0px), 9px)', lineHeight: 1 }}>↗</span>
         </a>
       )}
     </div>
@@ -382,7 +382,7 @@ const ShelfCard = memo(function ShelfCard({
 // as its garment at every width and after every drag.
 // ---------------------------------------------------------------------------
 
-const annMono: React.CSSProperties = { fontFamily: MONO, fontSize: '7px', letterSpacing: '0.08em', textTransform: 'uppercase' };
+const annMono: React.CSSProperties = { fontFamily: MONO, fontSize: 'max(var(--eth-micro, 0px), 7px)', letterSpacing: '0.08em', textTransform: 'uppercase' };
 
 /** Every callout box draws at exactly this width — the SVG leader lines
  * start from its inner edge, so the two must agree. */
@@ -569,7 +569,7 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
             style={{ width: '9px', height: '9px', flexShrink: 0, background: swatch, border: '1px solid rgba(0,0,0,0.12)' }}
           />
         )}
-        <span style={{ fontFamily: SERIF, fontSize: '12px', lineHeight: 1.2, color: WALNUT }}>{piece.name}</span>
+        <span style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 12px)', lineHeight: 1.2, color: WALNUT }}>{piece.name}</span>
       </span>
       <span className="block" style={{ ...annMono, color: MUTED, marginTop: '3px' }}>
         {[categoryLabel(piece.category || '') || null, piece.brand].filter(Boolean).join(' · ') || '—'}
@@ -767,7 +767,7 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
           return (
             <div key={p.key} className="flex items-baseline gap-2.5" style={{ padding: '3px 0' }}>
               <span style={{ ...annMono, color: MUTED, width: '74px', flexShrink: 0 }}>{zoneLabelFor(p)}</span>
-              <span style={{ fontFamily: SERIF, fontSize: '13px', color: WALNUT }}>{p.name}</span>
+              <span style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 13px)', color: WALNUT }}>{p.name}</span>
               {status && <span style={{ ...annMono, color: ACCENT_DEEP }}>{status}</span>}
             </div>
           );

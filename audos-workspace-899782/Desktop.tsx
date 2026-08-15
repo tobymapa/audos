@@ -1603,10 +1603,14 @@ export default function SpaceDesktop({
         :root{--eth-micro:0px;--eth-label:0px;--eth-body:0px;--eth-serif:0px;}
         @media (max-width: 639.98px){
           :root{
-            --eth-micro:12px;   /* captions, axis labels, counts (was 8-10.5px) */
-            --eth-label:13.5px; /* field labels, chips, secondary copy (was 11-12.5px) */
-            --eth-body:15px;    /* body and card copy (was 13-14.5px) */
-            --eth-serif:17px;   /* Cormorant titles: a small x-height for its size */
+            /* SECOND PHONE PASS (founder's review). The first floors still
+               left working labels at 12px and secondary copy at 13.5px —
+               both under the ~14px asked for — so every tier moves up a
+               step and NOTHING on a phone is set below 13px. */
+            --eth-micro:13px;   /* captions, axis labels, counts (was 8-10.5px) */
+            --eth-label:14px;   /* field labels, chips, secondary copy (was 11-12.5px) */
+            --eth-body:15.5px;  /* body and card copy (was 13-14.5px) */
+            --eth-serif:18px;   /* Cormorant titles: a small x-height for its size */
             /* Form furniture. A field whose height and type size are set
                inline (which no stylesheet can raise) reads these instead:
                --eth-field-h is the height a thumb can hit, and --eth-input is
@@ -1628,12 +1632,12 @@ export default function SpaceDesktop({
           /* The Tailwind size utilities, mapped onto the same three tiers.
              These select the utility class itself, so a responsive variant
              (md:text-xs, which compiles to .md\:text-xs) is untouched. */
-          .text-\[7px\],.text-\[8px\],.text-\[9px\],.text-\[9\.5px\],.text-\[10px\],.text-\[10\.5px\]{font-size:12px!important}
-          .text-\[11px\],.text-\[11\.5px\],.text-\[12px\],.text-\[12\.5px\],.text-xs{font-size:13.5px!important}
-          .text-\[13px\],.text-\[13\.5px\],.text-\[14px\],.text-\[14\.5px\],.text-sm{font-size:15px!important}
+          .text-\[7px\],.text-\[8px\],.text-\[8\.5px\],.text-\[9px\],.text-\[9\.5px\],.text-\[10px\],.text-\[10\.5px\]{font-size:13px!important}
+          .text-\[11px\],.text-\[11\.5px\],.text-\[12px\],.text-\[12\.5px\],.text-xs{font-size:14px!important}
+          .text-\[13px\],.text-\[13\.5px\],.text-\[14px\],.text-\[14\.5px\],.text-sm{font-size:15.5px!important}
           /* House utilities from the sheet above. */
-          .hab-caption{font-size:12px}
-          .hab-kicker{font-size:12.5px}
+          .hab-caption{font-size:13px}
+          .hab-kicker{font-size:13px;letter-spacing:0.13em}
           .hab-standfirst{font-size:16px;line-height:1.6}
           /* Every tab masthead holds its standfirst to one ellipsed line, which
              is right for a 1180px column and wrong for a 375px one: about
@@ -1658,10 +1662,14 @@ export default function SpaceDesktop({
            .hab-filter-field is a control that needs the row to itself rather
            than a third of one. */
         @media (max-width: 639.98px){
-          .hab-tap{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+          /* !important because the control's own call site usually sets an
+             inline minHeight (34px, 36px, 42px) for the desktop row, and an
+             inline declaration beats a plain class rule — which left .hab-tap
+             marking a control as a touch target without ever making it one. */
+          .hab-tap{min-height:44px!important;display:inline-flex;align-items:center;justify-content:center}
           .hab-filter-bar{display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:8px!important;width:100%}
           .hab-filter-bar>*{min-width:0}
-          .hab-filter-field{flex:1 1 100%!important;min-height:46px}
+          .hab-filter-field{flex:1 1 100%!important;min-height:46px!important}
           /* A filter row's left-hand label takes the line above its chips
              rather than a fixed 76px column of a 375px screen. */
           .hab-tier-label{width:100%!important;padding-top:0!important;padding-bottom:1px}
@@ -1692,7 +1700,32 @@ export default function SpaceDesktop({
              is a ~13px hit area. It keeps its drawn size and gains an
              invisible margin of tappable space around it, so the row's
              baseline grid does not move. */
-          .hab-touch-icon{min-width:34px;min-height:34px;display:inline-flex;align-items:center;justify-content:center}
+          .hab-touch-icon{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+
+          /* EVERY control in a filter bar is a thumb target, whether or not
+             its call site remembered .hab-tap: the editorial chip is a 7px /
+             14px pill about 27px tall, which is half the 44px minimum. The
+             bar's own children are lifted here so a new filter row inherits
+             the behaviour instead of having to opt in. */
+          .hab-filter-bar button,.hab-filter-bar select,.hab-filter-bar input,.hab-filter-bar label{min-height:44px!important}
+          .hab-filter-bar select,.hab-filter-bar input[type="text"],.hab-filter-bar input[type="search"]{width:100%;min-width:0}
+          /* A chip row set to scroll sideways on a desktop wraps on a phone
+             instead, so no filter is hidden behind a gesture. */
+          .hab-chip-wrap{flex-wrap:wrap!important;overflow-x:visible!important}
+
+          /* CROWDING: the desktop stack rhythm (32-48px between blocks) reads
+             as dead air on a 375px screen and pushes the copy that matters
+             below the fold. The large steps are trimmed; the small ones that
+             hold a card together are left exactly as they are. */
+          .space-y-8>*+*{margin-top:20px!important}
+          .space-y-10>*+*{margin-top:24px!important}
+          .space-y-12>*+*{margin-top:26px!important}
+          .gap-8{gap:20px!important}
+          .gap-10{gap:22px!important}
+          .py-10{padding-top:24px!important;padding-bottom:24px!important}
+          .py-12{padding-top:26px!important;padding-bottom:26px!important}
+          .mt-12{margin-top:26px!important}
+          .mb-12{margin-bottom:26px!important}
 
           /* A WIDE TABLE, STACKED. A table with six columns and a several
              hundred pixel minimum can only scroll sideways on a phone, which
@@ -2008,7 +2041,7 @@ export default function SpaceDesktop({
                   <button
                     onClick={() => setOverlayView(null)}
                     className="flex-shrink-0 hover:opacity-80 transition-opacity"
-                    style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '8.5px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a8916f', background: 'transparent', border: 'none', padding: '8px 0 8px 12px', cursor: 'pointer', minHeight: '35px' }}
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'max(var(--eth-micro, 0px), 8.5px)', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a8916f', background: 'transparent', border: 'none', padding: '8px 0 8px 12px', cursor: 'pointer', minHeight: 'max(var(--eth-field-h, 0px), 35px)' }}
                     title="Close"
                     aria-label="Close the conversation"
                     data-testid="button-overlay-chat-close"

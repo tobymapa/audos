@@ -184,7 +184,7 @@ function PieceRow({
           border: '1px solid ' + HAIRLINE,
           background: 'transparent',
           color: SECONDARY,
-          fontSize: '12px',
+          fontSize: 'max(var(--eth-label, 0px), 12px)',
           lineHeight: 1,
           display: 'flex',
           alignItems: 'center',

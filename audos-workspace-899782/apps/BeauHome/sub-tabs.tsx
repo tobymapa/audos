@@ -59,7 +59,9 @@ const STYLE_A_ROW = 'flex items-end gap-7 overflow-x-auto border-b border-[var(-
 function styleAButton(active: boolean): React.CSSProperties {
   return {
     fontFamily: 'var(--space-font-family)',
-    fontSize: '12px',
+    // The phone floor (--eth-label, Desktop.tsx) — 0px above the breakpoint,
+    // so the desktop chip keeps its 12px small-caps exactly.
+    fontSize: 'max(var(--eth-label, 0px), 12px)',
     letterSpacing: '0.12em',
     fontWeight: active ? 600 : 400,
     color: active ? 'var(--color-text,#3b2b1d)' : 'var(--color-neutral-600,#856c51)',
@@ -82,7 +84,7 @@ const STYLE_B_ROW = 'flex items-center gap-1.5 overflow-x-auto';
 function styleBButton(active: boolean): React.CSSProperties {
   return {
     fontFamily: 'var(--space-font-heading)',
-    fontSize: '12px',
+    fontSize: 'max(var(--eth-label, 0px), 12px)',
     letterSpacing: '0.1em',
     fontWeight: active ? 500 : 400,
   };

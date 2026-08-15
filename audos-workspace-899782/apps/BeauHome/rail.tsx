@@ -110,7 +110,7 @@ function PieceCell({
             onRemove();
           }}
           className="absolute top-0 right-0 min-w-[36px] min-h-[36px] flex items-center justify-center text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-accent-700,#7c4a17)] transition-opacity opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1, background: 'transparent' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1, background: 'transparent' }}
           aria-label={`Remove ${piece.name} from your wardrobe`}
           title="Remove this piece from your wardrobe"
         >
@@ -163,7 +163,7 @@ function AddPieceCell() {
         >
           Photograph the next one
         </span>
-        <span className="block text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}>
+        <span className="block text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)' }}>
           Logs to your tracker
         </span>
       </span>
@@ -213,7 +213,7 @@ export function OnTheRailSection({
           {sorted.length} piece{sorted.length === 1 ? '' : 's'} · newest first
         </span>
       </div>
-      <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, maxWidth: '62ch', margin: '12px 0 16px' }}>
+      <p className={typography.color.primary} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, maxWidth: '62ch', margin: '12px 0 16px' }}>
         Everything you own, photographed and filed — the same pieces as the categories above, hung out as a rail.
         Tap any piece to edit it.
       </p>
@@ -232,7 +232,7 @@ export function OnTheRailSection({
           <AddPieceCell />
         </div>
       ) : (
-        <p style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, color: 'var(--color-neutral-600,#856c51)' }}>
+        <p style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, color: 'var(--color-neutral-600,#856c51)' }}>
           Nothing on the rail yet — photograph a piece above and it appears here, in step with your pieces.
         </p>
       )}
@@ -332,7 +332,7 @@ export function RailTab({
             {/* Clear wardrobe — plain Lora 13px accent text link, top-right of
                 the screen, behind a plain inline confirm (Pass Forty-Four). */}
             {pieces.length > 0 && (
-              <div style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+              <div style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
                 {!confirmClear ? (
                   <button
                     type="button"
@@ -383,7 +383,7 @@ export function RailTab({
                         ? 'border border-[var(--color-accent,#a8712c)] bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-800,#5c3413)]'
                         : 'border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-700,#634e38)] hover:text-[var(--space-text-primary)]'
                     } ${i > 0 ? 'border-l-0' : ''}`}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.12em' }}
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', letterSpacing: '0.12em' }}
                   >
                     {label}
                   </button>
@@ -447,12 +447,12 @@ export function RailTab({
                     >
                       {piece.name}
                     </span>
-                    <span className="min-w-0 truncate" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+                    <span className="min-w-0 truncate" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
                       {piece.brand && <span style={{ color: 'var(--color-accent,#a8712c)' }}>{piece.brand}</span>}
                       {piece.brand && (categoryLabel(piece.category) || material) ? (
                         <span style={{ color: '#9a8a7a' }}>{' · '}</span>
                       ) : null}
-                      <span style={{ color: '#9a8a7a', fontSize: '12px' }}>
+                      <span style={{ color: '#9a8a7a', fontSize: 'max(var(--eth-label, 0px), 12px)' }}>
                         {[categoryLabel(piece.category), material || null].filter(Boolean).join(' · ')}
                       </span>
                     </span>
@@ -467,7 +467,7 @@ export function RailTab({
                 );
               })}
               {sorted.length === 0 && (
-                <p className="py-6" style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', color: 'var(--color-neutral-600,#856c51)' }}>
+                <p className="py-6" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', color: 'var(--color-neutral-600,#856c51)' }}>
                   Nothing filed yet — upload a photo above and the list fills in.
                 </p>
               )}
@@ -478,7 +478,7 @@ export function RailTab({
             /* Quiet note under the grid — the dashed add cell carries the way in. */
             <p
               className="mt-5"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, color: 'var(--color-neutral-600,#856c51)' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, color: 'var(--color-neutral-600,#856c51)' }}
             >
               Nothing on the rail yet — photograph a piece and it appears here, in step with your wardrobe tracker.
             </p>

@@ -227,7 +227,7 @@ function ComparisonTable({
           </p>
         ))}
         {comparison.runnerUp && (
-          <p style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.6, color: ON_WALNUT, opacity: 0.8, margin: '14px 0 0', maxWidth: '58ch' }}>
+          <p style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.6, color: ON_WALNUT, opacity: 0.8, margin: '14px 0 0', maxWidth: '58ch' }}>
             <span style={{ ...mono(8.5, ON_WALNUT_GOLD), display: 'block', marginBottom: '3px' }}>The runner-up</span>
             {comparison.runnerUp}
           </p>
@@ -445,7 +445,7 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
               border: `1px solid ${HAIRLINE}`,
               background: 'transparent',
               padding: '7px 11px',
-              minHeight: '36px',
+              minHeight: 'max(var(--eth-field-h, 0px), 36px)',
               cursor: 'pointer',
             }}
           >

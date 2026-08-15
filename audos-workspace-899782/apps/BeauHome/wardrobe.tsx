@@ -87,7 +87,7 @@ function TagPill({ children, tone = 'neutral' }: { children: React.ReactNode; to
   return (
     <span
       className={`${tw.badge.default} ${tone === 'brand' ? tw.badge.primary : tw.badge.neutral}`}
-      style={{ fontSize: '10px' }}
+      style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
     >
       {children}
     </span>
@@ -101,7 +101,7 @@ function TagPill({ children, tone = 'neutral' }: { children: React.ReactNode; to
 function ColorNames({ colors }: { colors: string[] }) {
   if (!colors || colors.length === 0) return null;
   return (
-    <span className={`${typography.size.xs} ${typography.color.muted} capitalize`} style={{ fontSize: '10px' }}>
+    <span className={`${typography.size.xs} ${typography.color.muted} capitalize`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
       {colors.slice(0, 5).join(' · ')}
     </span>
   );
@@ -411,14 +411,14 @@ export const CategoryGrid = memo(function CategoryGrid({
                     <span
                       aria-hidden="true"
                       className="text-[var(--color-neutral-500,#a68e70)]"
-                      style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5 }}
+                      style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.5 }}
                     >
                       ·
                     </span>
                   )}
                   <span
                     className="text-[var(--color-neutral-700,#634e38)] min-w-0"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5 }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.5 }}
                   >
                     {p.name}
                   </span>
@@ -430,7 +430,7 @@ export const CategoryGrid = memo(function CategoryGrid({
               "x / y needed" target (Milestones overhaul, Part 2b). */}
           <span
             className="justify-self-end self-center text-[var(--color-neutral-600,#856c51)] tabular-nums whitespace-nowrap"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)' }}
           >
             {catPieces.length} piece{catPieces.length === 1 ? '' : 's'}
           </span>
@@ -654,7 +654,7 @@ export function SeeAllPieces({
                   onClick={() => setAddFor((cur) => (cur === cat.id ? null : cat.id))}
                   aria-expanded={addFor === cat.id}
                   className="hover:underline"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent,#a8712c)' }}
                 >
                   {addFor === cat.id ? 'Close ×' : '+ Add piece'}
                 </button>
@@ -779,7 +779,7 @@ const ItemCard = memo(function ItemCard({
                 </span>
               )}
               {costPerWearLabel(value) && (
-                <p className={`${typography.size.xs} ${typography.color.muted} mt-0.5`} style={{ fontSize: '10px' }}>
+                <p className={`${typography.size.xs} ${typography.color.muted} mt-0.5`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
                   {costPerWearLabel(value)}
                 </p>
               )}
@@ -1073,7 +1073,7 @@ export function CategoryPage({
                     </p>
                   )}
                   <div className="flex items-center gap-1 mt-1 flex-wrap">
-                    <span className={`${tw.badge.default} ${tw.badge.primary} inline-flex items-center gap-1`} style={{ fontSize: '10px' }}>
+                    <span className={`${tw.badge.default} ${tw.badge.primary} inline-flex items-center gap-1`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
                       Watching
                     </span>
                     {item.color && <TagPill>{item.color}</TagPill>}
@@ -1358,7 +1358,7 @@ function PreviewCard({
               type="button"
               onClick={() => setShowCats((s) => !s)}
               className={`${tw.badge.default} ${tw.badge.primary} inline-flex items-center gap-1`}
-              style={{ fontSize: '10px' }}
+              style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
               title="Change category"
             >
               {categoryLabel(piece.category)}
@@ -1383,7 +1383,7 @@ function PreviewCard({
                       ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
                       : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
                   }`}
-                  style={{ fontSize: '10px' }}
+                  style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
                 >
                   {c.label}
                 </button>
@@ -1393,7 +1393,7 @@ function PreviewCard({
           {/* Edit-before-saving essentials (Pass Twelve): brand and size are
               always present on the confirm card. */}
           <div className="grid sm:grid-cols-2 gap-2 mt-2">
-            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
+            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
               Brand
               <div className="mt-0.5">
                 <BrandField
@@ -1404,7 +1404,7 @@ function PreviewCard({
                 />
               </div>
             </label>
-            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
+            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
               Size
               <div className="mt-0.5">
                 <SizeSelector

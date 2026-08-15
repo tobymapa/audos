@@ -463,7 +463,7 @@ export function PieceIndexList({
                     background: 'transparent',
                     padding: '3px 0',
                     fontFamily: BODY,
-                    fontSize: '13.5px',
+                    fontSize: 'max(var(--eth-body, 0px), 13.5px)',
                     lineHeight: 1.35,
                     color: ownership.swatches.has(typeKey(sCat.id, type.name)) ? WALNUT : INK,
                   }}
@@ -476,7 +476,7 @@ export function PieceIndexList({
         );
       })}
       {searchSections.length === 0 && (
-        <p style={{ padding: '24px 0', fontFamily: BODY, fontSize: '14px', lineHeight: 1.6, color: MUTED, maxWidth: '58ch' }}>
+        <p style={{ padding: '24px 0', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, color: MUTED, maxWidth: '58ch' }}>
           No type answers that — clear the search and the index refills. Nothing has been removed from the taxonomy,
           only from view.
         </p>
@@ -512,7 +512,7 @@ export function PieceIndexList({
                 {rows.length}{ownedHere > 0 ? ` · ${ownedHere} owned` : ''}
               </span>
             </div>
-            <p style={{ margin: '4px 0 10px', fontFamily: SERIF, fontStyle: 'italic', fontSize: '13.5px', lineHeight: 1.45, color: SECONDARY, maxWidth: '58ch' }}>
+            <p style={{ margin: '4px 0 10px', fontFamily: SERIF, fontStyle: 'italic', fontSize: 'max(var(--eth-serif, 0px), 13.5px)', lineHeight: 1.45, color: SECONDARY, maxWidth: '58ch' }}>
               {rootCopy.blurbs[cat.id]}
             </p>
             <div style={{ borderTop: '1px solid rgba(59,43,29,0.24)' }}>
@@ -552,7 +552,7 @@ export function PieceIndexList({
             placeholder='a type or a maker — try “teba”, “raglan”, “Rubinacci”'
             aria-label="Find a garment type or a maker in the index"
             className="w-full bg-transparent focus:outline-none placeholder:text-[#856c51]"
-            style={{ fontFamily: BODY, fontSize: '14px', color: INK }}
+            style={{ fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 14px)', color: INK }}
           />
         </label>
         <span className="justify-self-start lg:justify-self-end">{toggle}</span>

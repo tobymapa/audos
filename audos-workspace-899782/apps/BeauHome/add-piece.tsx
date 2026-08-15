@@ -83,7 +83,7 @@ function monoLabel(size = 9): React.CSSProperties {
 
 const pillBase: React.CSSProperties = {
   fontFamily: MONO,
-  fontSize: '9.5px',
+  fontSize: 'max(var(--eth-micro, 0px), 9.5px)',
   letterSpacing: '0.05em',
   textTransform: 'uppercase',
   padding: '6px 12px',
@@ -101,7 +101,7 @@ const pillOutline: React.CSSProperties = {
  * uses — same border, same type, same padding, no rounding. */
 const hairlineControl: React.CSSProperties = {
   fontFamily: BODY,
-  fontSize: '14px',
+  fontSize: 'max(var(--eth-body, 0px), 14px)',
   color: INK,
   background: 'transparent',
   border: '1px solid rgba(59,43,29,0.34)',
@@ -564,7 +564,7 @@ export function PhotoConfirmFlow({
               paddingLeft: '12px',
               borderLeft: `2px solid ${ACCENT}`,
               fontFamily: BODY,
-              fontSize: '12.5px',
+              fontSize: 'max(var(--eth-label, 0px), 12.5px)',
               lineHeight: 1.5,
               color: SECONDARY,
             }}
@@ -699,7 +699,7 @@ export function PhotoConfirmFlow({
                         ariaLabel="Maker — who made it?"
                       />
                     </div>
-                    <div style={{ marginTop: '5px', fontFamily: BODY, fontSize: '12.5px', color: MUTED }}>
+                    <div style={{ marginTop: '5px', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: MUTED }}>
                       Leave it blank if you’d rather not say. It only changes which makers he puts up.
                     </div>
                   </FieldRow>
@@ -747,7 +747,7 @@ export function PhotoConfirmFlow({
                       </select>
                     </div>
                     {draft.size.trim() && !parsedSize && (
-                      <div style={{ marginTop: '5px', fontFamily: BODY, fontSize: '12.5px', color: MUTED }}>
+                      <div style={{ marginTop: '5px', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: MUTED }}>
                         Currently “{draft.size.trim()}” — pick a type and value above to replace it.
                       </div>
                     )}
@@ -840,7 +840,7 @@ export function PhotoConfirmFlow({
                   className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center"
                   style={{ marginTop: '16px', padding: '13px 16px', border: '1px solid rgba(59,43,29,0.3)', gap: '10px 20px' }}
                 >
-                  <div style={{ fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.5, color: INK }}>
+                  <div style={{ fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.5, color: INK }}>
                     This looks like <em>{duplicateOf.name}</em>
                     {duplicateMonth ? `, logged in ${duplicateMonth}` : ', already logged'} — same piece?
                   </div>
@@ -1025,14 +1025,14 @@ export function AddPieceSection({
             <div style={{ marginTop: '10px', height: '3px', background: 'rgba(59,43,29,0.16)' }}>
               <div style={{ width: `${(logged / 5) * 100}%`, height: '3px', background: ACCENT }} />
             </div>
-            <p style={{ margin: '10px 0 0', maxWidth: '74ch', fontFamily: BODY, fontSize: '13px', lineHeight: 1.55, color: SECONDARY }}>
+            <p style={{ margin: '10px 0 0', maxWidth: '74ch', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.55, color: SECONDARY }}>
               The only counter in the flow, and it exists because five is the threshold where The Edit can say
               something honest. It is not a completion score — it disappears at five and never returns.
             </p>
           </div>
           <div style={{ borderLeft: '1px solid rgba(59,43,29,0.18)', paddingLeft: '24px' }}>
             <div style={{ ...monoLabel(9), color: FAINT }}>The other way in</div>
-            <div style={{ marginTop: '7px', fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.55, color: INK }}>
+            <div style={{ marginTop: '7px', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, color: INK }}>
               The <em>Search</em> button takes a name or a product link and finds the maker’s own photography — for
               pieces you own but can’t easily photograph.
             </div>

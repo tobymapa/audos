@@ -844,17 +844,17 @@ export function PieceDetailPage({
           <div>
             <div style={{ ...mono(8, ON_WALNUT_GOLD), paddingBottom: '8px', borderBottom: '1px solid rgba(251,241,222,0.25)' }}>Reading</div>
             <div style={{ padding: '9px 0', borderBottom: '1px solid rgba(251,241,222,0.12)' }}>
-              <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: ON_WALNUT }}>
+              <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: ON_WALNUT }}>
                 {pieces.length} piece{pieces.length === 1 ? '' : 's'} on your rail
               </span>
             </div>
             <div style={{ padding: '9px 0', borderBottom: '1px solid rgba(251,241,222,0.12)' }}>
-              <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: ON_WALNUT }}>
+              <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: ON_WALNUT }}>
                 {model.climate.city || 'No city set — the Dossier holds it'}
               </span>
             </div>
             <div style={{ padding: '9px 0', borderBottom: '1px solid rgba(251,241,222,0.12)' }}>
-              <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: ON_WALNUT }}>
+              <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: ON_WALNUT }}>
                 {boardRange ? `Your board covers ${Math.round(boardRange.lo)}\u2013${Math.round(boardRange.hi)}\u00b0` : 'No temperature reads yet'}
               </span>
             </div>

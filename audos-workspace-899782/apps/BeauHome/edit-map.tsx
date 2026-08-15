@@ -193,7 +193,7 @@ function DetailPanel({
                 border: `1px solid ${WALNUT}`,
                 padding: '9px 18px',
                 fontFamily: 'var(--space-font-heading)',
-                fontSize: '13px',
+                fontSize: 'max(var(--eth-serif, 0px), 13px)',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 textAlign: 'left',

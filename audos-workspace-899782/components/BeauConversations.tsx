@@ -80,7 +80,7 @@ const D_CANVAS = '#f4eee3';
 function dMono(size: number, color: string, tracking = '0.1em') {
   return {
     fontFamily: D_MONO,
-    fontSize: `${size}px`,
+    fontSize: `max(var(--eth-micro, 0px), ${size}px)`,
     letterSpacing: tracking,
     textTransform: 'uppercase' as const,
     color,
@@ -762,7 +762,7 @@ export default function BeauConversations({
                   {convo.name}
                 </span>
               </span>
-              <span className="block truncate" style={{ fontSize: '12px', lineHeight: 1.4, color: D_MUTED, marginTop: '3px' }}>
+              <span className="block truncate" style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.4, color: D_MUTED, marginTop: '3px' }}>
                 {convo.last_preview || 'No messages yet'}
               </span>
             </span>
@@ -1035,7 +1035,7 @@ export default function BeauConversations({
                 <p style={{ fontFamily: D_SERIF, fontSize: '18px', lineHeight: 1.25, fontWeight: 400, color: D_INK, margin: 0 }}>
                   No threads yet.
                 </p>
-                <p style={{ fontSize: '12px', lineHeight: 1.5, color: D_MUTED, margin: '3px 0 0' }}>
+                <p style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.5, color: D_MUTED, margin: '3px 0 0' }}>
                   Start one below — a piece you’re weighing, a trip to pack for, a gap to close. I know your dossier in
                   every thread.
                 </p>
@@ -1141,7 +1141,7 @@ export default function BeauConversations({
                           )}
                           {!collapsed && items.length > 0 && <div>{items.map((c) => renderConvoCard(c, true))}</div>}
                           {!collapsed && items.length === 0 && (
-                            <p style={{ fontSize: '12px', color: D_FAINT, margin: 0, padding: '6px 20px 10px 34px' }}>Empty folder</p>
+                            <p style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', color: D_FAINT, margin: 0, padding: '6px 20px 10px 34px' }}>Empty folder</p>
                           )}
                         </div>
                       );
@@ -1173,7 +1173,7 @@ export default function BeauConversations({
                         }
                       }}
                       className="flex-1 min-w-0 bg-transparent focus:outline-none"
-                      style={{ fontSize: '14px', color: D_INK, borderBottom: `1px solid ${OXBLOOD}`, paddingBottom: '2px' }}
+                      style={{ fontSize: 'max(var(--eth-input, 0px), 14px)', color: D_INK, borderBottom: `1px solid ${OXBLOOD}`, paddingBottom: '2px' }}
                       placeholder="Folder name — e.g. Barcelona trip"
                       data-testid="input-new-folder"
                     />
@@ -1229,7 +1229,7 @@ export default function BeauConversations({
             placeholder="Start a new thread…"
             rows={1}
             className="beau-drawer-field w-full border-0 bg-transparent focus:outline-none focus:ring-0 resize-none"
-            style={{ padding: '13px 20px 10px', fontSize: '14px', lineHeight: 1.45, color: D_BODY, minHeight: '38px' }}
+            style={{ padding: '13px 20px 10px', fontSize: 'max(var(--eth-input, 0px), 14px)', lineHeight: 1.45, color: D_BODY, minHeight: '38px' }}
             data-testid="input-new-thread"
           />
           <div className="flex items-center" style={{ gap: '16px', padding: '0 20px 12px' }}>
