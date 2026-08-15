@@ -275,7 +275,7 @@ export function IndexPieceCard({
                 whiteSpace: 'nowrap',
               }}
             >
-              Correct it in the Ledger
+              Correct it in the Rail
             </button>
             <button
               type="button"

@@ -201,7 +201,7 @@ function rootFallback(facts: RootIndexFacts): RootIndexCopy {
         (carrier ? ` — your ${carrier} carries the run` : '') +
         (gap ? `; the ${gap} is the named hole.` : '.');
     } else {
-      blurbs[cat.id] = `${capWord(numberWord(cat.total))} types, none in your ledger yet — an open run.`;
+      blurbs[cat.id] = `${capWord(numberWord(cat.total))} types, none on your rail yet — an open run.`;
     }
   }
   return {
@@ -324,7 +324,7 @@ function plateFallback(facts: PlateFacts): CategoryPlateCopy {
             .slice(0, 2)
             .map((n) => n.toLowerCase())
             .join(' and ')} on your rack.`
-        : `Nothing of this category in your ledger yet — the whole ruler is open.`,
+        : `Nothing of this category on your rail yet — the whole ruler is open.`,
     coverageNote:
       facts.owned > 0
         ? `${capWord(facts.ownedNames.slice(0, 2).map((n) => n.toLowerCase()).join(' and '))}${

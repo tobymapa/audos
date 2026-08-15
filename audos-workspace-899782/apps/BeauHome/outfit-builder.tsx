@@ -297,7 +297,7 @@ export function OutfitBuilderSheet({
                   {c.name}
                 </p>
                 <p className={`${typography.size.xs} ${c.source === 'wardrobe' ? typography.color.muted : typography.color.brand} mt-0.5`} style={{ fontSize: '9px' }}>
-                  {c.source === 'wardrobe' ? 'Yours' : 'Beau’s pick on The Rail'}
+                  {c.source === 'wardrobe' ? 'Yours' : 'Beau’s pick'}
                 </p>
               </div>
             </div>
@@ -333,7 +333,7 @@ export function OutfitBuilderSheet({
             <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto pr-1">{wardrobeOptions.map(chip)}</div>
           ) : (
             <p className={`${typography.size.xs} ${typography.color.muted}`}>
-              Nothing logged yet — add pieces in The Ledger and they'll appear here.
+              Nothing logged yet — add pieces in The Rail and they'll appear here.
             </p>
           )}
         </div>

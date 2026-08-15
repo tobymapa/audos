@@ -526,7 +526,7 @@ export function CompareSheet({
     { label: 'Beau\u2019s read', of: (e) => READ_LABELS[readOf(e)] },
     { label: 'Quality', of: (e) => (Number.isFinite(e.profile.qualityScore) && !isStubProfile(e.profile) ? e.profile.qualityScore + '/10' : '\u2014') },
     { label: 'Signature pieces', of: (e) => (e.profile.signaturePieces || []).slice(0, 3).join(MIDDOT) || '\u2014' },
-    { label: 'On your ledger', of: (e) => (ledger.has(e.profile.brand.toLowerCase()) ? 'Yes' : '\u2014') },
+    { label: 'On your rail', of: (e) => (ledger.has(e.profile.brand.toLowerCase()) ? 'Yes' : '\u2014') },
   ];
   return (
     <div>

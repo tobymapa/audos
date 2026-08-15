@@ -109,7 +109,7 @@ export function IndexSpectrum({
                   title={
                     count > 0
                       ? `${count} of your ${total} pieces reach into ${BAND_LABELS[band]} — ${temperatureBandLabel(band).toLowerCase()}`
-                      : `Nothing on your ledger reaches into ${BAND_LABELS[band]}`
+                      : `Nothing on your rail reaches into ${BAND_LABELS[band]}`
                   }
                   className="text-center transition-colors hover:bg-[rgba(168,113,44,0.06)]"
                   style={{

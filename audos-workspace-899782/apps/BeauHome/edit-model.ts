@@ -98,21 +98,13 @@ const BAND_BOUNDS: Record<TemperatureBand, { lo: number; hi: number }> = {
 };
 
 // ---------------------------------------------------------------------------
-// The map's rows — the eight categories a temperature can actually ask a
-// question of. Formalwear, bags and hats are occasion and carry categories:
-// they read on the By Category face, never on the ruler.
+// The map's rows — the app's ONE canonical eleven-category set
+// (category-order.ts via INDEX_CATEGORY_IDS), so The Edit reads the same
+// categories as every other tab. A category with no types in a band simply
+// shows that cell as not-applicable.
 // ---------------------------------------------------------------------------
 
-export const RULER_CATEGORY_IDS: GarmentCategoryId[] = [
-  'tops',
-  'knitwear',
-  'sweatshirts',
-  'outerwear',
-  'bottoms',
-  'base-layers',
-  'shoes',
-  'accessories',
-];
+export const RULER_CATEGORY_IDS: GarmentCategoryId[] = [...INDEX_CATEGORY_IDS];
 
 /** The five a man cannot leave the house without. A band with a gap in any
  * of them is a day that goes wrong. */

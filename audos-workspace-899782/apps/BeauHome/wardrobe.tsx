@@ -273,7 +273,7 @@ export function BudgetFilters({
               Price filter defaults — by category
             </span>
             <span className={`block ${typography.size.xs} ${typography.color.muted} mt-0.5`}>
-              Jacket budget isn’t shirt budget. {setCount > 0 ? `${setCount} set — ` : 'Set a range per category — '}The Rail’s picks start from these and can be adjusted per session there.
+              Jacket budget isn’t shirt budget. {setCount > 0 ? `${setCount} set — ` : 'Set a range per category — '}Beau’s picks start from these and can be adjusted per session there.
             </span>
           </span>
         </span>
@@ -591,7 +591,7 @@ export function SeeAllPieces({
         onClick={onBack}
         className={`inline-flex items-center gap-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
       >
-        <ArrowLeft className="w-3.5 h-3.5" /> The Ledger
+        <ArrowLeft className="w-3.5 h-3.5" /> The Rail
       </button>
 
       <h3 className={`hab-page-title ${typography.color.primary} mt-3`} style={{ marginBottom: '10px' }}>

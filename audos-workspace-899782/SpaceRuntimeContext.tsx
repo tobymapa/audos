@@ -90,17 +90,6 @@ function isLocalOnlySessionId(value: unknown): boolean {
   return typeof value === 'string' && /^(guest|ephemeral|anon|csess_local)_/.test(value);
 }
 
-/**
- * A session the gate marked provisional: the server issued it, but it is not
- * the durable workspace session the data API reads and writes under. Hydrating
- * it here would skip the gate entirely, and with it the one chance to exchange
- * it for the durable session once the server has one — so leave these to
- * EmailGate, which adopts the same id anyway if nothing better comes back.
- */
-function isProvisionalSession(session: { provisional?: unknown }): boolean {
-  return session?.provisional === true;
-}
-
 // Comprehensive list of second-level TLDs (country-code SLDs) that require 3-part domain
 const MULTI_LEVEL_TLDS = [
   // UK
@@ -236,35 +225,17 @@ export function SpaceRuntimeProvider({
   const [isLoading, setIsLoading] = useState(!initialConfig);
   const [error, setError] = useState<Error | null>(null);
   const [sessionId, setSessionIdRaw] = useState<string | undefined>(() => {
-    // `?as=visitor` preview: stay logged-out regardless of any stored session,
-    // and do not fall back to an ephemeral id (which would suppress the gate).
+    // Never hydrate customer identity directly from localStorage. EmailGate
+    // validates the cached workspaceSessionId with the OTP session endpoint
+    // before calling setSessionId; trusting storage here would bypass that
+    // check and remount the shell with expired or malformed credentials.
     if (
       typeof window !== 'undefined' &&
       (window as any).__AUDOS_FORCE_VISITOR__ === true
     ) {
       return undefined;
     }
-    if (initialSessionId) return initialSessionId;
-    try {
-      const stored = localStorage.getItem(`space_session_${spaceId}`);
-      if (stored) {
-        const session = JSON.parse(stored);
-        const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        // A server-issued id IS the contract, on its own. The old extra
-        // `verified === true` condition threw away every session that had not
-        // been through an OTP round-trip, so a signed-in visitor was sent back
-        // to the gate on each reload — the loop this rewrite removes. A local
-        // placeholder id is still refused: it owns nothing on the server.
-        if (recoveredId && !isLocalOnlySessionId(recoveredId) && !isProvisionalSession(session)) {
-          return recoveredId;
-        }
-      }
-    } catch {
-      // Storage unavailable (e.g. Edge tracking protection) — generate an
-      // ephemeral session ID so chat and analytics still work for this page visit.
-      return `ephemeral_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    }
-    return undefined;
+    return initialSessionId || undefined;
   });
   const [visitorId] = useState<string>(() => getVisitorId());
   // True while post-checkout auto-session bootstrap is in flight — suppresses EmailGate render
@@ -279,7 +250,12 @@ export function SpaceRuntimeProvider({
       const stored = localStorage.getItem(`space_session_${spaceId}`);
       if (stored) {
         const session = JSON.parse(stored);
-        if (session.workspaceSessionId || session.sessionId || session.id) return false;
+        if (
+          session.workspaceSessionId &&
+          session.verified === true &&
+          session.provisional !== true &&
+          !isLocalOnlySessionId(session.workspaceSessionId)
+        ) return false;
       }
     } catch {}
     return true;
@@ -362,7 +338,13 @@ export function SpaceRuntimeProvider({
       const stored = localStorage.getItem(`space_session_${spaceId}`);
       if (stored) {
         const session = JSON.parse(stored);
-        if (session.workspaceSessionId || session.sessionId || session.id) return;
+        if (
+          session.workspaceSessionId &&
+          session.verified === true &&
+          session.provisional !== true &&
+          !isLocalOnlySessionId(session.workspaceSessionId)
+        ) return;
+        localStorage.removeItem(`space_session_${spaceId}`);
       }
     } catch {}
 
@@ -394,56 +376,13 @@ export function SpaceRuntimeProvider({
           return;
         }
 
-        // Register workspace session using the email from Stripe
-        const visitorId = getVisitorId();
-        const registerRes = await fetch(`/api/space/${spaceId}/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: customerEmail,
-            visitorId,
-            attribution: null,
-            metadata: { source: 'landing_page_checkout', stripeSessionId },
-            workspaceId: (window as any).__WORKSPACE_ID__ || null,
-          }),
-        });
-
-        if (!registerRes.ok) {
-          console.warn('[SpaceRuntime] Auto-session registration failed');
-          setIsBootstrappingSession(false);
-          return;
-        }
-
-        const registerData = await registerRes.json();
-        const effectiveSessionId = registerData.workspaceSessionId || registerData.sessionId;
-        if (!effectiveSessionId) {
-          console.warn('[SpaceRuntime] Auto-session registration returned no session ID');
-          setIsBootstrappingSession(false);
-          return;
-        }
-
-        // Persist to localStorage like EmailGate does
-        const sessionKey = `space_session_${spaceId}`;
-        const session = {
-          id: effectiveSessionId,
-          workspaceSessionId: effectiveSessionId,
-          email: customerEmail,
-          contactId: registerData.contactId || null,
-          timestamp: Date.now(),
-          authVersion: 4,
-          isReturningUser: !!registerData.isReturningUser,
-          metadata: registerData.metadata || { source: 'landing_page_checkout' },
-        };
-        localStorage.setItem(sessionKey, JSON.stringify(session));
-
+        // A paid checkout proves payment, not possession of the email inbox.
+        // Preserve the address only as a convenience; EmailGate still performs
+        // register → OTP send → OTP verify before establishing any session.
         try {
-          window.dispatchEvent(new CustomEvent('audos:session-established', {
-            detail: { workspaceSessionId: effectiveSessionId, email: customerEmail },
-          }));
+          localStorage.setItem('user_email', String(customerEmail).trim().toLowerCase());
         } catch {}
-
-        console.log('[SpaceRuntime] Auto-session established from post-checkout for:', customerEmail);
-        setSessionId(effectiveSessionId);
+        console.log('[SpaceRuntime] Post-checkout email recovered; OTP sign-in is still required');
         setIsBootstrappingSession(false);
       } catch (err) {
         console.error('[SpaceRuntime] Auto-session creation failed:', err);
@@ -458,9 +397,12 @@ export function SpaceRuntimeProvider({
   useEffect(() => {
     if (!isBootstrappingSession) return;
     const timeout = setTimeout(() => {
-      console.warn('[SpaceRuntime] Bootstrap session timeout — clearing spinner after 10s');
+      console.warn('[SpaceRuntime] Bootstrap session timeout — clearing stale auth state');
+      try {
+        localStorage.removeItem(`space_session_${spaceId}`);
+      } catch {}
       setIsBootstrappingSession(false);
-    }, 10000);
+    }, 8000);
     return () => clearTimeout(timeout);
   }, [isBootstrappingSession]);
 
@@ -507,21 +449,20 @@ export function SpaceRuntimeProvider({
       const stored = localStorage.getItem(`space_session_${spaceId}`);
       if (stored) {
         const session = JSON.parse(stored);
-        const recoveredId = session.workspaceSessionId || session.sessionId || session.id;
-        // Same rule as the initial hydration above. By the time anything calls
-        // this the gate has already settled, so a provisional id is the best
-        // there is and is accepted rather than failing the file operation.
-        if (recoveredId && !isLocalOnlySessionId(recoveredId)) {
+        const recoveredId = session.workspaceSessionId;
+        // Only EmailGate's completed OTP flow writes this combination. Never
+        // upgrade a provisional or legacy fallback id inside a data operation.
+        if (
+          recoveredId &&
+          session.verified === true &&
+          session.provisional !== true &&
+          !isLocalOnlySessionId(recoveredId)
+        ) {
           setSessionId(recoveredId);
           return recoveredId;
         }
       }
-    } catch {
-      // Storage unavailable — generate ephemeral session ID for this page visit
-      const ephemeral = `ephemeral_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      setSessionId(ephemeral);
-      return ephemeral;
-    }
+    } catch { /* unavailable or malformed storage means unauthenticated */ }
     return undefined;
   };
 

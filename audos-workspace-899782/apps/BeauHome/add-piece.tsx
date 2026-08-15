@@ -529,7 +529,7 @@ export function PhotoConfirmFlow({
           (with the photo beside it) appears the moment a photo lands. */}
       {savedFlash && !draft && (
         <p className={`${typography.size.xs} text-[var(--space-semantic-success)]`} style={{ marginTop: '14px' }}>
-          “{savedFlash}” logged — in The Ledger, under Your pieces. Beau is reading up on it…
+          “{savedFlash}” logged — in The Rail, under Your pieces. Beau is reading up on it…
         </p>
       )}
       {draft && (
@@ -828,7 +828,7 @@ export function PhotoConfirmFlow({
                   Discard
                 </button>
                 <span className="ml-auto hidden sm:inline" style={{ ...monoLabel(9), color: MUTED }}>
-                  Appears in The Ledger immediately
+                  Appears in The Rail immediately
                 </span>
               </div>
 

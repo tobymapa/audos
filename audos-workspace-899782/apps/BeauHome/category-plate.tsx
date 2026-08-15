@@ -505,7 +505,7 @@ export function CategoryPlate({
           </p>
         </div>
         <div style={{ borderLeft: `1px solid ${HAIR_MID}`, paddingLeft: '18px' }} className="md:justify-self-end md:w-full">
-          <div style={mono(8, ACCENT_DEEP)}>This category, against your ledger</div>
+          <div style={mono(8, ACCENT_DEEP)}>This category, against your rail</div>
           <div style={{ marginTop: '8px', fontFamily: SERIF, fontSize: '23px', lineHeight: 1.1, color: WALNUT }}>
             {ownedRows.length} of {rows.length} owned
           </div>

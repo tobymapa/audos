@@ -50,6 +50,7 @@ import { CLAUDE_HAIKU, CLAUDE_SONNET, callClaude } from './claude';
 import { searchWeb } from './scout-ai';
 import { fetchProductImage } from './og-image';
 import { HUNT_CATEGORIES, huntCategory, type HuntCall } from './hunt-model';
+import { fetchLedgerNotes, type LedgerNote } from './ledger-notes';
 
 export interface HuntReader {
   profile: StyleProfile | null;
@@ -62,6 +63,10 @@ export interface HuntReader {
   materials: Record<number, string>;
   /** register id → how often it comes up ('most-days' … 'never'). */
   registerFrequencies: Record<string, string>;
+  /** piece id → his Your Verdict answers (piece_ledger): how it fits, where
+   * he wears it, how he feels in it, what was altered, and his note — read
+   * into every recommendation that involves the piece. */
+  ledgerNotes: Record<number, LedgerNote>;
   trustedBrands: string[];
   avoidedBrands: string[];
   /** Every call already made on The Hunt, so nothing is offered twice. */
@@ -78,13 +83,14 @@ export async function loadHuntReader(input: {
   prefs: StylePrefs | null;
   calls: HuntCall[];
 }): Promise<HuntReader> {
-  const [details, measurements, avatar, materials, freqs, signals] = await Promise.all([
+  const [details, measurements, avatar, materials, freqs, signals, ledgerNotes] = await Promise.all([
     fetchDossierDetails().catch(() => null),
     fetchStyleMeasurements().catch(() => null),
     fetchAvatarInputs().catch(() => ({ heightCm: null, weightKg: null, bodyType: null } as any)),
     fetchMaterials().catch(() => ({} as Record<number, string>)),
     fetchRegisterFrequencies().catch(() => ({} as Record<string, string>)),
     fetchBrandSignals().catch(() => ({ trustedBrands: [] as string[], avoidedBrands: [] as string[] })),
+    fetchLedgerNotes().catch(() => ({} as Record<number, LedgerNote>)),
   ]);
   return {
     profile: input.profile,
@@ -99,6 +105,7 @@ export async function loadHuntReader(input: {
     },
     materials,
     registerFrequencies: freqs,
+    ledgerNotes,
     trustedBrands: signals.trustedBrands,
     avoidedBrands: signals.avoidedBrands,
     calls: input.calls,
@@ -249,14 +256,27 @@ export function readerCompleteness(reader: HuntReader): number {
   return Math.round((held / facts.length) * 100);
 }
 
-/** What he owns in ONE Index category, in his own words, with the cloth. */
+/** What he owns in ONE Index category, in his own words, with the cloth —
+ * and his OWN VERDICT on each piece (piece_ledger), so a recommendation
+ * that involves the piece is reasoned from how it actually fits him, where
+ * he actually wears it, how he feels in it, and anything he told Beau. */
 export function ownedInCategory(reader: HuntReader, categoryId: string): string[] {
   const out: string[] = [];
   for (const piece of reader.pieces) {
     if (pieceIndexCategory(piece) !== categoryId) continue;
     const named = [piece.brand, piece.name].filter(Boolean).join(' ');
     const fabric = reader.materials[piece.id];
-    out.push(fabric ? `${named} (${fabric})` : named);
+    const base = fabric ? `${named} (${fabric})` : named;
+    const verdict = reader.ledgerNotes[piece.id];
+    const facts: string[] = [];
+    if (verdict?.fits && verdict.fits.length > 0) facts.push(`fits: ${verdict.fits.join(', ').toLowerCase()}`);
+    if (verdict?.feel) facts.push(`he says: ${verdict.feel.toLowerCase()}`);
+    if (verdict?.wearContexts && verdict.wearContexts.length > 0) {
+      facts.push(`worn for ${verdict.wearContexts.join(', ').toLowerCase()}`);
+    }
+    if (verdict?.tailoring) facts.push(`altered: ${verdict.tailoring.slice(0, 120)}`);
+    if (verdict?.note) facts.push(`his note: “${verdict.note.slice(0, 200)}”`);
+    out.push(facts.length > 0 ? `${base} — ${facts.join('; ')}` : base);
     if (out.length >= 24) break;
   }
   return out;
@@ -472,7 +492,7 @@ export async function readProductLink(input: { url: string; reader: HuntReader |
       read: true,
     };
   } catch (e) {
-    console.warn('[Ethaion] The Hunt could not read that product link (non-fatal):', e);
+    console.warn('[Ethaion] The Search could not read that product link (non-fatal):', e);
     return base;
   }
 }

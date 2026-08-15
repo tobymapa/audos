@@ -24,6 +24,14 @@
  *     around it next time he draws.
  *   · REPLACE — Beau's Picks only: clears this card away and draws a
  *     different answer for the same category, leaving its siblings alone.
+ *   · WATCH — present wherever the surface passes a watch target: puts the
+ *     piece on the Watchlist so Beau re-reads its retailer page on every
+ *     open (watchlist-watch.tsx). It is a standing instruction, not an
+ *     opinion, so it sits alongside the calls rather than among them.
+ *   · WATCH BRAND — the same instruction one step wider, as a quiet text link
+ *     beside the eye: the MAKER goes on the Watchlist and Beau reads its new
+ *     arrivals instead of this one page. Shown only when the card names a
+ *     maker.
  * Tapping the tag a card already carries removes it — a call is never a
  * one-way door.
  */
@@ -64,6 +72,8 @@ import {
   type HuntTag,
   type HuntTaggable,
 } from './hunt-model';
+import { WatchBrandLink, WatchButton } from './watchlist-watch';
+import type { WatchTarget } from './watchlist-model';
 
 // ---------------------------------------------------------------------------
 // THE TAG STATE — one hook behind every card on the tab, so a piece saved in
@@ -348,10 +358,14 @@ export interface HuntCardActions {
   onReplace?: () => void;
   /** True while a tag write or a replacement draw is in flight. */
   busy?: boolean;
+  /** Present where the surface can name the piece to the Watchlist — a
+   * function when the card's photograph resolves after the first paint. */
+  watch?: WatchTarget | (() => WatchTarget);
 }
 
-/** Save · Favourite · Pass, and Replace where the surface has it. */
-export function HuntActionRow({ tag, onTag, onReplace, busy }: HuntCardActions) {
+/** Save · Favourite · Pass · Watch (· Watch brand), and Replace where the
+ * surface has it. */
+export function HuntActionRow({ tag, onTag, onReplace, busy, watch }: HuntCardActions) {
   return (
     <div className="flex items-center flex-wrap gap-1.5" style={{ marginTop: '15px' }}>
       <ActionButton
@@ -378,6 +392,8 @@ export function HuntActionRow({ tag, onTag, onReplace, busy }: HuntCardActions) 
         busy={busy}
         onClick={() => onTag('passed')}
       />
+      {watch && <WatchButton target={watch} />}
+      {watch && <WatchBrandLink target={watch} />}
       {onReplace && (
         <ActionButton
           label="Replace"

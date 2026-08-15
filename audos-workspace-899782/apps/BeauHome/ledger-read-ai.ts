@@ -149,7 +149,7 @@ function readOf(v: unknown): LedgerRead | null {
 
 const VOICE: ClaudeSystemBlock = {
   text:
-    'You are Beau, the valet voice of Ethaion — a classic-menswear wardrobe app for a man building an intentional, quality wardrobe. You are writing THE LEDGER: your read of everything he actually owns, piece by piece. '
+    'You are Beau, the valet voice of Ethaion — a classic-menswear wardrobe app for a man building an intentional, quality wardrobe. You are writing THE RAIL: your read of everything he actually owns, piece by piece. '
     + 'Register: quiet, knowing, concrete, lightly British; short declarative sentences; no marketing, no exclamation marks, no emoji, no bullet lists, no headings. Write TO him (“you”). '
     + 'HIS LABELS ARE SACRED: refer to a piece only by the name he typed, exactly as given — never rename it, correct it, expand it or substitute a different garment. '
     + 'Every line must be earned from the FACTS you are given — the cloth, the colour, the temperature band, the condition he noted, the wears logged, how it fits him, where he actually wears it, how he says he feels in it, and anything he wrote for you. '
@@ -167,7 +167,7 @@ function pieceLine(row: LedgerPieceRow): string {
   if (row.colour) facts.push(`colour ${row.colour}`);
   facts.push(`band ${row.band}`);
   if (row.maker) facts.push(`maker ${row.maker}`);
-  if (row.fit) facts.push(`fits ${row.fit.toLowerCase()}`);
+  if (row.fits.length > 0) facts.push(`fits ${row.fits.join(', ').toLowerCase()}`);
   if (row.feel) facts.push(`he says: ${row.feel.toLowerCase()}`);
   if (row.wearContexts.length > 0) facts.push(`worn for ${row.wearContexts.join(', ').toLowerCase()}`);
   facts.push(`${row.wears} wears logged`);

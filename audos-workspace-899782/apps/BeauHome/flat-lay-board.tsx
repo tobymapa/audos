@@ -81,7 +81,7 @@
  * pulling the Fitting Room's engine into the initial payload.
  */
 import { useEffect, useRef, useState } from 'react';
-import { isTransparentCutout } from './photo-enhance';
+import { isTransparentCutout, reportBrokenCutout } from './photo-enhance';
 import { CUTOUTS_HYDRATED_EVENT } from './image-pipeline';
 import { bodyOrderRank, sortByBodyOrder } from './body-order';
 import { GARMENT_HEIGHT_RATIOS, garmentHeightRatioFor } from './garment-proportions';
@@ -101,7 +101,13 @@ interface DragOffset {
   dy: number;
 }
 
-const DRAG_STORE_PREFIX = 'ethaion_layout_';
+// v2 (founder's placement fix, August 2026): drag deltas recorded against
+// the RETIRED canvas geometries (the wide 680px stage, the doubled pieces)
+// were still being applied to the new column stage, dragging a freshly
+// tapped piece far away from its designated zone — it landed “outside the
+// canvas”. The prefix bump orphans every stale delta: pieces land exactly
+// in their zones again, and new drags re-save under the new key.
+const DRAG_STORE_PREFIX = 'ethaion_layout_v2_';
 
 function loadDragOffsets(key: string): Record<string, DragOffset> {
   try {
@@ -128,6 +134,11 @@ export interface FlatLayPiece {
   slot?: string | null;
   /** The flat-lay-ready cutout. '' while one is still being resolved. */
   image: string;
+  /** The piece's ORIGINAL photograph (the wardrobe's normalized product
+   * shot). PIECES ALWAYS SHOW (founder's correction, August 2026): when the
+   * cutout is missing or its stored file fails to load, the board renders
+   * this photograph instead of a text placeholder. */
+  sourceImage?: string | null;
   /** false when the ingestion pipeline could only get an ON-BODY photograph
    * for this piece (photo-enhance tier 2), or when the verification step
    * flagged the cut as imperfect. Such a piece is held OUT of the composition
@@ -322,6 +333,13 @@ function accessoryAnchorTop(piece: FlatLayPiece): number {
   return 24; // fragrance, scarf-in-hand, everything else — mid column
 }
 
+/** How far BELOW the stage floor a piece may sit, in board % — ≈2/3cm at
+ * the Fitting's 260px canvas. The founder kept hitting an “invisible
+ * margin” at the canvas bottom when dragging the shoes down; this slack
+ * lowers that wall, and the bare (frameless) canvas no longer clips the
+ * overhang. */
+const BOTTOM_SLACK = 10;
+
 function clamp(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value));
 }
@@ -467,15 +485,14 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
       : ratioToBoardPct(GARMENT_HEIGHT_RATIOS.shoes);
   const legsBottom =
     groups.legs.length > 0 ? legsTop + Math.max(...groups.legs.map((p) => referenceHeightPct(p))) : null;
-  const feetTop = clamp(
-    legsBottom != null
-      ? legsBottom - shoeHeight * 0.35
-      : torsoBottom != null
-        ? torsoBottom + 3
-        : ZONE_FEET.fallbackTop,
-    0,
-    100 - shoeHeight,
-  );
+  // THE TROUSERS' SPACE IS RESERVED (founder's correction, August 2026):
+  // with no trousers on the board the shoes NO LONGER tuck up under the
+  // torso stack — the trousers' full share of the column stays open between
+  // the tops and the shoes, so adding trousers later drops them into their
+  // waiting gap without moving anything else, exactly like the reserved
+  // headwear slot at the top of the column.
+  const reservedLegsBottom = legsBottom ?? legsTop + ratioToBoardPct(GARMENT_HEIGHT_RATIOS.trousers);
+  const feetTop = clamp(reservedLegsBottom - shoeHeight * 0.35, 0, 100 - shoeHeight);
   // SOCKS — just above the shoes, slightly overlapping them, in front.
   const sockHeight = ratioToBoardPct(GARMENT_HEIGHT_RATIOS.socks);
   const sockTop = clamp(feetTop - sockHeight * 0.8, 0, 100 - sockHeight);
@@ -505,6 +522,148 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
       z: ACCESSORY_COLUMN.z,
       rot: 0,
     });
+  });
+
+  return placed;
+}
+
+// ---------------------------------------------------------------------------
+// THE WIDE FITTING COMPOSITION (founder's layout reference, August 2026) —
+// The Fitting's stage only. Every piece renders at TWICE the column scale
+// (WIDE_PIECE_SCALE) and the outfit spreads ACROSS the canvas instead of
+// down it — the torso stack on the left, the trousers to its right
+// (overlapping, the way the reference lays them), shoes at the lower right,
+// neckwear top right and the accessory column down the right edge — so the
+// garments read roughly twice as large while the canvas itself is SHORTER
+// than the old square. The Ledger's “Beau · Today” tray keeps the classic
+// column composition above; nothing about it changes.
+// ---------------------------------------------------------------------------
+
+/** How much larger every piece draws on the wide stage (founder: “twice”). */
+const WIDE_PIECE_SCALE = 2;
+/** The wide stage's own proportion — width ÷ height. flat-view renders the
+ * Fitting canvas at this exact aspect (canvasAspect '8 / 7'), so the
+ * percentage maths below hold on it. Wider than tall — the shorter canvas
+ * the founder asked for. */
+export const WIDE_FITTING_ASPECT = 8 / 7;
+
+function wideAspectWidthPct(piece: FlatLayPiece, heightPct: number): number | null {
+  const cw = piece.croppedWidth || 0;
+  const ch = piece.croppedHeight || 0;
+  if (!(cw > 0 && ch > 0)) return null;
+  return (heightPct * (cw / ch)) / WIDE_FITTING_ASPECT;
+}
+
+export function composeWideFittingBoard<T extends FlatLayPiece>(pieces: T[]): Array<FlatLayPlacedItem<T>> {
+  const ordered = sortByBodyOrder(pieces, (p) => ({ category: p.category, slot: p.slot, name: p.name }));
+  if (ordered.length === 0) return [];
+  const groups: Record<ZoneId, T[]> = {
+    head: [],
+    eyewear: [],
+    neck: [],
+    torso: [],
+    waist: [],
+    legs: [],
+    feet: [],
+    socks: [],
+    carry: [],
+    wrist: [],
+    accessories: [],
+  };
+  for (const piece of ordered) groups[zoneFor(piece)].push(piece);
+
+  const placed: Array<FlatLayPlacedItem<T>> = [];
+  const hpOf = (p: T) => referenceHeightPct(p) * WIDE_PIECE_SCALE;
+  const wOf = (p: T, h: number, fallback: number) => {
+    const natural = wideAspectWidthPct(p, h);
+    return natural == null ? fallback : Math.min(natural, 96);
+  };
+  const put = (piece: T, top: number, left: number, width: number, height: number, z: number) => {
+    placed.push({
+      piece,
+      top: clamp(top, 0, Math.max(0, 100 - height)),
+      left: clamp(left, 0, Math.max(0, 100 - width)),
+      width,
+      height,
+      z,
+      rot: 0,
+    });
+  };
+  const putRow = (items: T[], box: { top: number; left: number; width: number; z: number }) => {
+    if (items.length === 0) return;
+    const slotWidth = box.width / items.length;
+    items.forEach((piece, i) => {
+      const height = hpOf(piece);
+      const width = wOf(piece, height, slotWidth);
+      put(piece, box.top, box.left + i * slotWidth + (slotWidth - width) / 2, width, height, box.z);
+    });
+  };
+
+  const hasTorso = groups.torso.length > 0;
+  const hasLegs = groups.legs.length > 0;
+
+  // HEAD — top-left, above the torso stack; the stack anchors below it.
+  let torsoTop = 3;
+  if (groups.head.length > 0 || groups.eyewear.length > 0) {
+    putRow(groups.head, { top: 0, left: 8, width: 26, z: 7 });
+    putRow(groups.eyewear, { top: 0, left: 36, width: 16, z: 8 });
+    const headBottom = Math.max(0, ...groups.head.map(hpOf), ...groups.eyewear.map(hpOf));
+    torsoTop = Math.max(torsoTop, headBottom * 0.92);
+  }
+
+  // TORSO — the left block, layered as worn: the base top at the back,
+  // outer layers shifted left and drawn in front.
+  const torsoLayers = [...groups.torso].reverse();
+  const torsoLeft = hasLegs ? 3 : 16;
+  torsoLayers.forEach((piece, i) => {
+    const height = hpOf(piece);
+    const width = wOf(piece, height, 52);
+    put(piece, torsoTop + i * 2, torsoLeft + Math.max(0, 10 - i * 6), width, height, 3 + i);
+  });
+  const torsoBottom = torsoLayers.length > 0 ? torsoTop + Math.max(...torsoLayers.map(hpOf)) : null;
+
+  // NECK (tie · scarf) — upper right, frontmost, the reference's placement.
+  putRow(groups.neck, { top: torsoTop + 1, left: 56, width: 16, z: 9 });
+
+  // LEGS — the right block, waistband up near the shoulder line so the two
+  // blocks read side by side with the reference's overlap. Drawn BEHIND the
+  // torso stack where they cross.
+  const legsTop = hasTorso ? torsoTop + 3 : 6;
+  const legsLeft = hasTorso ? 46 : 26;
+  putRow(groups.legs, { top: legsTop, left: legsLeft, width: 42, z: 2 });
+  const legsBottom = hasLegs ? legsTop + Math.max(...groups.legs.map(hpOf)) : null;
+
+  // WAIST (belt) — across the trousers' waistband, in front.
+  putRow(groups.waist, { top: legsTop + 2, left: legsLeft + 4, width: 26, z: 8 });
+
+  // FEET — lower right, tucked against the trouser hem, in front of it.
+  const shoeHeight =
+    groups.feet.length > 0
+      ? Math.max(...groups.feet.map(hpOf))
+      : ratioToBoardPct(GARMENT_HEIGHT_RATIOS.shoes) * WIDE_PIECE_SCALE;
+  const feetTop = clamp(
+    legsBottom != null ? legsBottom - shoeHeight * 0.55 : torsoBottom != null ? torsoBottom - shoeHeight * 0.3 : 55,
+    0,
+    100 - shoeHeight,
+  );
+  const feetLeft = hasLegs ? 62 : hasTorso ? 56 : 34;
+  const sockHeight = ratioToBoardPct(GARMENT_HEIGHT_RATIOS.socks) * WIDE_PIECE_SCALE;
+  putRow(groups.socks, { top: clamp(feetTop - sockHeight * 0.4, 0, 100 - sockHeight), left: feetLeft - 12, width: 14, z: 3 });
+  putRow(groups.feet, { top: feetTop, left: feetLeft, width: 30, z: 4 });
+
+  // THE SIDE ACCESSORY COLUMN — down the right edge, anchored near the body
+  // zone each piece belongs to, collisions resolved downward.
+  const column = [
+    ...groups.wrist.map((piece) => ({ piece, anchor: 4 })),
+    ...groups.accessories.map((piece) => ({ piece, anchor: accessoryAnchorTop(piece) })),
+    ...groups.carry.map((piece) => ({ piece, anchor: 40 })),
+  ].sort((a, b) => a.anchor - b.anchor);
+  let cursor = 0;
+  column.forEach(({ piece, anchor }) => {
+    const height = Math.min(hpOf(piece), 34);
+    const top = clamp(Math.max(anchor, cursor), 0, 100 - height);
+    cursor = top + height + 3;
+    put(piece, top, 82, 17, height, 10);
   });
 
   return placed;
@@ -543,14 +702,24 @@ export function composeFlatLayBoard<T extends FlatLayPiece>(
  * `.today-canvas--center` to centre it on the paper panel).
  */
 const TRAY_CSS =
-  '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:var(--today-canvas-max,420px);aspect-ratio:1/1;' +
+  // EXPLICIT HEIGHT WHEN CAPPED (founder's placement fix, August 2026):
+  // WebKit/Safari mis-resolves percentage heights inside an aspect-ratio
+  // sized box — the clip and stage chain height:100% off this canvas, and
+  // on Safari that chain broke, the stage sized itself from the FULL width
+  // instead (~3× too tall) and the composition spilled far above the canvas
+  // (pieces floating over the masthead). With a cap set the canvas now takes
+  // that cap as its EXPLICIT height — a definite, non-derived length every
+  // engine resolves — and aspect-ratio only drives the uncapped tray (the
+  // Beau · Today card), which keeps its square as before.
+  '.today-canvas{position:relative;box-sizing:border-box;width:calc(100% - 32px);max-width:var(--today-canvas-max,420px);aspect-ratio:var(--canvas-aspect,1/1);' +
+  'height:var(--today-canvas-max-h,auto);max-height:var(--today-canvas-max-h,none);' +
   'margin:16px 16px 16px auto;background:var(--today-canvas-ground,#EDE8DF);border-radius:0;min-height:160px;' +
   'padding:12px;display:flex;align-items:center;justify-content:center}' +
   '.today-canvas--center{margin:16px auto}' +
   // FLUSH — the canvas takes the whole column it is given and only a hair of
   // vertical margin. The Fitting's board uses it: every pixel spared at the
   // edges is a pixel the garments themselves get.
-  '.today-canvas--flush{width:100%;margin:6px auto}' +
+  '.today-canvas--flush{width:100%;margin:2px auto}' +
   '.today-canvas::before{content:"";position:absolute;inset:10px;border:2px solid #241a12;pointer-events:none;z-index:20}' +
   // THE BARE GROUND (founder's correction — the Fitting Room's outfit board
   // loses its square field and frame; the clothes float on transparent empty
@@ -559,6 +728,10 @@ const TRAY_CSS =
   // never the default.
   '.today-canvas--bare{background:transparent!important;padding:0}' +
   '.today-canvas--bare::before{display:none}' +
+  // THE LOWERED FLOOR (founder's correction, August 2026): the frameless
+  // canvas no longer clips at its bottom edge, so the BOTTOM_SLACK overhang
+  // (shoes dragged or placed a shade below the stage floor) stays visible.
+  '.today-canvas--bare .today-clip{overflow:visible}' +
   '.today-clip{position:relative;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
   '.today-stage{position:relative;height:100%;max-width:100%;margin:0 auto;aspect-ratio:var(--aspect,480/600);background:transparent;border:none;box-shadow:none}' +
   '.today-piece{position:absolute;left:var(--x);top:var(--y);width:var(--w);height:var(--h);' +
@@ -573,10 +746,17 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   aspect = 480 / 600,
   maxWidth = '480px',
   trayMaxWidth,
+  trayMaxHeight,
   panel = 'paper',
   uniformItems = false,
   variant = 'stage',
   ground = 'canvas',
+  layout = 'column',
+  fitContent = false,
+  pieceScale = 1,
+  pieceOffsetY = 0,
+  feetOffsetY = pieceOffsetY,
+  canvasAspect,
   showHeldOut = false,
   onRemove,
   dragKey,
@@ -596,6 +776,11 @@ export function FlatLayBoard<T extends FlatLayPiece>({
    * sizes every garment on the board: The Fitting sets it larger, the
    * Ledger's “Beau · Today” card keeps the default. */
   trayMaxWidth?: string;
+  /** TRAY ONLY — hard cap on the canvas box's height (founder's correction,
+   * August 2026: The Fitting's band must end right below the day rail's last
+   * day). When the aspect-derived height would exceed it, the box clamps and
+   * the stage — and with it the whole composition — scales down to fit. */
+  trayMaxHeight?: string;
   /** Which light ground the pieces lie on. 'paper' is the light stage itself.
    * 'walnut' is the dark panel: there the light ground is the tray's ONE
    * canvas under the whole outfit — never a square per piece — which is what
@@ -615,6 +800,36 @@ export function FlatLayBoard<T extends FlatLayPiece>({
    * removes the field and the inset frame entirely so the clothes float on
    * empty space (the Fitting Room's outfit board — founder's correction). */
   ground?: 'canvas' | 'transparent';
+  /** 'column' is the classic top-to-bottom zone composition (the Today
+   * card). 'wide' is The Fitting's stage: the same pieces at twice the
+   * scale, spread across a shorter, wider canvas (composeWideFittingBoard). */
+  layout?: 'column' | 'wide';
+  /** Cut the canvas at the composition's REAL bottom edge (the Fitting's
+   * stage, founder's height fix): the placed items re-base to the lowest
+   * piece and the canvas aspect changes by the exact inverse factor, so no
+   * dead ground ever hangs beneath the outfit — whatever the layout. */
+  fitContent?: boolean;
+  /** SHRINK EVERY PIECE ON THE CANVAS by this factor (founder's correction,
+   * August 2026: “just make them smaller IN the canvas”). Each placed box
+   * scales down around its own centre, so the composition's layout and the
+   * pieces' relative proportions are untouched — only their rendered size
+   * changes, and only on the board that asks for it. 1 = no change. */
+  pieceScale?: number;
+  /** SHIFT THE WHOLE COMPOSITION DOWN by this % of the stage height
+   * (founder's correction, August 2026: “bring the designated positions
+   * down”). Applied to every placed box equally and CLAMPED so the lowest
+   * piece never crosses the canvas bottom — the layout moves as one figure,
+   * zone spacing intact. 0 = no shift. */
+  pieceOffsetY?: number;
+  /** THE FEET'S OWN SHIFT (founder's correction, August 2026: “bring the
+   * shoes designated area, ONLY the shoes designated area, down by 1cm”).
+   * Overrides pieceOffsetY for the feet and socks zones, and their clamp
+   * floor gains the BOTTOM_SLACK allowance so the shoes genuinely sit
+   * lower instead of pinning at the old wall. Defaults to pieceOffsetY. */
+  feetOffsetY?: number;
+  /** Tray only — the CANVAS box's own CSS aspect-ratio (default the square
+   * '1/1'). The wide fitting layout pairs it with WIDE_FITTING_ASPECT. */
+  canvasAspect?: string;
   /** Tray only: also name the held-out pieces beneath the canvas (the
    * Fitting's stage wants that; the Today card has no room and skips it). */
   showHeldOut?: boolean;
@@ -653,7 +868,14 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   // file) must never leave an invisible <img> on the canvas — the piece
   // falls back to its quiet named placeholder instead (same fix).
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
-  const composes = (piece: T) => piece.flatLayReady !== false && (!piece.image || isTransparentCutout(piece.image));
+  // The photograph fallback's own failure memory — a piece whose photo ALSO
+  // fails to load drops to the named placeholder, never an empty box.
+  const [brokenPhotos, setBrokenPhotos] = useState<Record<string, boolean>>({});
+  // PIECES ALWAYS SHOW (founder's correction, August 2026): a piece is only
+  // held out when ingestion POSITIVELY ruled it out (an on-body photograph —
+  // flatLayReady false). A piece whose cutout is missing or broken composes
+  // anyway and renders its own photograph until a clean cutout lands.
+  const composes = (piece: T) => piece.flatLayReady !== false;
   const composable = pieces.filter(composes);
 
   // --- Drag state (only live when `dragKey` names an outfit) ---------------
@@ -705,7 +927,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
     if (!off) return { left: item.left, top: item.top };
     return {
       left: clamp(item.left + off.dx, 0, Math.max(0, 100 - item.width)),
-      top: clamp(item.top + off.dy, 0, Math.max(0, 100 - item.height)),
+      top: clamp(item.top + off.dy, 0, Math.max(0, 100 + BOTTOM_SLACK - item.height)),
     };
   };
 
@@ -733,7 +955,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
     const rawDy = drag.baseDy + ((e.clientY - drag.startY) / rect.height) * 100;
     // The piece's BOX stays inside the canvas — the boundary rule.
     const dx = clamp(rawDx, -item.left, Math.max(0, 100 - item.width - item.left));
-    const dy = clamp(rawDy, -item.top, Math.max(0, 100 - item.height - item.top));
+    const dy = clamp(rawDy, -item.top, Math.max(0, 100 + BOTTOM_SLACK - item.height - item.top));
     setDragOffsets((cur) => ({ ...cur, [item.piece.key]: { dx, dy } }));
   };
 
@@ -759,7 +981,55 @@ export function FlatLayBoard<T extends FlatLayPiece>({
     }
   };
   const heldOut = pieces.filter((piece) => !composes(piece));
-  const placed = composeFlatLayBoard(composable, seed, aspect, { uniform: uniformItems });
+  let placed =
+    layout === 'wide'
+      ? composeWideFittingBoard(composable)
+      : composeFlatLayBoard(composable, seed, aspect, { uniform: uniformItems });
+  // THE CANVAS ENDS AT THE CONTENT (founder's height fix, August 2026): the
+  // wide Fitting stage used to hold its full fixed 8/7 field whatever the
+  // outfit actually filled, leaving dead ground beneath a short composition.
+  // The placed items are re-based to the composition's true bottom edge and
+  // the canvas aspect widens by exactly the inverse factor, so the canvas box
+  // TERMINATES at the natural bottom of the lowest piece — no white space
+  // below the content, whatever the board holds. Absolute piece sizes are
+  // untouched: percentages and box height change by inverse factors.
+  let boardAspect = aspect;
+  let boardCanvasAspect = canvasAspect;
+  if ((layout === 'wide' || fitContent) && placed.length > 0) {
+    const contentBottom = Math.max(...placed.map((item) => item.top + item.height));
+    if (contentBottom > 1 && Math.abs(contentBottom - 100) > 0.5) {
+      const rebase = 100 / contentBottom;
+      placed = placed.map((item) => ({ ...item, top: item.top * rebase, height: item.height * rebase }));
+      boardAspect = aspect * rebase;
+      boardCanvasAspect = String(boardAspect);
+    }
+  }
+  // THE PIECE SHRINK (founder's correction, August 2026): every placed box
+  // scales down around its own centre — same layout, same relative
+  // proportions, smaller clothes.
+  if (pieceScale !== 1 && placed.length > 0) {
+    placed = placed.map((item) => ({
+      ...item,
+      left: item.left + (item.width * (1 - pieceScale)) / 2,
+      top: item.top + (item.height * (1 - pieceScale)) / 2,
+      width: item.width * pieceScale,
+      height: item.height * pieceScale,
+    }));
+  }
+  // THE DOWNWARD SHIFT (founder's corrections, August 2026): per zone now —
+  // the feet (and socks) take their OWN shift and may settle into the
+  // BOTTOM_SLACK band below the stage floor, while every other piece takes
+  // pieceOffsetY and stops at the floor proper. Each piece clamps
+  // individually, so no zone can pin the others.
+  if ((pieceOffsetY !== 0 || feetOffsetY !== 0) && placed.length > 0) {
+    placed = placed.map((item) => {
+      const zone = zoneFor(item.piece);
+      const feet = zone === 'feet' || zone === 'socks';
+      const shift = feet ? feetOffsetY : pieceOffsetY;
+      const floor = feet ? 100 + BOTTOM_SLACK : 100;
+      return { ...item, top: clamp(item.top + shift, 0, Math.max(0, floor - item.height)) };
+    });
+  }
   const tray = variant === 'tray';
   // MATCHED SIZING (founder's rule): the tray IS the framed canvas both
   // surfaces render — the Today card and the Fitting's Build a Look stage —
@@ -767,7 +1037,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
   // to fill the square frame's height (TRAY_CSS); nothing is re-scaled per
   // outfit.
   const trayItems = placed;
-  const trayAspect = aspect;
+  const trayAspect = boardAspect;
   // THE LIGHT GROUND, and there is only ever ONE of it: the tray's single
   // square canvas under the whole outfit — the slightly darker beige #EDE8DF
   // (founder's fix pass) on EVERY panel it fronts (the walnut slab and the
@@ -781,7 +1051,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
     <div
       ref={boardRef}
       className={tray ? 'today-stage' : `flat-lay-board relative w-full mx-auto ${className}`}
-      style={tray ? undefined : { maxWidth, aspectRatio: `${aspect}`, position: 'relative' }}
+      style={tray ? undefined : { maxWidth, aspectRatio: `${boardAspect}`, position: 'relative' }}
       aria-label={tray ? undefined : ariaLabel}
       onClick={
         onRemove
@@ -813,6 +1083,16 @@ export function FlatLayBoard<T extends FlatLayPiece>({
               onClickCapture: handleClickCapture,
             }
           : {};
+        // PIECES ALWAYS SHOW: the transparent cutout when it exists and
+        // loads; otherwise the piece's own photograph; the named placeholder
+        // only when there is no image at all.
+        const cutoutOk =
+          !!item.piece.image && isTransparentCutout(item.piece.image) && !brokenImages[item.piece.key];
+        const photoSrc = cutoutOk
+          ? ''
+          : (item.piece.sourceImage || '').trim() ||
+            (item.piece.image && !isTransparentCutout(item.piece.image) ? item.piece.image : '');
+        const photoOk = !!photoSrc && !brokenPhotos[item.piece.key];
         return (
         <div
           key={item.piece.key}
@@ -882,7 +1162,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
               }}
             />
           )}
-          {item.piece.image && isTransparentCutout(item.piece.image) && !brokenImages[item.piece.key] ? (
+          {cutoutOk ? (
             /* The stored transparent PNG: it lies straight on the board with
                nothing behind it and nothing done to it. A URL that fails to
                load falls back to the named placeholder below. */
@@ -893,7 +1173,15 @@ export function FlatLayBoard<T extends FlatLayPiece>({
               loading="eager"
               decoding="async"
               draggable={false}
-              onError={() => setBrokenImages((cur) => ({ ...cur, [item.piece.key]: true }))}
+              onError={() => {
+                // A stored cutout that fails to DECODE is quarantined — the
+                // file behind it is not an image (a broken ingestion once
+                // stored error bytes as .png). The pipeline then re-cuts the
+                // piece from its original photograph instead of leaving the
+                // named placeholder forever.
+                reportBrokenCutout(item.piece.image);
+                setBrokenImages((cur) => ({ ...cur, [item.piece.key]: true }));
+              }}
               style={tray ? {
                 // `.today-piece img` governs the size — nothing is decided per
                 // piece here.
@@ -908,9 +1196,34 @@ export function FlatLayBoard<T extends FlatLayPiece>({
                 boxSizing: 'border-box',
               }}
             />
+          ) : photoOk ? (
+            /* THE PHOTOGRAPH FALLBACK (pieces always show — founder's
+               correction, August 2026): the piece's own normalized product
+               shot stands in until a clean transparent cutout lands — a
+               real garment photograph, never a text label. */
+            <img
+              src={photoSrc}
+              alt={item.piece.name}
+              className={tray ? 'select-none' : 'block w-full h-full object-contain select-none'}
+              loading="eager"
+              decoding="async"
+              draggable={false}
+              onError={() => setBrokenPhotos((cur) => ({ ...cur, [item.piece.key]: true }))}
+              style={tray ? {
+                background: 'transparent',
+              } : {
+                border: 'none',
+                background: 'transparent',
+                boxShadow: 'none',
+                borderRadius: 0,
+                position: 'relative',
+                zIndex: 1,
+                boxSizing: 'border-box',
+              }}
+            />
           ) : (
-            /* The cutout has not landed yet — a quiet named placeholder that
-               disappears the moment it does. */
+            /* No cutout and no photograph — a quiet named placeholder that
+               disappears the moment either lands. */
             <span
               className="relative flex w-full h-full items-center justify-center text-center px-1"
               style={{
@@ -938,7 +1251,7 @@ export function FlatLayBoard<T extends FlatLayPiece>({
               }}
               onPointerDown={(e) => e.stopPropagation()}
               aria-label={`Take ${item.piece.name} off board`}
-              title={`Take ${item.piece.name} off board — it stays in your Ledger`}
+              title={`Take ${item.piece.name} off board — it stays on your Rail`}
               className="absolute w-7 h-7 flex items-center justify-center bg-[var(--color-paper,#fbf8f1)] border border-[#241a12] text-[var(--color-text,#241a12)] hover:bg-[var(--color-accent-100,#fbf1de)] rounded-full"
               style={{ top: '1px', right: '1px', zIndex: 30, fontSize: '14px', lineHeight: 1 }}
             >
@@ -1030,7 +1343,9 @@ export function FlatLayBoard<T extends FlatLayPiece>({
         style={{
           ['--aspect' as string]: String(trayAspect),
           ['--today-canvas-ground' as string]: canvasGround,
+          ...(boardCanvasAspect ? { ['--canvas-aspect' as string]: boardCanvasAspect } : null),
           ...(trayMaxWidth ? { ['--today-canvas-max' as string]: trayMaxWidth } : null),
+          ...(trayMaxHeight ? { ['--today-canvas-max-h' as string]: trayMaxHeight } : null),
         } as React.CSSProperties}
         aria-label={ariaLabel}
       >

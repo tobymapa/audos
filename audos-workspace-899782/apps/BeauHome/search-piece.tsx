@@ -1115,7 +1115,7 @@ export function SearchPieceFlow({
 
       {savedFlash && (
         <p className={`${typography.size.xs} text-[var(--space-semantic-success)] mt-2`}>
-          “{savedFlash}” logged — in The Ledger, under Your pieces.
+          “{savedFlash}” logged — in The Rail, under Your pieces.
         </p>
       )}
 

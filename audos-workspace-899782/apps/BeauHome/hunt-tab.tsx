@@ -1,8 +1,8 @@
 /**
- * THE HUNT — the tab, reinstated (August 2026) and sitting immediately LEFT
- * of The Index.
+ * THE SEARCH (formerly “The Hunt”; tab id 'hunt') — the tab, reinstated
+ * (August 2026) and sitting immediately LEFT of The Index.
  *
- * THREE sub-tabs on the app's shared chip bar (sub-tabs.tsx), left to right:
+ * FOUR sub-tabs on the app's shared chip bar (sub-tabs.tsx), left to right:
  *
  *  1. BEAU'S PICKS — the same categories The Index's Pieces face carries, in
  *     the same order (its left-to-right is this tab's top-to-bottom), each
@@ -14,6 +14,11 @@
  *     products for a proper side-by-side.
  *  3. YOUR CALLS — everything tagged on either of the two above, in one
  *     sortable table, with the call changeable or removable in place.
+ *  4. WATCHLIST — what he has asked Beau to keep an eye on, from any of the
+ *     three above: PIECES (their price, and whether they are still there) and
+ *     whole BRANDS (their new arrivals). Beau re-reads each one quietly when
+ *     the app opens (watchlist-poll.ts), reads his own subscriber inbox for
+ *     the brands in the same pass, and the row says what moved.
  *
  * The chip bar carries THE INDEX'S OWN FACE-TOGGLE TREATMENT (the variant its
  * Pieces · Makers chips use, shared through sub-tabs.tsx), so the two tabs read
@@ -25,7 +30,7 @@
  * a tag is folded in without a re-read, and both are what move the
  * recommendation caches.
  *
- * The three faces stay MOUNTED once visited (the same treatment the app's
+ * The four faces stay MOUNTED once visited (the same treatment the app's
  * own tabs get): switching to Ask Beau and back must not throw away the
  * categories the reader unfolded, and switching away from Ask Beau must not
  * empty the bench he was comparing on.
@@ -43,21 +48,32 @@ import { COVERAGE_PREFS_EVENT } from './coverage-prefs';
 import { SubTabs, type SubTabItem } from './sub-tabs';
 import { TabHeader } from './tab-header';
 import { CrumbPublisher, goToEthaionTab } from './crumb-trail';
-import { HUNT_ASK_EVENT, HUNT_OPEN_CATEGORY_EVENT, peekAskQuery, peekHuntTarget } from './edit-links';
+import {
+  HUNT_ASK_EVENT,
+  HUNT_OPEN_CALLS_EVENT,
+  HUNT_OPEN_CATEGORY_EVENT,
+  peekAskQuery,
+  peekCallsRequest,
+  peekHuntTarget,
+} from './edit-links';
 import type { CategoryBudget, StylePrefs, StyleProfile, WardrobePiece } from './profile-data';
 import { loadHuntReader, type HuntReader } from './hunt-reader';
 import { useHuntCalls } from './hunt-cards';
 import { HuntPicks } from './hunt-picks';
 import { HuntAsk } from './hunt-ask';
 import { HuntCalls } from './hunt-calls';
+import { HuntWatchlist } from './watchlist-view';
+import { useWatchlist } from './watchlist-watch';
+import { sweepWatchlist } from './watchlist-poll';
 
-type HuntFace = 'picks' | 'ask' | 'calls';
+type HuntFace = 'picks' | 'ask' | 'calls' | 'watchlist';
 
 /** What each face reads as in the app-wide floating breadcrumb. */
 const FACE_TRAIL: Record<HuntFace, string> = {
   picks: "Beau's Picks",
   ask: 'Ask Beau',
   calls: 'Your Calls',
+  watchlist: 'Watchlist',
 };
 
 /** The standfirst changes with the face; the title never does. ONE short
@@ -66,6 +82,7 @@ const FACE_STANDFIRST: Record<HuntFace, string> = {
   picks: 'Unfold a category and Beau names the three sub-categories to hunt in \u2014 ten picks apiece.',
   ask: 'Ask him anything, or paste a link — he answers against your dossier.',
   calls: 'Every piece you have saved, favourited or passed — and why.',
+  watchlist: 'The pieces and makers Beau is watching for you — he tells you when one moves.',
 };
 
 /** Mounted on first visit, then hidden rather than unmounted — so a face
@@ -92,6 +109,20 @@ export function HuntTab({
   usePlexMono();
   const [face, setFace] = useState<HuntFace>('picks');
   const calls = useHuntCalls();
+  const watchlist = useWatchlist();
+
+  // The Watchlist's own quiet housekeeping: the app kicks the first check on
+  // load (App.tsx), and coming back to The Search asks for another. Both are
+  // throttled per row inside the sweep, so this costs nothing when there is
+  // nothing due.
+  useEffect(() => {
+    void sweepWatchlist();
+    const onActivated = (e: Event) => {
+      if ((e as CustomEvent).detail?.tab === 'hunt') void sweepWatchlist();
+    };
+    window.addEventListener('ethaion:tab-activated', onActivated);
+    return () => window.removeEventListener('ethaion:tab-activated', onActivated);
+  }, []);
 
   // A Gap row on The Edit deep-links straight into a category's picks: the
   // face comes forward here, and Beau's Picks itself (hunt-picks.tsx) unfolds
@@ -111,6 +142,16 @@ export function HuntTab({
     const onAsk = () => setFace('ask');
     window.addEventListener(HUNT_ASK_EVENT, onAsk);
     return () => window.removeEventListener(HUNT_ASK_EVENT, onAsk);
+  }, []);
+
+  // “View in Your Calls” on a Score-a-piece result (the Ask Beau drawer)
+  // lands on the Calls face — dispatched AND parked (edit-links.ts) so a
+  // Search tab that has never been opened still arrives there on first mount.
+  useEffect(() => {
+    if (peekCallsRequest()) setFace('calls');
+    const onCalls = () => setFace('calls');
+    window.addEventListener(HUNT_OPEN_CALLS_EVENT, onCalls);
+    return () => window.removeEventListener(HUNT_OPEN_CALLS_EVENT, onCalls);
   }, []);
 
   // Tapping The Hunt's tab label comes back to its home face — Beau's Picks
@@ -184,8 +225,13 @@ export function HuntTab({
         label: 'Your Calls',
         suffix: calls.calls.length > 0 ? ` · ${calls.calls.length}` : '',
       },
+      {
+        id: 'watchlist',
+        label: 'Watchlist',
+        suffix: watchlist.items.length > 0 ? ` · ${watchlist.items.length}` : '',
+      },
     ],
-    [calls.calls.length],
+    [calls.calls.length, watchlist.items.length],
   );
 
   return (
@@ -196,24 +242,24 @@ export function HuntTab({
       <CrumbPublisher
         segs={[
           { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
-          { label: 'The Hunt', onClick: () => setFace('picks') },
+          { label: 'The Search', onClick: () => setFace('picks') },
           { label: FACE_TRAIL[face] },
         ]}
       />
 
       {/* The shared tab masthead (tab-header.tsx) — the same block every
-          other primary tab carries. The three face chips sit in its aside,
+          other primary tab carries. The four face chips sit in its aside,
           in the same place and the same treatment as The Index's
           Pieces · Makers toggle. */}
       <TabHeader
-        title="The Hunt"
+        title="The Search"
         standfirst={FACE_STANDFIRST[face]}
         aside={
           <SubTabs
             items={items}
             active={face}
             onChange={setFace}
-            ariaLabel="The Hunt"
+            ariaLabel="The Search"
             variant="sub-tab--index-face"
             className="max-w-full"
           />
@@ -229,6 +275,9 @@ export function HuntTab({
         </KeepFace>
         <KeepFace active={face === 'calls'}>
           <HuntCalls calls={calls} onGoToPicks={() => setFace('picks')} />
+        </KeepFace>
+        <KeepFace active={face === 'watchlist'}>
+          <HuntWatchlist onGoToPicks={() => setFace('picks')} />
         </KeepFace>
       </div>
     </div>

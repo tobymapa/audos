@@ -300,7 +300,7 @@ function LedgerRow({ logged, swatches, right }: { logged: boolean; swatches?: st
   return (
     <div className="flex items-baseline justify-between gap-4" style={{ marginTop: '14px', paddingTop: '14px', borderTop: `1px solid ${HAIR}` }}>
       <span style={{ fontFamily: SERIF, fontSize: '15px', color: WALNUT }}>
-        In your Ledger ·{' '}
+        On your Rail ·{' '}
         <span style={{ fontFamily: BODY, fontSize: '13.5px', color: logged ? INK : SECONDARY }}>
           {logged ? 'logged' : 'none logged'}
         </span>

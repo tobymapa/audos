@@ -17,7 +17,8 @@
  *       · THE FITTING — season · occasion, the colour harmony, the outfit
  *         itself, then its name, the build it was drawn to, and Beau's
  *         paragraph;
- *       · THE NOTES — Style notes · Swap alternatives · What not to do.
+ *       · THE NOTES — Swap alternatives (Style notes and What not to do
+ *         were cut by the founder, August 2026).
  *   4 THE BOARD — the three shelves the fitting is dressed from, as tiles.
  *   5 THE LEGEND — Anchors · Neutrals · Accents, and the one line that says
  *     how the screen answers a tap.
@@ -42,6 +43,7 @@
  * from elsewhere in the app still lands the piece on this board.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Maximize2, X } from 'lucide-react';
 import {
   RESERVE_CHANGED_EVENT,
   buildCuratedFeed,
@@ -54,6 +56,8 @@ import {
   type WardrobePiece,
 } from './profile-data';
 import { hierarchyGate, itemPassesGate } from './wardrobe-model';
+import { CATEGORY_ORDER, categoryRank } from './category-order';
+import { categoryName } from './index-model';
 import {
   FITTING_BOARD_EVENT,
   FITTING_PIECE_EVENT,
@@ -67,7 +71,9 @@ import { StyledOutfitBoard, boardPieceFrom, composeFlatLayBoard, type BoardPiece
 import { bodyOrderRank } from './body-order';
 import { MONO, usePlexMono } from './mono-type';
 import {
+  CUTOUT_BROKEN_EVENT,
   flatLayAssetForShelf,
+  isBrokenCutoutUrl,
   isTransparentCutout,
   peekBoardCutout,
   peekFlatLayAsset,
@@ -92,11 +98,9 @@ import {
   ACCENT_DEEP,
   CANVAS,
   HAIRLINE,
-  INK,
   MUTED,
   PAGE,
   PAPER,
-  RULE,
   SERIF,
   WALNUT,
   body,
@@ -104,12 +108,10 @@ import {
 import { openInBeausPicks } from './edit-links';
 import { TabHeader } from './tab-header';
 import {
-  AvoidList,
   DayRail,
   FittingContextBar,
   FooterLegend,
   HarmonyBars,
-  NoteList,
   SectionRule,
   SegmentedTabs,
   Shelf,
@@ -382,6 +384,10 @@ const ShelfCard = memo(function ShelfCard({
 
 const annMono: React.CSSProperties = { fontFamily: MONO, fontSize: '7px', letterSpacing: '0.08em', textTransform: 'uppercase' };
 
+/** Every callout box draws at exactly this width — the SVG leader lines
+ * start from its inner edge, so the two must agree. */
+const LABEL_BOX_W = 165;
+
 /** The zone a piece lands in — the same reading the flat-lay makes. */
 function zoneLabelFor(piece: BoardPiece): string {
   const text = `${piece.category || ''} ${piece.name || ''}`.toLowerCase();
@@ -413,12 +419,49 @@ interface EdgeLabel {
   /** PIXELS from the rail's top — the label's own CENTRE. */
   top: number;
   side: 'l' | 'r';
+  /** The named piece's LIVE centre in rail pixels — the leader line's far
+   * end. Re-measured on every drag frame, so the traced line follows the
+   * garment wherever it is dragged, even when the stack has prised the
+   * label box itself off the garment's own line. */
+  targetX: number;
+  targetY: number;
+  /** Half the piece's rendered box, in pixels — the leader line stops at
+   * this box plus LEADER_GAP of clear air, never touching the garment. */
+  halfW: number;
+  halfH: number;
 }
 
 interface MeasuredPiece {
   piece: BoardPiece;
   centre: number;
+  centreX: number;
+  halfW: number;
+  halfH: number;
   side: 'l' | 'r';
+}
+
+function clampLabelCentre(value: number, low: number, high: number): number {
+  return high < low ? (low + high) / 2 : Math.min(high, Math.max(low, value));
+}
+
+/** ≈1/3cm of clear air between the leader line's end and the garment
+ * (founder's correction, August 2026: “not let the line touch the piece”). */
+const LEADER_GAP = 13;
+
+/** Where the leader line ENDS: walk from the garment's centre toward the
+ * label box, leave the garment's own bounding box, then LEADER_GAP px more —
+ * so the line points at the piece without ever crossing onto it. */
+function leaderEnd(label: EdgeLabel, x1: number, y1: number): { x: number; y: number } {
+  const dx = x1 - label.targetX;
+  const dy = y1 - label.targetY;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return { x: x1, y: y1 };
+  const tEdge = Math.min(
+    Math.abs(dx) > 0.01 ? label.halfW / Math.abs(dx) : Infinity,
+    Math.abs(dy) > 0.01 ? label.halfH / Math.abs(dy) : Infinity,
+  );
+  const t = Math.min(1, (Number.isFinite(tEdge) ? tEdge : 0) + LEADER_GAP / len);
+  return { x: label.targetX + dx * t, y: label.targetY + dy * t };
 }
 
 /**
@@ -448,7 +491,7 @@ function labelHeight(piece: BoardPiece): number {
  * blocks would physically overlap: the pair is then prised apart
  * symmetrically, so the run stays centred on the pieces it names.
  */
-function stackLabels(items: MeasuredPiece[]): EdgeLabel[] {
+function stackLabels(items: MeasuredPiece[], railHeight: number): EdgeLabel[] {
   const sorted = [...items].sort((a, b) => a.centre - b.centre);
   const centres = sorted.map((item) => item.centre);
   for (let pass = 0; pass < 4; pass += 1) {
@@ -466,12 +509,29 @@ function stackLabels(items: MeasuredPiece[]): EdgeLabel[] {
     }
     if (!moved) break;
   }
-  return sorted.map((item, i) => ({ piece: item.piece, top: centres[i], side: item.side }));
+  return sorted.map((item, i) => ({
+    piece: item.piece,
+    // The box stays ON the rail even when a drag pushes the run past an
+    // edge — the angled leader still traces it back to its garment.
+    top: clampLabelCentre(centres[i], labelHeight(item.piece) / 2, railHeight - labelHeight(item.piece) / 2),
+    side: item.side,
+    targetX: item.centreX,
+    targetY: item.centre,
+    halfW: item.halfW,
+    halfH: item.halfH,
+  }));
 }
 
 function sameLabels(a: EdgeLabel[], b: EdgeLabel[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every((l, i) => l.piece.key === b[i].piece.key && l.side === b[i].side && Math.abs(l.top - b[i].top) < 0.5);
+  return a.every(
+    (l, i) =>
+      l.piece.key === b[i].piece.key &&
+      l.side === b[i].side &&
+      Math.abs(l.top - b[i].top) < 0.5 &&
+      Math.abs(l.targetX - b[i].targetX) < 0.5 &&
+      Math.abs(l.targetY - b[i].targetY) < 0.5,
+  );
 }
 
 /** One callout: the reference's boxed label on a gold leader — the zone in
@@ -481,17 +541,6 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
   const { piece, side } = label;
   const status = boardStatusOf(piece);
   const swatch = swatchForPiece(piece.name, null);
-  const leader = (
-    <span
-      aria-hidden="true"
-      className="flex-1 self-center"
-      style={{
-        height: '1px',
-        minWidth: '12px',
-        background: `linear-gradient(to ${side === 'l' ? 'left' : 'right'}, ${ACCENT}, rgba(168,113,44,0.15))`,
-      }}
-    />
-  );
   const text = (
     <span
       className="block min-w-0"
@@ -501,7 +550,7 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
         // August 2026): widened by 50% from the reference's 110px, and no
         // longer sized to its own text — every clothing text box on the
         // canvas draws at exactly this width, none wider or narrower.
-        width: '165px',
+        width: `${LABEL_BOX_W}px`,
         flexShrink: 0,
         boxSizing: 'border-box',
         background: PAPER,
@@ -532,19 +581,19 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
       )}
     </span>
   );
+  // The leader itself is drawn by the AnnotatedBoard's SVG layer — a traced
+  // line from this box's inner edge to the garment's live centre — so the
+  // block is just the box, pinned to its rail's outer edge.
   return (
-    <div className="absolute w-full flex items-center" style={{ top: `${label.top}px`, transform: 'translateY(-50%)', gap: '5px' }}>
-      {side === 'l' ? (
-        <>
-          {text}
-          {leader}
-        </>
-      ) : (
-        <>
-          {leader}
-          {text}
-        </>
-      )}
+    <div
+      className="absolute flex items-center"
+      style={{
+        top: `${label.top}px`,
+        transform: 'translateY(-50%)',
+        ...(side === 'l' ? { left: 0 } : { right: 0 }),
+      }}
+    >
+      {text}
     </div>
   );
 }
@@ -553,6 +602,7 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
   const railsRef = useRef<HTMLDivElement | null>(null);
   const boardColRef = useRef<HTMLDivElement | null>(null);
   const [labels, setLabels] = useState<EdgeLabel[]>([]);
+  const [railSize, setRailSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
     // COALESCED TO ONE READ PER FRAME. Every measure() does a forced
@@ -579,13 +629,21 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
         found.push({
           piece,
           centre: rect.top + rect.height / 2 - railsRect.top,
+          centreX: rect.left + rect.width / 2 - railsRect.left,
+          halfW: rect.width / 2,
+          halfH: rect.height / 2,
           side: rect.left + rect.width / 2 < colRect.left + colRect.width / 2 ? 'l' : 'r',
         });
       });
       const next = [
-        ...stackLabels(found.filter((item) => item.side === 'l')),
-        ...stackLabels(found.filter((item) => item.side === 'r')),
+        ...stackLabels(found.filter((item) => item.side === 'l'), railsRect.height),
+        ...stackLabels(found.filter((item) => item.side === 'r'), railsRect.height),
       ];
+      setRailSize((cur) =>
+        Math.abs(cur.w - railsRect.width) < 0.5 && Math.abs(cur.h - railsRect.height) < 0.5
+          ? cur
+          : { w: railsRect.width, h: railsRect.height },
+      );
       setLabels((cur) => (sameLabels(cur, next) ? cur : next));
     };
 
@@ -616,11 +674,19 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
       observers.push(mo);
     }
     window.addEventListener('resize', scheduleMeasure);
+    // A DRAG IS POINTERMOVES (founder's request, August 2026: “make them
+    // follow as I drag the clothes around”): listen to the gesture itself in
+    // capture, so the labels re-measure on every drag frame even if a style
+    // mutation gets coalesced away mid-gesture. The rAF gate above still
+    // keeps it to one layout read per frame.
+    const colEl = boardColRef.current;
+    colEl?.addEventListener('pointermove', scheduleMeasure, true);
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       for (const timer of timers) window.clearTimeout(timer);
       for (const observer of observers) observer.disconnect();
       window.removeEventListener('resize', scheduleMeasure);
+      colEl?.removeEventListener('pointermove', scheduleMeasure, true);
     };
   }, [pieces]);
 
@@ -628,17 +694,66 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
   if (pieces.length === 0) return <>{children}</>;
   return (
     <div>
-      {/* The callout rails hold ONE fixed box width (165px) on each side, so
-          every clothing text box on the canvas draws the same width. The
-          columns are sized to fit that box plus its leader. */}
-      <div ref={railsRef} className="sm:grid sm:items-stretch sm:grid-cols-[minmax(168px,186px)_minmax(0,1fr)_minmax(168px,186px)] sm:gap-1">
-        <div className="hidden sm:block relative" aria-hidden="true">
+      {/* THE CALLOUT RAILS OVERLAY THE CANVAS (founder's piece-size fix,
+          August 2026): as grid columns they reserved ~350px of this column
+          and squeezed the canvas — the ONE knob that scales every garment —
+          to barely half its width, which is why earlier canvasMaxWidth
+          doublings never showed. Overlaid on the canvas edges instead, the
+          canvas takes the FULL column width and every piece draws at roughly
+          twice its old rendered size. Each callout keeps its fixed 165px box
+          and gold leader; pointer-events pass through to the pieces. */}
+      <div ref={railsRef} className="relative">
+        <div ref={boardColRef} className="min-w-0">{children}</div>
+        {/* THE LEADERS — one traced line per label, from the box's inner
+            edge toward its garment's LIVE centre, stopping ≈1/3cm short of
+            the garment's own box so the line never lies over the clothes
+            (founder's correction, August 2026). Angled on purpose: when the
+            stack prises a label off its piece's line (two garments on the
+            same line can never share a label line), the trace still says
+            exactly which piece it names — and it follows the piece through
+            every drag. */}
+        {railSize.w > 0 && labels.length > 0 && (
+          <svg
+            className="hidden sm:block absolute inset-0 pointer-events-none"
+            style={{ zIndex: 14 }}
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${railSize.w} ${railSize.h}`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            {labels.map((l) => {
+              const x1 = l.side === 'l' ? LABEL_BOX_W : railSize.w - LABEL_BOX_W;
+              const end = leaderEnd(l, x1, l.top);
+              return (
+                <line
+                  key={l.piece.key}
+                  x1={x1}
+                  y1={l.top}
+                  x2={end.x}
+                  y2={end.y}
+                  stroke={ACCENT}
+                  strokeWidth="1"
+                  strokeOpacity="0.65"
+                />
+              );
+            })}
+          </svg>
+        )}
+        <div
+          className="hidden sm:block absolute inset-y-0 left-0 w-[186px] pointer-events-none"
+          style={{ zIndex: 15 }}
+          aria-hidden="true"
+        >
           {labels.filter((l) => l.side === 'l').map((l) => (
             <EdgeLabelBlock key={l.piece.key} label={l} />
           ))}
         </div>
-        <div ref={boardColRef} className="min-w-0">{children}</div>
-        <div className="hidden sm:block relative" aria-hidden="true">
+        <div
+          className="hidden sm:block absolute inset-y-0 right-0 w-[186px] pointer-events-none"
+          style={{ zIndex: 15 }}
+          aria-hidden="true"
+        >
           {labels.filter((l) => l.side === 'r').map((l) => (
             <EdgeLabelBlock key={l.piece.key} label={l} />
           ))}
@@ -695,15 +810,6 @@ export function FittingRoomTab({
   const dayName = DAY_NAMES[day];
   const fittingKey = `${day}:${occasion}`;
 
-  // THE LOOK'S DESCRIPTION IS FOLDED (founder's correction, August 2026):
-  // the paragraph under the outfit title starts collapsed behind a small
-  // toggle so it never inflates the canvas column — and folds again when
-  // the reader moves to another day or occasion.
-  const [aboutOpen, setAboutOpen] = useState(false);
-  useEffect(() => {
-    setAboutOpen(false);
-  }, [fittingKey]);
-
   // Tapping The Fitting's tab label comes back to the tab's home: today,
   // the Office register, the note folded away. Composed looks stay cached,
   // so this costs no model call.
@@ -712,7 +818,6 @@ export function FittingRoomTab({
       if ((e as CustomEvent).detail?.tab !== 'fitting-room') return;
       setDay(todayIndex);
       setOccasion('office');
-      setAboutOpen(false);
     };
     window.addEventListener('ethaion:tab-home', onTabHome);
     return () => window.removeEventListener('ethaion:tab-home', onTabHome);
@@ -731,6 +836,18 @@ export function FittingRoomTab({
 
   const entry = fittings[fittingKey] || EMPTY_ENTRY;
   const activeBoard = entry.board;
+  // FULL-SCREEN BOARD (founder's request, August 2026): the expand arrows at
+  // the canvas corner open the outfit alone across the whole page, drawn far
+  // larger; Escape or the × closes it.
+  const [boardExpanded, setBoardExpanded] = useState(false);
+  useEffect(() => {
+    if (!boardExpanded) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBoardExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [boardExpanded]);
 
   useEffect(() => {
     fetchMaterials().then(setMaterials).catch(() => undefined);
@@ -1037,17 +1154,35 @@ export function FittingRoomTab({
   }, []);
 
   // THE CUTOUT SWEEP — the one place that guarantees every piece ON the
-  // board is a transparent cutout, whichever route put it there.
+  // board is a transparent cutout, whichever route put it there. A stored
+  // cutout that FAILS to load is quarantined by the render layer
+  // (photo-enhance's broken-cutout remediation — a faulty ingestion once
+  // stored error bytes under cutout URLs); the sweep then re-cuts the piece
+  // from its OWN photograph, never from the broken file, and the quarantine
+  // event clears the request memory so the retry actually fires.
   const cutRequested = useRef<Set<string>>(new Set());
+  const [cutoutRetryTick, setCutoutRetryTick] = useState(0);
+  useEffect(() => {
+    const onBroken = () => {
+      cutRequested.current.clear();
+      setCutoutRetryTick((n) => n + 1);
+    };
+    window.addEventListener(CUTOUT_BROKEN_EVENT, onBroken);
+    return () => window.removeEventListener(CUTOUT_BROKEN_EVENT, onBroken);
+  }, []);
   useEffect(() => {
     for (const piece of activeBoard) {
-      const source = (piece.image || '').trim();
-      if (!source || isTransparentCutout(source) || cutRequested.current.has(source)) continue;
+      const current = (piece.image || '').trim();
+      if (!current || isTransparentCutout(current)) continue;
+      const ownedId = piece.key.startsWith('owned-') ? Number(piece.key.slice('owned-'.length)) : NaN;
+      const ownedPhoto = Number.isFinite(ownedId) ? (piecesById.get(ownedId)?.photo_url || '').trim() : '';
+      const source = isBrokenCutoutUrl(current) && ownedPhoto ? ownedPhoto : current;
+      if (isBrokenCutoutUrl(source) || cutRequested.current.has(source)) continue;
       cutRequested.current.add(source);
       applyBoardCutout(fittingKey, piece, source);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBoard]);
+  }, [activeBoard, cutoutRetryTick]);
 
   // ------------------------------------------------------------------
   // The three shelves — what you own, what you saved, what Beau has put up
@@ -1135,6 +1270,24 @@ export function FittingRoomTab({
   }, [profile, budgets, pieces, prefs]);
 
   const selectedKeys = useMemo(() => new Set(activeBoard.map((p) => p.key)), [activeBoard]);
+
+  // THE BOARD'S CATEGORY FILTER (founder's request): the app's ONE canonical
+  // eleven-category set (category-order.ts — the same list The Rail, The
+  // Edit, The Search and The Index read), as chips over the shelves. Null
+  // shows everything; a chip narrows all three shelves at once.
+  const [shelfCategory, setShelfCategory] = useState<string | null>(null);
+  const shelfCategoryIds = useMemo(() => CATEGORY_ORDER.filter((id) => id !== 'other'), []);
+  const inShelfCategory = useCallback(
+    (piece: FittingPiece) => {
+      if (!shelfCategory) return true;
+      const rank = categoryRank(piece.category);
+      return rank < CATEGORY_ORDER.length && rank === categoryRank(shelfCategory);
+    },
+    [shelfCategory],
+  );
+  const shownOwned = useMemo(() => ownedPieces.filter(inShelfCategory), [ownedPieces, inShelfCategory]);
+  const shownRadar = useMemo(() => radarPieces.filter(inShelfCategory), [radarPieces, inShelfCategory]);
+  const shownPicks = useMemo(() => beauPicks.filter(inShelfCategory), [beauPicks, inShelfCategory]);
   const onCount = (list: FittingPiece[]) => list.filter((p) => selectedKeys.has(p.key)).length;
   const shelfNote = (list: FittingPiece[]) => {
     const on = onCount(list);
@@ -1187,33 +1340,14 @@ export function FittingRoomTab({
     return rows.slice(0, 3);
   }, [activeBoard, ownedPieces]);
 
-  const copy = entry.copy;
   // ONE BUILDING MESSAGE AT A TIME (founder's correction, August 2026).
   // While Beau composes, this is the only line on the canvas: the board's
-  // own “Build the look flat” empty state is silenced (`quiet`), and the
-  // title block below is held back until there is a real look to name —
-  // three strings used to stack on top of each other here.
+  // own “Build the look flat” empty state is silenced (`quiet`).
   const composingLine = `Beau is dressing you for ${dayName.toLowerCase()}\u2026`;
-  const outfitName = copy?.name || (activeBoard.length > 0 ? `The ${dayName} Fitting` : 'Nothing on board yet');
-  const bodyTag = [profile?.build, profile?.height_range, dayName, meta.label].filter(Boolean).join(' · ');
-  const outfitDescription =
-    copy?.description ||
-    entry.reasoning ||
-    (pieces.length < 3
-      ? 'Log a few pieces in The Ledger and Beau will dress this board for you — until then, tap anything below to put it on.'
-      : 'Tap a day or an occasion and Beau re-dresses board from the pieces you own.');
-  const styleNotes = copy?.notes && copy.notes.length > 0
-    ? copy.notes
-    : ['Tap a piece below to put it on board — tap it again to take it off.',
-       'Drag a piece to nudge it into place; board keeps the arrangement.',
-       'Anything that isn\u2019t yours draws dashed, so board never flatters you.'];
-  const avoidNotes = [
-    ...(entry.gapNote ? [entry.gapNote] : []),
-    ...(copy?.avoid && copy.avoid.length > 0
-      ? copy.avoid
-      : ['Don\u2019t double up a zone — one top, one bottom, one pair of shoes.',
-         'Don\u2019t count a dashed piece as worn — it isn\u2019t in your Ledger yet.']),
-  ].slice(0, 4);
+  // FOUNDER'S CUT (August 2026): the board's furniture is gone — no
+  // "Nothing on board yet" heading, no build/day tag, no About toggle, no
+  // on-canvas missing-pieces notice, no Style notes, no What not to do
+  // lists, and (final cut) no italic look-name line under the canvas.
 
   // ------------------------------------------------------------------
   // MISSING PIECES FOR THIS OCCASION (founder's request, August 2026).
@@ -1286,71 +1420,69 @@ export function FittingRoomTab({
         <div className="max-w-[1180px] mx-auto grid grid-cols-1 lg:grid-cols-[176px_minmax(0,1fr)_220px] xl:grid-cols-[188px_minmax(0,1fr)_232px] items-stretch">
           <div className="lg:border-r border-[rgba(59,43,29,0.18)] flex flex-col min-w-0">
             <DayRail days={railDays} />
-            {/* THE ALTERNATIVES — COMMENTED OUT (founder's request, August
-                2026): the swap-alternatives section is hidden from view but
-                kept intact so it can be restored later. Remove this comment
-                wrapper to bring it back. */}
-            {/*
-            <div className="hidden lg:block" style={{ padding: '16px 14px 24px 0' }}>
-              <SectionRule>Swap alternatives</SectionRule>
-              {swaps.length > 0 ? (
-                <div className="flex flex-col">
-                  {swaps.map(({ piece, why }) => (
-                    <SwapRow
-                      key={piece.key}
-                      swatch={swatchForPiece(piece.name, ownedColors.get(piece.key) || null)}
-                      name={piece.name}
-                      why={why}
-                      onClick={() => toggleOnBoard(piece)}
-                      title={`Put it on board — ${piece.name}`}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
-                  Everything you own that suits this look is already on board — log more pieces in The Ledger and
-                  the swaps appear here.
-                </p>
-              )}
-            </div>
-            */}
+            {/* THE SWAP ALTERNATIVES live in the notes column on the right
+                (founder's layout reference, August 2026) — the column's only
+                section, on every breakpoint. */}
           </div>
 
           {/* THE FITTING ITSELF */}
           <div
-            className="relative flex flex-col min-w-0 lg:border-r border-[rgba(59,43,29,0.18)] px-4 py-5 sm:px-[22px] sm:py-[26px]"
+            className="relative flex flex-col min-w-0 lg:border-r border-[rgba(59,43,29,0.18)] px-4 py-3 sm:px-[22px] sm:py-[14px]"
             style={{ background: CANVAS }}
             data-tour="tour-fitting-board"
           >
-            <div className="flex items-center justify-between gap-4 flex-wrap">
+            {/* THE COLOUR BAR RIDES THE TOP EDGE (founder's correction,
+                August 2026): the harmony strip sits ABOVE the season row,
+                and the old 'Colour harmony' heading row is folded away — the
+                day joins the occasion at the season row's right — so the
+                labels spend as little height as possible and the canvas
+                below gets every spare pixel for the clothes. */}
+            <HarmonyBars colors={harmony} />
+            <div className="flex items-center justify-between gap-4 flex-wrap" style={{ marginTop: '6px' }}>
               <span className="inline-flex items-center gap-2" style={fitLabel(9.5, MUTED, '0.16em')}>
                 <span aria-hidden="true" style={{ width: '5px', height: '5px', borderRadius: '50%', background: ACCENT, display: 'inline-block' }} />
                 {seasonLabel}
               </span>
-              <span style={fitLabel(9.5, ACCENT_DEEP, '0.16em')}>{meta.label}</span>
+              <span style={fitLabel(9.5, ACCENT_DEEP, '0.16em')}>{`${dayName} · ${meta.label}`}</span>
             </div>
 
-            {/* THE COLOUR HARMONY — read off the pieces on the board. */}
-            <div style={{ marginTop: '16px' }}>
-              <SectionRule right={dayName}>Colour harmony</SectionRule>
-              <HarmonyBars colors={harmony} />
-            </div>
-
-            {/* THE OUTFIT DISPLAY AREA. The board fills it and the look's own
-                line is pinned to the BOTTOM QUARTER of it (founder's
-                correction, August 2026) — the board is a flex child that
-                grows, so the title, the day · occasion tag and the
-                description toggle always sit at the very bottom of the
-                canvas rather than floating near its middle. */}
+            {/* THE OUTFIT DISPLAY AREA. No minimum height and no grow-to-fill
+                (founder's correction): the canvas is exactly as tall as the
+                board plus the look's name line, so the band ends at the
+                content's natural bottom with no dead space under it. */}
             <div
-              className="relative flex flex-col min-h-[380px] sm:min-h-[520px]"
-              style={{ marginTop: '10px' }}
+              className="relative flex flex-col"
+              style={{ marginTop: '6px' }}
             >
             <section
               aria-label="The outfit on board"
               className="relative mx-auto w-full"
-              style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
+              style={{ flex: '0 0 auto' }}
             >
+              {/* THE EXPAND ARROWS (founder's request, August 2026): open the
+                  canvas alone, full page, the clothes drawn far larger. */}
+              {activeBoard.length > 0 && !composing && (
+                <button
+                  type="button"
+                  onClick={() => setBoardExpanded(true)}
+                  title="Expand the board — the outfit alone, full page"
+                  aria-label="Expand the board"
+                  className="absolute z-30 flex items-center justify-center hover:opacity-75"
+                  style={{
+                    top: '2px',
+                    right: '2px',
+                    width: '30px',
+                    height: '30px',
+                    background: PAPER,
+                    border: `1px solid ${HAIRLINE}`,
+                    borderRadius: '8px',
+                    color: ACCENT_DEEP,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Maximize2 width={14} height={14} strokeWidth={1.6} aria-hidden="true" />
+                </button>
+              )}
               <div
                 aria-hidden="true"
                 style={{
@@ -1367,14 +1499,30 @@ export function FittingRoomTab({
               />
               <div className="relative" style={{ zIndex: 2 }}>
                 <AnnotatedBoard pieces={activeBoard}>
-                  {/* TWICE THE SIZE (founder's correction, August 2026). The
-                      canvas width is the ONE knob that scales every garment
-                      on the board — 170px → 340px doubles each piece. */}
+                  {/* PIECES AT TWICE THE SIZE (founder's correction, August
+                      2026): the canvas width is the ONE knob that scales
+                      every garment on the board. The callout rails no longer
+                      reserve ~350px of this column (they overlay the canvas
+                      edges — AnnotatedBoard above), so the board now truly
+                      draws at the column's full width — roughly double what
+                      the rail-squeezed canvas managed — and 760px keeps it
+                      uncapped inside the 1180px page grid. The canvas box
+                      itself ends at the composition's true bottom edge
+                      (flat-lay-board), so no dead ground hangs beneath the
+                      outfit. */}
+                  {/* THE COLUMN FITS THE BAND (founder's correction, August
+                      2026): the outfit stacks top-to-bottom — headwear under
+                      the colour bar, invisible-head air, tops, bottoms,
+                      shoes — and the 260px cap lands the canvas's bottom
+                      right at the day rail's last day, WITHOUT stretching
+                      the canvas taller. The composition scales itself to
+                      fill the cap and the canvas ends at the lowest piece. */}
                   <StyledOutfitBoard
                     pieces={activeBoard}
                     onRemove={removeFromBoard}
                     seed={`fitting-${fittingKey}`}
-                    canvasMaxWidth="340px"
+                    canvasMaxWidth="760px"
+                    canvasMaxHeight="260px"
                     quiet={composing}
                   />
                 </AnnotatedBoard>
@@ -1393,72 +1541,20 @@ export function FittingRoomTab({
               )}
             </section>
 
-            {/* THE LOOK'S OWN LINE — the bottom quarter of the display area.
-                The title stays; the DESCRIPTION is tucked beneath it in a
-                collapsed state, so it adds nothing to the column's height
-                until the reader asks for it. Nothing is drawn here while
-                Beau is composing — the canvas carries one message only. */}
-            <div className="text-center flex-shrink-0" style={{ paddingTop: '16px' }}>
-              {!composing && (
-              <>
-              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, fontSize: '24px', lineHeight: 1.15, color: WALNUT }}>
-                {outfitName}
-              </div>
-              <div style={{ ...fitLabel(8, MUTED, '0.2em'), marginTop: '7px' }}>{bodyTag}</div>
-              <button
-                type="button"
-                onClick={() => setAboutOpen((v) => !v)}
-                aria-expanded={aboutOpen}
-                className="inline-flex items-center gap-1.5 hover:underline min-h-[36px]"
-                style={{ ...fitLabel(8.5, ACCENT_DEEP, '0.14em'), background: 'transparent', border: 'none', marginTop: '4px', cursor: 'pointer' }}
-              >
-                {aboutOpen ? 'Hide the note \u25be' : 'About this look \u25b8'}
-              </button>
-              {aboutOpen && (
-                <p style={{ ...body(12, INK), margin: '10px auto 0', maxWidth: '66ch', lineHeight: 1.65 }}>{outfitDescription}</p>
-              )}
-              </>
-              )}
-
-              {/* THE HONEST GAP — the wardrobe cannot dress this occasion
-                  properly; the fitting says so plainly and points at Beau's
-                  picks for the missing pieces at the foot of the page. */}
-              {insufficient && (
-                <div
-                  style={{
-                    margin: '18px auto 0',
-                    maxWidth: '440px',
-                    border: `1px solid ${RULE}`,
-                    background: PAPER,
-                    padding: '14px 16px 15px',
-                  }}
-                >
-                  <div style={{ fontFamily: SERIF, fontSize: '17px', lineHeight: 1.3, color: WALNUT }}>
-                    You don’t have the pieces for {meta.label.toLowerCase()} yet.
-                  </div>
-                  {entry.gapNote && <p style={{ ...body(12, MUTED), margin: '7px 0 0' }}>{entry.gapNote}</p>}
-                  <p style={{ ...body(12, MUTED), margin: '7px 0 0' }}>
-                    Beau’s picks for the missing pieces close this page — and sit in The Hunt → Beau’s Picks under
-                    their categories.
-                  </p>
-                </div>
-              )}
-            </div>
             </div>
           </div>
 
           {/* THE NOTES — the alternatives moved under the day rail on a
               desktop; on a phone they keep their old place here. */}
-          <aside aria-label="Notes on this look" style={{ background: PAPER, padding: '26px 16px 32px' }}>
-            <SectionRule>Style notes</SectionRule>
-            <NoteList notes={styleNotes} />
-
-            {/* SWAP ALTERNATIVES (phone) — COMMENTED OUT (founder's
-                request, August 2026); kept intact to restore later. */}
-            {/*
-            <div className="lg:hidden">
-              <SectionRule className="mt-8">Swap alternatives</SectionRule>
-              {swaps.length > 0 ? (
+          <aside aria-label="Notes on this look" className="flex flex-col" style={{ background: PAPER, padding: '26px 16px 32px' }}>
+            {/* SWAP ALTERNATIVES — the column's ONLY section now (founder's
+                cut, August 2026: Style notes and What not to do are gone).
+                Real pieces he owns that could take a slot; hovering (or
+                focusing) a row reveals Beau's reasoning, tapping puts it on
+                board. */}
+            <SectionRule>Swap alternatives</SectionRule>
+            {swaps.length > 0 ? (
+              <>
                 <div className="flex flex-col">
                   {swaps.map(({ piece, why }) => (
                     <SwapRow
@@ -1467,21 +1563,21 @@ export function FittingRoomTab({
                       name={piece.name}
                       why={why}
                       onClick={() => toggleOnBoard(piece)}
-                      title={`Put it on board — ${piece.name}`}
+                      title={`${why} — tap to put it on board`}
                     />
                   ))}
                 </div>
-              ) : (
-                <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
-                  Everything you own that suits this look is already on board — log more pieces in The Ledger and
-                  the swaps appear here.
+                <p style={{ ...body(11.5, MUTED), margin: '8px 0 0' }}>
+                  Hover a swap for why it works — tap it to put it on board.
                 </p>
-              )}
-            </div>
-            */}
+              </>
+            ) : (
+              <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
+                Everything you own that suits this look is already on board — log more pieces in The Rail and
+                the swaps appear here.
+              </p>
+            )}
 
-            <SectionRule className="mt-8">What not to do</SectionRule>
-            <AvoidList notes={avoidNotes} />
           </aside>
         </div>
       </div>
@@ -1494,20 +1590,63 @@ export function FittingRoomTab({
               <div className="min-w-0">
                 <div style={{ fontFamily: SERIF, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>Board</div>
                 <p style={{ ...body(13.5, MUTED), margin: '6px 0 0', maxWidth: '64ch' }}>
-                  Everything you can dress the fitting in: what you own, what you saved in the Hunt, and what Beau has
-                  put up. Tap a piece to put it on — tap again, drag it out, or use the × to take it off.
+                  Everything you can dress the fitting in: what you own, what you saved in the Search, and what Beau has
+                  put up.
                 </p>
               </div>
-              <span style={fitLabel(9, ACCENT_DEEP, '0.16em')}>
-                {activeBoard.length > 0
-                  ? `${activeBoard.length} piece${activeBoard.length === 1 ? '' : 's'} on board`
-                  : 'Nothing on board yet'}
-              </span>
+              {activeBoard.length > 0 && (
+                <span style={fitLabel(9, ACCENT_DEEP, '0.16em')}>
+                  {`${activeBoard.length} piece${activeBoard.length === 1 ? '' : 's'} on board`}
+                </span>
+              )}
             </div>
 
-            <Shelf title="Yours · logged in the Ledger" note={shelfNote(ownedPieces)}>
-              {ownedPieces.length > 0 ? (
-                ownedPieces.map((piece) => (
+            {/* THE CATEGORY FILTER — the canonical eleven categories, the
+                same set every other tab reads (category-order.ts). One tap
+                narrows all three shelves; All brings everything back. */}
+            <div className="flex items-center flex-wrap" style={{ gap: '6px', marginTop: '14px' }} role="group" aria-label="Filter the shelves by category">
+              <span style={fitLabel(8.5, MUTED, '0.16em')}>Filter</span>
+              <button
+                type="button"
+                onClick={() => setShelfCategory(null)}
+                aria-pressed={shelfCategory === null}
+                className="transition-colors hover:border-[#a8712c]"
+                style={{
+                  ...fitLabel(8.5, shelfCategory === null ? WALNUT : MUTED, '0.1em'),
+                  border: `1px solid ${shelfCategory === null ? ACCENT : 'rgba(59,43,29,0.28)'}`,
+                  background: shelfCategory === null ? 'rgba(168,113,44,0.14)' : 'transparent',
+                  padding: '5px 11px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                All
+              </button>
+              {shelfCategoryIds.map((id) => {
+                const active = shelfCategory === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setShelfCategory(active ? null : id)}
+                    aria-pressed={active}
+                    className="transition-colors hover:border-[#a8712c]"
+                    style={{
+                      ...fitLabel(8.5, active ? WALNUT : MUTED, '0.1em'),
+                      border: `1px solid ${active ? ACCENT : 'rgba(59,43,29,0.28)'}`,
+                      background: active ? 'rgba(168,113,44,0.14)' : 'transparent',
+                      padding: '5px 11px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {categoryName(id)}
+                  </button>
+                );
+              })}
+            </div>
+
+            <Shelf title="Yours · logged in the Rail" note={shelfNote(shownOwned)}>
+              {shownOwned.length > 0 ? (
+                shownOwned.map((piece) => (
                   <ShelfCard
                     key={piece.key}
                     piece={piece}
@@ -1516,13 +1655,17 @@ export function FittingRoomTab({
                   />
                 ))
               ) : (
-                <ShelfEmpty>Nothing logged yet — photograph or search a piece in The Ledger.</ShelfEmpty>
+                <ShelfEmpty>
+                  {ownedPieces.length > 0
+                    ? 'Nothing of this category on your shelf — tap All to see everything.'
+                    : 'Nothing logged yet — photograph or search a piece in The Rail.'}
+                </ShelfEmpty>
               )}
             </Shelf>
 
-            <Shelf title="Saved · watched in the Hunt" note={shelfNote(radarPieces)}>
-              {radarPieces.length > 0 ? (
-                radarPieces.map((piece) => (
+            <Shelf title="Saved · watched in the Search" note={shelfNote(shownRadar)}>
+              {shownRadar.length > 0 ? (
+                shownRadar.map((piece) => (
                   <ShelfCard
                     key={piece.key}
                     piece={piece}
@@ -1531,13 +1674,17 @@ export function FittingRoomTab({
                   />
                 ))
               ) : (
-                <ShelfEmpty>Nothing saved yet — watch a piece in The Hunt and it appears here.</ShelfEmpty>
+                <ShelfEmpty>
+                  {radarPieces.length > 0
+                    ? 'Nothing of this category saved — tap All to see everything.'
+                    : 'Nothing saved yet — watch a piece in The Search and it appears here.'}
+                </ShelfEmpty>
               )}
             </Shelf>
 
-            <Shelf title="Beau’s picks · not yours yet" note={shelfNote(beauPicks)}>
-              {beauPicks.length > 0 ? (
-                beauPicks.map((piece) => (
+            <Shelf title="Beau’s picks · not yours yet" note={shelfNote(shownPicks)}>
+              {shownPicks.length > 0 ? (
+                shownPicks.map((piece) => (
                   <ShelfCard
                     key={`picks-${piece.key}`}
                     piece={piece}
@@ -1546,7 +1693,11 @@ export function FittingRoomTab({
                   />
                 ))
               ) : (
-                <ShelfEmpty>Beau has nothing to add yet — log a few pieces in The Ledger and he’ll fill this shelf.</ShelfEmpty>
+                <ShelfEmpty>
+                  {beauPicks.length > 0
+                    ? 'Nothing of this category among his picks — tap All to see everything.'
+                    : 'Beau has nothing to add yet — log a few pieces in The Rail and he’ll fill this shelf.'}
+                </ShelfEmpty>
               )}
             </Shelf>
 
@@ -1568,12 +1719,12 @@ export function FittingRoomTab({
                     className="hover:underline"
                     style={{ ...fitLabel(9, ACCENT_DEEP, '0.14em'), background: 'transparent', border: 'none', padding: 0 }}
                   >
-                    See them in The Hunt · Beau’s Picks →
+                    See them in The Search · Beau’s Picks →
                   </button>
                 </div>
                 <p style={{ ...body(12.5, MUTED), margin: '10px 0 0', maxWidth: '70ch' }}>
                   You don’t have the pieces for {meta.label.toLowerCase()} yet — these fill the gaps. Tap one to try
-                  it on the board; the same recommendations live in The Hunt under their categories.
+                  it on the board; the same recommendations live in The Search under their categories.
                 </p>
                 <div className="flex flex-wrap gap-x-6 gap-y-7" style={{ paddingTop: '18px' }}>
                   {missingPicks.map((piece) => (
@@ -1600,6 +1751,53 @@ export function FittingRoomTab({
         ]}
         note="Tap a day or an occasion and the fitting re-dresses"
       />
+
+      {/* THE FULL-SCREEN BOARD (founder's request, August 2026): the canvas
+          alone, page-sized — the same pieces, the same drag behaviour, drawn
+          much larger. Escape or the × returns to the tab. */}
+      {boardExpanded && (
+        <div
+          className="fixed inset-0 z-[90] flex flex-col"
+          style={{ background: PAGE }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="The outfit, full screen"
+        >
+          <div className="flex items-center justify-between" style={{ padding: '14px 18px' }}>
+            <span style={fitLabel(9.5, MUTED, '0.16em')}>{`${dayName} · ${meta.label}`}</span>
+            <button
+              type="button"
+              onClick={() => setBoardExpanded(false)}
+              title="Close the full-screen board"
+              aria-label="Close the full-screen board"
+              className="flex items-center justify-center hover:opacity-75"
+              style={{
+                width: '34px',
+                height: '34px',
+                background: PAPER,
+                border: `1px solid ${HAIRLINE}`,
+                borderRadius: '8px',
+                color: ACCENT_DEEP,
+                cursor: 'pointer',
+              }}
+            >
+              <X width={16} height={16} strokeWidth={1.6} aria-hidden="true" />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-4 pb-4" style={{ minHeight: 0 }}>
+            <div className="w-full" style={{ maxWidth: '1100px' }}>
+              <StyledOutfitBoard
+                pieces={activeBoard}
+                onRemove={removeFromBoard}
+                seed={`fitting-${fittingKey}`}
+                canvasMaxWidth="1100px"
+                canvasMaxHeight="80vh"
+                quiet={composing}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

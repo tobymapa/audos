@@ -6,7 +6,11 @@
  * answers are not facts about the garment — they are facts about the man
  * WEARING it, which is exactly what makes them worth storing:
  *
- *   · FIT — how it actually sits on him, not how it is cut.
+ *   · FIT — how it actually sits on him, not how it is cut. MULTI-SELECT
+ *     (founder's correction): a jacket can be snug AND wrong in the
+ *     shoulder at once, so the answers are held as a list. The `fit`
+ *     column stays one text field — a JSON array — and a legacy row
+ *     holding a bare single answer still reads as a one-item list.
  *   · FEEL — whether he reaches for it, tolerates it, or never quite feels
  *     right in it. This is the single strongest signal on the tab: it is
  *     what puts a piece in “What Beau would cut”, and no amount of good
@@ -26,7 +30,8 @@
  * sheet opens with empty answers.
  */
 
-/** How it fits him — the sheet's five answers, in the sheet's order. */
+/** How it fits him — the sheet's five answers, in the sheet's order.
+ * Multi-select: he can hold more than one at a time. */
 export const LEDGER_FITS = [
   'Fits as it should',
   'Snug',
@@ -35,8 +40,10 @@ export const LEDGER_FITS = [
   'Too short in the body',
 ];
 
-/** How he feels in it — three answers, and the middle one is not a failure. */
-export const LEDGER_FEELINGS = ['Reach for it', 'Fine, unremarkable', 'Never quite right'];
+/** How he feels in it — four answers, and the second is not a failure.
+ * 'Altered or repaired' says the piece earned work to keep it — the free-text
+ * field beside it records exactly what was done. */
+export const LEDGER_FEELINGS = ['Reach for it', 'Fine, unremarkable', 'Never quite right', 'Altered or repaired'];
 
 /** Where he actually wears it. */
 export const LEDGER_WEAR_CONTEXTS = [
@@ -54,7 +61,8 @@ export type LedgerCall = 'keep' | 'retire' | 'sell';
 
 export interface LedgerNote {
   pieceId: number;
-  fit: string | null;
+  /** How it fits him — zero or more of LEDGER_FITS. */
+  fits: string[];
   feel: string | null;
   wearContexts: string[];
   tailoring: string | null;
@@ -63,7 +71,7 @@ export interface LedgerNote {
 }
 
 export interface LedgerNotePatch {
-  fit?: string | null;
+  fits?: string[];
   feel?: string | null;
   wearContexts?: string[];
   tailoring?: string | null;
@@ -75,7 +83,7 @@ export interface LedgerNotePatch {
 export const LEDGER_NOTES_EVENT = 'ethaion:ledger-notes';
 
 export function emptyLedgerNote(pieceId: number): LedgerNote {
-  return { pieceId, fit: null, feel: null, wearContexts: [], tailoring: null, note: null, call: null };
+  return { pieceId, fits: [], feel: null, wearContexts: [], tailoring: null, note: null, call: null };
 }
 
 // window.__workspaceDb is auto-injected by the platform compiler when it
@@ -97,6 +105,25 @@ function contextsOf(raw: unknown): string[] {
   return [];
 }
 
+/** The fit column, whichever era wrote it: a JSON array (multi-select), or
+ * the single bare answer older rows hold — read as a one-item list. */
+function fitsOf(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((v) => typeof v === 'string');
+  if (typeof raw === 'string' && raw.trim()) {
+    const text = raw.trim();
+    if (text.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed.filter((v) => typeof v === 'string');
+      } catch {
+        /* fall through to the legacy single-answer read */
+      }
+    }
+    return [text];
+  }
+  return [];
+}
+
 function callOf(raw: unknown): LedgerCall | null {
   return raw === 'keep' || raw === 'retire' || raw === 'sell' ? raw : null;
 }
@@ -106,7 +133,7 @@ function rowToNote(row: any): LedgerNote | null {
   if (!Number.isFinite(pieceId) || pieceId <= 0) return null;
   return {
     pieceId,
-    fit: row.fit || null,
+    fits: fitsOf(row.fit),
     feel: row.feel || null,
     wearContexts: contextsOf(row.wear_contexts),
     tailoring: row.tailoring || null,
@@ -133,7 +160,7 @@ export async function fetchLedgerNotes(): Promise<Record<number, LedgerNote>> {
 
 function fieldsOf(patch: LedgerNotePatch): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (patch.fit !== undefined) fields.fit = patch.fit || null;
+  if (patch.fits !== undefined) fields.fit = patch.fits.length > 0 ? JSON.stringify(patch.fits) : null;
   if (patch.feel !== undefined) fields.feel = patch.feel || null;
   if (patch.wearContexts !== undefined) fields.wear_contexts = JSON.stringify(patch.wearContexts);
   if (patch.tailoring !== undefined) fields.tailoring = (patch.tailoring || '').trim() || null;
@@ -154,7 +181,7 @@ export async function setLedgerNote(
 ): Promise<LedgerNote> {
   const merged: LedgerNote = {
     ...(current || emptyLedgerNote(pieceId)),
-    ...(patch.fit !== undefined ? { fit: patch.fit } : {}),
+    ...(patch.fits !== undefined ? { fits: patch.fits } : {}),
     ...(patch.feel !== undefined ? { feel: patch.feel } : {}),
     ...(patch.wearContexts !== undefined ? { wearContexts: patch.wearContexts } : {}),
     ...(patch.tailoring !== undefined ? { tailoring: patch.tailoring } : {}),

@@ -402,13 +402,13 @@ export function SectionRule({
 export function HarmonyBars({ colors }: { colors: string[] }) {
   if (colors.length === 0) {
     return (
-      <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }} aria-hidden="true">
+      <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }} aria-hidden="true">
         <span style={{ flex: 1, height: '5px', borderRadius: '3px', background: 'rgba(59,43,29,0.12)' }} />
       </div>
     );
   }
   return (
-    <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }} aria-hidden="true">
+    <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }} aria-hidden="true">
       {colors.map((c, i) => (
         <span key={`${c}-${i}`} style={{ flex: 1, height: '5px', borderRadius: '3px', background: c }} />
       ))}
@@ -450,8 +450,10 @@ export function AvoidList({ notes }: { notes: string[] }) {
   );
 }
 
-/** One “Swap alternatives” row — the piece's own colour chip, its name, and
- * the one line saying why it is offered. */
+/** One “Swap alternatives” row — the piece's own colour chip and its name.
+ * Beau's one-line reasoning for WHY the swap works is revealed on hover (or
+ * keyboard focus) — the founder's hover treatment — and doubles as the
+ * row's tooltip for good measure. */
 export function SwapRow({
   swatch,
   name,
@@ -496,7 +498,8 @@ export function SwapRow({
         <span className="block group-hover:underline" style={{ fontFamily: SERIF, fontSize: '14px', lineHeight: 1.3, color: WALNUT }}>
           {name}
         </span>
-        <span className="block" style={{ ...body(12.5, MUTED), marginTop: '2px' }}>
+        {/* Beau's reasoning — hidden until the row is hovered or focused. */}
+        <span className="hidden group-hover:block group-focus:block" style={{ ...body(12.5, MUTED), marginTop: '2px' }}>
           {why}
         </span>
       </span>

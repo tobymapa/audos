@@ -554,15 +554,15 @@ function buildGapNote({
   // in the wardrobe is rated for today at all, which is the bluntest version
   // of the same truth.
   if (compromises.length > 0 && gapSlots.length === 0) {
-    return `Nothing in your Ledger is rated for ${Math.round(filterTempC)}°C — ${listNames(compromises)} is the ${end} you own, so that is what I have worked with. Your whole wardrobe is a gap at this temperature, and it is worth closing.`;
+    return `Nothing on your Rail is rated for ${Math.round(filterTempC)}°C — ${listNames(compromises)} is the ${end} you own, so that is what I have worked with. Your whole wardrobe is a gap at this temperature, and it is worth closing.`;
   }
   if (compromises.length > 0) {
     const slots = Array.from(new Set(gapSlots)).map((s) => CORE_SLOT_LABEL[s]);
     if (slots.length === 1) {
-      return `Nothing in your Ledger is rated for ${Math.round(filterTempC)}°C — ${listNames(compromises)} is the ${end} ${slots[0]} you own, so that is what I have used. It is a gap worth closing.`;
+      return `Nothing on your Rail is rated for ${Math.round(filterTempC)}°C — ${listNames(compromises)} is the ${end} ${slots[0]} you own, so that is what I have used. It is a gap worth closing.`;
     }
     const which = `${slots.slice(0, -1).join(', ')} and ${slots[slots.length - 1]}`;
-    return `Nothing in your Ledger is rated for ${Math.round(filterTempC)}°C — I have used the ${end} you own (${listNames(compromises)}), but your ${which} are a real gap worth closing.`;
+    return `Nothing on your Rail is rated for ${Math.round(filterTempC)}°C — I have used the ${end} you own (${listNames(compromises)}), but your ${which} are a real gap worth closing.`;
   }
   if (candidates.length > 0 && candidates.length < 4) {
     return hot

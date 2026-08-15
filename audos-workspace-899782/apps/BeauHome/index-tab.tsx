@@ -436,7 +436,7 @@ function BandStrip({
                     title={
                       categoryTotal > 0
                         ? `${yours} of your ${categoryTotal} ${categoryLabel.toLowerCase()} pieces suit ${BAND_CELL_LABELS[band]} — read from each piece's own category, material and make`
-                        : `No ${categoryLabel.toLowerCase()} on your ledger yet`
+                        : `No ${categoryLabel.toLowerCase()} on your rail yet`
                     }
                     style={{ ...mono(6.5, yours > 0 ? ACCENT_DEEP : FAINTER), display: 'block', marginTop: '6px', whiteSpace: 'nowrap' }}
                   >
@@ -498,7 +498,21 @@ const PIECE_GRID = 'grid grid-cols-[minmax(148px,220px)_14px_minmax(0,1fr)_78px_
 
 function PieceAxisHeader() {
   return (
-    <div className={`${PIECE_GRID} items-end`} style={{ gap: '0 14px' }}>
+    <>
+      {/* MOBILE (founder's correction, August 2026): the degree scale alone,
+          full width over the stacked rows — the six-column header belongs to
+          the wide grid and is hidden on a phone. */}
+      <div aria-hidden className="sm:hidden" style={{ position: 'relative', height: '18px' }}>
+        {AXIS_MARKS.map((deg) => (
+          <span
+            key={deg}
+            style={{ ...mono(9, FAINT), position: 'absolute', left: `${pct(deg)}%`, bottom: '2px', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}
+          >
+            {deg}°
+          </span>
+        ))}
+      </div>
+      <div className={`${PIECE_GRID} items-end hidden sm:grid`} style={{ gap: '0 14px' }}>
       <span aria-hidden style={{ height: '20px' }} />
       <span aria-hidden style={{ height: '20px' }} />
       <div aria-hidden style={{ position: 'relative', height: '20px' }}>
@@ -515,7 +529,8 @@ function PieceAxisHeader() {
       {/* The column the range figures fall under — named in °C. */}
       <span style={{ ...mono(9.5, FAINT), height: '20px', display: 'block', textAlign: 'right', whiteSpace: 'nowrap' }}>Temp °C</span>
       <span aria-hidden style={{ height: '20px' }} />
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -537,7 +552,7 @@ function PieceEntry({ type, model, profile }: { type: GarmentType; model: IndexM
     { label: 'Makers', value: type.makers.slice(0, 6).join(' · ') || 'No verified maker on file' },
   ];
   if (days != null) facts.push({ label: model.climate.city ? `Days a year · ${model.climate.city}` : 'Days a year', value: `about ${days}` });
-  if (ownedNames.length > 0) facts.push({ label: 'On your ledger', value: ownedNames.join(' · ') });
+  if (ownedNames.length > 0) facts.push({ label: 'On your rail', value: ownedNames.join(' · ') });
   return (
     <div style={{ padding: '12px 6px 16px', borderBottom: ROW_HAIRLINE, background: 'rgba(251,248,241,0.6)' }}>
       {beauRead && (
@@ -851,8 +866,12 @@ function PiecesFace({
               Nothing in {category?.name || 'this category'} answers this combination — reset the filters to see the whole run.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: '560px' }}>
+            <div className="sm:overflow-x-auto">
+              {/* MOBILE (founder's correction, August 2026): no sideways
+                  scroll — below sm each row stacks (name + arrow, the bar at
+                  full width, then verdict · range); the six-column grid and
+                  its 560px floor apply from sm up only. */}
+              <div className="sm:min-w-[560px]">
                 {banded && <PieceAxisHeader />}
                 <div style={{ borderTop: `1px solid ${RULE}` }}>
                   {shown.map((t) => {
@@ -863,8 +882,67 @@ function PiecesFace({
                     const open = openType === t.id;
                     return (
                       <div key={t.id} id={`index-type-${t.id}`}>
+                        {/* The stacked MOBILE row — same facts, readable size. */}
                         <div
-                          className={`${PIECE_GRID} items-center`}
+                          className="sm:hidden"
+                          style={{ padding: '10px 0', borderBottom: ROW_HAIRLINE, background: gap ? GAP_TINT : 'transparent' }}
+                        >
+                          <div className="flex items-center" style={{ gap: '10px' }}>
+                            <span className="min-w-0 flex-1 flex items-baseline" style={{ gap: '8px' }}>
+                              {gap && <span style={{ ...mono(6.5, ACCENT_DEEP), flexShrink: 0 }}>Gap</span>}
+                              <button
+                                type="button"
+                                onClick={() => setDetail(t.id)}
+                                className="text-left hover:opacity-70 transition-opacity min-w-0"
+                                title={`${t.name} — open its page`}
+                                style={{ ...serif(16, owned ? WALNUT : INK), background: 'transparent', lineHeight: 1.3, padding: 0 }}
+                              >
+                                {t.name}
+                              </button>
+                              {owned && (
+                                <span title="On your rail" style={{ width: '6px', height: '6px', borderRadius: '999px', background: '#2e2115', flexShrink: 0, alignSelf: 'center' }} />
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onMakersForType(t)}
+                              aria-label={`See the makers of ${t.name}`}
+                              title={`Makers of ${t.name} →`}
+                              className="transition-colors hover:border-[var(--color-accent,#a8712c)]"
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                flexShrink: 0,
+                                border: `1px solid ${HAIRLINE}`,
+                                background: 'transparent',
+                                color: SECONDARY,
+                                fontSize: '13px',
+                                lineHeight: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              →
+                            </button>
+                          </div>
+                          {span ? (
+                            <div style={{ marginTop: '7px' }}>
+                              <SpanBar span={span} owned={owned} gap={gap} />
+                            </div>
+                          ) : (
+                            <div style={{ ...mono(7.5, FAINTER), marginTop: '7px' }}>Judged by material and place</div>
+                          )}
+                          <div className="flex items-baseline justify-between" style={{ marginTop: '5px' }}>
+                            <span style={{ ...mono(8, pieceVerdictColor(verdict)), whiteSpace: 'nowrap' }}>
+                              {verdict ? VERDICT_TEXT[verdict] : '—'}
+                            </span>
+                            <span style={{ ...mono(11, SECONDARY), whiteSpace: 'nowrap' }}>{span ? `${span.lo}–${span.hi}°` : '—'}</span>
+                          </div>
+                        </div>
+                        {/* The six-column run row — sm and up, unchanged. */}
+                        <div
+                          className={`${PIECE_GRID} items-center hidden sm:grid`}
                           style={{ gap: '0 14px', padding: '8.5px 0', borderBottom: ROW_HAIRLINE, background: gap ? GAP_TINT : 'transparent' }}
                         >
                           <span className="min-w-0 flex items-baseline" style={{ gap: '8px' }}>
@@ -888,7 +966,7 @@ function PiecesFace({
                             </button>
                           </span>
                           <span className="flex justify-center" aria-hidden>
-                            {owned && <span title="On your ledger" style={{ width: '6px', height: '6px', borderRadius: '999px', background: '#2e2115', display: 'block' }} />}
+                            {owned && <span title="On your rail" style={{ width: '6px', height: '6px', borderRadius: '999px', background: '#2e2115', display: 'block' }} />}
                           </span>
                           {span ? (
                             <SpanBar span={span} owned={owned} gap={gap} />
@@ -1408,7 +1486,7 @@ function CompareSheet({
     { label: 'Source', of: (e) => SOURCE_LABELS[sourceOf(e)] },
     { label: 'Quality', of: (e) => (Number.isFinite(e.profile.qualityScore) && !isStubProfile(e.profile) ? `${e.profile.qualityScore}/10` : '—') },
     { label: 'Signature pieces', of: (e) => (e.profile.signaturePieces || []).slice(0, 3).join(' · ') || '—' },
-    { label: 'On your ledger', of: (e) => (ledger.has(e.profile.brand.toLowerCase()) ? 'Yes' : '—') },
+    { label: 'On your rail', of: (e) => (ledger.has(e.profile.brand.toLowerCase()) ? 'Yes' : '—') },
   ];
   return (
     <div>
@@ -1860,7 +1938,7 @@ function MakersFace({
             >
               {p.brand}
             </button>
-            {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your ledger</span>}
+            {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your rail</span>}
           </span>
           <span className="min-w-0">
             <span style={{ ...body(13, INK), display: 'block', lineHeight: 1.3 }}>{p.city || (p.country !== '—' ? p.country : '—') || '—'}</span>
@@ -2170,7 +2248,7 @@ function MakersFace({
               <>
                 {/* ——— BEAU'S FIFTY — the shortlist, strongest first */}
                 {sectionHead(
-                  `Beau's fifty · chosen against your profile and your ledger`,
+                  `Beau's fifty · chosen against your profile and your rail`,
                   fifty.generated ? 'Written by Beau for you — re-drawn when your wardrobe or dossier changes' : 'Drawn from your record — Beau is refining the order',
                 )}
                 {columnHeads}

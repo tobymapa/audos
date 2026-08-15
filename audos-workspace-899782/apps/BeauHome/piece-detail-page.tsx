@@ -518,7 +518,7 @@ export function PieceDetailPage({
 
         {/* AGAINST YOUR LEDGER */}
         <div style={{ border: `1px solid ${RULE}`, background: PAPER, padding: '15px 17px 17px', alignSelf: 'start' }}>
-          <div style={mono(8.5, ACCENT_DEEP)}>Against your ledger</div>
+          <div style={mono(8.5, ACCENT_DEEP)}>Against your rail</div>
           <div style={{ ...serif(19), marginTop: '9px' }}>
             {ownedNames.length > 0
               ? `You own ${ownedNames.length === 1 ? 'one' : String(ownedNames.length)}.`
@@ -620,7 +620,7 @@ export function PieceDetailPage({
         </section>
 
         <section className="min-w-0">
-          <SectionHead title="Colours to buy it in" note="ranked for your ledger" />
+          <SectionHead title="Colours to buy it in" note="ranked for your rail" />
           <div style={{ marginTop: '4px' }}>
             {copy.colours.map((colour, i) => (
               <div key={colour.name} className="grid grid-cols-[22px_16px_minmax(0,1fr)]" style={{ gap: '10px', padding: '10px 0', borderBottom: ROW_HAIRLINE, alignItems: 'baseline' }}>
@@ -836,7 +836,7 @@ export function PieceDetailPage({
       <section style={{ marginTop: '36px', background: WALNUT, padding: '24px 26px 28px' }}>
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_230px]" style={{ gap: '20px 44px' }}>
           <div className="min-w-0">
-            <div style={mono(8.5, ON_WALNUT_GOLD)}>Beau, reading this page against your ledger</div>
+            <div style={mono(8.5, ON_WALNUT_GOLD)}>Beau, reading this page against your rail</div>
             <p style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: 'clamp(19px, 2.4vw, 24px)', lineHeight: 1.4, color: ON_WALNUT, margin: '12px 0 0', maxWidth: '54ch' }}>
               {`\u201c${copy.verdict}\u201d`}
             </p>
@@ -845,7 +845,7 @@ export function PieceDetailPage({
             <div style={{ ...mono(8, ON_WALNUT_GOLD), paddingBottom: '8px', borderBottom: '1px solid rgba(251,241,222,0.25)' }}>Reading</div>
             <div style={{ padding: '9px 0', borderBottom: '1px solid rgba(251,241,222,0.12)' }}>
               <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: ON_WALNUT }}>
-                {pieces.length} piece{pieces.length === 1 ? '' : 's'} on your ledger
+                {pieces.length} piece{pieces.length === 1 ? '' : 's'} on your rail
               </span>
             </div>
             <div style={{ padding: '9px 0', borderBottom: '1px solid rgba(251,241,222,0.12)' }}>

@@ -11,7 +11,7 @@
  * logic / state / fetch / effect work in here. This view is purely
  * presentational; it consumes the runtime and renders.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   Bot,
@@ -39,6 +39,9 @@ import { tw, beauChatRoom } from '../lib/colors';
 import { annotateFabrics } from '../lib/fabrics';
 import { LiveTalkButton, VoiceButton } from '../lib/voice';
 import type { AgentChatRuntime } from './useAgentChatRuntime';
+import BeauScorePanel, { BeauScoreCard } from './BeauScorePanel';
+import { BEAU_SCORES_EVENT, deleteBeauScore, loadBeauScores, type BeauScore } from '../apps/BeauHome/beau-score';
+import { currentBeauContext } from '../apps/BeauHome/crumb-trail';
 
 interface AgentChatViewProps {
   runtime: AgentChatRuntime;
@@ -110,8 +113,10 @@ const markdownComponents: Components = {
   // merino wool, linen…) render with a dotted underline and a tap/hover
   // micro-note — what it is, why it's used, when it's appropriate.
   p({ node: _node, children, ...props }) {
+    // Size and face come from the message wrapper (Beau speaks in the
+    // display serif, the customer in the body face), never from here.
     return (
-      <p className="my-2 text-[17px] leading-7" {...props}>
+      <p className="my-2" style={{ fontSize: 'inherit', lineHeight: 'inherit' }} {...props}>
         {annotateFabrics(children)}
       </p>
     );
@@ -140,7 +145,7 @@ const markdownComponents: Components = {
   },
   li({ node: _node, children, ...props }) {
     return (
-      <li className="ml-0 text-[17px] leading-7" style={{ display: 'list-item' }} {...props}>
+      <li className="ml-0" style={{ display: 'list-item', fontSize: 'inherit', lineHeight: 'inherit' }} {...props}>
         {annotateFabrics(children)}
       </li>
     );
@@ -269,6 +274,42 @@ const markdownComponents: Components = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// THE DRAWER'S EDITORIAL GRAMMAR (founder's reference, August 2026) — one
+// 20px gutter, hairline rules instead of tinted bubbles, square corners,
+// IBM Plex Mono small-caps speaker labels, Cormorant for Beau's voice,
+// Lora for the customer's words, oxblood for anything that speaks.
+// ---------------------------------------------------------------------------
+const V_MONO = "'IBM Plex Mono', monospace";
+const V_OXBLOOD = '#7c2d2d';
+const V_INK = '#241a12';
+const V_BODY = '#3b2b1d';
+const V_MUTED = '#856c51';
+const V_FAINT = '#a68e70';
+const V_HAIRLINE = 'rgba(59,43,29,0.14)';
+const V_CANVAS = '#f4eee3';
+
+function vMono(size: number, color: string, tracking = '0.1em') {
+  return {
+    fontFamily: V_MONO,
+    fontSize: `${size}px`,
+    letterSpacing: tracking,
+    textTransform: 'uppercase' as const,
+    color,
+  };
+}
+
+/** Beau's voice — set in the display serif, as the reference sets it. */
+const beauVoice = {
+  fontFamily: 'var(--space-font-heading)',
+  fontSize: '18px',
+  lineHeight: 1.4,
+  color: V_INK,
+} as const;
+
+/** The customer's words — the body face, smaller and quieter. */
+const yourVoice = { fontSize: '14px', lineHeight: 1.55, color: V_BODY } as const;
+
 export default function AgentChatView({ runtime }: AgentChatViewProps) {
   const {
     messages,
@@ -310,6 +351,81 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
     shortcutPrefix,
   } = runtime;
 
+  // THE TWO MODES (August 2026): the drawer opens on two tappable options
+  // above the conversation — CHAT (the conversation, unchanged) and SCORE A
+  // PIECE (a link, a description or a photo → Cloth · Cut · Make · Longevity
+  // and a Regret Risk verdict). Score results also file into the
+  // conversation history as deletable cards (the local score store).
+  const [drawerMode, setDrawerMode] = useState<'chat' | 'score'>('chat');
+  const [scores, setScores] = useState<BeauScore[]>(() => loadBeauScores());
+  useEffect(() => {
+    const sync = () => setScores(loadBeauScores());
+    window.addEventListener(BEAU_SCORES_EVENT, sync);
+    return () => window.removeEventListener(BEAU_SCORES_EVENT, sync);
+  }, []);
+
+  // THE OPENING REMARK (founder's reference): Beau opens with an observation
+  // about the screen the reader came from — not an empty field under a
+  // mascot. The context is the deepest visible breadcrumb at mount; the
+  // remark itself is ONE small model call, cached per context for the
+  // session, with a deterministic line the moment the drawer opens.
+  const [openingContext] = useState<string | null>(() => {
+    if (isBeaconSpace) return null;
+    try {
+      return currentBeauContext();
+    } catch {
+      return null;
+    }
+  });
+  const [opening, setOpening] = useState('');
+  useEffect(() => {
+    if (!openingContext || isBeaconSpace) return;
+    const key = `beau_opening_${openingContext}`;
+    try {
+      const cached = sessionStorage.getItem(key);
+      if (cached) {
+        setOpening(cached);
+        return;
+      }
+    } catch { /* storage unavailable — generate fresh */ }
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch('/proxy/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are Beau, the valet voice of Ethaion — a quiet, knowing, lightly British classic-menswear advisor. The customer just opened your chat drawer from a screen in the wardrobe app. In ONE or TWO short sentences written to him ("you"), open with a useful remark about what he was looking at and what you can do from here. No greetings, no exclamation marks, no emoji. Return STRICT JSON: {"line": string}.',
+              },
+              { role: 'user', content: `He was just looking at: ${openingContext}` },
+            ],
+            max_tokens: 90,
+            temperature: 0.5,
+            response_format: { type: 'json_object' },
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
+        const line = typeof parsed?.line === 'string' ? parsed.line.trim() : '';
+        if (line && alive) {
+          setOpening(line);
+          try {
+            sessionStorage.setItem(key, line);
+          } catch { /* best-effort cache */ }
+        }
+      } catch { /* the deterministic line already covers this */ }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [openingContext, isBeaconSpace]);
+
   // Scroll-to-latest: a floating arrow appears when the reader is scrolled up
   // from the bottom of a long conversation (WhatsApp/iMessage pattern).
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -340,7 +456,9 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
       ? shouldShowBeaconIntake
         ? 'We can keep building from your starter plan, or you can tell me what changed...'
         : "Tell me what happened, or what you're worried about..."
-      : 'Describe a piece you\u2019re after, paste a link \u2014 or share a look you love\u2026';
+      : hasUserMessages
+        ? 'Reply\u2026'
+        : 'Describe a piece you\u2019re after, paste a link or share a look you love';
 
   const visibleMessages = messages.filter(
     (m) => !(m.role === 'user' && typeof m.content === 'string' && m.content.startsWith('[SYSTEM:')),
@@ -368,13 +486,12 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
     !greetingPrompt &&
     !shouldShowBeaconIntake;
 
-  // Conversation-starter chips must be visible in the INITIAL state even when a
+  // Conversation-starter rows must be visible in the INITIAL state even when a
   // welcome assistant message has been injected (config.agent.welcomeMessage),
   // which makes visibleMessages non-empty and turns showEmptyStateWelcome off.
-  // Gate on "no user messages yet" instead so the starters stay clickable until
-  // the visitor sends their first message.
-  // The guided chips disappear the moment the user starts typing (or a
-  // conversation begins) — they're a first-touch affordance, not furniture.
+  // Gate on "no user messages yet" instead so the starters stay tappable until
+  // the visitor sends their first message. They disappear the moment the user
+  // starts typing — a first-touch affordance, not furniture.
   const userIsTyping = input.trim().length > 0;
 
   const showStarterPromptsBelowWelcome =
@@ -393,6 +510,9 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
   const isHomeView =
     !isBeaconSpace &&
     !hasUserMessages &&
+    // Saved Regret Risk assessments live in the thread — with any on file the
+    // conversation view shows so their cards are reachable.
+    scores.length === 0 &&
     hasLoadedHistory &&
     !isLoadingHistory &&
     isConfigLoaded &&
@@ -407,121 +527,191 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
       ? firstAssistantMessage.content
       : '';
 
+  // What the opening block says before (or instead of) the model's remark.
+  const fallbackOpening = openingContext
+    ? `You were just looking at ${openingContext}. Ask me for my read on it — or bring me something else entirely.`
+    : homeWelcomeText ||
+      'Describe a piece you\u2019re after, paste a link, or ask what to wear — I already know your dossier, so you\u2019ll never have to repeat yourself.';
+
+  // THE COMPOSER — anchored to the foot of the drawer at all times (the
+  // reference's rule: it never floats mid-panel above the suggestions). One
+  // ink rule above, the canvas wash behind, ATTACH · DICTATE · LIVE on the
+  // left and SEND ↵ in oxblood on the right.
   const composerElement = (
     <>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          accept="image/*,application/pdf"
-          multiple
-          className="hidden"
-          data-testid="input-file-attachment"
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        accept="image/*,application/pdf"
+        multiple
+        className="hidden"
+        data-testid="input-file-attachment"
+      />
+
+      <div
+        ref={dropZoneRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="flex-shrink-0 transition-colors"
+        style={{
+          borderTop: '1px solid #3b2b1d',
+          background: isDraggingOver ? 'rgba(168,113,44,0.1)' : V_CANVAS,
+        }}
+      >
+        {isDraggingOver && (
+          <div className="flex items-center" style={{ gap: '8px', padding: '10px 20px 0' }}>
+            <FileImage className="w-4 h-4" style={{ color: V_OXBLOOD }} />
+            <span style={vMono(9, V_OXBLOOD)}>Drop files here</span>
+          </div>
+        )}
+
+        {pendingAttachments.length > 0 && (
+          <div className="flex flex-wrap" style={{ gap: '8px', padding: '10px 20px 0' }}>
+            {pendingAttachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="flex items-center gap-1.5 text-xs"
+                style={{ padding: '4px 8px', border: `1px solid ${V_HAIRLINE}`, background: 'var(--space-surface-card)' }}
+                data-testid={`attachment-preview-${attachment.id}`}
+              >
+                {attachment.contentType.startsWith('image/') ? (
+                  <FileImage className="w-3 h-3" style={{ color: V_OXBLOOD }} />
+                ) : (
+                  <File className="w-3 h-3" style={{ color: V_MUTED }} />
+                )}
+                <span className="max-w-[120px] truncate" style={{ color: V_BODY }}>
+                  {attachment.originalName}
+                </span>
+                <button
+                  onClick={() => removeAttachment(attachment.id)}
+                  className="hover:opacity-70 transition-opacity"
+                  style={{ color: V_MUTED, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+                  data-testid={`button-remove-attachment-${attachment.id}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter sends (the composer's own SEND ↵ promise); Shift+Enter
+            // breaks the line; the runtime's Cmd/Ctrl+Enter still works.
+            if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+              e.preventDefault();
+              if (!loading) sendMessage();
+              return;
+            }
+            handleKeyDown(e);
+          }}
+          onPaste={handlePaste}
+          placeholder={composerPlaceholder}
+          className="beau-composer-field w-full border-0 bg-transparent focus:outline-none focus:ring-0 resize-none"
+          style={{ padding: '13px 20px 10px', fontSize: '14px', lineHeight: 1.45, color: V_BODY, minHeight: '38px' }}
+          rows={1}
+          disabled={loading}
+          data-testid="textarea-instruction"
         />
 
-        <div
-          ref={dropZoneRef}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`rounded-2xl border transition-all overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.05)] focus-within:shadow-[0_10px_34px_rgba(0,0,0,0.11),0_1px_3px_rgba(0,0,0,0.05)] ${
-            isDraggingOver
-              ? 'border-[var(--space-brand-primary-500)] bg-[var(--space-surface-accent-soft)]'
-              : 'border-[var(--space-border-default)] bg-[var(--space-surface-card)]'
-          }`}
-        >
-          {isDraggingOver && (
-            <div className="flex items-center justify-center py-3 px-4 bg-[var(--space-surface-accent-soft)] border-b border-[var(--space-border-default)]">
-              <FileImage className="w-4 h-4 text-[var(--space-text-brand)] mr-2" />
-              <span className="text-sm text-[var(--space-text-brand)] font-medium">Drop files here</span>
-            </div>
-          )}
-
-          {pendingAttachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 px-3 pt-2">
-              {pendingAttachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  className="relative flex items-center gap-1 px-2 py-1 bg-[var(--space-surface-card)] rounded-lg text-xs border border-[var(--space-border-default)]"
-                  data-testid={`attachment-preview-${attachment.id}`}
-                >
-                  {attachment.contentType.startsWith('image/') ? (
-                    <FileImage className="w-3 h-3 text-[var(--space-text-brand)]" />
-                  ) : (
-                    <File className="w-3 h-3 text-[var(--space-text-muted)]" />
-                  )}
-                  <span className="max-w-[100px] truncate text-[var(--space-text-secondary)]">
-                    {attachment.originalName}
-                  </span>
-                  <button
-                    onClick={() => removeAttachment(attachment.id)}
-                    className="ml-1 text-[var(--space-text-muted)] hover:text-[var(--space-semantic-danger)]"
-                    data-testid={`button-remove-attachment-${attachment.id}`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={composerPlaceholder}
-            className="w-full border-0 bg-transparent px-4 py-3 text-base focus:outline-none focus:ring-0 resize-none leading-6"
-            rows={1}
+        <div className="flex items-center" style={{ gap: '16px', padding: '0 20px 12px' }}>
+          {/* Multimodal input: file upload + press-and-hold voice + live talk */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading || isUploadingAttachment || pendingAttachments.length >= 5}
+            className="hover:opacity-75 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ ...vMono(9, V_MUTED), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+            data-testid="button-attach-file"
+            title="Add a photo or file — show Beau a garment, a look, or a screenshot"
+          >
+            {isUploadingAttachment ? 'Uploading…' : 'Attach'}
+          </button>
+          <VoiceButton
+            label="Dictate"
+            labelStyle={vMono(9, V_MUTED)}
+            className="hover:opacity-75"
             disabled={loading}
-            data-testid="textarea-instruction"
+            onTranscript={(text) => {
+              void sendMessageWithContent(text, []);
+            }}
+            title="Hold to talk to Beau — release to send"
           />
-
-          <div className="flex items-center justify-between px-2 pb-1">
-            {/* Multimodal input: image/file upload + press-and-hold voice + text */}
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={loading || isUploadingAttachment || pendingAttachments.length >= 5}
-                className="h-8 w-8 flex items-center justify-center rounded-xl hover:bg-[var(--space-surface-muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                data-testid="button-attach-file"
-                title="Add a photo or file — show Beau a garment, a look, or a screenshot"
-              >
-                {isUploadingAttachment ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-[var(--space-text-muted)]" />
-                ) : (
-                  <Paperclip className="w-4 h-4 text-[var(--space-text-muted)]" />
-                )}
-              </button>
-              <VoiceButton
-                disabled={loading}
-                onTranscript={(text) => {
-                  void sendMessageWithContent(text, []);
-                }}
-                title="Hold to talk to Beau — release to send"
-              />
-              <LiveTalkButton
-                disabled={loading}
-                title="Talk live with Beau — a real-time voice conversation"
-              />
-            </div>
-
-            <button
-              onClick={loading ? abortStream : sendMessage}
-              disabled={(!input.trim() && pendingAttachments.length === 0) && !loading}
-              className={`h-8 w-8 flex items-center justify-center rounded-xl transition-colors ${
-                loading
-                  ? 'bg-[var(--space-semantic-danger-500)] hover:bg-[var(--space-semantic-danger-600)] text-[var(--space-text-on-primary)]'
-                  : `${tw.button.primary} disabled:opacity-50 disabled:cursor-not-allowed`
-              }`}
-              data-testid="button-send-message"
-            >
-              {loading ? <XCircle className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-            </button>
-          </div>
+          <LiveTalkButton
+            label="Live"
+            labelStyle={vMono(9, V_MUTED)}
+            className="hover:opacity-75"
+            disabled={loading}
+            title="Talk live with Beau — a real-time voice conversation"
+          />
+          <span className="flex-1" />
+          <button
+            onClick={loading ? abortStream : sendMessage}
+            disabled={(!input.trim() && pendingAttachments.length === 0) && !loading}
+            className="transition-colors hover:bg-[rgba(124,45,45,0.08)] disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              ...vMono(9, V_OXBLOOD),
+              padding: '6px 14px',
+              border: `1px solid ${V_OXBLOOD}`,
+              background: 'transparent',
+              cursor: 'pointer',
+            }}
+            data-testid="button-send-message"
+          >
+            {loading ? 'Stop' : 'Send ↵'}
+          </button>
         </div>
+      </div>
     </>
+  );
+
+  // THE TWO MODES — a single hairline-divided row (never two tinted cards):
+  // the active mode carries a 2px oxblood left rule and a whisper of wash.
+  const scoreMode = !isBeaconSpace && drawerMode === 'score';
+  const modeSwitch = isBeaconSpace ? null : (
+    <div
+      className="grid grid-cols-2 flex-shrink-0"
+      role="tablist"
+      aria-label="Beau modes"
+      style={{ borderBottom: '1px solid rgba(59,43,29,0.2)' }}
+    >
+      {([
+        { id: 'chat', title: 'Chat', hint: 'Style · wardrobe · what to wear' },
+        { id: 'score', title: 'Score a piece', hint: 'Link · photo · description' },
+      ] as const).map((m, i) => {
+        const active = drawerMode === m.id;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setDrawerMode(m.id)}
+            className="text-left transition-colors"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+              padding: '8px 20px',
+              minWidth: 0,
+              border: 'none',
+              borderLeft: i === 0 ? `2px solid ${active ? V_OXBLOOD : 'transparent'}` : '1px solid rgba(59,43,29,0.2)',
+              background: active ? 'rgba(124,45,45,0.05)' : 'transparent',
+              cursor: 'pointer',
+            }}
+            data-testid={`button-beau-mode-${m.id}`}
+          >
+            <span style={{ ...vMono(8.5, active ? V_OXBLOOD : V_MUTED), whiteSpace: 'nowrap' }}>{m.title}</span>
+            <span className="truncate" style={{ fontSize: '11px', lineHeight: 1.3, color: '#8a7057' }}>{m.hint}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 
   return (
@@ -535,52 +725,85 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
       // sitting in a dark room of its own (founder's correction, August 2026).
       style={isBeaconSpace ? undefined : beauChatRoom}
     >
-      {isHomeView ? (
-        /* Home view — centered greeting + composer, like a fresh assistant session */
-        <div className="flex-1 overflow-y-auto flex flex-col justify-center">
-          <div className="mx-auto w-full max-w-2xl px-4 sm:px-10 py-8 sm:py-10" data-testid="home-view">
-            <div className="text-center mb-8">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--space-surface-accent-soft)] shadow-sm">
-                <Bot className="h-6 w-6 text-[var(--space-text-brand)]" />
-              </div>
-              <h1 className="text-[23px] sm:text-[26px] font-semibold text-[var(--space-text-primary)]">Beau, at your service.</h1>
-              {homeWelcomeText && (
-                <p className="mx-auto mt-2 max-w-md text-base leading-7 text-[var(--space-text-secondary)]">{homeWelcomeText}</p>
-              )}
-            </div>
-            {composerElement}
-            {starterPrompts.length > 0 && !userIsTyping && (
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                {starterPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => { void sendMessageWithContent(prompt, []); }}
-                    className="rounded-full border border-[var(--space-border-default)] bg-[var(--space-surface-card)] px-4 py-2 text-[15px] font-medium text-[var(--space-text-primary)] shadow-sm transition hover:border-[var(--space-border-strong)] hover:bg-[var(--space-surface-accent-soft)]"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            )}
+      <style>{'.beau-composer-field::placeholder{color:#a68e70;opacity:1;}'}</style>
+      {modeSwitch}
+      {scoreMode ? (
+        /* SCORE A PIECE — one input (a URL, a description, or a photo), the
+           four-pillar read, the Regret Risk verdict, and the auto-save to the
+           thread and to The Search → Your Calls. */
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full" style={{ padding: '18px 20px 24px' }}>
+            <BeauScorePanel />
           </div>
         </div>
+      ) : isHomeView ? (
+        /* THE FIRST-RUN STATE — Beau opens with an observation about the
+           screen the reader came from (or his welcome line), then the OR ASK
+           rows. The composer stays anchored to the foot below. */
+        <>
+          <div className="flex-1 overflow-y-auto" data-testid="home-view">
+            <div style={{ padding: '16px 20px 4px', borderLeft: `2px solid ${V_OXBLOOD}` }}>
+              <div style={vMono(8.5, V_OXBLOOD, '0.13em')}>
+                {openingContext ? 'Beau, on what you were just looking at' : 'Beau, at your service'}
+              </div>
+              <p
+                style={{
+                  fontFamily: 'var(--space-font-heading)',
+                  fontSize: '22px',
+                  fontWeight: 400,
+                  lineHeight: 1.28,
+                  color: V_INK,
+                  margin: '9px 0 0',
+                }}
+              >
+                {opening || fallbackOpening}
+              </p>
+            </div>
+            {starterPrompts.length > 0 && !userIsTyping && (
+              <>
+                <div style={{ ...vMono(8.5, V_FAINT, '0.13em'), padding: '16px 20px 6px' }}>Or ask</div>
+                <div className="flex flex-col">
+                  {starterPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => {
+                        void sendMessageWithContent(prompt, []);
+                      }}
+                      className="flex items-baseline text-left transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+                      style={{
+                        gap: '11px',
+                        padding: '11px 20px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderTop: `1px solid ${V_HAIRLINE}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: '9px', color: V_OXBLOOD }}>→</span>
+                      <span className="flex-1 min-w-0" style={{ fontSize: '14px', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          {composerElement}
+        </>
       ) : (
       <>
       <div ref={scrollContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-auto">
-        <div className="mx-auto w-full max-w-3xl px-4 sm:px-10 py-5 sm:py-6 space-y-4">
+        <div className="w-full pb-3">
         {/* Pending-init placeholder so the user never sees a blank chat */}
         {showPendingPlaceholder && (
-          <div className="flex justify-start mr-8">
-            <div className="bg-[var(--space-surface-muted)] rounded-lg px-4 py-2 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-[var(--space-text-muted)]" />
-              <span className="text-sm text-[var(--space-text-muted)]">Getting ready…</span>
-            </div>
+          <div className="flex items-center" style={{ gap: '8px', padding: '15px 20px' }}>
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: V_FAINT }} />
+            <span style={vMono(9, V_FAINT)}>Getting ready…</span>
           </div>
         )}
 
         {!isLoadingHistory && hasLoadedHistory && shouldShowBeaconIntake && beaconIntake && (
-          <div className="px-4">
+          <div className="px-4 pt-4">
             <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-[var(--space-semantic-success-100)] bg-[var(--space-surface-card)] shadow-sm">
               <div className="border-b border-[var(--space-semantic-success-100)] bg-gradient-to-r from-[var(--space-semantic-success-50)] via-[var(--space-surface-card)] to-[var(--space-surface-accent-soft)] px-6 py-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--space-semantic-success-700)]">
@@ -639,8 +862,8 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
 
         {/* Welcome message - only shown when confirmed no history exists */}
         {showEmptyStateWelcome ? (
-          <div className="mt-8 px-4">
-            {isBeaconSpace ? (
+          isBeaconSpace ? (
+            <div className="mt-8 px-4">
               <div className="mx-auto max-w-xl rounded-3xl border border-[var(--space-semantic-success-100)] bg-gradient-to-b from-[var(--space-semantic-success-50)] via-[var(--space-surface-card)] to-[var(--space-surface-card)] px-6 py-8 text-center shadow-sm">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--space-semantic-success-700)] text-[var(--space-text-on-primary)] shadow-sm">
                   <Bot className="h-6 w-6" />
@@ -664,12 +887,22 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                   ))}
                 </div>
               </div>
-            ) : (
-              <div className="text-center text-[var(--space-text-secondary)]">
-                <Bot className="w-12 h-12 mx-auto mb-3 text-[var(--space-text-muted)]" />
-                <p className="text-base leading-7">I’m Beau — I’ve read your style profile, so I already know your direction, skin tone and budget. Describe a piece you’re after or paste a product link, and I’ll tell you whether it’s worth buying. Share a photo or link of any look you love and I’ll read the signal underneath — it sharpens everything I pick for you. Type, hold the mic to dictate, or tap the waveform to talk with me live. I can also log a piece into The Ledger, put one on your Reserve, or hunt a piece down for you — just say the word. And when you’d rather browse than ask, The Hunt is where I’ve set out what I’d buy you next, category by category.</p>
-                {starterPrompts.length > 0 && !userIsTyping && (
-                  <div className="mt-5 flex flex-wrap justify-center gap-2">
+            </div>
+          ) : (
+            <>
+              <div style={{ padding: '16px 20px 4px', borderLeft: `2px solid ${V_OXBLOOD}` }}>
+                <div style={vMono(8.5, V_OXBLOOD, '0.13em')}>Beau, at your service</div>
+                <p style={{ ...beauVoice, margin: '9px 0 0' }}>
+                  I’ve read your style profile, so I already know your direction, skin tone and budget. Describe a
+                  piece you’re after or paste a product link and I’ll tell you whether it’s worth buying — or share a
+                  look you love and I’ll read the signal underneath. I can also log a piece to The Rail, or hunt one
+                  down for you: just say the word.
+                </p>
+              </div>
+              {starterPrompts.length > 0 && !userIsTyping && (
+                <>
+                  <div style={{ ...vMono(8.5, V_FAINT, '0.13em'), padding: '16px 20px 6px' }}>Or ask</div>
+                  <div className="flex flex-col">
                     {starterPrompts.map((prompt) => (
                       <button
                         key={prompt}
@@ -677,39 +910,69 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                         onClick={() => {
                           void sendMessageWithContent(prompt, []);
                         }}
-                        className="rounded-full border border-[var(--space-border-default)] bg-[var(--space-surface-card)] px-4 py-2 text-[15px] font-medium text-[var(--space-text-primary)] shadow-sm transition hover:border-[var(--space-border-strong)] hover:bg-[var(--space-surface-accent-soft)]"
+                        className="flex items-baseline text-left transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+                        style={{
+                          gap: '11px',
+                          padding: '11px 20px',
+                          background: 'transparent',
+                          border: 'none',
+                          borderTop: `1px solid ${V_HAIRLINE}`,
+                          cursor: 'pointer',
+                        }}
                       >
-                        {prompt}
+                        <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: '9px', color: V_OXBLOOD }}>→</span>
+                        <span className="flex-1 min-w-0" style={{ fontSize: '14px', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                </>
+              )}
+            </>
+          )
         ) : (
           visibleMessages.length > 0 &&
-          visibleMessages.map((msg, idx) => (
-            <div key={idx}>
+          visibleMessages.map((msg, idx) => {
+            const isUser = msg.role === 'user';
+            if (isBeaconSpace) {
+              return (
+                <div key={idx} className="px-4 pt-4">
+                  <div
+                    className={`relative group p-3 rounded-lg overflow-hidden min-w-0 ${
+                      isUser ? `${tw.message.user} ml-8` : `${tw.message.assistant} mr-8`
+                    }`}
+                  >
+                    <p className="text-[15px] font-medium mb-1">{isUser ? 'You' : 'Beacon'}</p>
+                    <div className="prose prose-base max-w-none text-[17px]">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={markdownComponents}
+                        urlTransform={markdownUrlTransform}
+                      >
+                        {typeof msg.content === 'string' ? msg.content : ''}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return (
               <div
-                className={`relative group p-3 rounded-lg overflow-hidden min-w-0 ${
-                  msg.role === 'user' ? `${tw.message.user} ml-8` : `${tw.message.assistant} mr-8`
-                }`}
+                key={idx}
+                className="relative group min-w-0"
+                style={{ padding: '15px 20px', borderTop: idx === 0 ? 'none' : `1px solid ${V_HAIRLINE}` }}
               >
-                <p className="text-[15px] font-medium mb-1">
-                  {msg.role === 'assistant'
-                    ? isBeaconSpace
-                      ? 'Beacon'
-                      : agentLabel
-                    : 'You'}
-                </p>
+                {/* Speaker label — mono small caps: YOU quiet, BEAU in oxblood. */}
+                <div style={vMono(8.5, isUser ? V_FAINT : V_OXBLOOD, '0.13em')}>
+                  {isUser ? 'You' : agentLabel}
+                </div>
 
                 {/* Edit a previous input — loads it into the composer to correct and resend */}
-                {msg.role === 'user' && typeof msg.content === 'string' && msg.content.trim() !== '' && (
+                {isUser && typeof msg.content === 'string' && msg.content.trim() !== '' && (
                   <button
                     type="button"
                     onClick={() => editMessage(msg.content as string)}
-                    className="absolute top-2 right-2 p-1.5 rounded-md text-[var(--space-text-muted)] hover:text-[var(--space-text-primary)] hover:bg-[var(--space-surface-card)] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    className="absolute top-2 right-3 p-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:opacity-100"
+                    style={{ color: V_MUTED, background: 'transparent', border: 'none', cursor: 'pointer' }}
                     title="Edit this message and send again"
                     data-testid="button-edit-message"
                   >
@@ -717,19 +980,20 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                   </button>
                 )}
 
-                {msg.role === 'user' && msg.attachments && msg.attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
+                {isUser && msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap" style={{ gap: '8px', margin: '7px 0 0' }}>
                     {msg.attachments.map((att) => (
                       <div
                         key={att.id}
-                        className="flex items-center gap-1 px-2 py-1 bg-[var(--space-surface-card)] rounded text-xs"
+                        className="flex items-center gap-1 text-xs"
+                        style={{ padding: '3px 8px', border: `1px solid ${V_HAIRLINE}`, color: V_MUTED }}
                       >
                         {att.contentType.startsWith('image/') ? (
-                          <FileImage className="w-3 h-3 text-[var(--space-text-brand)]" />
+                          <FileImage className="w-3 h-3" style={{ color: V_OXBLOOD }} />
                         ) : (
-                          <File className="w-3 h-3 text-[var(--space-text-muted)]" />
+                          <File className="w-3 h-3" />
                         )}
-                        <span className="max-w-[100px] truncate">{att.originalName}</span>
+                        <span className="max-w-[120px] truncate">{att.originalName}</span>
                       </div>
                     ))}
                   </div>
@@ -737,9 +1001,8 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
 
                 {typeof msg.content === 'string' || msg.content == null ? (
                   <div
-                    className={`prose prose-base max-w-none ${
-                      msg.role === 'user' ? 'text-[17px]' : 'text-[17px]'
-                    }`}
+                    className="prose prose-base max-w-none min-w-0"
+                    style={{ ...(isUser ? yourVoice : beauVoice), marginTop: '7px' }}
                   >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
@@ -750,11 +1013,11 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                     </ReactMarkdown>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2" style={{ marginTop: '7px' }}>
                     {(Array.isArray(msg.content) ? msg.content : []).map((chunk, chunkIdx) => (
                       <div key={chunkIdx}>
                         {chunk.type === 'text' && chunk.text && (
-                          <div className="prose prose-base max-w-none text-[17px]">
+                          <div className="prose prose-base max-w-none min-w-0" style={isUser ? yourVoice : beauVoice}>
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm]}
                               components={markdownComponents}
@@ -765,32 +1028,30 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                           </div>
                         )}
                         {chunk.type === 'tool_use' && (
-                          <div className="border border-[var(--space-border-strong)] rounded-lg overflow-hidden mt-2">
-                            <div className="bg-[var(--space-surface-muted)] px-3 py-2 flex items-center gap-2 flex-wrap">
-                              {chunk.name === 'edit_file' ? (
-                                <Edit3 className="w-3.5 h-3.5 text-[var(--space-text-brand)]" />
-                              ) : chunk.name === 'read_file' ? (
-                                <BookOpen className="w-3.5 h-3.5 text-[var(--space-text-brand)]" />
-                              ) : chunk.name === 'write_file' ? (
-                                <Save className="w-3.5 h-3.5 text-[var(--space-semantic-success)]" />
-                              ) : (
-                                <Sparkles className="w-3.5 h-3.5 text-[var(--space-text-secondary)]" />
-                              )}
-                              <span className="text-xs font-semibold text-[var(--space-text-secondary)]">
-                                {chunk.name === 'read_file'
-                                  ? 'Viewing'
-                                  : chunk.name === 'write_file'
-                                    ? 'Creating'
-                                    : chunk.name === 'edit_file'
-                                      ? 'Updating'
-                                      : getFriendlyTerm(chunk.name || '', 'Tool Use')}
+                          <div className="flex items-center flex-wrap" style={{ gap: '8px', padding: '6px 0 2px' }}>
+                            {chunk.name === 'edit_file' ? (
+                              <Edit3 className="w-3.5 h-3.5" style={{ color: V_MUTED }} />
+                            ) : chunk.name === 'read_file' ? (
+                              <BookOpen className="w-3.5 h-3.5" style={{ color: V_MUTED }} />
+                            ) : chunk.name === 'write_file' ? (
+                              <Save className="w-3.5 h-3.5" style={{ color: V_MUTED }} />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" style={{ color: V_MUTED }} />
+                            )}
+                            <span style={vMono(8, V_MUTED)}>
+                              {chunk.name === 'read_file'
+                                ? 'Viewing'
+                                : chunk.name === 'write_file'
+                                  ? 'Creating'
+                                  : chunk.name === 'edit_file'
+                                    ? 'Updating'
+                                    : getFriendlyTerm(chunk.name || '', 'Tool Use')}
+                            </span>
+                            {chunk.input?.file_path && (
+                              <span className="font-mono text-xs break-all" style={{ color: V_FAINT }}>
+                                {chunk.input.file_path}
                               </span>
-                              {chunk.input?.file_path && (
-                                <span className="font-mono text-xs text-[var(--space-text-secondary)] break-all">
-                                  {chunk.input.file_path}
-                                </span>
-                              )}
-                            </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -798,16 +1059,24 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                   </div>
                 )}
               </div>
-            </div>
-          ))
+            );
+          })
+        )}
+
+        {/* Saved Regret Risk assessments — the chat-thread copies, each one
+            deletable here without touching its Your Calls record. */}
+        {scores.length > 0 && (
+          <div className="space-y-3" style={{ padding: '12px 20px 4px' }}>
+            {scores.map((s) => (
+              <BeauScoreCard key={s.id} score={s} onDelete={() => deleteBeauScore(s.id)} />
+            ))}
+          </div>
         )}
 
         {showStarterPromptsBelowWelcome && (
-          <div className="px-4 -mt-1">
-            <p className="mb-2 text-sm font-medium text-[var(--space-text-muted)]">
-              Try one of these to get started:
-            </p>
-            <div className="flex flex-wrap gap-2">
+          <>
+            <div style={{ ...vMono(8.5, V_FAINT, '0.13em'), padding: '16px 20px 6px' }}>Or ask</div>
+            <div className="flex flex-col">
               {starterPrompts.map((prompt) => (
                 <button
                   key={prompt}
@@ -815,14 +1084,23 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                   onClick={() => {
                     void sendMessageWithContent(prompt, []);
                   }}
-                  className="rounded-full border border-[var(--space-border-default)] bg-[var(--space-surface-card)] px-4 py-2 text-[15px] font-medium text-[var(--space-text-primary)] shadow-sm transition hover:border-[var(--space-border-strong)] hover:bg-[var(--space-surface-accent-soft)]"
+                  className="flex items-baseline text-left transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+                  style={{
+                    gap: '11px',
+                    padding: '11px 20px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderTop: `1px solid ${V_HAIRLINE}`,
+                    cursor: 'pointer',
+                  }}
                   data-testid={`starter-prompt-${prompt.slice(0, 24)}`}
                 >
-                  {prompt}
+                  <span className="flex-shrink-0" style={{ fontFamily: V_MONO, fontSize: '9px', color: V_OXBLOOD }}>→</span>
+                  <span className="flex-1 min-w-0" style={{ fontSize: '14px', lineHeight: 1.45, color: V_BODY }}>{prompt}</span>
                 </button>
               ))}
             </div>
-          </div>
+          </>
         )}
 
         {loading && !streamingContent && (
@@ -831,10 +1109,11 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
 
         {streamingContent && (
           <div
-            className={`${isBeaconSpace ? 'bg-[var(--space-surface-card)] border border-[var(--space-semantic-success-100)] shadow-sm' : 'bg-[var(--space-surface-panel)]'} mr-8 p-3 rounded-lg overflow-hidden min-w-0`}
+            className="overflow-hidden min-w-0"
+            style={{ padding: '15px 20px', borderTop: `1px solid ${V_HAIRLINE}` }}
           >
-            <p className="text-[15px] font-medium mb-1">{agentLabel}</p>
-            <div className="prose prose-base max-w-none text-[17px]">
+            <div style={vMono(8.5, V_OXBLOOD, '0.13em')}>{agentLabel}</div>
+            <div className="prose prose-base max-w-none min-w-0" style={{ ...beauVoice, marginTop: '7px' }}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={markdownComponents}
@@ -843,7 +1122,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                 {streamingContent}
               </ReactMarkdown>
               {isStreaming && (
-                <span className="inline-block w-0.5 h-4 ml-1 bg-[var(--space-text-primary)] animate-pulse" />
+                <span className="inline-block w-0.5 h-4 ml-1 animate-pulse" style={{ background: V_INK }} />
               )}
             </div>
           </div>
@@ -852,14 +1131,15 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
         </div>
       </div>
 
-      {/* Input area — floating composer, detached from the bottom edge */}
-      <div className="px-3 sm:px-8 pb-4 sm:pb-5 pt-2 relative">
-        {/* Jump-to-latest — floats over the end of a long conversation */}
+      {/* The composer, anchored to the foot — plus the jump-to-latest arrow
+          floating over the end of a long conversation. */}
+      <div className="relative flex-shrink-0">
         {showJumpToLatest && (
           <button
             type="button"
             onClick={jumpToLatest}
-            className="absolute -top-14 right-6 sm:right-10 z-20 w-10 h-10 rounded-full bg-[var(--space-surface-card)] border border-[var(--space-border-strong)] shadow-[0_6px_20px_rgba(0,0,0,0.14)] flex items-center justify-center text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)] transition-colors"
+            className="absolute -top-14 right-5 z-20 w-10 h-10 rounded-full flex items-center justify-center transition-colors hover:bg-[rgba(168,113,44,0.08)]"
+            style={{ background: 'var(--space-surface-card)', border: '1px solid rgba(59,43,29,0.34)', boxShadow: '0 6px 20px rgba(36,26,18,0.14)', color: V_INK }}
             title="Jump to the latest message"
             aria-label="Jump to the latest message"
             data-testid="button-jump-to-latest"
@@ -867,13 +1147,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
             <ArrowDown className="w-4 h-4" />
           </button>
         )}
-        <div className="mx-auto w-full max-w-3xl">
         {composerElement}
-
-        <p className="text-xs text-[var(--space-text-muted)] mt-1.5 text-center leading-tight">
-          {shortcutPrefix}+Enter to send
-        </p>
-        </div>
       </div>
       </>
       )}

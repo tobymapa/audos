@@ -1404,6 +1404,58 @@ async function trimTransparent(
   return { dataUrl: out.toDataURL('image/png'), quality, croppedWidth: out.width, croppedHeight: out.height };
 }
 
+// ---------------------------------------------------------------------------
+// BROKEN STORED CUTOUTS — the quarantine (missing-pieces fix, August 2026).
+// A server-side ingestion fault stored NON-IMAGE bytes (a Photoroom error
+// body) under cutout URLs; those rows answer as valid cutouts forever, the
+// <img> fails to decode, and the piece renders as its named placeholder.
+// Any surface that watches a cutout image FAIL to load reports it here: the
+// URL is quarantined (memory + localStorage), every cache that would keep
+// answering with it is purged, and the source re-ingests through the normal
+// pipeline as if it had never been cut.
+// ---------------------------------------------------------------------------
+export const CUTOUT_BROKEN_EVENT = 'ethaion:cutout-broken';
+const BROKEN_CUTOUTS_KEY = 'ethaion_broken_cutouts_v1';
+
+function readBrokenCutouts(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BROKEN_CUTOUTS_KEY) || '[]');
+    return new Set(Array.isArray(raw) ? raw.filter((u) => typeof u === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+const brokenCutoutUrls = readBrokenCutouts();
+
+/** True for a stored-cutout URL that failed to load/decode — every reader
+ * treats it as absent, so the source re-ingests instead of placeholding. */
+export function isBrokenCutoutUrl(url: string): boolean {
+  return brokenCutoutUrls.has((url || '').trim());
+}
+
+/** A cutout image FAILED to load or decode: quarantine the URL, purge every
+ * cache that would keep serving it, and announce — boards listening on
+ * CUTOUT_BROKEN_EVENT re-resolve their pieces from the original photographs. */
+export function reportBrokenCutout(url: string): void {
+  const clean = (url || '').trim();
+  if (!/^https?:\/\//i.test(clean) || brokenCutoutUrls.has(clean)) return;
+  brokenCutoutUrls.add(clean);
+  knownCutoutUrls.delete(clean);
+  for (const [source, cut] of Array.from(settledBoardCutouts)) {
+    if (cut === clean) settledBoardCutouts.delete(source);
+  }
+  for (const [source, asset] of Array.from(settledAssets)) {
+    if (asset.url === clean) settledAssets.delete(source);
+  }
+  try {
+    localStorage.setItem(BROKEN_CUTOUTS_KEY, JSON.stringify(Array.from(brokenCutoutUrls).slice(-300)));
+  } catch { /* the in-memory quarantine still holds for the session */ }
+  try {
+    window.dispatchEvent(new CustomEvent(CUTOUT_BROKEN_EVENT, { detail: { url: clean } }));
+  } catch { /* the announcement is best-effort */ }
+}
+
 /** URLs known to be OUR transparent cutouts (uploaded PNGs with real alpha).
  * Populated when a cutout is persisted and when one is read back from the
  * localStorage cache, so recognition survives reloads. */
@@ -1414,6 +1466,9 @@ const knownCutoutUrls = new Set<string>();
  * differently (a cutout needs no blend trick to sit on the canvas). */
 export function isTransparentCutout(url: string): boolean {
   const clean = (url || '').trim();
+  // A quarantined URL is NOT a usable cutout, whatever any store says — the
+  // file behind it is not an image (broken-ingestion remediation).
+  if (brokenCutoutUrls.has(clean)) return false;
   if (/^data:image\/png/i.test(clean)) return true;
   if (knownCutoutUrls.has(clean)) return true;
   // The durable store's answer. The platform renames uploads (a stored
@@ -1501,7 +1556,7 @@ function cutoutHash(source: string): string {
 function readStoredCutout(source: string): string | null {
   try {
     const value = localStorage.getItem(CUTOUT_STORE_PREFIX + cutoutHash(source));
-    if (value && /^https?:\/\//i.test(value)) {
+    if (value && /^https?:\/\//i.test(value) && !brokenCutoutUrls.has(value)) {
       knownCutoutUrls.add(value);
       return value;
     }
@@ -1796,7 +1851,7 @@ export function peekFlatLayAsset(sourceUrl: string): FlatLayAsset | null {
   if (inMemory) return inMemory;
   // STEP 4's row: the stored cutout plus the Step 1 and Step 3 verdicts.
   const record = peekCutoutRecord(clean);
-  if (record && record.transparentImageUrl) {
+  if (record && record.transparentImageUrl && !brokenCutoutUrls.has(record.transparentImageUrl)) {
     knownCutoutUrls.add(record.transparentImageUrl);
     settledBoardCutouts.set(clean, record.transparentImageUrl);
     const asset: FlatLayAsset = {

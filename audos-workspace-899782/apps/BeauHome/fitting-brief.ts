@@ -115,7 +115,7 @@ function localCopy(input: {
     notes,
     avoid: [
       'Don\u2019t double up a zone — one top, one bottom, one pair of shoes.',
-      'Don\u2019t count a dashed piece as worn — it isn\u2019t in your Ledger yet.',
+      'Don\u2019t count a dashed piece as worn — it isn\u2019t on your Rail yet.',
     ],
   };
 }

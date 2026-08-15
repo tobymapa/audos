@@ -67,6 +67,7 @@ import { HowToMeasureButton } from '../BeauHome/measure-guide';
 import { SaveProfileButton } from '../BeauHome/save-profile';
 import { TabHeader } from '../BeauHome/tab-header';
 import { CrumbPublisher, goToEthaionTab } from '../BeauHome/crumb-trail';
+import { Onboarding } from '../BeauHome/App';
 import { fetchAvatarInputs, saveAvatarInputs } from '../BeauHome/body-profile';
 import {
   CLIMATE_OPTIONS,
@@ -94,10 +95,14 @@ import { CLAUDE_HAIKU, CLAUDE_SONNET, callModel } from '../BeauHome/claude';
 import { TEMPERATURE_BANDS } from '../BeauHome/temperature-bands';
 import {
   COVERAGE_PREFS_EVENT,
+  FREQ_STORE_KEY,
   MUTED_STORE_KEY,
+  REGISTER_FREQUENCY_LABELS,
   fetchCoveragePrefs,
+  fetchRegisterFrequencies,
   loadLocalJson,
-  writeMutedPref,
+  writeRegisterFrequency,
+  type RegisterFrequency,
 } from '../BeauHome/coverage-prefs';
 
 /* ============================================================================
@@ -1017,14 +1022,52 @@ const REGISTER_PREF_OPTIONS: Array<{ id: string; label: string }> = [
   { id: 'outdoor-work', label: 'Outdoor & work' },
 ];
 
-function RegisterPrefs({ onMirror }: { onMirror: (muted: string[]) => void }) {
+/** The folded face of the frequency block — every register named with its
+ * current answer, one flowing line. */
+function registerFreqSummary(freqs: Record<string, string>): string {
+  return REGISTER_PREF_OPTIONS.map((r) => {
+    const f = freqs[r.id] as RegisterFrequency | undefined;
+    return `${r.label}: ${f ? REGISTER_FREQUENCY_LABELS[f] : '—'}`;
+  }).join(' · ');
+}
+
+/** The Lifestyle section's collapsed fact line — only the registers that
+ * have an answer, plus a muted count. */
+function registerFreqShort(freqs: Record<string, string>): string {
+  const parts = REGISTER_PREF_OPTIONS.filter((r) => freqs[r.id] && freqs[r.id] !== 'never').map(
+    (r) => `${r.label} ${REGISTER_FREQUENCY_LABELS[freqs[r.id] as RegisterFrequency].toLowerCase()}`,
+  );
+  const mutedCount = REGISTER_PREF_OPTIONS.filter((r) => freqs[r.id] === 'never').length;
+  if (mutedCount > 0) parts.push(`${mutedCount} muted`);
+  return parts.join(' · ');
+}
+
+function RegisterPrefs({ onMirror }: { onMirror: (muted: string[], freqs: Record<string, string>) => void }) {
+  // ONE FREQUENCY PER REGISTER (founder's correction, August 2026): the
+  // dossier used to offer only a mute toggle here, so the occasion CADENCE
+  // asked in onboarding was invisible and uneditable afterwards. Every
+  // register now carries its own frequency — the same four answers
+  // onboarding asks — and “Not for me” mutes the register exactly as the
+  // old toggle did.
+  // FOLDED BY DEFAULT (founder's request, August 2026): six registers ×
+  // four chips is a wall of controls — folded, the block reads as one
+  // summary line, and Edit unfolds the chip rows.
+  const [freqs, setFreqs] = useState<Record<string, string>>(() =>
+    loadLocalJson<Record<string, string>>(FREQ_STORE_KEY, {}),
+  );
   const [muted, setMuted] = useState<string[]>(() => loadLocalJson<string[]>(MUTED_STORE_KEY, []));
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     const load = () => {
       fetchCoveragePrefs()
         .then((p) => {
           if (alive) setMuted(p.muted);
+        })
+        .catch(() => undefined);
+      fetchRegisterFrequencies()
+        .then((f) => {
+          if (alive) setFreqs(f);
         })
         .catch(() => undefined);
     };
@@ -1036,30 +1079,57 @@ function RegisterPrefs({ onMirror }: { onMirror: (muted: string[]) => void }) {
     };
   }, []);
 
-  const toggle = (id: string) => {
-    const nowMuted = !muted.includes(id);
-    const next = nowMuted ? [...muted, id] : muted.filter((m) => m !== id);
-    setMuted(next);
-    writeMutedPref(id, nowMuted, next);
-    onMirror(next);
+  const setFrequency = (id: string, freq: RegisterFrequency) => {
+    const nextFreqs = { ...freqs, [id]: freq };
+    setFreqs(nextFreqs);
+    const nextMuted = freq === 'never' ? [...new Set([...muted, id])] : muted.filter((m) => m !== id);
+    setMuted(nextMuted);
+    writeRegisterFrequency(id, freq);
+    onMirror(nextMuted, nextFreqs);
   };
 
   return (
-    <div>
-      <div className="flex flex-wrap gap-1.5">
-        {REGISTER_PREF_OPTIONS.map((r) => {
-          const isMuted = muted.includes(r.id);
-          return (
-            <Chip key={r.id} active={!isMuted} onClick={() => toggle(r.id)}>
-              {isMuted ? `${r.label} — muted` : r.label}
-            </Chip>
-          );
-        })}
-      </div>
-      <p className={`${typography.size.xs} ${typography.color.muted} mt-1 italic`}>
-        Tap a register to mute it — one you never dress for. A muted register can’t raise a gap anywhere: the
-        coverage map and Beau both hold no opinion about it.
-      </p>
+    <div className="flex flex-col gap-2.5">
+      <button
+        type="button"
+        onClick={() => setOpen((cur) => !cur)}
+        aria-expanded={open}
+        className="text-left"
+        style={{ background: 'transparent', padding: 0, maxWidth: 'fit-content' }}
+      >
+        {/* THE FOLD CONTROL SITS RIGHT BESIDE THE SUMMARY (founder's
+            correction, August 2026) — inline after the last word, never
+            across the screen. */}
+        <span className={`${typography.size.xs} ${typography.color.secondary}`} style={{ lineHeight: 1.7 }}>
+          {registerFreqSummary(freqs)}
+        </span>{' '}
+        <span className={typography.size.xs} style={{ color: 'var(--space-text-accent)', whiteSpace: 'nowrap' }}>
+          {open ? 'Fold ↑' : 'Edit ▾'}
+        </span>
+      </button>
+      {open && (
+        <>
+          {REGISTER_PREF_OPTIONS.map((r) => (
+            <div key={r.id}>
+              <p className={`${typography.size.xs} ${typography.color.secondary}`} style={{ marginBottom: '4px' }}>
+                {r.label}
+                {muted.includes(r.id) && <span className={typography.color.muted}> — muted</span>}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(REGISTER_FREQUENCY_LABELS) as RegisterFrequency[]).map((freq) => (
+                  <Chip key={freq} active={(freqs[r.id] || '') === freq} onClick={() => setFrequency(r.id, freq)}>
+                    {REGISTER_FREQUENCY_LABELS[freq]}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className={`${typography.size.xs} ${typography.color.muted} italic`}>
+            How often each register actually comes up. “Not for me” mutes it — the coverage map and Beau hold no
+            opinion about a muted register.
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -1434,14 +1504,12 @@ const DOSSIER_OCCASIONS: Option[] = [
   { id: 'travel', label: 'Travel' },
 ];
 
-/** Body type reads as a compact select — the four builds, labelled the way
- * the Dossier speaks about them. Ids are style_profile.build's values. */
-const BODY_TYPE_LABELS: Record<string, string> = {
-  slim: 'Slim',
-  athletic: 'Athletic',
-  regular: 'Regular',
-  broad: 'Large / broad',
-};
+/** Body type labels come straight from the shared BUILD_OPTIONS — the SAME
+ * list onboarding shows (founder's rule, August 2026: the Dossier and
+ * onboarding must never disagree), so there is no Dossier-only relabelling
+ * any more. */
+const buildLabelOf = (id?: string | null): string =>
+  (id && BUILD_OPTIONS.find((o) => o.id === id)?.label) || (id ? label.build(id) : '');
 
 /** The six garment measurements in the Sizes section, in the confirmed
  * order. `key` is the draft key; chest/waist/hips/inseam/shoulder persist to
@@ -1488,6 +1556,15 @@ let dossierCache: DossierCacheShape | null = null;
 export default function YourStyle() {
   const [profile, setProfile] = useState<StyleProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // The Dossier-launched onboarding (founder's routing fix): “Start
+  // onboarding” and “Retake onboarding” run the REAL wizard right here,
+  // inline over this tab — finishing (or skipping) lands straight back on
+  // The Dossier with every answer already saved to the profile.
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  // Bumping this re-runs the boot effect, so the panels re-read the fresh
+  // answers (profile, measurements, dossier details, avatar) the moment
+  // the wizard closes.
+  const [bootBump, setBootBump] = useState(0);
   /** The screen's root — polling is skipped while the tab sits hidden
    * behind another one (KeepMounted hides it with display:none). */
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -1524,6 +1601,15 @@ export default function YourStyle() {
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
   const [weightDraft, setWeightDraft] = useState('');
   const [buildDraft, setBuildDraft] = useState('');
+  // UNSAVED-DRAFT GUARD (founder's fix, August 2026 — "body type does not
+  // save"): this screen re-syncs its drafts from the server on window focus
+  // and on every profile broadcast, and that sync silently WIPED an edit the
+  // reader had not saved yet (switch to another window, come back, the field
+  // has snapped back) — Save then compared "unchanged" and wrote nothing. A
+  // dirty draft is never overwritten by a background sync; saving releases
+  // it.
+  const buildDraftDirty = useRef(false);
+  const fitNotesDraftDirty = useRef(false);
   const [footDraft, setFootDraft] = useState<MeasureDraft>({ num: '', unit: 'cm' });
   const [savingPhysical, setSavingPhysical] = useState(false);
 
@@ -1624,8 +1710,8 @@ export default function YourStyle() {
         .then((p) => {
           if (cancelled || profileEditsPending.current > 0) return;
           setProfile(p);
-          setFitNotesDraft(p?.fit_notes ?? '');
-          setBuildDraft(p?.build ?? '');
+          if (!fitNotesDraftDirty.current) setFitNotesDraft(p?.fit_notes ?? '');
+          if (!buildDraftDirty.current) setBuildDraft(p?.build ?? '');
         })
         .catch((e) => console.error('[YourStyle] failed to load profile:', e))
         .finally(() => {
@@ -1637,8 +1723,8 @@ export default function YourStyle() {
      * loading state: tab switching feels instant. */
     const applyCache = (cache: DossierCacheShape) => {
       setProfile(cache.profile);
-      setFitNotesDraft(cache.profile?.fit_notes ?? '');
-      setBuildDraft(cache.profile?.build ?? '');
+      if (!fitNotesDraftDirty.current) setFitNotesDraft(cache.profile?.fit_notes ?? '');
+      if (!buildDraftDirty.current) setBuildDraft(cache.profile?.build ?? '');
       setBudgets(cache.budgets);
       setPrefs(cache.prefs);
       setFreeTextDraft(cache.prefs?.free_text ?? '');
@@ -1666,8 +1752,8 @@ export default function YourStyle() {
           if (cancelled) return p;
           if (profileEditsPending.current === 0) {
             setProfile(p);
-            setFitNotesDraft(p?.fit_notes ?? '');
-            setBuildDraft(p?.build ?? '');
+            if (!fitNotesDraftDirty.current) setFitNotesDraft(p?.fit_notes ?? '');
+            if (!buildDraftDirty.current) setBuildDraft(p?.build ?? '');
           }
           return p;
         })
@@ -1754,8 +1840,8 @@ export default function YourStyle() {
       const fresh = (event as CustomEvent).detail?.profile as StyleProfile | undefined;
       if (fresh) {
         setProfile(fresh);
-        setFitNotesDraft(fresh.fit_notes ?? '');
-        setBuildDraft(fresh.build ?? '');
+        if (!fitNotesDraftDirty.current) setFitNotesDraft(fresh.fit_notes ?? '');
+        if (!buildDraftDirty.current) setBuildDraft(fresh.build ?? '');
       } else {
         void refreshProfile();
       }
@@ -1772,7 +1858,9 @@ export default function YourStyle() {
       window.removeEventListener('ethaion:profile', onProfile);
       window.removeEventListener('focus', refreshProfile);
     };
-  }, []);
+    // `bootBump` re-runs the whole boot read after the inline onboarding
+    // closes — the module cache is cleared first, so this is a real re-read.
+  }, [bootBump]);
 
   // Mirror the screen's live state back into the module cache whenever any
   // cached slice changes — an edit made here (a saved measurement, a new
@@ -1893,7 +1981,11 @@ export default function YourStyle() {
     const editVersion = ++profileEditVersion.current;
     profileEditsPending.current += 1;
     setProfile((current) => (current ? ({ ...current, ...fields } as StyleProfile) : current));
-    if ('fit_notes' in fields) setFitNotesDraft(typeof fields.fit_notes === 'string' ? fields.fit_notes : '');
+    if ('fit_notes' in fields) {
+      fitNotesDraftDirty.current = false;
+      setFitNotesDraft(typeof fields.fit_notes === 'string' ? fields.fit_notes : '');
+    }
+    if ('build' in fields) buildDraftDirty.current = false;
     setSaving(sectionId);
     try {
       const fresh = await saveProfile(fields);
@@ -1921,7 +2013,11 @@ export default function YourStyle() {
     setResetting(true);
     try {
       await resetProfile();
-      goToTab('wardrobe');
+      // Retake runs the wizard RIGHT HERE (it used to dump the user on the
+      // wardrobe tab) — done or skipped, they land back on The Dossier.
+      setProfile(null);
+      dossierCache = null;
+      setOnboardingOpen(true);
     } finally {
       setResetting(false);
       setConfirmingReset(false);
@@ -1933,6 +2029,35 @@ export default function YourStyle() {
       <div className="min-h-full flex flex-col items-center justify-center py-24 gap-3">
         <Loader2 className={`w-7 h-7 animate-spin ${tw.icon.primary}`} />
         <p className={`${typography.size.sm} ${typography.color.muted}`}>Reading your profile…</p>
+      </div>
+    );
+  }
+
+  // THE INLINE ONBOARDING — the same four-screen wizard the first run uses
+  // (exported by the home app), rendered in place of this tab's content.
+  // Every answer saves to the profile exactly as first-run onboarding does;
+  // Continue on the last screen or either Skip closes it, and The Dossier
+  // re-reads everything so the Beau panels reflect the fresh answers.
+  if (onboardingOpen) {
+    return (
+      <div className="min-h-full" style={{ background: 'var(--space-surface-card)' }}>
+        <Onboarding
+          profile={profile}
+          prefs={prefs}
+          onDone={(fresh) => {
+            setOnboardingOpen(false);
+            if (fresh) setProfile(fresh);
+            dossierCache = null;
+            setBootBump((n) => n + 1);
+            // Tell the rest of the app (the shell's first-run gate, the
+            // other tabs) the profile moved — fresh in hand when we have it.
+            window.dispatchEvent(
+              fresh
+                ? new CustomEvent('ethaion:profile', { detail: { profile: fresh } })
+                : new CustomEvent('ethaion:profile'),
+            );
+          }}
+        />
       </div>
     );
   }
@@ -1961,7 +2086,7 @@ export default function YourStyle() {
         </p>
         <button
           type="button"
-          onClick={() => goToTab('wardrobe')}
+          onClick={() => setOnboardingOpen(true)}
           className={`mt-2 px-5 py-2.5 rounded-xl ${typography.size.sm} ${tw.button.primary}`}
         >
           Start onboarding
@@ -2015,6 +2140,7 @@ export default function YourStyle() {
         await patch('proportions', { build: buildDraft || null });
         await saveAvatarInputs({ bodyType: avatarBodyTypeFor(buildDraft) }).catch(() => undefined);
       }
+      buildDraftDirty.current = false;
       const freshDm = await saveDossierMeasurements({
         foot_length: serializeMeasure(footDraft.num, footDraft.unit),
       });
@@ -2166,7 +2292,7 @@ export default function YourStyle() {
                     ? `${Math.round(weightKg * 2.20462)} lb`
                     : `${Math.round(weightKg)} kg`
                   : '',
-                p.build ? (BODY_TYPE_LABELS[p.build] || label.build(p.build)) : '',
+                p.build ? buildLabelOf(p.build) : '',
                 dm.foot_length ? `Foot ${dm.foot_length}` : '',
               ]}
               hint="No measurements yet — tap Edit to add them."
@@ -2256,14 +2382,17 @@ export default function YourStyle() {
                 <span style={FIELD_LABEL}>Body type</span>
                 <select
                   value={buildDraft}
-                  onChange={(e) => setBuildDraft(e.target.value)}
+                  onChange={(e) => {
+                    buildDraftDirty.current = true;
+                    setBuildDraft(e.target.value);
+                  }}
                   aria-label="Body type"
                   style={{ ...FIELD_INPUT, width: '150px', paddingRight: '26px' }}
                 >
                   <option value="">—</option>
                   {BUILD_OPTIONS.map((o) => (
                     <option key={o.id} value={o.id}>
-                      {BODY_TYPE_LABELS[o.id] || o.label}
+                      {o.label}
                     </option>
                   ))}
                 </select>
@@ -2538,11 +2667,11 @@ export default function YourStyle() {
               parts={[
                 details.city || life.city,
                 climateLabel(details.climate),
-                occasions.length > 0
-                  ? occasions
-                      .map((o) => DOSSIER_OCCASIONS.find((d) => d.id === o)?.label || label.occasion(o))
-                      .join(', ')
-                  : '',
+                // ONE VOCABULARY (founder's correction, August 2026): the
+                // summary reads off the per-register frequencies — the old
+                // Daily/Work/Weekend/Travel chips are retired from this
+                // section, so the two never disagree again.
+                registerFreqShort(loadLocalJson<Record<string, string>>(FREQ_STORE_KEY, {})),
               ]}
               hint="Nothing captured yet — tap Edit."
             />
@@ -2579,38 +2708,15 @@ export default function YourStyle() {
               </p>
             </div>
             <div>
-              <p className={statLabelCls}>Register preferences</p>
+              <p className={statLabelCls}>Occasion frequency — by register</p>
               <RegisterPrefs onMirror={(nextMuted) => void patchDetails({ mutedRegisters: nextMuted })} />
             </div>
-            <div>
-              <p className={statLabelCls}>Occasions</p>
-              <div className="flex flex-wrap gap-1.5">
-                {DOSSIER_OCCASIONS.map((o) => (
-                  <Chip
-                    key={o.id}
-                    active={occasions.includes(o.id)}
-                    onClick={() => void patch('occasions', { occasions: toggleInList(occasions, o.id) })}
-                  >
-                    {o.label}
-                  </Chip>
-                ))}
-                {/* A register an older profile may still hold (e.g. formal
-                    events) stays visible while it is active — so it can be
-                    untoggled — but is never offered as a new choice. */}
-                {occasions
-                  .filter((o) => !DOSSIER_OCCASIONS.some((d) => d.id === o))
-                  .map((o) => (
-                    <Chip
-                      key={o}
-                      active
-                      onClick={() => void patch('occasions', { occasions: toggleInList(occasions, o) })}
-                    >
-                      {label.occasion(o)}
-                    </Chip>
-                  ))}
-                {saving === 'occasions' && <Loader2 className="w-4 h-4 animate-spin text-[var(--space-text-muted)] mt-1" />}
-              </div>
-            </div>
+            {/* THE OLD “OCCASIONS” CHIPS (Daily · Work · Weekend · Travel)
+                ARE RETIRED (founder's correction, August 2026): they spoke a
+                different vocabulary from the per-register frequencies above
+                and the two could disagree. The frequency block is now the one
+                place occasions are answered; stored profile.occasions data is
+                untouched for anything that still reads it. */}
           </div>
         </Section>
 
@@ -2671,7 +2777,7 @@ export default function YourStyle() {
               </div>
             )}
 
-            {/* Style references — the names he GIVES ("Don Draper", "Steve
+            {/* Style references — the names he GIVES ("Paul Newman", "Steve
                 McQueen"). Distinct from Taste references, which are looks he
                 has SHARED. */}
             <div>
@@ -2708,7 +2814,7 @@ export default function YourStyle() {
                       setReferenceDraft('');
                     }
                   }}
-                  placeholder="e.g. Don Draper, Steve McQueen"
+                  placeholder="e.g. Paul Newman, Steve McQueen"
                   aria-label="Add a style reference"
                   className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} flex-1`}
                 />
@@ -2844,7 +2950,10 @@ export default function YourStyle() {
                 <input
                   type="text"
                   value={fitNotesDraft}
-                  onChange={(e) => setFitNotesDraft(e.target.value)}
+                  onChange={(e) => {
+                    fitNotesDraftDirty.current = true;
+                    setFitNotesDraft(e.target.value);
+                  }}
                   placeholder="e.g. 40S jackets, 17.5cm leg opening, no break"
                   className={`${tw.input.base} ${tw.input.default} ${typography.size.sm} flex-1`}
                 />
@@ -2962,7 +3071,7 @@ export default function YourStyle() {
                 {savingPrefs === 'currency' && <Loader2 className="w-4 h-4 animate-spin text-[var(--space-text-muted)] mt-1" />}
               </div>
               <p className={`${typography.size.xs} ${typography.color.muted} mt-1 italic`}>
-                Applies across The Rail and budgets. Conversions are approximate.
+                Applies across Beau’s picks and budgets. Conversions are approximate.
               </p>
             </div>
             {/* Per-category budgets — the range can differ by category. */}
@@ -2990,7 +3099,7 @@ export default function YourStyle() {
                 {savingPrefs === 'secondhand' && <Loader2 className="w-4 h-4 animate-spin text-[var(--space-text-muted)] mt-1" />}
               </div>
               <p className={`${typography.size.xs} ${typography.color.muted} mt-1`}>
-                When open, eBay and Vestiaire finds appear on The Rail — always labelled.
+                When open, eBay and Vestiaire finds appear in Beau’s picks — always labelled.
               </p>
             </div>
             <div>

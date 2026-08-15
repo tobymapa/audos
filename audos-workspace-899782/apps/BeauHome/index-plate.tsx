@@ -139,7 +139,7 @@ export function IndexPlate({ model, catId, nav }: { model: IndexModel; catId: Ga
         </div>
         <div>
           <div className="flex items-start justify-between" style={{ gap: '12px' }}>
-            <div style={mono(8.5, ACCENT_DEEP)}>This category, against your ledger</div>
+            <div style={mono(8.5, ACCENT_DEEP)}>This category, against your rail</div>
             <ReadingSwitch active="list" onChange={(r) => { if (r === 'quadrant') nav.goQuadrant('pieces'); if (r === 'ruler') nav.goRuler(cat.id); if (r === 'matrix') nav.goMatrix(); if (r === 'field') nav.goField(); }} />
           </div>
           <div style={{ ...serif(19), marginTop: '10px' }}>
@@ -160,7 +160,7 @@ export function IndexPlate({ model, catId, nav }: { model: IndexModel; catId: Ga
                     <SpanBar span={spanOf(t)} kind="owned" />
                   </div>
                 ))}
-                {ownedTypes.length === 0 && <div style={{ ...body(12.5, SECONDARY) }}>Nothing of this category in your ledger yet — the whole ruler is open.</div>}
+                {ownedTypes.length === 0 && <div style={{ ...body(12.5, SECONDARY) }}>Nothing of this category on your rail yet — the whole ruler is open.</div>}
                 {holes.map((h) => (
                   <div key={`${h.lo}-${h.hi}`}>
                     <div className="flex items-baseline justify-between">

@@ -924,6 +924,18 @@ export default function SpaceDesktop({
     return () => window.removeEventListener('closeApp', handleCloseApp as EventListener);
   }, []);
 
+  // Close ONLY the chat overlay (never a toggle) — used by in-chat deep links
+  // like the Score-a-piece result's “View in Your Calls”, which needs the page
+  // behind the drawer to come forward whatever state the drawer was in.
+  useEffect(() => {
+    const handleCloseAgentOverlay = () => {
+      setOverlayView(null);
+      setMobileView('panel');
+    };
+    window.addEventListener('ethaion:close-agent-overlay', handleCloseAgentOverlay);
+    return () => window.removeEventListener('ethaion:close-agent-overlay', handleCloseAgentOverlay);
+  }, []);
+
   // Keyboard shortcut: Cmd+M (Mac) / Ctrl+M (Windows) to toggle Memory panel
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1274,15 +1286,13 @@ export default function SpaceDesktop({
               onClick={toggleAgentView}
               className="flex items-center gap-1.5 px-3 sm:px-4 min-h-[42px] rounded text-[13px] font-medium flex-shrink-0 bg-transparent text-[var(--color-accent-700,#7c4a17)] border border-[var(--color-accent,#a8712c)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-all"
               title="Talk to Beau — tap again to come back"
-              aria-label="Ask Beau"
+              aria-label="Beau"
               data-testid="button-open-assistant"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-              {/* Narrow viewports drop the verb so the right-hand controls stay
-                  slim enough for a truly centred wordmark to clear them. The
-                  flex gap already separates the words — a trailing &nbsp; here
-                  used to read as a DOUBLE space between ASK and BEAU. */}
-              <span className="hidden sm:inline">Ask</span>Beau
+              {/* The button says just BEAU (founder's rename, August 2026) —
+                  the old ASK BEAU verb is gone everywhere. */}
+              Beau
             </button>
             {!isBuilderView && (
               <button
@@ -1343,7 +1353,7 @@ export default function SpaceDesktop({
           data-testid="button-panel-beau"
         >
           <MessageCircle className="w-3.5 h-3.5" />
-          Ask Beau
+          Beau
         </button>
         {!isBuilderView && (
           <button
@@ -1444,7 +1454,7 @@ export default function SpaceDesktop({
           Lora (400/500 + italic 400) for body. Never bold: 600 exists only
           for rare small-caps emphasis; headings cap at 500. */}
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Lora:ital,wght@0,400;0,500;1,400&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;1,400&display=swap"
         rel="stylesheet"
       />
       {/* Beau chat slide-in: the conversation eases in from the left instead
@@ -1811,40 +1821,45 @@ export default function SpaceDesktop({
                 IS the main surface and needs no overlay. */}
             {activePanelId && (
               <aside
-                className={`fixed z-[70] flex flex-col bg-[var(--space-surface-card)] transition-transform duration-300 ease-out max-md:inset-x-0 max-md:bottom-0 max-md:h-[94dvh] max-md:border-t max-md:border-[var(--space-border-default)] md:inset-y-0 md:right-0 md:w-[420px] md:min-w-[380px] md:max-w-[420px] md:border-l md:border-[var(--space-border-default)] ${
+                className={`fixed z-[70] flex flex-col bg-[var(--space-surface-card)] transition-transform duration-300 ease-out max-md:inset-x-0 max-md:bottom-0 max-md:h-[94dvh] max-md:border-t max-md:border-[#3b2b1d] md:inset-y-0 md:right-0 md:w-[420px] md:min-w-[380px] md:max-w-[420px] md:border-l md:border-[#3b2b1d] ${
                   overlayView === 'chat'
-                    ? 'max-md:translate-y-0 md:translate-x-0 shadow-[-12px_0_44px_rgba(0,0,0,0.16)]'
+                    ? 'max-md:translate-y-0 md:translate-x-0 shadow-[-10px_0_26px_rgba(36,26,18,0.12)]'
                     : 'max-md:translate-y-full md:translate-x-full'
                 }`}
                 aria-hidden={overlayView !== 'chat'}
                 data-testid="overlay-chat"
                 style={beauChatRoom}
               >
-                {/* The panel header matches the app's tab headers: the name in
-                    the display serif on paper, over a hairline rule. */}
-                <div className="flex items-center justify-between px-4 min-h-[52px] flex-shrink-0 border-b border-[var(--space-border-default)] bg-[var(--space-surface-card)]">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <MessageCircle className="w-4 h-4 text-[var(--space-text-brand)]" />
-                    <span
-                      className="truncate text-[var(--space-text-primary)]"
-                      style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', fontWeight: 400, lineHeight: 1.1 }}
-                    >
-                      {agentDisplayName}
-                    </span>
+                {/* The drawer's title bar (founder's reference, August 2026):
+                    a dark-walnut ground that seats the drawer over the page —
+                    the speech-bubble mark, the name in the display serif in
+                    cream, and CLOSE as a small-caps word, not an icon. New
+                    chat / conversation management live inside the
+                    BeauConversations list — this bar only closes. */}
+                <div
+                  className="flex items-center flex-shrink-0"
+                  style={{ gap: '9px', padding: '9px 20px', background: '#2a1d14', minHeight: '35px' }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{ width: '12px', height: '12px', border: '1px solid #c99a58', borderRadius: '50% 50% 50% 2px', flexShrink: 0 }}
+                  />
+                  <span
+                    className="flex-1 truncate"
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', fontWeight: 400, lineHeight: 1, letterSpacing: '0.02em', color: '#f2e8d8' }}
+                  >
+                    {agentDisplayName}
                   </span>
-                  <span className="flex items-center gap-0.5 flex-shrink-0">
-                    {/* New chat / conversation management live inside the
-                        BeauConversations list — the overlay chrome only closes. */}
-                    <button
-                      onClick={() => setOverlayView(null)}
-                      className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--space-surface-muted)] transition-colors text-[var(--space-text-secondary)]"
-                      title="Close"
-                      aria-label="Close the conversation"
-                      data-testid="button-overlay-chat-close"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </span>
+                  <button
+                    onClick={() => setOverlayView(null)}
+                    className="flex-shrink-0 hover:opacity-80 transition-opacity"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '8.5px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a8916f', background: 'transparent', border: 'none', padding: '8px 0 8px 12px', cursor: 'pointer', minHeight: '35px' }}
+                    title="Close"
+                    aria-label="Close the conversation"
+                    data-testid="button-overlay-chat-close"
+                  >
+                    Close
+                  </button>
                 </div>
                 <div className="flex-1 overflow-hidden bg-[var(--space-surface-card)]">
                   {!isBuilderView && activePanelId ? customerChatElement : null}

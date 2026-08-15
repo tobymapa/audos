@@ -48,6 +48,7 @@ import {
 import AgentChat from './AgentChat';
 import { useSpaceRuntime } from '../SpaceRuntimeContext';
 import { beauChatRoom } from '../lib/colors';
+import { VoiceButton } from '../lib/voice';
 import { looksLikePlaceholderName, smartTitle } from '../lib/smart-title';
 
 // Literal `window.__workspaceDb` references below matter: the platform
@@ -58,6 +59,33 @@ function db(): any {
 }
 
 const PRIMARY_THREAD_ID = 'main';
+
+// ---------------------------------------------------------------------------
+// THE DRAWER'S EDITORIAL GRAMMAR (founder's reference, August 2026): one
+// 20px gutter, hairline rules instead of tinted cards, square corners,
+// IBM Plex Mono small-caps labels, Cormorant for titles and thread names,
+// oxblood for anything that speaks — + New, Send, the delete verb.
+// ---------------------------------------------------------------------------
+const D_MONO = "'IBM Plex Mono', monospace";
+const D_SERIF = 'var(--space-font-heading)';
+const OXBLOOD = '#7c2d2d';
+const D_INK = '#241a12';
+const D_BODY = '#3b2b1d';
+const D_MUTED = '#856c51';
+const D_FAINT = '#a68e70';
+const D_HAIRLINE = 'rgba(59,43,29,0.14)';
+const D_RULE = 'rgba(59,43,29,0.2)';
+const D_CANVAS = '#f4eee3';
+
+function dMono(size: number, color: string, tracking = '0.1em') {
+  return {
+    fontFamily: D_MONO,
+    fontSize: `${size}px`,
+    letterSpacing: tracking,
+    textTransform: 'uppercase' as const,
+    color,
+  };
+}
 
 function makeThreadId(): string {
   return `thr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -245,6 +273,12 @@ export default function BeauConversations({
   const [newFolderName, setNewFolderName] = useState('');
   const [renamingHeader, setRenamingHeader] = useState(false);
   const [headerDraft, setHeaderDraft] = useState('');
+
+  // The list's foot composer — typing (or dictating) here starts a NEW
+  // thread carrying the words: the draft is parked in `draftMessage` and
+  // handed to the fresh thread's AgentChat as its pendingMessage.
+  const [listDraft, setListDraft] = useState('');
+  const [draftMessage, setDraftMessage] = useState<string | null>(null);
 
   // Dismiss overflow menus on any outside tap.
   useEffect(() => {
@@ -513,6 +547,17 @@ export default function BeauConversations({
     openConversation(id);
   };
 
+  /** Start a brand-new thread that OPENS with these words — the foot
+   * composer's send. The message rides in as the new thread's pending
+   * message and auto-sends once its history has loaded. */
+  const startThreadWithMessage = (text: string) => {
+    const clean = (text || '').trim();
+    if (!clean) return;
+    setListDraft('');
+    setDraftMessage(clean);
+    startNewChat();
+  };
+
   const togglePin = async (convo: Conversation) => {
     setMenuFor(null);
     applyLocal(convo.id, { is_pinned: !convo.is_pinned });
@@ -643,14 +688,24 @@ export default function BeauConversations({
   const activeTitle = activeConvo?.name || 'New chat';
 
   // --- Renderers -------------------------------------------------------------
+  // THE DRAWER'S EDITORIAL GRAMMAR (founder's reference, August 2026): one
+  // 20px gutter, hairline rules instead of tinted cards, square corners,
+  // IBM Plex Mono small-caps labels, Cormorant for titles, oxblood for
+  // anything that speaks. Thread rows are the Ledger's row reused — one
+  // title, one last line, one timestamp, each clipped to a single line.
+
+  const sectionLabel = (text: string) => (
+    <p style={{ ...dMono(8.5, D_FAINT, '0.13em'), padding: '18px 20px 6px', margin: 0 }}>{text}</p>
+  );
+
   const renderConvoCard = (convo: Conversation, indent = false) => {
     const isRenaming = renamingId === convo.id;
     const menuOpen = menuFor === convo.id;
     const moveOpen = moveMenuFor === convo.id;
     return (
-      <div key={convo.id} className={`relative group ${indent ? 'ml-6' : ''}`}>
+      <div key={convo.id} className="relative group">
         {isRenaming ? (
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--space-brand-primary-500)] bg-[var(--space-surface-card)]">
+          <div className="flex items-center gap-1.5" style={{ padding: '10px 20px', borderTop: `1px solid ${D_HAIRLINE}` }}>
             <input
               autoFocus
               value={renameDraft}
@@ -659,20 +714,23 @@ export default function BeauConversations({
                 if (e.key === 'Enter') void commitRename(convo, renameDraft);
                 if (e.key === 'Escape') setRenamingId(null);
               }}
-              className="flex-1 min-w-0 bg-transparent text-sm font-medium text-[var(--space-text-primary)] focus:outline-none"
-              placeholder="Conversation name"
+              className="flex-1 min-w-0 bg-transparent focus:outline-none"
+              style={{ fontFamily: D_SERIF, fontSize: '17px', color: D_INK, borderBottom: `1px solid ${OXBLOOD}`, paddingBottom: '2px' }}
+              placeholder="Thread name"
               data-testid={`input-rename-convo-${convo.id}`}
             />
             <button
               onClick={() => void commitRename(convo, renameDraft)}
-              className="p-1 rounded-md text-[var(--space-semantic-success)] hover:bg-[var(--space-surface-muted)]"
+              className="p-1 hover:opacity-75 transition-opacity"
+              style={{ color: OXBLOOD, background: 'transparent', border: 'none', cursor: 'pointer' }}
               title="Save name"
             >
               <Check className="w-4 h-4" />
             </button>
             <button
               onClick={() => setRenamingId(null)}
-              className="p-1 rounded-md text-[var(--space-text-muted)] hover:bg-[var(--space-surface-muted)]"
+              className="p-1 hover:opacity-75 transition-opacity"
+              style={{ color: D_MUTED, background: 'transparent', border: 'none', cursor: 'pointer' }}
               title="Cancel"
             >
               <X className="w-4 h-4" />
@@ -681,18 +739,35 @@ export default function BeauConversations({
         ) : (
           <button
             onClick={() => openConversation(convo.thread_id)}
-            className="w-full text-left px-3 py-2.5 rounded-xl border border-transparent hover:border-[var(--space-border-default)] hover:bg-[var(--space-surface-muted)] transition-colors"
+            className="w-full text-left transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0,1fr) auto',
+              gap: '12px',
+              alignItems: 'baseline',
+              background: 'transparent',
+              border: 'none',
+              borderTop: `1px solid ${D_HAIRLINE}`,
+              padding: '12px 20px',
+              paddingLeft: indent ? '34px' : '20px',
+              paddingRight: '20px',
+              cursor: 'pointer',
+            }}
             data-testid={`button-open-convo-${convo.id}`}
           >
-            <span className="flex items-center gap-1.5 pr-14">
-              {convo.is_pinned && <Pin className="w-3 h-3 flex-shrink-0 text-[var(--space-text-brand)] fill-current" />}
-              <span className="truncate text-base font-medium text-[var(--space-text-primary)]">{convo.name}</span>
-              <span className="ml-auto flex-shrink-0 text-xs text-[var(--space-text-muted)]">
-                {formatWhen(convo.last_message_at || convo.created_at)}
+            <span className="min-w-0 block">
+              <span className="flex items-center gap-1.5 min-w-0">
+                {convo.is_pinned && <Pin className="w-3 h-3 flex-shrink-0 fill-current" style={{ color: OXBLOOD }} />}
+                <span className="truncate block" style={{ fontFamily: D_SERIF, fontSize: '18px', lineHeight: 1.2, fontWeight: 400, color: D_INK }}>
+                  {convo.name}
+                </span>
+              </span>
+              <span className="block truncate" style={{ fontSize: '12px', lineHeight: 1.4, color: D_MUTED, marginTop: '3px' }}>
+                {convo.last_preview || 'No messages yet'}
               </span>
             </span>
-            <span className="block truncate mt-0.5 text-sm text-[var(--space-text-muted)]">
-              {convo.last_preview || 'No messages yet'}
+            <span style={{ ...dMono(8.5, D_FAINT, '0.07em'), whiteSpace: 'nowrap' }}>
+              {formatWhen(convo.last_message_at || convo.created_at)}
             </span>
           </button>
         )}
@@ -704,7 +779,8 @@ export default function BeauConversations({
                 e.stopPropagation();
                 void togglePin(convo);
               }}
-              className="p-1.5 rounded-md bg-[var(--space-surface-card)] text-[var(--space-text-muted)] hover:text-[var(--space-text-brand)] hover:bg-[var(--space-surface-accent-soft)] transition-colors"
+              className="p-1.5 bg-[var(--space-surface-card)] hover:bg-[rgba(168,113,44,0.1)] transition-colors"
+              style={{ color: D_MUTED, border: `1px solid ${D_HAIRLINE}` }}
               title={convo.is_pinned ? 'Unpin' : 'Pin to top'}
               data-testid={`button-pin-convo-${convo.id}`}
             >
@@ -716,8 +792,9 @@ export default function BeauConversations({
                 setMoveMenuFor(null);
                 setMenuFor(menuOpen ? null : convo.id);
               }}
-              className="p-1.5 rounded-md bg-[var(--space-surface-card)] text-[var(--space-text-muted)] hover:text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)] transition-colors"
-              title="Conversation options"
+              className="p-1.5 bg-[var(--space-surface-card)] hover:bg-[rgba(168,113,44,0.1)] transition-colors"
+              style={{ color: D_MUTED, border: `1px solid ${D_HAIRLINE}` }}
+              title="Thread options"
               data-testid={`button-convo-menu-${convo.id}`}
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
@@ -727,16 +804,15 @@ export default function BeauConversations({
 
         {(menuOpen || moveOpen) && (
           <div
-            className="absolute right-2 top-9 z-30 w-52 rounded-xl border border-[var(--space-border-default)] bg-[var(--space-surface-card)] shadow-[0_10px_34px_rgba(0,0,0,0.14)] py-1"
+            className="absolute right-2 top-9 z-30 w-52 bg-[var(--space-surface-card)] py-1"
+            style={{ border: '1px solid #3b2b1d', boxShadow: '0 10px 34px rgba(36,26,18,0.14)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {moveOpen ? (
               <>
-                <p className="px-3 pt-1.5 pb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--space-text-muted)]">
-                  Move to folder
-                </p>
+                <p style={{ ...dMono(8, D_FAINT, '0.13em'), padding: '6px 12px 4px', margin: 0 }}>Move to folder</p>
                 {folders.length === 0 && (
-                  <p className="px-3 py-1.5 text-xs text-[var(--space-text-muted)]">
+                  <p className="px-3 py-1.5 text-xs" style={{ color: D_MUTED }}>
                     No folders yet — create one from the list.
                   </p>
                 )}
@@ -744,17 +820,19 @@ export default function BeauConversations({
                   <button
                     key={f.id}
                     onClick={() => void moveToFolder(convo, f.id)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)]"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[rgba(168,113,44,0.06)]"
+                    style={{ color: D_BODY }}
                   >
                     <Folder className="w-3.5 h-3.5 opacity-60" />
                     <span className="truncate">{f.name}</span>
-                    {convo.folder_id === f.id && <Check className="w-3.5 h-3.5 ml-auto text-[var(--space-text-brand)]" />}
+                    {convo.folder_id === f.id && <Check className="w-3.5 h-3.5 ml-auto" style={{ color: OXBLOOD }} />}
                   </button>
                 ))}
                 {convo.folder_id !== null && (
                   <button
                     onClick={() => void moveToFolder(convo, null)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)]"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[rgba(168,113,44,0.06)]"
+                    style={{ color: D_BODY }}
                   >
                     <X className="w-3.5 h-3.5 opacity-60" />
                     Remove from folder
@@ -765,7 +843,8 @@ export default function BeauConversations({
                     setMoveMenuFor(null);
                     setMenuFor(convo.id);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--space-text-muted)] hover:bg-[var(--space-surface-muted)]"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[rgba(168,113,44,0.06)]"
+                  style={{ color: D_MUTED }}
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                   Back
@@ -779,7 +858,8 @@ export default function BeauConversations({
                     setRenameDraft(convo.name);
                     setRenamingId(convo.id);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)]"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[rgba(168,113,44,0.06)]"
+                  style={{ color: D_BODY }}
                   data-testid={`button-rename-convo-${convo.id}`}
                 >
                   <Pencil className="w-3.5 h-3.5 opacity-60" />
@@ -787,7 +867,8 @@ export default function BeauConversations({
                 </button>
                 <button
                   onClick={() => void togglePin(convo)}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)]"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[rgba(168,113,44,0.06)]"
+                  style={{ color: D_BODY }}
                 >
                   {convo.is_pinned ? <PinOff className="w-3.5 h-3.5 opacity-60" /> : <Pin className="w-3.5 h-3.5 opacity-60" />}
                   {convo.is_pinned ? 'Unpin' : 'Pin to top'}
@@ -797,7 +878,8 @@ export default function BeauConversations({
                     setMenuFor(null);
                     setMoveMenuFor(convo.id);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)]"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[rgba(168,113,44,0.06)]"
+                  style={{ color: D_BODY }}
                   data-testid={`button-move-convo-${convo.id}`}
                 >
                   <FolderInput className="w-3.5 h-3.5 opacity-60" />
@@ -809,7 +891,8 @@ export default function BeauConversations({
                     setMenuFor(null);
                     setConfirmDelete(convo);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--space-semantic-danger)] hover:bg-[var(--space-surface-muted)]"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[rgba(124,45,45,0.06)]"
+                  style={{ color: OXBLOOD }}
                   data-testid={`button-delete-convo-${convo.id}`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -823,217 +906,359 @@ export default function BeauConversations({
     );
   };
 
-  const sectionLabel = (text: string) => (
-    <p className="px-3 pt-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--space-text-muted)]">{text}</p>
+  /**
+   * THE NAV ROW — the drawer's second bar, under the walnut title bar:
+   * ‹ THREADS on the left, the crumb (ALL THREADS or the thread's own title)
+   * in the middle, + NEW on the right. All small-caps mono, one hairline
+   * below, the canvas wash behind. In a thread the crumb is tappable to
+   * rename.
+   */
+  const navRow = (where: 'list' | 'thread') => (
+    <div
+      className="flex items-center flex-shrink-0"
+      style={{ gap: '12px', padding: '7px 20px', borderBottom: `1px solid ${D_RULE}`, background: D_CANVAS }}
+    >
+      {where === 'thread' ? (
+        <button
+          type="button"
+          onClick={() => {
+            setView('list');
+            setRenamingHeader(false);
+          }}
+          className="flex-shrink-0 hover:opacity-75 transition-opacity"
+          style={{ ...dMono(8.5, D_MUTED), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+          title="Back to all threads"
+          data-testid="button-back-to-chats"
+        >
+          ‹ Threads
+        </button>
+      ) : (
+        <span className="flex-shrink-0" style={dMono(8.5, D_MUTED)}>
+          ‹ Threads
+        </span>
+      )}
+
+      {where === 'thread' && renamingHeader && activeConvo ? (
+        <span className="flex-1 min-w-0 flex items-center gap-1.5">
+          <input
+            autoFocus
+            value={headerDraft}
+            onChange={(e) => setHeaderDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void commitRename(activeConvo, headerDraft);
+              if (e.key === 'Escape') setRenamingHeader(false);
+            }}
+            className="flex-1 min-w-0 bg-transparent focus:outline-none"
+            style={{ ...dMono(8.5, D_INK), borderBottom: `1px solid ${OXBLOOD}` }}
+            placeholder="Thread name"
+            data-testid="input-rename-thread"
+          />
+          <button
+            onClick={() => void commitRename(activeConvo, headerDraft)}
+            className="hover:opacity-75 transition-opacity"
+            style={{ color: OXBLOOD, background: 'transparent', border: 'none', padding: '2px', cursor: 'pointer' }}
+            title="Save name"
+          >
+            <Check className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setRenamingHeader(false)}
+            className="hover:opacity-75 transition-opacity"
+            style={{ color: D_MUTED, background: 'transparent', border: 'none', padding: '2px', cursor: 'pointer' }}
+            title="Cancel"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </span>
+      ) : where === 'thread' ? (
+        <button
+          type="button"
+          disabled={!activeConvo}
+          onClick={() => {
+            if (!activeConvo) return;
+            setHeaderDraft(activeConvo.name);
+            setRenamingHeader(true);
+          }}
+          className="flex-1 min-w-0 text-left disabled:cursor-default"
+          style={{
+            ...dMono(8.5, D_INK),
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: activeConvo ? 'pointer' : 'default',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          title={activeConvo ? 'Rename this thread' : undefined}
+          data-testid="button-thread-title"
+        >
+          {activeTitle}
+        </button>
+      ) : (
+        <span
+          className="flex-1"
+          style={{ ...dMono(8.5, D_INK), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+        >
+          All threads
+        </span>
+      )}
+
+      <button
+        type="button"
+        onClick={startNewChat}
+        className="flex-shrink-0 hover:opacity-75 transition-opacity"
+        style={{ ...dMono(8.5, OXBLOOD), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+        title="Start a new thread"
+        data-testid={where === 'thread' ? 'button-thread-new-chat' : 'button-new-chat'}
+      >
+        + New
+      </button>
+    </div>
   );
 
   const renderList = () => {
     const isEmpty = conversations.length === 0 && folders.length === 0;
     return (
       <div className="h-full flex flex-col bg-[var(--space-surface-card)]" data-testid="beau-chat-list">
-        <div className="px-4 sm:px-6 pt-5 pb-3 flex-shrink-0">
-          <div className="mx-auto w-full max-w-2xl">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h1 className="text-xl font-semibold text-[var(--space-text-primary)]">Conversations</h1>
-                <p className="text-sm text-[var(--space-text-muted)] mt-0.5">
-                  Beau knows your style profile in every thread — each conversation keeps its own history.
-                </p>
-              </div>
-              <button
-                onClick={startNewChat}
-                className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-transparent border border-[var(--space-brand-primary)] text-[var(--space-brand-primary-700)] hover:bg-[var(--space-surface-accent-soft)] transition-colors"
-                data-testid="button-new-chat"
-              >
-                <Plus className="w-4 h-4" />
-                New chat
-              </button>
+        {navRow('list')}
+
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {!loaded ? (
+            <div className="flex items-center justify-center py-16" style={{ color: D_FAINT }}>
+              <Loader2 className="w-5 h-5 animate-spin" />
             </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto min-h-0 px-2 sm:px-4 pb-6">
-          <div className="mx-auto w-full max-w-2xl">
-            {!loaded ? (
-              <div className="flex items-center justify-center py-16 text-[var(--space-text-muted)]">
-                <Loader2 className="w-5 h-5 animate-spin" />
-              </div>
-            ) : isEmpty ? (
-              <div className="text-center py-16 px-6">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--space-surface-accent-soft)]">
-                  <MessageCircle className="h-6 w-6 text-[var(--space-text-brand)]" />
-                </div>
-                <h2 className="text-lg font-semibold text-[var(--space-text-primary)]">Start a conversation with Beau</h2>
-                <p className="mx-auto mt-1.5 max-w-sm text-base leading-7 text-[var(--space-text-secondary)]">
-                  Ask about a piece you're eyeing, plan a trip capsule, or work a wardrobe gap. Each conversation
-                  keeps its own thread — and Beau knows your profile in all of them.
+          ) : isEmpty ? (
+            <>
+              {sectionLabel('Recent')}
+              <div style={{ padding: '12px 20px', borderTop: `1px solid ${D_HAIRLINE}` }}>
+                <p style={{ fontFamily: D_SERIF, fontSize: '18px', lineHeight: 1.25, fontWeight: 400, color: D_INK, margin: 0 }}>
+                  No threads yet.
                 </p>
-                <button
-                  onClick={startNewChat}
-                  className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-transparent border border-[var(--space-brand-primary)] text-[var(--space-brand-primary-700)] hover:bg-[var(--space-surface-accent-soft)] transition-colors"
-                  data-testid="button-new-chat-empty"
-                >
-                  <Plus className="w-4 h-4" />
-                  New chat
-                </button>
+                <p style={{ fontSize: '12px', lineHeight: 1.5, color: D_MUTED, margin: '3px 0 0' }}>
+                  Start one below — a piece you’re weighing, a trip to pack for, a gap to close. I know your dossier in
+                  every thread.
+                </p>
               </div>
-            ) : (
-              <>
-                {pinned.length > 0 && (
-                  <>
-                    {sectionLabel('Pinned')}
-                    <div className="flex flex-col gap-0.5">{pinned.map((c) => renderConvoCard(c))}</div>
-                  </>
-                )}
+            </>
+          ) : (
+            <>
+              {pinned.length > 0 && (
+                <>
+                  {sectionLabel('Pinned')}
+                  <div>{pinned.map((c) => renderConvoCard(c))}</div>
+                </>
+              )}
 
-                {folders.length > 0 && (
-                  <>
-                    {sectionLabel('Folders')}
-                    <div className="flex flex-col gap-0.5">
-                      {folders.map((folder) => {
-                        const items = byFolder.get(folder.id) || [];
-                        const collapsed = collapsedFolders.has(folder.id);
-                        const isRenamingFolder = renamingFolderId === folder.id;
-                        return (
-                          <div key={folder.id}>
-                            {isRenamingFolder ? (
-                              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--space-brand-primary-500)] bg-[var(--space-surface-card)]">
-                                <Folder className="w-4 h-4 flex-shrink-0 text-[var(--space-text-brand)]" />
-                                <input
-                                  autoFocus
-                                  value={folderDraft}
-                                  onChange={(e) => setFolderDraft(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') void commitFolderRename(folder, folderDraft);
-                                    if (e.key === 'Escape') setRenamingFolderId(null);
-                                  }}
-                                  className="flex-1 min-w-0 bg-transparent text-sm font-medium text-[var(--space-text-primary)] focus:outline-none"
-                                  placeholder="Folder name"
-                                />
-                                <button
-                                  onClick={() => void commitFolderRename(folder, folderDraft)}
-                                  className="p-1 rounded-md text-[var(--space-semantic-success)] hover:bg-[var(--space-surface-muted)]"
-                                  title="Save name"
-                                >
-                                  <Check className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => setRenamingFolderId(null)}
-                                  className="p-1 rounded-md text-[var(--space-text-muted)] hover:bg-[var(--space-surface-muted)]"
-                                  title="Cancel"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="group flex items-center gap-1 rounded-xl hover:bg-[var(--space-surface-muted)] transition-colors">
-                                <button
-                                  onClick={() => toggleFolderCollapsed(folder.id)}
-                                  className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 text-left"
-                                  data-testid={`button-folder-${folder.id}`}
-                                >
-                                  {collapsed ? (
-                                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-[var(--space-text-muted)]" />
-                                  ) : (
-                                    <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-[var(--space-text-muted)]" />
-                                  )}
-                                  <Folder className="w-4 h-4 flex-shrink-0 text-[var(--space-text-brand)]" />
-                                  <span className="truncate text-sm font-medium text-[var(--space-text-primary)]">{folder.name}</span>
-                                  <span className="flex-shrink-0 text-[11px] text-[var(--space-text-muted)]">{items.length}</span>
-                                </button>
-                                <span className="flex items-center gap-0.5 pr-1.5 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={() => {
-                                      setFolderDraft(folder.name);
-                                      setRenamingFolderId(folder.id);
-                                    }}
-                                    className="p-1.5 rounded-md text-[var(--space-text-muted)] hover:text-[var(--space-text-primary)] hover:bg-[var(--space-surface-card)]"
-                                    title="Rename folder"
-                                    data-testid={`button-rename-folder-${folder.id}`}
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => setConfirmDeleteFolder(folder)}
-                                    className="p-1.5 rounded-md text-[var(--space-text-muted)] hover:text-[var(--space-semantic-danger)] hover:bg-[var(--space-surface-card)]"
-                                    title="Delete folder (conversations are kept)"
-                                    data-testid={`button-delete-folder-${folder.id}`}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+              {folders.length > 0 && (
+                <>
+                  {sectionLabel('Folders')}
+                  <div>
+                    {folders.map((folder) => {
+                      const items = byFolder.get(folder.id) || [];
+                      const collapsed = collapsedFolders.has(folder.id);
+                      const isRenamingFolder = renamingFolderId === folder.id;
+                      return (
+                        <div key={folder.id}>
+                          {isRenamingFolder ? (
+                            <div className="flex items-center gap-1.5" style={{ padding: '10px 20px', borderTop: `1px solid ${D_HAIRLINE}` }}>
+                              <Folder className="w-4 h-4 flex-shrink-0" style={{ color: D_MUTED }} />
+                              <input
+                                autoFocus
+                                value={folderDraft}
+                                onChange={(e) => setFolderDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') void commitFolderRename(folder, folderDraft);
+                                  if (e.key === 'Escape') setRenamingFolderId(null);
+                                }}
+                                className="flex-1 min-w-0 bg-transparent focus:outline-none"
+                                style={{ fontFamily: D_SERIF, fontSize: '16px', color: D_INK, borderBottom: `1px solid ${OXBLOOD}`, paddingBottom: '2px' }}
+                                placeholder="Folder name"
+                              />
+                              <button
+                                onClick={() => void commitFolderRename(folder, folderDraft)}
+                                className="p-1 hover:opacity-75 transition-opacity"
+                                style={{ color: OXBLOOD, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                title="Save name"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setRenamingFolderId(null)}
+                                className="p-1 hover:opacity-75 transition-opacity"
+                                style={{ color: D_MUTED, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              className="group flex items-center transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+                              style={{ borderTop: `1px solid ${D_HAIRLINE}` }}
+                            >
+                              <button
+                                onClick={() => toggleFolderCollapsed(folder.id)}
+                                className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                                style={{ padding: '10px 20px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                data-testid={`button-folder-${folder.id}`}
+                              >
+                                {collapsed ? (
+                                  <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color: D_FAINT }} />
+                                ) : (
+                                  <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" style={{ color: D_FAINT }} />
+                                )}
+                                <Folder className="w-3.5 h-3.5 flex-shrink-0" style={{ color: D_MUTED }} />
+                                <span className="truncate" style={{ fontFamily: D_SERIF, fontSize: '16px', fontWeight: 400, color: D_INK }}>
+                                  {folder.name}
                                 </span>
-                              </div>
-                            )}
-                            {!collapsed && items.length > 0 && (
-                              <div className="flex flex-col gap-0.5 mt-0.5 mb-1">{items.map((c) => renderConvoCard(c, true))}</div>
-                            )}
-                            {!collapsed && items.length === 0 && (
-                              <p className="ml-9 mb-1 text-xs text-[var(--space-text-muted)]">Empty folder</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
+                                <span className="flex-shrink-0" style={dMono(8, D_FAINT, '0.07em')}>{items.length}</span>
+                              </button>
+                              <span className="flex items-center gap-0.5 pr-4 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    setFolderDraft(folder.name);
+                                    setRenamingFolderId(folder.id);
+                                  }}
+                                  className="p-1.5 hover:opacity-75 transition-opacity"
+                                  style={{ color: D_MUTED, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                  title="Rename folder"
+                                  data-testid={`button-rename-folder-${folder.id}`}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteFolder(folder)}
+                                  className="p-1.5 hover:opacity-75 transition-opacity"
+                                  style={{ color: OXBLOOD, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                  title="Delete folder (threads are kept)"
+                                  data-testid={`button-delete-folder-${folder.id}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </span>
+                            </div>
+                          )}
+                          {!collapsed && items.length > 0 && <div>{items.map((c) => renderConvoCard(c, true))}</div>}
+                          {!collapsed && items.length === 0 && (
+                            <p style={{ fontSize: '12px', color: D_FAINT, margin: 0, padding: '6px 20px 10px 34px' }}>Empty folder</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
 
-                {unfiled.length > 0 && (
-                  <>
-                    {sectionLabel(pinned.length > 0 || folders.length > 0 ? 'Recent' : 'Conversations')}
-                    <div className="flex flex-col gap-0.5">{unfiled.map((c) => renderConvoCard(c))}</div>
-                  </>
-                )}
+              {unfiled.length > 0 && (
+                <>
+                  {sectionLabel('Recent')}
+                  <div>{unfiled.map((c) => renderConvoCard(c))}</div>
+                </>
+              )}
 
-                <div className="px-1 pt-4">
-                  {creatingFolder ? (
-                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--space-brand-primary-500)] bg-[var(--space-surface-card)]">
-                      <FolderPlus className="w-4 h-4 flex-shrink-0 text-[var(--space-text-brand)]" />
-                      <input
-                        autoFocus
-                        value={newFolderName}
-                        onChange={(e) => setNewFolderName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void createFolder(newFolderName);
-                          if (e.key === 'Escape') {
-                            setCreatingFolder(false);
-                            setNewFolderName('');
-                          }
-                        }}
-                        className="flex-1 min-w-0 bg-transparent text-sm text-[var(--space-text-primary)] focus:outline-none"
-                        placeholder="Folder name — e.g. Barcelona trip"
-                        data-testid="input-new-folder"
-                      />
-                      <button
-                        onClick={() => void createFolder(newFolderName)}
-                        className="p-1 rounded-md text-[var(--space-semantic-success)] hover:bg-[var(--space-surface-muted)]"
-                        title="Create folder"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => {
+              <div style={{ padding: '14px 20px 18px', borderTop: `1px solid ${D_HAIRLINE}`, marginTop: '4px' }}>
+                {creatingFolder ? (
+                  <div className="flex items-center gap-1.5">
+                    <FolderPlus className="w-4 h-4 flex-shrink-0" style={{ color: D_MUTED }} />
+                    <input
+                      autoFocus
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void createFolder(newFolderName);
+                        if (e.key === 'Escape') {
                           setCreatingFolder(false);
                           setNewFolderName('');
-                        }}
-                        className="p-1 rounded-md text-[var(--space-text-muted)] hover:bg-[var(--space-surface-muted)]"
-                        title="Cancel"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
+                        }
+                      }}
+                      className="flex-1 min-w-0 bg-transparent focus:outline-none"
+                      style={{ fontSize: '14px', color: D_INK, borderBottom: `1px solid ${OXBLOOD}`, paddingBottom: '2px' }}
+                      placeholder="Folder name — e.g. Barcelona trip"
+                      data-testid="input-new-folder"
+                    />
                     <button
-                      onClick={() => setCreatingFolder(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-[var(--space-text-secondary)] hover:bg-[var(--space-surface-muted)] transition-colors"
-                      data-testid="button-new-folder"
+                      onClick={() => void createFolder(newFolderName)}
+                      className="p-1 hover:opacity-75 transition-opacity"
+                      style={{ color: OXBLOOD, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                      title="Create folder"
                     >
-                      <FolderPlus className="w-4 h-4 opacity-70" />
-                      New folder
+                      <Check className="w-4 h-4" />
                     </button>
-                  )}
-                </div>
-              </>
-            )}
+                    <button
+                      onClick={() => {
+                        setCreatingFolder(false);
+                        setNewFolderName('');
+                      }}
+                      className="p-1 hover:opacity-75 transition-opacity"
+                      style={{ color: D_MUTED, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                      title="Cancel"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setCreatingFolder(true)}
+                    className="hover:opacity-75 transition-opacity"
+                    style={{ ...dMono(9, D_MUTED), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+                    data-testid="button-new-folder"
+                  >
+                    + New folder
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* THE FOOT COMPOSER — anchored to the foot of the drawer: typing
+            here starts a NEW thread carrying the words. Attach opens a fresh
+            thread (its composer takes photos and files); Dictate starts one
+            from a held-down voice note. */}
+        <div className="flex-shrink-0" style={{ borderTop: '1px solid #3b2b1d', background: D_CANVAS }}>
+          <textarea
+            value={listDraft}
+            onChange={(e) => setListDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                startThreadWithMessage(listDraft);
+              }
+            }}
+            placeholder="Start a new thread…"
+            rows={1}
+            className="beau-drawer-field w-full border-0 bg-transparent focus:outline-none focus:ring-0 resize-none"
+            style={{ padding: '13px 20px 10px', fontSize: '14px', lineHeight: 1.45, color: D_BODY, minHeight: '38px' }}
+            data-testid="input-new-thread"
+          />
+          <div className="flex items-center" style={{ gap: '16px', padding: '0 20px 12px' }}>
+            <button
+              type="button"
+              onClick={startNewChat}
+              className="hover:opacity-75 transition-opacity"
+              style={{ ...dMono(9, D_MUTED), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+              title="Start a thread and attach a photo or file there"
+            >
+              Attach
+            </button>
+            <VoiceButton
+              label="Dictate"
+              labelStyle={dMono(9, D_MUTED)}
+              onTranscript={(text) => startThreadWithMessage(text)}
+              title="Hold to dictate — release to start the thread"
+            />
+            <span className="flex-1" />
+            <button
+              type="button"
+              onClick={() => startThreadWithMessage(listDraft)}
+              disabled={!listDraft.trim()}
+              className="transition-colors hover:bg-[rgba(124,45,45,0.08)] disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ ...dMono(9, OXBLOOD), padding: '6px 14px', border: `1px solid ${OXBLOOD}`, background: 'transparent', cursor: 'pointer' }}
+              data-testid="button-send-new-thread"
+            >
+              Send ↵
+            </button>
           </div>
         </div>
       </div>
@@ -1042,103 +1267,7 @@ export default function BeauConversations({
 
   const renderThread = () => (
     <div className="h-full flex flex-col bg-[var(--space-surface-card)]" data-testid="beau-chat-thread">
-      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 flex-shrink-0 border-b border-[var(--space-border-default)]">
-        <button
-          onClick={() => {
-            setView('list');
-            setRenamingHeader(false);
-          }}
-          className="flex items-center gap-1 px-2 py-1.5 -ml-1 rounded-lg text-sm font-medium text-[var(--space-text-secondary)] hover:bg-[var(--space-surface-muted)] transition-colors flex-shrink-0"
-          title="Back to all conversations"
-          data-testid="button-back-to-chats"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Chats
-        </button>
-        {renamingHeader && activeConvo ? (
-          <div className="flex-1 min-w-0 flex items-center gap-1.5">
-            <input
-              autoFocus
-              value={headerDraft}
-              onChange={(e) => setHeaderDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void commitRename(activeConvo, headerDraft);
-                if (e.key === 'Escape') setRenamingHeader(false);
-              }}
-              className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-[var(--space-brand-primary-500)] bg-[var(--space-surface-card)] text-sm font-medium text-[var(--space-text-primary)] focus:outline-none"
-              placeholder="Conversation name"
-              data-testid="input-rename-thread"
-            />
-            <button
-              onClick={() => void commitRename(activeConvo, headerDraft)}
-              className="p-1.5 rounded-md text-[var(--space-semantic-success)] hover:bg-[var(--space-surface-muted)]"
-              title="Save name"
-            >
-              <Check className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setRenamingHeader(false)}
-              className="p-1.5 rounded-md text-[var(--space-text-muted)] hover:bg-[var(--space-surface-muted)]"
-              title="Cancel"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <>
-            <button
-              onClick={() => {
-                if (!activeConvo) return;
-                setHeaderDraft(activeConvo.name);
-                setRenamingHeader(true);
-              }}
-              disabled={!activeConvo}
-              className="flex-1 min-w-0 flex items-center gap-1.5 px-1 text-left group disabled:cursor-default"
-              title={activeConvo ? 'Rename this conversation' : undefined}
-              data-testid="button-thread-title"
-            >
-              <span className="truncate text-base font-semibold text-[var(--space-text-primary)]">{activeTitle}</span>
-              {activeConvo && (
-                <Pencil className="w-3 h-3 flex-shrink-0 text-[var(--space-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
-              )}
-            </button>
-            <span className="flex items-center gap-0.5 flex-shrink-0">
-              {activeConvo && (
-                <button
-                  onClick={() => void togglePin(activeConvo)}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    activeConvo.is_pinned
-                      ? 'text-[var(--space-text-brand)] bg-[var(--space-surface-accent-soft)]'
-                      : 'text-[var(--space-text-muted)] hover:bg-[var(--space-surface-muted)]'
-                  }`}
-                  title={activeConvo.is_pinned ? 'Unpin conversation' : 'Pin conversation'}
-                  data-testid="button-thread-pin"
-                >
-                  <Pin className={`w-4 h-4 ${activeConvo.is_pinned ? 'fill-current' : ''}`} />
-                </button>
-              )}
-              {activeConvo && (
-                <button
-                  onClick={() => setConfirmDelete(activeConvo)}
-                  className="p-1.5 rounded-lg text-[var(--space-text-muted)] hover:text-[var(--space-semantic-danger)] hover:bg-[var(--space-surface-muted)] transition-colors"
-                  title="Delete conversation"
-                  data-testid="button-thread-delete"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-              <button
-                onClick={startNewChat}
-                className="p-1.5 rounded-lg text-[var(--space-text-muted)] hover:text-[var(--space-text-primary)] hover:bg-[var(--space-surface-muted)] transition-colors"
-                title="New chat"
-                data-testid="button-thread-new-chat"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </span>
-          </>
-        )}
-      </div>
+      {navRow('thread')}
       <div className="flex-1 overflow-hidden">
         {activeThreadId && (
           <AgentChat
@@ -1146,8 +1275,11 @@ export default function BeauConversations({
             spaceId={spaceId}
             threadId={activeThreadId}
             onFileAccess={onFileAccess}
-            pendingMessage={pendingMessage}
-            onPendingMessageConsumed={onPendingMessageConsumed}
+            pendingMessage={draftMessage ?? pendingMessage}
+            onPendingMessageConsumed={() => {
+              if (draftMessage) setDraftMessage(null);
+              else onPendingMessageConsumed?.();
+            }}
           />
         )}
       </div>
@@ -1155,41 +1287,46 @@ export default function BeauConversations({
   );
 
   return (
-    // The whole Beau surface (chat list + threads) shares the dashboard's
-    // warm cream/linen palette (founder's correction, August 2026) — the
-    // token override below hands it to every child, so the conversations
-    // list, the thread, the new-chat button and the folder controls all pick
-    // up the same ground, ink, buttons and type as the tabs.
+    // The whole Beau surface (thread list + threads) shares the dashboard's
+    // warm cream/linen palette — the token override below hands it to every
+    // child, so the list, the thread, the nav row and the composer all pick
+    // up the same ground, ink and type as the tabs.
     <div className="h-full relative" style={beauChatRoom}>
+      <style>{'.beau-drawer-field::placeholder{color:#a68e70;opacity:1;}'}</style>
       {view === 'thread' && activeThreadId ? renderThread() : renderList()}
 
-      {/* Delete-conversation confirmation dialog */}
+      {/* Delete-thread confirmation dialog */}
       {confirmDelete && (
         <div
           className="absolute inset-0 z-40 flex items-center justify-center p-6"
-          style={{ backgroundColor: 'color-mix(in srgb, var(--space-text-primary) 32%, transparent)' }}
+          style={{ backgroundColor: 'rgba(36,26,18,0.42)' }}
           onClick={() => setConfirmDelete(null)}
           data-testid="dialog-delete-convo"
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-[var(--space-surface-card)] border border-[var(--space-border-default)] shadow-[0_18px_50px_rgba(0,0,0,0.22)] p-5"
+            className="w-full max-w-sm bg-[var(--space-surface-card)] p-5"
+            style={{ border: '1px solid #3b2b1d', boxShadow: '0 18px 50px rgba(36,26,18,0.22)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-[var(--space-text-primary)]">Delete this conversation?</h3>
-            <p className="mt-1.5 text-sm text-[var(--space-text-secondary)]">
+            <h3 style={{ fontFamily: D_SERIF, fontSize: '20px', fontWeight: 400, lineHeight: 1.15, color: D_INK, margin: 0 }}>
+              Delete this thread?
+            </h3>
+            <p className="mt-1.5 text-sm" style={{ color: '#634e38' }}>
               “{confirmDelete.name}” and its messages will be removed. This cannot be undone.
             </p>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="px-3.5 py-2 rounded-xl text-sm font-medium text-[var(--space-text-secondary)] hover:bg-[var(--space-surface-muted)] transition-colors"
+                className="hover:opacity-75 transition-opacity"
+                style={{ ...dMono(9, D_MUTED), padding: '8px 14px', background: 'transparent', border: `1px solid ${D_RULE}`, cursor: 'pointer' }}
                 data-testid="button-cancel-delete"
               >
                 Cancel
               </button>
               <button
                 onClick={() => void deleteConversation(confirmDelete)}
-                className="px-3.5 py-2 rounded-xl text-sm font-medium bg-[var(--space-semantic-danger)] text-[var(--space-text-on-primary)] hover:opacity-90 transition-opacity"
+                className="transition-colors hover:bg-[rgba(124,45,45,0.08)]"
+                style={{ ...dMono(9, OXBLOOD), padding: '8px 14px', background: 'transparent', border: `1px solid ${OXBLOOD}`, cursor: 'pointer' }}
                 data-testid="button-confirm-delete"
               >
                 Delete
@@ -1199,33 +1336,38 @@ export default function BeauConversations({
         </div>
       )}
 
-      {/* Delete-folder confirmation dialog (conversations are preserved) */}
+      {/* Delete-folder confirmation dialog (threads are preserved) */}
       {confirmDeleteFolder && (
         <div
           className="absolute inset-0 z-40 flex items-center justify-center p-6"
-          style={{ backgroundColor: 'color-mix(in srgb, var(--space-text-primary) 32%, transparent)' }}
+          style={{ backgroundColor: 'rgba(36,26,18,0.42)' }}
           onClick={() => setConfirmDeleteFolder(null)}
           data-testid="dialog-delete-folder"
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-[var(--space-surface-card)] border border-[var(--space-border-default)] shadow-[0_18px_50px_rgba(0,0,0,0.22)] p-5"
+            className="w-full max-w-sm bg-[var(--space-surface-card)] p-5"
+            style={{ border: '1px solid #3b2b1d', boxShadow: '0 18px 50px rgba(36,26,18,0.22)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-[var(--space-text-primary)]">Delete this folder?</h3>
-            <p className="mt-1.5 text-sm text-[var(--space-text-secondary)]">
-              “{confirmDeleteFolder.name}” will be removed. Its conversations move back to the main list — they
-              won't be deleted.
+            <h3 style={{ fontFamily: D_SERIF, fontSize: '20px', fontWeight: 400, lineHeight: 1.15, color: D_INK, margin: 0 }}>
+              Delete this folder?
+            </h3>
+            <p className="mt-1.5 text-sm" style={{ color: '#634e38' }}>
+              “{confirmDeleteFolder.name}” will be removed. Its threads move back to the main list — they won’t be
+              deleted.
             </p>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
                 onClick={() => setConfirmDeleteFolder(null)}
-                className="px-3.5 py-2 rounded-xl text-sm font-medium text-[var(--space-text-secondary)] hover:bg-[var(--space-surface-muted)] transition-colors"
+                className="hover:opacity-75 transition-opacity"
+                style={{ ...dMono(9, D_MUTED), padding: '8px 14px', background: 'transparent', border: `1px solid ${D_RULE}`, cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 onClick={() => void deleteFolder(confirmDeleteFolder)}
-                className="px-3.5 py-2 rounded-xl text-sm font-medium bg-[var(--space-semantic-danger)] text-[var(--space-text-on-primary)] hover:opacity-90 transition-opacity"
+                className="transition-colors hover:bg-[rgba(124,45,45,0.08)]"
+                style={{ ...dMono(9, OXBLOOD), padding: '8px 14px', background: 'transparent', border: `1px solid ${OXBLOOD}`, cursor: 'pointer' }}
                 data-testid="button-confirm-delete-folder"
               >
                 Delete folder

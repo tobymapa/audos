@@ -15,7 +15,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { ArrowUp, Settings as SettingsIcon } from 'lucide-react';
 import {
   ACCENT_DEEP,
   FAINTER,
@@ -119,15 +119,21 @@ export function BackPill({
 }
 
 export function CrumbTrail({ segs, style }: { segs: CrumbSegment[]; style?: React.CSSProperties }) {
+  // THE LITERAL PATH (founder's correction, August 2026): the trail reads as
+  // the page's own file path — `page › sub page › sub page`. The wordmark
+  // segment is dropped so the path STARTS at the page, and the separator is
+  // the chevron rather than the slash.
+  const path =
+    segs.length > 1 && (segs[0]?.label || '').trim().toLowerCase() === 'ethaion' ? segs.slice(1) : segs;
   return (
     <nav aria-label="Where you are" className="flex items-baseline flex-wrap" style={{ gap: '4px 9px', minWidth: 0, ...style }}>
-      {segs.map((seg, i) => {
-        const last = i === segs.length - 1;
+      {path.map((seg, i) => {
+        const last = i === path.length - 1;
         return (
           <span key={`${seg.label}-${i}`} className="inline-flex items-baseline" style={{ gap: '9px', minWidth: 0 }}>
             {i > 0 && (
               <span aria-hidden="true" style={mono(8.5, FAINTER)}>
-                /
+                ›
               </span>
             )}
             {seg.onClick && !last ? (
@@ -251,10 +257,33 @@ export function CrumbPublisher({ segs, onBack, backLabel }: CrumbPublication) {
   return <span ref={elRef} aria-hidden="true" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} />;
 }
 
-// Ask Beau and Settings belong to the SHELL (Desktop.tsx), not to this app,
+// Beau and Settings belong to the SHELL (Desktop.tsx), not to this app,
 // so the floating chrome asks for them by window event instead of reaching
 // into the shell's state.
 export const ASK_BEAU_EVENT = 'ethaion:ask-beau';
+
+/**
+ * WHAT THE READER WAS JUST LOOKING AT — the deepest VISIBLE crumb
+ * publication, read by the Beau drawer so its opening remark can speak to
+ * the screen the reader came from. Returns null on a tab root (fewer than
+ * three segments), where a remark would have nothing specific to say.
+ */
+export function currentBeauContext(): string | null {
+  let best: RegisteredCrumbs | null = null;
+  for (const pub of crumbRegistry.values()) {
+    const el = pub.el;
+    if (!el || !el.isConnected || el.offsetParent === null) continue;
+    if (!best || pub.segs.length > best.segs.length || (pub.segs.length === best.segs.length && pub.id > best.id)) {
+      best = pub;
+    }
+  }
+  if (!best || best.segs.length < 3) return null;
+  return best.segs
+    .slice(1)
+    .map((s) => s.label)
+    .filter(Boolean)
+    .join(' · ');
+}
 export const OPEN_SETTINGS_EVENT = 'ethaion:open-settings';
 /** Announced while the floating chrome is on screen so the shell drops its
  * own masthead copies of the two controls — neither is ever drawn twice. */
@@ -266,13 +295,79 @@ export const CHROME_BAR_EVENT = 'ethaion:chrome-bar';
 export const CHROME_BAR_FLAG = '__ethaionChromeNavBar';
 
 // ---------------------------------------------------------------------------
-// BACK TO THE TOP — a small circular capsule in the bottom-right corner, in
-// the same warm paper-and-gold register as every other control. It appears
-// only once the reader has scrolled the top of the page out of view, and it
-// jumps (never animates) straight back.
+// ASK BEAU — the circular portrait button in the BOTTOM-RIGHT corner
+// (standard chat-widget placement, founder's request August 2026). No text —
+// just Beau's portrait filling the whole circle. The engraving is black ink
+// on white paper; the button's own beige ground shows through it via
+// mix-blend multiply, so every white area of the image reads as the SAME
+// beige the old Ask Beau capsule wore (white × beige = beige, ink stays ink).
+// Tapping it dispatches the same shell event the old nav capsule did — open
+// the drawer, tap again to come back.
+// ---------------------------------------------------------------------------
+
+const BEAU_PORTRAIT_URL =
+  'https://storage.googleapis.com/audos-images/attachments/3460cb2c-8c4f-405c-83a2-057f8b58da27/9b4a5b0e-eb4d-49ac-bdbe-ed005d600045.jpg';
+
+export function AskBeauCorner() {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event(ASK_BEAU_EVENT))}
+        title="Talk to Beau — tap again to come back"
+        aria-label="Beau"
+        className="fixed z-[45] overflow-hidden transition-transform hover:scale-[1.05] bottom-[72px] sm:bottom-4 right-4"
+        style={{
+          // MIRRORED on the "?" tour button in the opposite corner
+          // (founder's rule, August 2026): the tour button sits at
+          // bottom-[72px] left-4 on a phone and bottom-4 left-4 from sm up,
+          // so Beau carries the SAME offsets as CLASSES — they were inline
+          // styles before, which meant the sm media override could never
+          // win and the button floated ~72px up on a desktop while the "?"
+          // sat at 16px (founder's alignment fix, August 2026). Both now
+          // sit exactly 16px from the bottom edge from sm up.
+          width: '56px',
+          height: '56px',
+          borderRadius: '999px',
+          background: PAPER,
+          border: `1px solid ${RULE}`,
+          padding: 0,
+          boxShadow: '0 5px 18px rgba(43,30,20,0.24)',
+          cursor: 'pointer',
+        }}
+        data-tour="tour-beau-button"
+        data-testid="button-ask-beau-corner"
+      >
+        <img
+          src={BEAU_PORTRAIT_URL}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            // White areas of the engraving take the button's beige ground.
+            mixBlendMode: 'multiply',
+          }}
+        />
+      </button>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BACK TO THE TOP — now a CAPSULE IN THE FLOATING CHROME ROW (founder's
+// request, August 2026): it sits on the same line as ← BACK, the page path
+// and the settings gear, wearing the same NavPill box — shown only once the
+// reader has scrolled the top of the page out of view, and it jumps (never
+// animates) straight back. The bottom-right corner now belongs to Ask Beau.
 //
 // The page does NOT scroll the window: the app renders inside the shell's own
-// scrolling panel, so the button finds the nearest scrollable ancestor and
+// scrolling panel, so the control finds the nearest scrollable ancestor and
 // listens to that. The window is the fallback for surfaces that do scroll it.
 // ---------------------------------------------------------------------------
 
@@ -295,40 +390,46 @@ function scrollTopOf(target: HTMLElement | Window): number {
 /** How far down the reader must be before the button is worth offering. */
 const SCROLL_TOP_THRESHOLD = 260;
 
+/** RETIRED — the floating bottom-right capsule this used to render moved
+ * into the chrome row (ScrollTopNavPill below); the corner now belongs to
+ * the Ask Beau portrait button. Kept as a no-op so an older import cannot
+ * break a build. */
 export function ScrollToTop() {
+  return null;
+}
+
+function ScrollTopNavPill() {
   const anchorRef = useRef<HTMLSpanElement | null>(null);
-  const targetRef = useRef<HTMLElement | Window | null>(null);
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
-    const target = nearestScroller(anchorRef.current);
-    targetRef.current = target;
     let frame = 0;
     const read = () => {
       frame = 0;
-      setShown(scrollTopOf(target) > SCROLL_TOP_THRESHOLD);
+      setShown(scrollTopOf(nearestScroller(anchorRef.current)) > SCROLL_TOP_THRESHOLD);
     };
-    const onScroll = () => {
+    const onAnyScroll = () => {
       if (frame) return;
       frame = window.requestAnimationFrame(read);
     };
     read();
-    // The two possible targets (an element or the window) have different
-    // addEventListener overloads, so the shared EventTarget view is what the
-    // listener is attached and detached through.
-    const listenTo = target as EventTarget;
-    listenTo.addEventListener('scroll', onScroll, { passive: true });
-    // A tab switch can swap which element actually scrolls; re-read then too.
-    window.addEventListener('ethaion:tab-activated', onScroll);
+    // CAPTURE-PHASE on the window: scroll events do not bubble, but they DO
+    // capture, so this hears EVERY scrollable panel in the shell. The
+    // scroller is RE-RESOLVED on every event too — at mount the page often
+    // has not overflowed yet, so the old once-only detection latched onto
+    // the window forever and the pill never appeared (founder's report,
+    // August 2026).
+    window.addEventListener('scroll', onAnyScroll, true);
+    window.addEventListener('ethaion:tab-activated', onAnyScroll);
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
-      listenTo.removeEventListener('scroll', onScroll);
-      window.removeEventListener('ethaion:tab-activated', onScroll);
+      window.removeEventListener('scroll', onAnyScroll, true);
+      window.removeEventListener('ethaion:tab-activated', onAnyScroll);
     };
   }, []);
 
   const jump = () => {
-    const target = targetRef.current || window;
+    const target = nearestScroller(anchorRef.current);
     if (target === window) window.scrollTo(0, 0);
     else (target as HTMLElement).scrollTop = 0;
     setShown(false);
@@ -336,36 +437,25 @@ export function ScrollToTop() {
 
   return (
     <>
-      <span ref={anchorRef} aria-hidden="true" style={{ position: 'absolute', width: 0, height: 0 }} />
+      <span ref={anchorRef} aria-hidden="true" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} />
       {shown && (
-        <button
-          type="button"
-          onClick={jump}
-          title="Back to the top"
-          aria-label="Back to the top"
-          className="fixed z-[45] flex items-center justify-center transition-colors hover:bg-[rgba(168,113,44,0.12)]"
-          style={{
-            // Clear of the phone's bottom tab bar (52pt + safe area) and of
-            // the desktop page edge.
-            right: '16px',
-            bottom: 'calc(78px + env(safe-area-inset-bottom))',
-            width: '40px',
-            height: '40px',
-            borderRadius: '999px',
-            background: PAPER,
-            border: `1px solid ${RULE}`,
-            color: ACCENT_DEEP,
-            lineHeight: 1,
-          }}
-          data-testid="button-scroll-top"
-        >
-          <span aria-hidden="true" style={{ fontSize: '15px', marginTop: '-2px' }}>↑</span>
-        </button>
+        <NavPill floating icon onClick={jump} title="Back to the top" ariaLabel="Back to the top">
+          <ArrowUp width={14} height={14} strokeWidth={1.6} aria-hidden="true" />
+        </NavPill>
       )}
-      <style>{'@media (min-width:640px){[data-testid="button-scroll-top"]{bottom:24px;right:22px}}'}</style>
     </>
   );
 }
+
+/** LITERAL BACK ACROSS TABS (founder's correction, August 2026): the app
+ * keeps its own history of tab jumps. ← Back first unwinds the current
+ * page's own drill-down (each step literally the previous screen); with
+ * nothing left to unwind it returns across tabs to the page the reader
+ * jumped in FROM — tabs stay mounted in the background, so their state is
+ * exactly as the reader left it. */
+const tabTrail: string[] = [];
+let activeTabForTrail: string | null = null;
+let suppressTrailPush = false;
 
 /** The floating chrome itself — mounted once, under the tab strip. */
 export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
@@ -388,6 +478,24 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
       window.removeEventListener(CRUMBS_CHANGED_EVENT, bump);
       window.removeEventListener('ethaion:tab-activated', bump);
     };
+  }, []);
+  // THE TAB HISTORY — every activation of a DIFFERENT tab records where the
+  // reader was, except when ← Back itself made the jump (suppressTrailPush),
+  // so walking back never re-records the tabs it is leaving.
+  useEffect(() => {
+    const onTabActivated = (e: Event) => {
+      const tab = String((e as CustomEvent).detail?.tab || '');
+      if (!tab || tab === activeTabForTrail) return;
+      if (activeTabForTrail && !suppressTrailPush) {
+        tabTrail.push(activeTabForTrail);
+        if (tabTrail.length > 40) tabTrail.shift();
+      }
+      suppressTrailPush = false;
+      activeTabForTrail = tab;
+      setTick((n) => n + 1);
+    };
+    window.addEventListener('ethaion:tab-activated', onTabActivated);
+    return () => window.removeEventListener('ethaion:tab-activated', onTabActivated);
   }, []);
 
   // The deepest VISIBLE publication wins; the newest one breaks a tie. A
@@ -443,7 +551,27 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
         }}
       >
         <div className="hab-chrome-trail flex items-center flex-wrap" style={{ gap: '8px', minWidth: 0, pointerEvents: 'auto' }}>
-          {shown.onBack && <NavPill floating onClick={shown.onBack}>← Back</NavPill>}
+          {(shown.onBack || tabTrail.length > 0) && (
+            <NavPill
+              floating
+              onClick={() => {
+                // LITERAL BACK: unwind the page's own drill-down first (that
+                // WAS the previous screen); with nothing left to unwind,
+                // return across tabs to the page the reader jumped in from.
+                if (shown.onBack) {
+                  shown.onBack();
+                  return;
+                }
+                const prev = tabTrail.pop();
+                if (prev) {
+                  suppressTrailPush = true;
+                  goToEthaionTab(prev);
+                }
+              }}
+            >
+              ← Back
+            </NavPill>
+          )}
           {segs.length > 0 && (
             <PillFrame>
               <CrumbTrail segs={segs} />
@@ -451,14 +579,11 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
           )}
         </div>
         <div className="flex items-center flex-shrink-0" style={{ gap: '8px', pointerEvents: 'auto' }}>
-          <NavPill
-            floating
-            onClick={() => window.dispatchEvent(new Event(ASK_BEAU_EVENT))}
-            title="Talk to Beau — tap again to come back"
-            ariaLabel="Ask Beau"
-          >
-            Ask Beau
-          </NavPill>
+          {/* BACK TO THE TOP — the same capsule family, on the same line as
+              the other chrome controls (founder's request): appears once the
+              page has scrolled, jumps straight back. Ask Beau itself moved to
+              the circular portrait button in the bottom-right corner. */}
+          <ScrollTopNavPill />
           {/* Settings is the GEAR itself (founder's correction) — same
               capsule, same accent ink, a symbol instead of the word. */}
           <NavPill

@@ -530,7 +530,7 @@ function SubcategoryPage({
         onClick={onBack}
         className={`inline-flex items-center gap-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
       >
-        <ArrowLeft className="w-3.5 h-3.5" /> The Rail
+        <ArrowLeft className="w-3.5 h-3.5" /> Curated
       </button>
 
       {/* Gap handoff chip — this page was opened straight from The Edit. */}
@@ -1197,7 +1197,7 @@ export function CuratedTab({
         pieces={pieces}
         prefs={prefs}
         onBack={() => setOpenPick(null)}
-        backLabel={openSub ? openSub.label : 'The Rail'}
+        backLabel={openSub ? openSub.label : 'Curated'}
       />
     );
   }
@@ -1233,7 +1233,7 @@ export function CuratedTab({
     return (
       <div>
         <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>
-          The Rail
+          Curated
         </h3>
         <RailSubTabs view={railView} onChange={setRailView} />
         <WorldOfMenswear
@@ -1256,10 +1256,12 @@ export function CuratedTab({
   return (
     <div>
       <h3 className={`hab-page-title ${typography.color.primary}`} style={{ marginBottom: '14px' }}>
-        The Rail
+        Curated
       </h3>
 
-      {/* The two sub-tabs — directly below the main Rail tab header. */}
+      {/* The two sub-tabs — directly below the main Curated header. (“The
+          Rail” now names the wardrobe-record tab, so this hidden view reads
+          as Curated.) */}
       <RailSubTabs view={railView} onChange={setRailView} />
 
       {/* Standfirst — three lines maximum. */}

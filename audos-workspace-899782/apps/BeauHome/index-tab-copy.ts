@@ -187,7 +187,7 @@ function categoryVerdictFallback(facts: CategoryFacts[], city: string | null): C
     if (cat.piecesLogged > 0) {
       const count = cat.piecesLogged > 99 ? String(cat.piecesLogged) : numberWord(cat.piecesLogged);
       verdicts[cat.id] =
-        `${capWord(count)} piece${cat.piecesLogged === 1 ? '' : 's'} of ${cat.name.toLowerCase()} on your ledger` +
+        `${capWord(count)} piece${cat.piecesLogged === 1 ? '' : 's'} of ${cat.name.toLowerCase()} on your rail` +
         (carrier ? ` — your ${carrier} carries the run` : '') +
         (gap
           ? `. The ${gap} is the hole worth filling${city ? ` for ${city}` : ''}.`
@@ -196,7 +196,7 @@ function categoryVerdictFallback(facts: CategoryFacts[], city: string | null): C
             : `. Set your city in the Dossier and the verdicts sharpen.`);
     } else {
       verdicts[cat.id] =
-        `Nothing of ${cat.name.toLowerCase()} on your ledger yet — ` +
+        `Nothing of ${cat.name.toLowerCase()} on your rail yet — ` +
         (gap
           ? `start with the ${gap}; your board already names it.`
           : `an open run. Log a piece and Beau reads it against ${city ? `${city}'s` : 'your'} climate.`);
@@ -373,7 +373,7 @@ function fiftyFallback(entries: DirectoryEntry[], facts: FiftyFacts, profile: St
         const gapCat = [...cats].find((c) => gapCats.has(c));
         why = `Answers the ${String(gapCat).replace(/-/g, ' ')} gap your board names — ${p.construction && p.construction !== '—' ? p.construction.toLowerCase() : 'honest make'} at ${priceNew(e)}.`;
       } else if (onLedger) {
-        why = `Already proven on your ledger — ${p.constructionQuality.toLowerCase()} construction that repays rewearing.`;
+        why = `Already proven on your rail — ${p.constructionQuality.toLowerCase()} construction that repays rewearing.`;
       } else if (archOverlap > 0) {
         const a = (p.archetypes || []).find((x) => archetypes.has(x));
         why = `Sits square in your ${archetypeLabel(a || '').toLowerCase()} direction at ${priceNew(e)}.`;
@@ -529,9 +529,9 @@ function pieceReadFallback(type: GarmentType, model: IndexModel): string {
     return `For ${city || 'your climate'}, the wrong tool${dayLine ? ` — ${dayLine}` : ''}. Spend elsewhere first.`;
   }
   if (verdict === 'essential') {
-    return `Nothing on your ledger answers this yet${dayLine ? `, and it would earn ${dayLine}` : ''} — a strong next buy.`;
+    return `Nothing on your rail answers this yet${dayLine ? `, and it would earn ${dayLine}` : ''} — a strong next buy.`;
   }
-  return `Not on your ledger${dayLine ? ` — it would see ${dayLine}` : ''}. ${
+  return `Not on your rail${dayLine ? ` — it would see ${dayLine}` : ''}. ${
     city ? 'Sound, not urgent — fill your named gaps first.' : 'Set your city in the Dossier and Beau weighs it for you.'
   }`;
 }

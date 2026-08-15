@@ -237,7 +237,7 @@ export function fallbackCellNote(input: {
   if (input.state === 'gap') {
     return {
       title: `Nothing for ${input.bandLabel}`,
-      body: `Nothing on your ledger answers ${input.categoryName.toLowerCase()} at ${input.bandLabel}.${dayLine} Beau's picks for it are already waiting in the Hunt.`,
+      body: `Nothing on your rail answers ${input.categoryName.toLowerCase()} at ${input.bandLabel}.${dayLine} Beau's picks for it are already waiting in the Search.`,
     };
   }
   if (input.state === 'thin') {
@@ -283,7 +283,7 @@ export function emptyReading(gapRows: EditSubRow[]): EditReading {
     cells: {},
     subs: {},
     gaps: gapsFromArithmetic(gapRows),
-    foot: 'Order is not size: the gap that goes first is the one whose days currently go wrong, not the one that covers the most of them. Each link opens that sub-category in The Hunt on Beau\u2019s ranked picks.',
+    foot: 'Order is not size: the gap that goes first is the one whose days currently go wrong, not the one that covers the most of them. Each link opens that sub-category in The Search on Beau\u2019s ranked picks.',
     fromBeau: false,
   };
 }

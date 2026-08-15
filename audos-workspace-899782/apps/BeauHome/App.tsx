@@ -66,12 +66,13 @@ import {
 } from './photo-enhance';
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { OnboardingTour } from './onboarding-tour';
-import { ChromeNavBar, ScrollToTop, type CrumbPublication } from './crumb-trail';
+import { AskBeauCorner, ChromeNavBar, type CrumbPublication } from './crumb-trail';
 import { HairlineRowsSkeleton, HomeSkeleton } from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
 import { sweepSemanticTags } from './semantic-tags';
 import { sweepPieceWarmth } from './warmth-model';
+import { sweepWatchlist } from './watchlist-poll';
 import { BeauAssessmentProvider } from './beau-assessment-context';
 import { SaveProfileNudge, isGuestUnsaved } from './save-profile';
 
@@ -111,9 +112,10 @@ let auditsKicked = false;
  * Ethaion — the home app (Milestones overhaul). A tap-only
  * onboarding runs before anything else; once complete the visitor lands in
  * a shell with SIX persistent top tabs in this exact order:
- *   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier
- *   (Reads hidden; old Rail merged into Ledger)
- *  - The Ledger (tab id 'wardrobe', ledger-tab.tsx): everything he owns, by
+ *   The Rail · The Edit · The Fitting · The Search · The Index · The Dossier
+ *   (Reads hidden; the old photo-rail merged into the record tab. August
+ *   2026 renames: “The Ledger” → “The Rail”, “The Hunt” → “The Search”.)
+ *  - The Rail (tab id 'wardrobe', ledger-tab.tsx): everything he owns, by
  *    category — a link or a photograph goes in at the top, the nine
  *    categories unfold into his pieces with Beau's read against each one,
  *    opening a piece opens the sheet where he corrects Beau, and the page
@@ -303,8 +305,28 @@ function localOnboardingStorageKey(): string {
 
 function readLocalOnboardingProfile(): StyleProfile | null {
   try {
-    const raw = localStorage.getItem(localOnboardingStorageKey());
-    return raw ? (JSON.parse(raw) as StyleProfile) : null;
+    const spaceId = (window as any).__SPACE_ID__ || 'workspace-899782';
+    // The key is identity-scoped, and the identity can change mid-visit
+    // (guest → signed in, or a re-issued session id). The pre-sign-in
+    // 'current' fallback is read ONLY when the session carries no email of
+    // its own (founder's correction, August 2026): that browser-wide record
+    // may belong to a DIFFERENT account — reading it under a signed-in email
+    // made every NEW email on the same device look already onboarded, so
+    // the wizard never appeared for a fresh account.
+    let hasEmail = false;
+    try {
+      const rawSession =
+        localStorage.getItem(`space_session_${spaceId}`) || sessionStorage.getItem(`space_session_${spaceId}`);
+      hasEmail = !!(rawSession && JSON.parse(rawSession).email);
+    } catch { /* treated as no email — the fallback stays available */ }
+    const keys = hasEmail
+      ? [localOnboardingStorageKey()]
+      : Array.from(new Set([localOnboardingStorageKey(), `ethaion_profile_onboarding_${spaceId}_current`]));
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (raw) return JSON.parse(raw) as StyleProfile;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -358,7 +380,7 @@ interface OnboardingProps {
   onDone: (profile: StyleProfile | null) => void;
 }
 
-function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
+export function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
   const [step, setStep] = useState<number>(() => {
     const saved = profile?.onboarding_step ?? 0;
     return Math.min(Math.max(saved, 0), TOTAL_STEPS - 1);
@@ -515,9 +537,16 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
       try {
         if (s === 0) {
           // BODY — the name onto the dossier; the exact height, weight and
-          // body type also feed the Fitting figure.
-          if (name.trim()) await saveDossierDetails({ displayName: name.trim() }).catch(() => undefined);
-          if (hairColour) await saveDossierDetails({ hairColour }).catch(() => undefined);
+          // body type also feed the Fitting figure. ONE combined write: two
+          // back-to-back saves used to race the row's first insert, which
+          // could file the name and the hair colour on separate rows and
+          // lose the name on reload.
+          if (name.trim() || hairColour) {
+            await saveDossierDetails({
+              ...(name.trim() ? { displayName: name.trim() } : {}),
+              ...(hairColour ? { hairColour } : {}),
+            }).catch(() => undefined);
+          }
           if (heightCm || weightKg || build) {
             await saveAvatarInputs({
               heightCm: heightCm ?? null,
@@ -636,48 +665,31 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
   };
 
   /** Skip this page. Unconditional: no validation, no session check, and
-   * nothing in flight to wait for. This page's blank fields are simply never
-   * written. */
+   * nothing in flight to wait for. WHATEVER WAS FILLED IN STILL SAVES
+   * (founder's rule, August 2026): skipping moves on without insisting, but
+   * a name, a height or a size already typed on the page reaches the profile
+   * exactly as Continue would have sent it — only genuinely blank fields are
+   * never written. */
   const skipStep = () => {
     const last = step >= TOTAL_STEPS - 1;
-    const next = {
-      ...localDraft,
-      onboarding_step: last ? TOTAL_STEPS - 1 : step + 1,
-      onboarding_complete: last,
-    } as StyleProfile;
-    setLocalDraft(next);
-    writeLocalOnboardingProfile(next);
+    const next = localSnapshot(step, last);
     trackFunnelEvent(last ? 'onboarding_complete' : 'onboarding_step_skipped', {
       step: step + 1,
       total_steps: TOTAL_STEPS,
     });
     if (last) onDone(next);
     else setStep((current) => current + 1);
-    void saveProfile({
-      onboarding_step: last ? TOTAL_STEPS - 1 : step + 1,
-      ...(last ? { onboarding_complete: true } : {}),
-    }).catch((error) => {
-      console.warn('[Ethaion] onboarding skip saved locally; server mirror unavailable:', error);
-    });
+    mirrorStep(step, last ? { onboarding_complete: true } : {});
   };
 
   /** Skip the whole wizard, from any page. Straight to the dashboard, keeping
-   * whatever has been filled in so far. */
+   * whatever has been filled in so far — the current page's answers included,
+   * companion rows (name, sizes, registers) and all. */
   const skipAll = () => {
     const completed = localSnapshot(step, true);
     trackFunnelEvent('onboarding_skipped', { step: step + 1, total_steps: TOTAL_STEPS });
     onDone(completed);
-    void saveProfile({
-      ...patchForStep(step),
-      onboarding_step: TOTAL_STEPS - 1,
-      onboarding_complete: true,
-    })
-      .then((fresh) => {
-        if (fresh) writeLocalOnboardingProfile(fresh);
-      })
-      .catch((error) => {
-        console.warn('[Ethaion] onboarding skip saved locally; server mirror unavailable:', error);
-      });
+    mirrorStep(step, { onboarding_complete: true });
   };
 
   // Every question on every page is optional, so Continue is always
@@ -1353,8 +1365,11 @@ function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 // ---------------------------------------------------------------------------
 // Top-level navigation — SIX tabs, in this exact order, each with a
 // hairline stroke icon:
-//   The Ledger · The Edit · The Fitting · The Hunt · The Index · The Dossier.
-// The Hunt is REINSTATED (August 2026) and sits immediately LEFT of The
+//   The Rail · The Edit · The Fitting · The Search · The Index · The Dossier.
+//   (August 2026 renames: “The Ledger” → “The Rail”, “The Hunt” → “The
+//   Search” — labels only; the internal tab ids are unchanged so chat deep
+//   links keep working.)
+// The Search is REINSTATED (August 2026) and sits immediately LEFT of The
 // Index: three sub-tabs — Beau's Picks, Ask Beau and Your Calls
 // (hunt-tab.tsx). The Index keeps its place immediately LEFT of The Dossier,
 // which stays the RIGHTMOST tab. The internal tab ids are unchanged
@@ -1369,11 +1384,13 @@ type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'hunt' | 'index'
 
 /** Hairline, stroke-only tab icons — no fills (Part 1's icon column). */
 const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'hourglass' | 'figure' | 'folder' | 'library' | 'compass' }> = [
-  { id: 'wardrobe', label: 'The Ledger', short: 'Ledger', icon: 'book' },
+  // The Rail wears the HANGER (founder's request, August 2026) — the clean
+  // in-house stroke glyph, not a book.
+  { id: 'wardrobe', label: 'The Rail', short: 'Rail', icon: 'hanger' },
   { id: 'beau', label: 'The Edit', short: 'Edit', icon: 'grid' },
   { id: 'fitting-room', label: 'The Fitting', short: 'Fitting', icon: 'figure' },
-  // The Hunt — reinstated (August 2026), immediately LEFT of The Index.
-  { id: 'hunt', label: 'The Hunt', short: 'Hunt', icon: 'compass' },
+  // The Search (was The Hunt) — reinstated (August 2026), immediately LEFT of The Index.
+  { id: 'hunt', label: 'The Search', short: 'Search', icon: 'compass' },
   // The Index — rebuilt (August 2026), sits immediately LEFT of The Dossier.
   { id: 'index', label: 'The Index', short: 'Index', icon: 'library' },
   // The Dossier — a PRIMARY tab again, rightmost (founder's correction).
@@ -1444,13 +1461,16 @@ const HIDDEN_TAB_IDS: TabId[] = ['dressed', 'saved', 'reads', 'rail', 'curated',
 /** What each tab reads as in the FLOATING breadcrumb (crumb-trail.tsx) —
  * the label after the ETHAION root when nothing deeper is on screen. */
 const TAB_TRAIL_LABELS: Record<TabId, string> = {
-  wardrobe: 'The Ledger',
+  wardrobe: 'The Rail',
   beau: 'The Edit',
   'fitting-room': 'The Fitting',
-  hunt: 'The Hunt',
+  hunt: 'The Search',
   index: 'The Index',
   'your-style': 'The Dossier',
-  curated: 'The Rail',
+  // The retired recommendations tab (was Curated, then briefly “The Rail”).
+  // “The Rail” now names the wardrobe record above, so this hidden view
+  // reads as Curated wherever a trail names it.
+  curated: 'Curated',
   radar: 'The Reserve',
   reads: 'Reads',
   rail: 'The Rail',
@@ -1606,6 +1626,14 @@ export default function BeauHome() {
   // The single end-of-onboarding save nudge — set once when a guest finishes
   // onboarding, dismissed forever after (Save or Skip).
   const [showSaveNudge, setShowSaveNudge] = useState(false);
+  // Latched the moment onboarding's Continue/Skip hands over to the
+  // dashboard. A profile refresh that lands AFTER the handoff (the boot read
+  // resolving late, a focus re-read, an `ethaion:profile` event) can carry a
+  // stale row without `onboarding_complete`; without this latch that row
+  // remounted the wizard over the dashboard — which is why Skip appeared to
+  // do nothing. Once the user has dismissed onboarding this visit, nothing
+  // may bring it back.
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   // Retroactive photo clean-up (Pass Twenty-Six): every piece with a photo
   // is swept through client-side background removal + white-card
   // normalization in the background — this drives the subtle progress pill,
@@ -1951,6 +1979,19 @@ export default function BeauHome() {
     return () => window.removeEventListener('ethaion:prefs', onPrefs);
   }, []);
 
+  // THE WATCHLIST, CHECKED ON OPEN (The Search · Watchlist). Every piece the
+  // reader has asked Beau to keep an eye on has its retailer page re-read once
+  // per load — on the idle queue, well behind the first paint, and throttled
+  // per row inside the sweep, so a second open in the same half hour costs
+  // nothing. It is deliberately silent: the Watchlist face simply reads fresher
+  // rows when he next opens it, and a page that will not answer changes
+  // nothing (watchlist-poll.ts).
+  useEffect(() => {
+    whenIdle(() => {
+      void sweepWatchlist();
+    }, 7000);
+  }, []);
+
   // THE CUTOUT STORE, READ ONCE, BEFORE ANY GRID PAINTS (image pipeline,
   // Step 4). Every surface that shows an item peeks this store synchronously,
   // so an item ingested on an earlier visit — or on another device — answers
@@ -2124,23 +2165,23 @@ export default function BeauHome() {
     const home = { label: 'Ethaion', onClick: goHome };
     if (tab === 'wardrobe' && openStyleToday) {
       return {
-        segs: [home, { label: 'The Ledger', onClick: closeStyleToday }, { label: 'Style me today' }],
+        segs: [home, { label: 'The Rail', onClick: closeStyleToday }, { label: 'Style me today' }],
         onBack: closeStyleToday,
-        backLabel: 'The Ledger',
+        backLabel: 'The Rail',
       };
     }
     if (tab === 'dressed') {
       return {
-        segs: [home, { label: 'The Ledger', onClick: backToWardrobe }, { label: 'Build a Look' }],
+        segs: [home, { label: 'The Rail', onClick: backToWardrobe }, { label: 'Build a Look' }],
         onBack: backToWardrobe,
-        backLabel: 'The Ledger',
+        backLabel: 'The Rail',
       };
     }
     if (tab === 'saved') {
       return {
-        segs: [home, { label: 'The Rail', onClick: backToCurated }, { label: 'Saved' }],
+        segs: [home, { label: 'Curated', onClick: backToCurated }, { label: 'Saved' }],
         onBack: backToCurated,
-        backLabel: 'The Rail',
+        backLabel: 'Curated',
       };
     }
     return { segs: [home, { label: TAB_TRAIL_LABELS[tab] || 'Home' }] };
@@ -2192,20 +2233,23 @@ export default function BeauHome() {
   // rewrite exists to remove.
   const storedProfile = profile ?? readLocalOnboardingProfile();
   const alreadyOnboarded =
+    onboardingDismissed ||
     !!storedProfile?.onboarding_complete ||
     profileHasExistingData(storedProfile) ||
-    // A row that exists but predates the completed flag, on a session the
-    // server calls a returning user. `isReturningUser` alone is NOT enough:
-    // it is true for any email the CRM has seen (a landing-page lead, say),
-    // and dropping one of those onto an empty dashboard would be worse than
-    // offering them the wizard they can skip in one tap.
-    (!!storedProfile && readSessionReturningUser());
+    // A session the register endpoint marked `isReturningUser` skips the
+    // wizard outright: their answers, profile and wardrobe already live in
+    // the workspace database under their durable session and load by session
+    // id on boot. Putting someone who already answered onboarding back
+    // through it is the failure this guard removes — everything the wizard
+    // asks stays editable in The Dossier.
+    readSessionReturningUser();
   if (!alreadyOnboarded) {
     return (
       <Onboarding
         profile={storedProfile}
         prefs={prefs}
         onDone={(p) => {
+          setOnboardingDismissed(true);
           setProfile(p);
           setTab('wardrobe');
           setOpenStyleToday(false);
@@ -2230,8 +2274,8 @@ export default function BeauHome() {
   return (
     <BeauAssessmentProvider profile={effectiveProfile} pieces={pieces} budgets={budgets} prefs={prefs}>
     <div className="min-h-full bg-[var(--space-surface-page)] relative flex flex-col">
-      {/* Persistent navigation — The Ledger · The Edit · The Fitting ·
-          The Hunt · The Index · The Dossier (six tabs; on a phone they sit
+      {/* Persistent navigation — The Rail · The Edit · The Fitting ·
+          The Search · The Index · The Dossier (six tabs; on a phone they sit
           in the bottom bar). */}
       <TabBar
         tab={tab}
@@ -2442,9 +2486,11 @@ export default function BeauHome() {
           — this branch only renders after onboarding completes. */}
       <OnboardingTour />
 
-      {/* Back to the top — a small capsule in the bottom-right corner, clear
-          of the phone's tab bar, shown only once the top has scrolled away. */}
-      <ScrollToTop />
+      {/* ASK BEAU — the circular portrait button in the bottom-right corner
+          (standard chat-widget placement). No text, just Beau. It toggles the
+          same chat drawer the old nav capsule opened; the scroll-to-top
+          control now lives as a capsule in the floating chrome row above. */}
+      <AskBeauCorner />
 
       {/* The maker sheet — slides in from the right wherever a maker's name
           is clicked; carries its own ← CLOSE, Escape and backdrop-tap ways

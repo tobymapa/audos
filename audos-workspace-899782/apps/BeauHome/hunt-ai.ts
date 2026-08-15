@@ -371,7 +371,7 @@ export async function runMatchSearch(input: MatchInput): Promise<MatchRecommenda
   const { query, profileOn, profile, budgets, pieces, prefs } = input;
   const system = profileOn ? MATCH_SYSTEM_PROFILE_ON : MATCH_SYSTEM_PROFILE_OFF;
   const profileContext = profileOn ? `HIS PROFILE:\n${buildProfileContext(profile, budgets, pieces, prefs)}` : null;
-  const user = `THE HUNT: ${query}`;
+  const user = `THE SEARCH: ${query}`;
 
   let text = await callClaude({ model: MATCH_MODEL, system: cachedSystem(system, profileContext), user, maxTokens: 2000 });
   if (!text) text = await callGptFallback(system, profileContext ? `${profileContext}\n\n${user}` : user, 2000);
@@ -1115,7 +1115,7 @@ export async function assessPastedCandidate(input: {
     const extra = guess ? await searchWeb(`${guess} price review`, 4).catch(() => []) : [];
     const all = [...hits, ...extra].slice(0, 8);
     if (all.length === 0) return null;
-    const system = `You are Beau — a menswear valet. The user pasted a product URL into The Hunt. From the search snippets ONLY, identify the product and assess it against the profile provided. Return STRICT JSON: {"name": string, "brand": string|null, "category": string|null (one of tops, bottoms, shoes, outerwear, knitwear, sweatshirts, formalwear, accessories), "price": string|null (with currency symbol, ONLY if the snippets state it), "note": string} — "note" is 1–2 short sentences: your read of this piece for THIS user (fit for their frame, colouring, budget and directions). Never invent a price. JSON only, no markdown.`;
+    const system = `You are Beau — a menswear valet. The user pasted a product URL into The Search. From the search snippets ONLY, identify the product and assess it against the profile provided. Return STRICT JSON: {"name": string, "brand": string|null, "category": string|null (one of tops, knitwear, sweatshirts, outerwear, bottoms, formalwear, base-layers, shoes, accessories, bags, hats), "price": string|null (with currency symbol, ONLY if the snippets state it), "note": string} — "note" is 1–2 short sentences: your read of this piece for THIS user (fit for their frame, colouring, budget and directions). Never invent a price. JSON only, no markdown.`;
     const profileContext = `THE USER'S PROFILE:\n${buildProfileContext(input.profile, input.budgets, input.pieces, input.prefs)}`;
     const user = `URL: ${input.url}${input.guessBrand ? `\nLikely maker: ${input.guessBrand}` : ''}${input.guessName ? `\nLikely piece: ${input.guessName}` : ''}\n\nSEARCH SNIPPETS:\n${all.map((h, i) => `${i + 1}. ${h.title}\n${h.snippet}\n${h.link}`).join('\n\n')}`;
     let text = await callClaude({ model: CLAUDE_HAIKU, system: cachedSystem(system, profileContext), user, maxTokens: 500 });

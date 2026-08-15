@@ -2,16 +2,18 @@
  * THE FIRST-RUN TOUR — a coach-mark walkthrough of the app's main areas,
  * shown ONCE automatically on a customer's first load (after Beau's intake
  * wizard) and re-triggerable any time from the small "?" button in the
- * bottom-left corner of the shell (bottom-right is the photo-migration
- * pill's spot).
+ * bottom-left corner of the shell (the bottom-right corner belongs to the
+ * circular Beau portrait button, which the tour's last stop points at).
  *
  * The stops, in the tab strip's own order (August 2026 refresh):
- *   The Ledger · its categories
+ *   The Rail · its categories
  *   The Edit · the wardrobe map
  *   The Fitting · the board · the shelf
- *   The Hunt · Beau's Picks (with Ask Beau and Your Calls beside it)
+ *   The Search · Beau's Picks (with Ask Beau and Your Calls beside it)
  *   The Index · the piece pages · the Makers face and the maker search
  *   The Dossier
+ *   Beau · the circular button, bottom-right — the two-mode drawer
+ *     (Chat, and Score a Piece for a Regret Risk verdict)
  *
  * Each stop is a tooltip card anchored to a `data-tour="…"` element (the
  * tab bar's buttons, plus elements inside the tabs). A stop whose anchor
@@ -50,13 +52,13 @@ interface TourStep {
 const STEPS: TourStep[] = [
   {
     anchor: 'tour-ledger',
-    kicker: 'The Ledger',
+    kicker: 'The Rail',
     body: 'Everything you own, by category. Add a piece to get started — a link, a photo or a few words is enough.',
     navigate: { tab: 'wardrobe' },
   },
   {
     anchor: 'tour-ledger-pieces',
-    kicker: 'The Ledger · By category',
+    kicker: 'The Rail · By category',
     body: 'Open a category to see what is in it, then open a piece to correct what Beau thinks it is — the cloth, the cut, how it fits you.',
     navigate: { tab: 'wardrobe' },
   },
@@ -85,17 +87,17 @@ const STEPS: TourStep[] = [
   {
     anchor: 'tour-fitting-shelf',
     kicker: 'The Fitting · Board',
-    body: 'Everything you can dress it in — what you own, what you saved in the Hunt and Beau\u2019s picks; anything not yours lands dashed.',
+    body: 'Everything you can dress it in — what you own, what you saved in the Search and Beau\u2019s picks; anything not yours lands dashed.',
     navigate: { tab: 'fitting-room' },
   },
   {
     anchor: 'tour-hunt',
-    kicker: 'The Hunt',
+    kicker: 'The Search',
     body: 'Three faces: Beau\u2019s Picks, Ask Beau — one box for a question, a brief or a pasted link — and Your Calls, everything you\u2019ve tagged.',
   },
   {
     anchor: 'tour-hunt-picks',
-    kicker: 'The Hunt · Beau\u2019s Picks',
+    kicker: 'The Search · Beau\u2019s Picks',
     body: 'Unfold a category and Beau names the sub-categories that matter most for you right now — ten researched picks behind each one.',
     navigate: { tab: 'hunt' },
   },
@@ -115,6 +117,11 @@ const STEPS: TourStep[] = [
     anchor: 'tour-dossier',
     kicker: 'The Dossier',
     body: 'Everything Beau knows about you — frame, colouring, sizes, city (the climate fills itself in). Correct any of it and he uses the change immediately.',
+  },
+  {
+    anchor: 'tour-beau-button',
+    kicker: 'Beau',
+    body: 'The circular button in the bottom-right corner opens Beau\u2019s drawer, from any screen. Two modes: Chat \u2014 style, wardrobe, what to wear \u2014 and Score a Piece, which reads a link, a photo or a description and calls the Regret Risk before you buy.',
   },
 ];
 

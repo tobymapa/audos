@@ -34,6 +34,7 @@ import {
   type WardrobePiece,
 } from './profile-data';
 import { categoryName, pieceIndexCategory } from './index-model';
+import { CATEGORY_ORDER } from './category-order';
 import { warmthFor, type PieceWarmth } from './warmth-model';
 import { capWord, numberWord } from './mono-type';
 import { emptyLedgerNote, type LedgerCall, type LedgerNote } from './ledger-notes';
@@ -56,25 +57,16 @@ export const READ_INK: Record<LedgerRead, string> = {
 };
 
 /**
- * The nine categories the tab always shows, in the app's canonical menswear
- * order. Bags, hats and anything filed under Other appear as soon as a
- * piece is logged in them — a category is never hidden while it holds
- * something, and never shown empty just to pad the page out.
+ * The ELEVEN categories the tab always shows — the app's ONE canonical set
+ * (category-order.ts), in the canonical menswear order: Tops · Knitwear ·
+ * Sweatshirts · Outerwear · Trousers & bottoms · Formalwear · Base layers ·
+ * Shoes · Accessories · Bags · Hats & headwear. Anything filed under Other
+ * appears as soon as a piece is logged in it.
  */
-export const LEDGER_CATEGORY_IDS = [
-  'tops',
-  'knitwear',
-  'sweatshirts',
-  'outerwear',
-  'bottoms',
-  'formalwear',
-  'base-layers',
-  'shoes',
-  'accessories',
-];
+export const LEDGER_CATEGORY_IDS = CATEGORY_ORDER.filter((id) => id !== 'other');
 
 /** Every category the tab can show, in the one canonical order. */
-const ALL_LEDGER_CATEGORY_IDS = [...LEDGER_CATEGORY_IDS, 'bags', 'hats', 'other'];
+const ALL_LEDGER_CATEGORY_IDS = [...LEDGER_CATEGORY_IDS, 'other'];
 
 /** The category's name as the whole app writes it — the Index's own wording,
  * so “Trousers & bottoms” reads the same on every tab. */
@@ -113,7 +105,8 @@ export interface LedgerPieceRow {
   band: string;
   bandMin: number | null;
   bandMax: number | null;
-  fit: string | null;
+  /** How it fits him — zero or more of the sheet's five answers. */
+  fits: string[];
   feel: string | null;
   wearContexts: string[];
   tailoring: string | null;
@@ -258,7 +251,7 @@ function computeRead(row: Omit<LedgerPieceRow, 'read' | 'note' | 'fromBeau'>, on
   if (onlyInLayer) {
     return {
       read: 'Core',
-      note: `The only ${row.categoryName.toLowerCase()} on your ledger, so every outfit in that layer runs through it${row.band !== 'any weather' ? ` — and only from ${row.band}` : ''}.`,
+      note: `The only ${row.categoryName.toLowerCase()} on your rail, so every outfit in that layer runs through it${row.band !== 'any weather' ? ` — and only from ${row.band}` : ''}.`,
     };
   }
 
@@ -269,10 +262,11 @@ function computeRead(row: Omit<LedgerPieceRow, 'read' | 'note' | 'fromBeau'>, on
       note: 'Beau has not read the cloth on this one yet. Open it and tell him — it is the field his recommendations lean on hardest.',
     };
   }
-  if (row.fit && row.fit !== 'Fits as it should') {
+  const offFits = row.fits.filter((f) => f !== 'Fits as it should');
+  if (offFits.length > 0) {
     return {
       read: 'Sound',
-      note: `${row.cloth}, and it fits ${row.fit.toLowerCase()} — worth a tailor before it is worth replacing.`,
+      note: `${row.cloth}, and it fits ${listWords(offFits.map((f) => f.toLowerCase()))} — worth a tailor before it is worth replacing.`,
     };
   }
   if (row.wears > 0) {
@@ -281,7 +275,7 @@ function computeRead(row: Omit<LedgerPieceRow, 'read' | 'note' | 'fromBeau'>, on
       note: `${row.cloth} · ${row.band}. ${capWord(numberWord(row.wears))} wear${row.wears === 1 ? '' : 's'} logged and nothing needed here.`,
     };
   }
-  return { read: 'Sound', note: `${row.cloth} · ${row.band}. On the ledger and doing its job — nothing to buy against it.` };
+  return { read: 'Sound', note: `${row.cloth} · ${row.band}. On the rail and doing its job — nothing to buy against it.` };
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +337,7 @@ export function buildLedger(input: LedgerInput): LedgerModel {
       band: bandLabel(read),
       bandMin: read.warmth_level === 'all-weather' ? null : read.min_comfortable_temp_c,
       bandMax: read.warmth_level === 'all-weather' ? null : read.max_comfortable_temp_c,
-      fit: note.fit,
+      fits: note.fits,
       feel: note.feel,
       wearContexts: note.wearContexts,
       tailoring: note.tailoring,
@@ -433,7 +427,7 @@ export function cutWhy(row: LedgerPieceRow): string {
 
 /** The meta line under “What Beau would cut”. */
 export function cutMeta(cuts: LedgerPieceRow[]): string {
-  if (cuts.length === 0) return 'Nothing on your ledger argues against itself';
+  if (cuts.length === 0) return 'Nothing on your rail argues against itself';
   return `${cuts.length} ${cuts.length === 1 ? 'piece' : 'pieces'} the record argues against`;
 }
 
@@ -456,7 +450,7 @@ export function matchesQuery(row: LedgerPieceRow, query: string): boolean {
 export function ledgerFingerprint(model: LedgerModel): string {
   return model.rows
     .map((r) =>
-      [r.id, r.name, r.categoryId, r.sub, r.cloth, r.colour, r.band, r.fit || '', r.feel || '', r.condition || '', r.wears, r.wearContexts.join('+'), r.ownNote || ''].join(':'),
+      [r.id, r.name, r.categoryId, r.sub, r.cloth, r.colour, r.band, r.fits.join('+'), r.feel || '', r.condition || '', r.wears, r.wearContexts.join('+'), r.ownNote || ''].join(':'),
     )
     .sort()
     .join('|');

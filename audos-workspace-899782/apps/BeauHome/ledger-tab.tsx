@@ -1,6 +1,7 @@
 /**
- * THE LEDGER — “Everything you own, by category” (rebuilt to the founder's
- * reference design; tab id 'wardrobe', label “The Ledger”).
+ * THE RAIL (formerly “The Ledger”) — “Everything you own, by category”
+ * (rebuilt to the founder's reference design; tab id 'wardrobe', label
+ * “The Rail” since the August 2026 rename).
  *
  * THE PAGE IS THE RECORD. One question, answered by his own ledger: what do
  * you own, and what is each piece actually doing for you?
@@ -211,7 +212,7 @@ function PieceRow({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void }) 
       <div className="col-span-2 md:col-span-1 flex flex-col" style={{ gap: '4px' }}>
         <span style={body(13, INK)}>{[row.cloth, row.colour].filter(Boolean).join(` ${MIDDOT} `)}</span>
         <span style={mono(9, ACCENT_DEEP)}>
-          {[row.band, row.fit ? row.fit.toLowerCase() : null].filter(Boolean).join(` ${MIDDOT} `)}
+          {[row.band, row.fits.length > 0 ? row.fits.join(', ').toLowerCase() : null].filter(Boolean).join(` ${MIDDOT} `)}
         </span>
       </div>
       <div className="col-span-2 md:col-span-1 min-w-0">
@@ -373,7 +374,7 @@ function CutTable({
 
       {cuts.length === 0 ? (
         <div style={{ ...body(13, SECONDARY), padding: '18px 22px', maxWidth: '110ch', lineHeight: 1.55 }}>
-          Nothing on your ledger argues against itself yet. A piece reaches this table when you tell Beau you never
+          Nothing on your rail argues against itself yet. A piece reaches this table when you tell Beau you never
           quite feel right in it, when your own note says it is finished, or when it is holding a slot it never
           leaves the house in — never because he would rather you owned something else.
         </div>
@@ -517,7 +518,7 @@ export function LedgerTab({
   const factsKey = useMemo(
     () =>
       computed.rows
-        .map((r) => `${r.id}:${r.cloth}:${r.colour}:${r.band}:${r.fit || ''}:${r.feel || ''}:${r.condition || ''}:${r.wears}`)
+        .map((r) => `${r.id}:${r.cloth}:${r.colour}:${r.band}:${r.fits.join('+')}:${r.feel || ''}:${r.condition || ''}:${r.wears}`)
         .sort()
         .join('|'),
     [computed],
@@ -648,7 +649,7 @@ export function LedgerTab({
       return {
         ...current,
         [row.id]: {
-          ...(onFile || { pieceId: row.id, fit: null, feel: null, wearContexts: [], tailoring: null, note: null, call: null }),
+          ...(onFile || { pieceId: row.id, fits: [], feel: null, wearContexts: [], tailoring: null, note: null, call: null }),
           call: next,
         },
       };
@@ -658,7 +659,7 @@ export function LedgerTab({
 
   // ---- the masthead's aside ---------------------------------------------
   const headNote = reassessing
-    ? 'Beau is re-reading your ledger'
+    ? 'Beau is re-reading your rail'
     : corrections > 0
       ? `${capWord(numberWord(corrections))} ${corrections === 1 ? 'correction' : 'corrections'} made ${MIDDOT} Beau is reading them`
       : model.total === 0
@@ -671,7 +672,7 @@ export function LedgerTab({
   const closePieceSheet = () => setOpenPieceId(null);
   const trailSegs: CrumbSegment[] = [
     { label: 'Ethaion' },
-    openPiece ? { label: 'The Ledger', onClick: closePieceSheet } : { label: 'The Ledger' },
+    openPiece ? { label: 'The Rail', onClick: closePieceSheet } : { label: 'The Rail' },
     { label: q ? `“${q}”` : view === 'list' ? 'List' : 'Tiles', onClick: openPiece ? closePieceSheet : undefined },
     ...(openPiece ? [{ label: openPiece.name }] : []),
   ];
@@ -679,7 +680,7 @@ export function LedgerTab({
   return (
     <div>
       <TabHeader
-        title="The Ledger"
+        title="The Rail"
         standfirst={'Everything you own, by category \u2014 open a piece to correct Beau.'}
         aside={
           <>
@@ -698,7 +699,7 @@ export function LedgerTab({
         <CrumbPublisher
           segs={trailSegs}
           onBack={openPiece ? closePieceSheet : undefined}
-          backLabel={openPiece ? 'The Ledger' : undefined}
+          backLabel={openPiece ? 'The Rail' : undefined}
         />
 
         {/* LOG A PIECE — a link in one end or a photograph in the other. */}
@@ -811,7 +812,7 @@ export function LedgerTab({
               {allOpen ? 'Close every category' : 'Open every category'}
             </button>
             <span aria-live="polite" style={mono(9, FAINT)}>
-              {thinking && !reading ? 'Beau is reading your ledger\u2026' : ''}
+              {thinking && !reading ? 'Beau is reading your rail\u2026' : ''}
             </span>
           </div>
           <div
@@ -871,7 +872,7 @@ export function LedgerTab({
 
             {model.total === 0 ? (
               <p style={{ ...body(14.5, SECONDARY), margin: '22px 0 0', maxWidth: '74ch' }}>
-                Nothing on the ledger yet. Paste a link or photograph one piece and Beau reads the cloth, the cut and
+                Nothing on the rail yet. Paste a link or photograph one piece and Beau reads the cloth, the cut and
                 the temperature band off it — you correct him, and the rest of the app has something to work from.
               </p>
             ) : (

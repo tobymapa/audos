@@ -14,7 +14,7 @@ import type { DesktopThemeTokens } from '../types';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 131; // v131: auth rewritten from scratch — ONE register call resolves the session for both Sign in and Register, the client never supplies a sessionId, the identity switches in place (no OTP detour, no post-auth reload, no null render), and every entry point settles in either the signed-in shell or the sign-in form, so no path can leave a blank screen or a spinner that never resolves. // v130: preserve an existing canonical session during boot, recover only genuinely missing ids, and enter restored sessions without a second reload. // v129: bound every auth/session recovery request and render a visible restoring state instead of a blank screen. // v128: reload once after verification so the injected WorkspaceDB client boots under the canonical verified owner; the SDK has no runtime session-switch API, so in-place entry left profile reads on the pre-auth identity. // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 139; // v139: new-vs-returning is decided by the register endpoint’s isReturningUser answer, not by which button was pressed — a brand-new email through “Sign in” now lands in onboarding first (with its always-visible skips) instead of being force-marked returning and dropped on an empty dashboard; a known account still goes straight to its dashboard. // v138: OTP removed from Register and Sign in (founder’s request) — one register call resolves the session and enters the space directly with no verification-code step; boot restore re-resolves the stored email through the same idempotent register call instead of demanding an OTP-verified session (and falls back to a stored durable id when the network is down); the gate also asks the platform to disable the space’s OTP config on mount. The 'otp' step machinery remains in the file but is never entered. // v137: landing page rebuilt to the founder’s editorial reference — sticky masthead, hero with the live Beau-verdict card, the enemy, Plate I, four doubts, how Beau works, the house rules, on the name, the dark join band and the colophon; auth, session restore and the sign-in/register modal untouched. // v136: Sign in marks the stored session as returning (isReturningUser) so an existing user never lands in onboarding; Register keeps the server’s own answer so new accounts still get the wizard with its visible skips. // v131: auth rewritten from scratch — ONE register call resolves the session for both Sign in and Register, the client never supplies a sessionId, the identity switches in place (no OTP detour, no post-auth reload, no null render), and every entry point settles in either the signed-in shell or the sign-in form, so no path can leave a blank screen or a spinner that never resolves. // v130: preserve an existing canonical session during boot, recover only genuinely missing ids, and enter restored sessions without a second reload. // v129: bound every auth/session recovery request and render a visible restoring state instead of a blank screen. // v128: reload once after verification so the injected WorkspaceDB client boots under the canonical verified owner; the SDK has no runtime session-switch API, so in-place entry left profile reads on the pre-auth identity. // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -38,16 +38,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // an object instead of throwing — callers inspect `response.ok` themselves.
 // Every auth request is bounded. A hung endpoint has to surface as a plain,
 // retryable failure — never as a screen that waits forever.
-const AUTH_REQUEST_TIMEOUT_MS = 10_000;
+const AUTH_REQUEST_TIMEOUT_MS = 7_000;
 
-// Hard floor on the gate’s boot state. However the session restore ends, the
-// visitor has either the shell or the sign-in form by now.
-const BOOT_TIMEOUT_MS = 12_000;
+// Hard ceiling for restoring a cached session. The request timeout is shorter
+// so this watchdog always has time to clear stale state and show the login.
+const BOOT_TIMEOUT_MS = 8_000;
 
-// Stamped on the stored session; bumped whenever its shape changes. v5 is the
-// register-only session: reaching the app no longer depends on an OTP
-// round-trip, so `verified` is not part of the contract any more.
-const AUTH_VERSION = 5;
+// v6 restores the documented register → OTP → verified-session contract.
+const AUTH_VERSION = 6;
 
 async function fetchAuth(
   input: RequestInfo | URL,
@@ -145,24 +143,27 @@ interface SpaceRegisterResponseBody {
  * has a verified workspace session and returns null otherwise, handing back a
  * per-call provisional browser session (`csess_…`) instead.
  */
-function resolveDurableSessionId(body: SpaceRegisterResponseBody): string | null {
+function resolveRegisterSession(
+  body: SpaceRegisterResponseBody,
+): { id: string; provisional: boolean } | null {
   const nested = isRecord(body.data) ? body.data : null;
-  const candidates = [body.workspaceSessionId, nested?.workspaceSessionId];
-  const found = candidates.find((value) => typeof value === 'string' && value.trim());
-  return typeof found === 'string' ? found : null;
-}
+  const durableCandidates = [body.workspaceSessionId, nested?.workspaceSessionId];
+  const durable = durableCandidates.find(
+    (value) => typeof value === 'string' && value.trim(),
+  );
+  if (typeof durable === 'string') return { id: durable, provisional: false };
 
-/** Any session id the response carries, durable one first. */
-function resolveRegisteredSessionId(body: SpaceRegisterResponseBody): string | null {
-  const nested = isRecord(body.data) ? body.data : null;
-  const candidates = [
-    body.workspaceSessionId,
-    body.sessionId,
-    nested?.workspaceSessionId,
-    nested?.sessionId,
-  ];
-  const found = candidates.find((value) => typeof value === 'string' && value.trim());
-  return typeof found === 'string' ? found : null;
+  // Before OTP verification this workspace returns the valid session in
+  // `sessionId` while `workspaceSessionId` is null. That provisional id is
+  // exactly what the OTP endpoints expect as sessionUuid; it becomes the
+  // verified workspace identity only after a successful verify response.
+  const provisionalCandidates = [body.sessionId, nested?.sessionId];
+  const provisional = provisionalCandidates.find(
+    (value) => typeof value === 'string' && value.trim(),
+  );
+  return typeof provisional === 'string'
+    ? { id: provisional, provisional: true }
+    : null;
 }
 
 function registeredResponseValue(
@@ -244,7 +245,7 @@ interface EmailGateProps {
 // 'loading' — restoring a stored session. 'email' — the form is on screen.
 // 'complete' — a session was adopted and the shell takes over. There is no
 // fourth state, and every path through the gate ends in one of the last two.
-type GateStep = 'loading' | 'email' | 'complete';
+type GateStep = 'loading' | 'email' | 'otp' | 'complete';
 
 // Derive a usable color set from a single hex primary color
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -281,6 +282,103 @@ function readableTextColor(hex: string): string {
   return luminance > 0.58 ? '#3b2b1d' : '#f7f2e9';
 }
 
+// ---------------------------------------------------------------------------
+// THE LANDING PAGE CONTENT (v137) — the founder’s editorial reference,
+// verbatim. Static copy lives at module scope so a render never rebuilds it;
+// the interactive Beau-verdict card reads LANDING_PIECES through the
+// `verdictPiece` state inside EmailGate.
+// ---------------------------------------------------------------------------
+
+/** The two inks the verdict card scores with — gold for an answered
+ * question, a drier clay for one the piece fails. */
+const LANDING_GOOD = '#a8712c';
+const LANDING_BAD = '#8c5a3c';
+
+const landingMono = (size: number, color: string, tracking = '0.07em') => ({
+  fontFamily: "'IBM Plex Mono', monospace",
+  fontSize: `${size}px`,
+  letterSpacing: tracking,
+  textTransform: 'uppercase' as const,
+  color,
+});
+
+const landingSerif = (size: number, color: string) => ({
+  fontFamily: "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+  fontSize: `${size}px`,
+  fontWeight: 400,
+  color,
+});
+
+interface LandingPieceRow {
+  label: string;
+  note: string;
+  mark2: string;
+  good: boolean;
+}
+
+interface LandingPiece {
+  label: string;
+  name: string;
+  meta: string;
+  verdict: string;
+  rows: LandingPieceRow[];
+}
+
+const LANDING_PIECES: LandingPiece[] = [
+  {
+    label: 'Lambswool crew · £145',
+    name: 'The Peregrine crew, in oatmeal',
+    meta: 'British lambswool · made in Yorkshire · 12 years in the line',
+    verdict: 'Buy it. This one you keep.',
+    rows: [
+      { label: 'Quality', note: 'Fully-fashioned knit, no cut-and-sew seams. Wool grown and spun in the UK — spinning, knitting and finishing all in one country.', mark2: 'Holds up', good: true },
+      { label: 'Fit', note: 'Body length runs short — the one house that does, and the one you need at 5′7″.', mark2: 'Right on you', good: true },
+      { label: 'Continuity', note: 'Same colour, same gauge, every autumn since 2014. You can buy a second in two years.', mark2: 'Repeatable', good: true },
+      { label: 'In ten years', note: 'Oatmeal against your colouring, no logo, no season. Nothing here dates.', mark2: 'Still yours', good: true },
+    ],
+  },
+  {
+    label: 'Technical overshirt · £320',
+    name: 'The overshirt you asked me about',
+    meta: 'Cotton-nylon blend · capsule drop · third year of the label',
+    verdict: 'Pass. Not this one, not at that price.',
+    rows: [
+      { label: 'Quality', note: '38% nylon in a piece sold as cotton, and “made in Portugal” covers the finishing only — it was cut and sewn elsewhere.', mark2: 'Thin for the money', good: false },
+      { label: 'Fit', note: 'Drop shoulder set for a taller frame; the seam lands halfway down your upper arm.', mark2: 'Wrong lines', good: false },
+      { label: 'Continuity', note: 'Capsule drop — gone in eight weeks, with nothing in the colour to build against.', mark2: 'One-off', good: false },
+      { label: 'In ten years', note: 'Reads as 2026 the moment the cut moves on. You’d resent it by spring.', mark2: 'Dates fast', good: false },
+    ],
+  },
+];
+
+const LANDING_DOUBTS = [
+  { n: '01', title: 'Is it actually well made?', body: 'Origin is close to legal fiction: a label can claim a country where only minor finishing happened while the garment was built on the other side of the world. And more of it is polyester every year — a petroleum plastic that traps heat, holds odour and sheds microplastics with every wash. Wool breathes, linen regulates, cotton softens. Almost nobody leads with what a piece is made of.', answer: 'Beau reads the make before you pay: fibre, seams, where each step actually happened, and the label’s record over time.' },
+  { n: '02', title: 'Will it fit me?', body: 'Standard proportions don’t translate to every frame. A shorter build gets the wrong sleeve, the wrong rise, the wrong shoulder seam — and it only reveals itself in wear, six months later, when the money’s gone and the return window isn’t.', answer: 'He knows your measurements and which houses cut for them — and says so plainly when one doesn’t.' },
+  { n: '03', title: 'Can I build on it?', body: 'A one-season run means no second in the same colour, no matching weight, nothing to grow the wardrobe around. You buy the piece and the piece stays alone.', answer: 'He tracks which labels keep a piece in the line year after year, and flags the ones that won’t.' },
+  { n: '04', title: 'Will I still want it?', body: 'The real question is whether you’ll be proud of it at any age — or whether it will read as a passing year the moment taste moves on.', answer: 'Nothing trend-led reaches you. If it wouldn’t hold at sixty, he doesn’t bring it.' },
+];
+
+const LANDING_STEPS = [
+  { n: '01', kicker: 'He learns you', title: 'Your proportions, colouring and budget reality', body: 'Height and how you’re built, what works against your complexion, what you can actually spend, and the life the clothes have to survive — multiple countries, one suitcase, no dry cleaner on the corner.' },
+  { n: '02', kicker: 'He does the looking', title: 'Makers who rarely surface unless you know where to look', body: 'Not just the obvious names — the established houses that genuinely earn their reputation, and the small makers you’d never find otherwise. A wool mill that has done the same thing for a century. A shoemaker nobody outside the trade has heard of. Wherever the best version of a piece exists, Beau finds it.' },
+  { n: '03', kicker: 'He justifies it', title: 'A verdict you can argue with, line by line', body: 'Every recommendation arrives with its reasoning shown, including the reasons against. You keep the decision; what changes is that you now know what you’re deciding.' },
+];
+
+const LANDING_REFUSALS = [
+  { title: 'No fast fashion', body: 'Whatever the price, whatever the search — pieces built to fail are never an answer here.' },
+  { title: 'No trend-chasing', body: 'Nothing is recommended because it’s popular. Only because it’s right for you, and defensible in writing.' },
+  { title: 'No label bias', body: 'A famous name earns no weight it hasn’t earned on the make. Prestige is not a quality signal.' },
+  { title: 'No cosplay', body: 'This isn’t old-money dress-up. Clothes as character, not performance — you should look like yourself.' },
+];
+
+/** The two plates — bespoke photographs generated for this page (the make
+ * up close, and a cloth-swatch detail), hosted on the workspace CDN. */
+const LANDING_PLATE_WIDE =
+  'https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1786768858866-04iiqm.png';
+const LANDING_PLATE_SMALL =
+  'https://storage.googleapis.com/audos-images/generated-images/agent/workspace-899782/img-1786768886199-yuwh68.png';
+
+
 export default function EmailGate({
   spaceId,
   branding,
@@ -288,6 +386,8 @@ export default function EmailGate({
 }: EmailGateProps) {
   const { setSessionId } = useSpaceRuntime();
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [pendingAuth, setPendingAuth] = useState<{ email: string; session: ResolvedSession; mode: 'register' | 'signin' } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<GateStep>('loading');
@@ -298,11 +398,15 @@ export default function EmailGate({
   const [authMode, setAuthMode] = useState<'register' | 'signin'>('register');
   const [entered, setEntered] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  // Which piece the hero’s live Beau-verdict card is showing (v137 landing).
+  const [verdictPiece, setVerdictPiece] = useState(0);
   // Keep the email field uncontrolled: several iOS/password-manager autofill
   // implementations mutate the DOM value before firing a reliable React
   // change event. A controlled value used to snap that fill back to its first
   // character. Submission always reads the native input value directly.
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const restoreAttemptRef = useRef(0);
+  const authAttemptRef = useRef(0);
 
   // App Preview does not always inject __WORKSPACE_ID__, but registration
   // requires it. This source belongs to one workspace, so its stable id is
@@ -321,35 +425,79 @@ export default function EmailGate({
 
   useEffect(() => {
     storeAttribution();
+    // OTP OFF, PLATFORM-SIDE TOO (founder’s request, August 2026): the gate
+    // no longer asks for a verification code, so tell the platform’s OTP
+    // config the same thing. Idempotent and fire-and-forget — if the endpoint
+    // refuses, the gate’s own no-OTP flow still stands on its own.
+    if (!isTemplatePreview) {
+      fetch(`/api/auth/otp/space/config/${workspaceId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ enabled: false }),
+      }).catch(() => { /* non-fatal */ });
+    }
     let settled = false;
+    const attempt = ++restoreAttemptRef.current;
     // The watchdog is the guarantee, not the plan: if the restore below is
     // somehow still pending, the visitor gets the sign-in form rather than a
-    // spinner with no end.
+    // spinner with no end. Incrementing the token prevents a late response
+    // from adopting the stale session after the fallback has rendered.
     const watchdog = window.setTimeout(() => {
-      if (settled) return;
-      console.warn('[EmailGate] session restore timed out; showing sign-in');
-      setStep((current) => (current === 'loading' ? 'email' : current));
+      if (settled || restoreAttemptRef.current !== attempt) return;
+      settled = true;
+      restoreAttemptRef.current += 1;
+      console.warn('[EmailGate] session restore timed out; clearing stale session');
+      clearStoredSession();
+      setPendingAuth(null);
+      setLoading(false);
+      setStep('email');
     }, BOOT_TIMEOUT_MS);
-    restoreSession()
+    restoreSession(attempt)
       .catch((err) => {
+        if (restoreAttemptRef.current !== attempt) return;
         console.error('[EmailGate] session restore threw; showing sign-in:', err);
-        setStep((current) => (current === 'loading' ? 'email' : current));
+        clearStoredSession();
+        setStep('email');
       })
       .finally(() => {
         settled = true;
         window.clearTimeout(watchdog);
       });
-    return () => window.clearTimeout(watchdog);
+    return () => {
+      if (restoreAttemptRef.current === attempt) restoreAttemptRef.current += 1;
+      window.clearTimeout(watchdog);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spaceId]);
 
-  // Pre-fill email from localStorage when loaded inside the onboarding walkthrough
+  // One ceiling covers the whole interactive chain (register plus OTP send, or
+  // OTP verify), not just an individual fetch. Invalidating the attempt token
+  // also prevents a late response from entering the app after the fallback.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('walkthrough') === 'true') {
+    if (!loading) return;
+    const attempt = authAttemptRef.current;
+    const timer = window.setTimeout(() => {
+      if (authAttemptRef.current !== attempt) return;
+      authAttemptRef.current += 1;
+      clearStoredSession();
+      setPendingAuth(null);
+      setCode('');
+      setLoading(false);
+      setError('Sign-in timed out. Please try again.');
+      setStep('email');
+    }, BOOT_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, spaceId]);
+
+  // Pre-fill a previously captured address (including a paid checkout return),
+  // but never use it as proof of authentication.
+  useEffect(() => {
+    try {
       const storedEmail = localStorage.getItem('user_email');
       if (storedEmail) setEmail(storedEmail);
-    }
+    } catch { /* storage unavailable */ }
   }, []);
 
   useEffect(() => {
@@ -400,6 +548,34 @@ export default function EmailGate({
     root.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => root.removeEventListener('scroll', onScroll);
+  }, [step]);
+
+  // Landing reveal (v137): the reference page’s data-rise / data-rule
+  // IntersectionObserver, scoped to the .eg-root scroller. Elements ease in
+  // as they enter the viewport; reduced-motion visitors see everything at
+  // once via the CSS override.
+  useEffect(() => {
+    const root = document.querySelector('.eg-root');
+    if (!root) return;
+    const targets = root.querySelectorAll('[data-rise],[data-rule]');
+    if (targets.length === 0) return;
+    if (!('IntersectionObserver' in window)) {
+      targets.forEach((t) => t.classList.add('in'));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { root, rootMargin: '0px 0px -12% 0px', threshold: 0 },
+    );
+    targets.forEach((t) => io.observe(t));
+    return () => io.disconnect();
   }, [step]);
 
   // -------------------------------------------------------------------
@@ -456,7 +632,17 @@ export default function EmailGate({
   const writeStoredSession = (session: StoredSession) => {
     try {
       localStorage.setItem(storedSessionKey, JSON.stringify(session));
+      sessionStorage.removeItem(storedSessionKey);
     } catch { /* the in-memory session still carries this visit */ }
+  };
+
+  const clearStoredSession = () => {
+    try {
+      localStorage.removeItem(storedSessionKey);
+      localStorage.removeItem(`space_subscription_${spaceId}`);
+      sessionStorage.removeItem(storedSessionKey);
+      sessionStorage.removeItem(`ethaion_auth_reload_${spaceId}`);
+    } catch { /* storage may be unavailable; the gate still resets in memory */ }
   };
 
   // Point every consumer of the identity at the same id, in the order they
@@ -483,10 +669,12 @@ export default function EmailGate({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          // Deliberately no `sessionId`: the server mints or matches it. A
-          // client-made id is what used to create a second, empty identity
-          // for an email that already had a wardrobe.
           email: normalizedEmail,
+          // App Preview’s deployed register validator requires sessionId even
+          // though the integration catalog marks it optional. Reuse the stable
+          // browser visitor id instead of minting a new value on every retry;
+          // the server still resolves the canonical workspaceSessionId.
+          sessionId: getVisitorId(),
           visitorId: getVisitorId(),
           attribution: getAttribution(),
           metadata: { marketingConsent, source },
@@ -513,10 +701,9 @@ export default function EmailGate({
       }
 
       const body = data as SpaceRegisterResponseBody;
-      const durableId = resolveDurableSessionId(body);
-      const id = durableId || resolveRegisteredSessionId(body);
-      if (!id) {
-        console.error('[EmailGate] register returned no workspace session', rawText.slice(0, 200));
+      const registeredSession = resolveRegisterSession(body);
+      if (!registeredSession) {
+        console.error('[EmailGate] register returned no session id', rawText.slice(0, 200));
         return { ok: false, error: 'The server did not return a session. Please try again.' };
       }
 
@@ -525,8 +712,8 @@ export default function EmailGate({
       return {
         ok: true,
         session: {
-          id,
-          durable: !!durableId,
+          id: registeredSession.id,
+          durable: !registeredSession.provisional,
           contactId: typeof contactId === 'string' ? contactId : null,
           isReturningUser: registeredResponseValue(body, 'isReturningUser') === true,
           metadata: isRecord(metadata) ? (metadata as Record<string, unknown>) : {},
@@ -611,9 +798,19 @@ export default function EmailGate({
     setStep('complete');
   };
 
-  /** BOOT. Terminal in every branch, and only one branch touches the network. */
-  const restoreSession = async () => {
+  /** BOOT. Trust no cached identity until the server confirms it is verified. */
+  const restoreSession = async (attempt: number) => {
     if (forceVisitor) {
+      setStep('email');
+      return;
+    }
+
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(storedSessionKey) || sessionStorage.getItem(storedSessionKey);
+    } catch { /* handled as no session below */ }
+
+    if (!raw) {
       setStep('email');
       return;
     }
@@ -622,42 +819,40 @@ export default function EmailGate({
     const storedId = sessionIdOf(stored);
     const storedEmail =
       typeof stored?.email === 'string' ? stored.email.trim().toLowerCase() : '';
+    const canonicalId =
+      typeof stored?.workspaceSessionId === 'string' ? stored.workspaceSessionId.trim() : '';
 
-    // The ordinary returning visit. A durable session is already on this
-    // device and it is the identity that owns the profile and the wardrobe,
-    // so adopt it as it stands. Re-registering or re-verifying it here is
-    // what used to cost a round-trip — or a whole reload — before the
-    // dashboard, and could hand the session to a different owner.
-    if (storedId && !isLocalSessionId(storedId) && stored?.provisional !== true) {
-      adoptSession(storedId);
+    // WITHOUT OTP (founder’s request, August 2026) a stored session no longer
+    // needs to have been written by a verified flow. Anything structurally
+    // usable — a server-issued id plus the email it belongs to — is
+    // re-resolved through the same idempotent register call the sign-in form
+    // uses: the server answers with the canonical session for that email
+    // (upgrading a provisional id to the durable one the moment one exists),
+    // and the visitor enters without retyping anything.
+    if (!stored || !storedId || !storedEmail || isLocalSessionId(storedId)) {
+      clearStoredSession();
+      setStep('email');
+      return;
+    }
+
+    const resolved = await resolveSessionForEmail(storedEmail, 'boot_restore');
+    if (restoreAttemptRef.current !== attempt) return;
+    if (resolved.ok) {
+      enterSpace(storedEmail, resolved.session, stored);
+      return;
+    }
+
+    // The re-resolve failed (offline, server hiccup). A durable canonical
+    // session is safe to enter on as-is rather than kicking the visitor back
+    // to the form.
+    if (canonicalId && storedId === canonicalId && stored.provisional !== true) {
+      adoptSession(canonicalId);
       setStep('complete');
       return;
     }
 
-    // No session id, or only a provisional one. Ask the server to resolve the
-    // stored email: it hands back the durable workspace session as soon as it
-    // has one, which is how a provisional visit upgrades itself. A provisional
-    // answer when we already hold one changes nothing, so keep what we have
-    // rather than churning the id the local data is filed under.
-    if (storedEmail && !isTemplatePreview) {
-      const result = await resolveSessionForEmail(storedEmail, 'session_restore');
-      if (result.ok && (result.session.durable || !storedId)) {
-        enterSpace(storedEmail, result.session, stored);
-        return;
-      }
-      if (!result.ok) {
-        console.warn('[EmailGate] could not restore the saved session:', result.error);
-      }
-    }
-
-    // A local-only id with no email still owns whatever that browser logged,
-    // so keep it rather than stranding the visitor on the landing page.
-    if (storedId) {
-      adoptSession(storedId);
-      setStep('complete');
-      return;
-    }
-
+    clearStoredSession();
+    setEmail(storedEmail);
     setStep('email');
   };
 
@@ -665,8 +860,6 @@ export default function EmailGate({
     e.preventDefault();
     if (loading) return;
 
-    // The field is uncontrolled (see emailInputRef above), so the native
-    // value is the source of truth on submit.
     const submittedEmail = (emailInputRef.current?.value || email).trim();
     if (!submittedEmail || !submittedEmail.includes('@')) {
       setError('Please enter a valid email address');
@@ -674,9 +867,11 @@ export default function EmailGate({
     }
 
     const normalizedEmail = submittedEmail.toLowerCase();
+    const attempt = ++authAttemptRef.current;
     setEmail(submittedEmail);
     setError('');
     setLoading(true);
+    clearStoredSession();
 
     if (isTemplatePreview) {
       enterTemplatePreview(normalizedEmail);
@@ -684,21 +879,23 @@ export default function EmailGate({
       return;
     }
 
+    // Step 1: register and receive the server-issued workspaceSessionId.
     const result = await resolveSessionForEmail(
       normalizedEmail,
       authMode === 'signin' ? 'landing_sign_in' : 'landing_register',
     );
-
+    if (authAttemptRef.current !== attempt) return;
     if (!result.ok) {
-      // Stay on the form, with the reason. There is no third state to be
-      // stranded in.
       setError(result.error);
       setLoading(false);
+      setStep('email');
       return;
     }
 
-    // Analytics is fire-and-forget on purpose: it must never stand between
-    // the visitor and the dashboard.
+    // NO OTP (founder’s request, August 2026): registration resolved the
+    // session, and that is the whole of the flow — no verification code, no
+    // second step, straight into the space. The lead/pixel events that used
+    // to fire after a successful verify fire here instead.
     try {
       if (typeof (window as any).fbq === 'function' && (window as any).__META_PIXEL_ID__) {
         (window as any).fbq('init', (window as any).__META_PIXEL_ID__, { em: normalizedEmail });
@@ -706,7 +903,126 @@ export default function EmailGate({
     } catch { /* non-fatal */ }
     void fireLeadEventWithRetry(normalizedEmail);
 
-    enterSpace(normalizedEmail, result.session, readStoredSession());
+    if (authAttemptRef.current !== attempt) return;
+    // NEW OR RETURNING IS THE SERVER’S CALL, NOT THE BUTTON’S (founder’s
+    // correction, August 2026): a brand-new email typed into “Sign in” used
+    // to be force-marked returning, which skipped onboarding for someone who
+    // has no account yet. Both buttons let the visitor in — no redirect, no
+    // dead end — and the register endpoint’s own isReturningUser answer
+    // decides the landing: a known account goes straight to its dashboard
+    // (the app’s onboarding gate also skips anyone whose profile already
+    // holds data, so an existing account is safe even if the flag is ever
+    // missing), while a NEW email — whichever button it came through — sees
+    // onboarding as the very first view, with its always-visible skips.
+    enterSpace(normalizedEmail, result.session, null);
+    setPendingAuth(null);
+    setLoading(false);
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+    if (!pendingAuth) {
+      clearStoredSession();
+      setError('Your sign-in session expired. Please start again.');
+      setStep('email');
+      return;
+    }
+
+    const normalizedCode = code.trim();
+    if (!/^\d{4}$/.test(normalizedCode)) {
+      setError('Enter the 4-digit code from your email.');
+      return;
+    }
+
+    const attempt = ++authAttemptRef.current;
+    setError('');
+    setLoading(true);
+    try {
+      // Step 3: only a verified response may establish the app session.
+      const response = await fetchAuth('/api/auth/otp/space/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: pendingAuth.email,
+          code: normalizedCode,
+          workspaceId,
+          sessionUuid: pendingAuth.session.id,
+          sessionId: pendingAuth.session.id,
+        }),
+      });
+      const { data, rawText } = await parseResponseBody(response);
+      if (authAttemptRef.current !== attempt) return;
+      if (
+        !response.ok ||
+        !isRecord(data) ||
+        data.success !== true ||
+        data.verified !== true
+      ) {
+        setError(describeResponseFailure(
+          response,
+          data,
+          rawText,
+          'That code is invalid or expired. Please try again.',
+        ));
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      if (authAttemptRef.current !== attempt) return;
+      console.warn('[EmailGate] OTP verification failed:', err);
+      clearStoredSession();
+      setPendingAuth(null);
+      setCode('');
+      setError('Verification timed out. Please sign in again.');
+      setLoading(false);
+      setStep('email');
+      return;
+    }
+
+    if (authAttemptRef.current !== attempt) return;
+    try {
+      if (typeof (window as any).fbq === 'function' && (window as any).__META_PIXEL_ID__) {
+        (window as any).fbq('init', (window as any).__META_PIXEL_ID__, { em: pendingAuth.email });
+      }
+    } catch { /* non-fatal */ }
+    void fireLeadEventWithRetry(pendingAuth.email);
+
+    // OTP verification upgrades the session server-side, but the id we hold
+    // may still be the provisional browser session (`csess_…`) from register.
+    // Persisting that as the durable workspace session is what caused the
+    // restore → clear → sign-in boot loop: check-session reports it is not a
+    // real workspace session, so every boot fell back to the email form.
+    // Register is idempotent for a verified email, so re-resolve it now to
+    // pick up the durable workspaceSessionId the server just issued.
+    const upgraded = await resolveSessionForEmail(pendingAuth.email, 'otp_verified_upgrade');
+    if (authAttemptRef.current !== attempt) return;
+    // SIGN IN SKIPS ONBOARDING, ALWAYS (founder’s routing fix): someone who
+    // chose “Sign in” is claiming an existing account and has just proven the
+    // email is theirs, so the stored session is marked returning even when
+    // the register endpoint does not say so itself — the app’s onboarding
+    // gate reads this flag and goes straight to the home screen. “Register”
+    // keeps the server’s own answer, so a brand-new account still lands in
+    // onboarding (with its always-visible skips).
+    const returning = pendingAuth.mode === 'signin';
+    if (upgraded.ok && upgraded.session.durable) {
+      enterSpace(
+        pendingAuth.email,
+        { ...upgraded.session, isReturningUser: upgraded.session.isReturningUser || returning },
+        null,
+      );
+    } else {
+      // No durable id came back — let them in on the provisional session
+      // rather than blocking entry. It is stored as provisional (not
+      // verified), so the next boot re-resolves it instead of adopting it.
+      enterSpace(
+        pendingAuth.email,
+        { ...pendingAuth.session, durable: false, isReturningUser: pendingAuth.session.isReturningUser || returning },
+        null,
+      );
+    }
+    setPendingAuth(null);
     setLoading(false);
   };
 
@@ -1031,12 +1347,12 @@ export default function EmailGate({
     },
     {
       title: 'A wardrobe map, not a shopping list',
-      desc: 'Track what you own in The Ledger, see the real gaps on The Edit’s coverage map, and browse The Rail — recommendations ranked for your archetypes and your budgets.',
+      desc: 'Track what you own in The Rail, see the real gaps on The Edit’s coverage map, and browse The Search — recommendations ranked for your archetypes and your budgets.',
     },
   ];
   const howItWorks = [
     { step: '1', title: 'Build your profile', desc: 'Tap through the visual onboarding — style archetypes, occasions, proportions, skin tone and materials. No typing required.' },
-    { step: '2', title: 'Map your wardrobe', desc: 'Log what you own in one go. The Ledger keeps the record, and The Edit’s coverage map shows exactly where your wardrobe reaches — and where it doesn’t.' },
+    { step: '2', title: 'Map your wardrobe', desc: 'Log what you own in one go. The Rail keeps the record, and The Edit’s coverage map shows exactly where your wardrobe reaches — and where it doesn’t.' },
     { step: '3', title: 'Buy with conviction', desc: 'Ask Beau about any piece — or hand him the hunt. Every verdict is reasoned against your profile and your real budget.' },
   ];
   const testimonials = [
@@ -1046,7 +1362,7 @@ export default function EmailGate({
   const faqs = [
     { q: 'Do I need an account or email to start?', a: 'Enter your email to register or sign in. New accounts can skip any onboarding step — or skip the whole wizard for now — and returning accounts go straight to their saved dashboard.' },
     { q: 'Do I need a credit card?', a: 'No. Registration is free and no credit card is required.' },
-    { q: 'What is inside?', a: 'Beau — your personal menswear advisor — plus The Ledger (your wardrobe record), The Rail (his recommendations, matched to your profile), and Maker Scout for discovering obscure, high-value makers.' },
+    { q: 'What is inside?', a: 'Beau — your personal menswear advisor — plus The Rail (your wardrobe record), The Search (his recommendations, matched to your profile), and Maker Scout for discovering obscure, high-value makers.' },
     { q: 'Is my data private?', a: 'Yes. Your profile and wardrobe are stored privately for your account and used only to personalise your recommendations.' },
   ];
 
@@ -1149,72 +1465,126 @@ export default function EmailGate({
         </div>
       )}
 
-      <form onSubmit={handleAuthSubmit} className="space-y-4">
-        <div>
-          <input
-            ref={emailInputRef}
-            type="email"
-            name="email"
-            autoComplete="username"
-            inputMode="email"
-            autoCapitalize="none"
-            spellCheck={false}
-            defaultValue={email}
-            onInput={(e) => {
-              setEmail(e.currentTarget.value);
-              setError('');
-            }}
-            placeholder="Enter your email"
-            className={`eg-input${error ? ' eg-input--error' : ''}`}
+      {step === 'otp' ? (
+        <form onSubmit={handleOtpSubmit} className="space-y-4">
+          <div>
+            <input
+              type="text"
+              name="otp"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              value={code}
+              onChange={(e) => {
+                setCode(e.currentTarget.value.replace(/\D/g, '').slice(0, 4));
+                setError('');
+              }}
+              placeholder="4-digit code"
+              className={`eg-input${error ? ' eg-input--error' : ''}`}
+              disabled={loading}
+              required
+              autoFocus
+              data-testid="input-otp"
+            />
+            {error && (
+              <p className="mt-2 text-xs" style={{ color: 'var(--space-semantic-danger)' }} data-testid="text-error">
+                {error}
+              </p>
+            )}
+          </div>
+          <button
+            type="submit"
             disabled={loading}
-            required
-            autoFocus={loginOpen}
-            data-testid="input-email"
-          />
-          {error && (
-            <p className="mt-2 text-xs" style={{ color: 'var(--space-semantic-danger)' }} data-testid="text-error">
-              {error}
-            </p>
-          )}
-        </div>
-
-        {gdprEnabled && (
-          <div
-            className="space-y-2 rounded-lg px-3 py-2 text-xs"
-            style={{
-              backgroundColor: bgLight,
-              color: textMuted,
+            className="eg-btn eg-btn--block"
+            data-testid="button-verify"
+          >
+            {loading ? 'Verifying…' : 'Verify and continue'}
+            {!loading && <ArrowRight size={18} strokeWidth={2.6} />}
+          </button>
+          <button
+            type="button"
+            className="eg-link w-full text-center"
+            disabled={loading}
+            onClick={() => {
+              clearStoredSession();
+              setPendingAuth(null);
+              setCode('');
+              setError('');
+              setStep('email');
             }}
           >
-            <p>
-              By entering your email, you agree to our{' '}
-              <a href="/privacy" className="font-medium underline" style={{ color: textPrimary }}>
-                Privacy Policy
-              </a>.
-            </p>
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={marketingConsent}
-                onChange={(e) => setMarketingConsent(e.target.checked)}
-                className="mt-0.5 h-3.5 w-3.5 rounded"
-                style={{ borderColor: borderColor, accentColor: primaryColor }}
-              />
-              <span>I want to receive marketing emails and updates (optional)</span>
-            </label>
+            Use a different email
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleAuthSubmit} className="space-y-4">
+          <div>
+            <input
+              ref={emailInputRef}
+              type="email"
+              name="email"
+              autoComplete="username"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              defaultValue={email}
+              onInput={(e) => {
+                setEmail(e.currentTarget.value);
+                setError('');
+              }}
+              placeholder="Enter your email"
+              className={`eg-input${error ? ' eg-input--error' : ''}`}
+              disabled={loading}
+              required
+              autoFocus={loginOpen}
+              data-testid="input-email"
+            />
+            {error && (
+              <p className="mt-2 text-xs" style={{ color: 'var(--space-semantic-danger)' }} data-testid="text-error">
+                {error}
+              </p>
+            )}
           </div>
-        )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="eg-btn eg-btn--block"
-          data-testid="button-continue"
-        >
-          {loading ? 'Just a moment…' : authMode === 'signin' ? 'Sign in' : 'Register'}
-          {!loading && <ArrowRight size={18} strokeWidth={2.6} />}
-        </button>
-      </form>
+          {gdprEnabled && (
+            <div
+              className="space-y-2 rounded-lg px-3 py-2 text-xs"
+              style={{
+                backgroundColor: bgLight,
+                color: textMuted,
+              }}
+            >
+              <p>
+                By entering your email, you agree to our{' '}
+                <a href="/privacy" className="font-medium underline" style={{ color: textPrimary }}>
+                  Privacy Policy
+                </a>.
+              </p>
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={marketingConsent}
+                  onChange={(e) => setMarketingConsent(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 rounded"
+                  style={{ borderColor: borderColor, accentColor: primaryColor }}
+                />
+                <span>I want to receive marketing emails and updates (optional)</span>
+              </label>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="eg-btn eg-btn--block"
+            data-testid="button-continue"
+          >
+            {loading ? 'Just a moment…' : authMode === 'signin' ? 'Sign in' : 'Register'}
+            {!loading && <ArrowRight size={18} strokeWidth={2.6} />}
+          </button>
+        </form>
+      )}
 
       {!compact && (
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-5 text-xs font-medium" style={{ color: textSubtle }}>
@@ -1289,20 +1659,21 @@ export default function EmailGate({
       {/* AUDOS:LANDING_SHELL:START */}
     <div
       className="eg-root h-screen overflow-y-auto"
-      style={{ height: '100dvh', WebkitOverflowScrolling: 'touch', fontFamily: "'Lora', Georgia, 'Times New Roman', serif", backgroundColor: '#efe7d9' }}
+      style={{ height: '100dvh', WebkitOverflowScrolling: 'touch', fontFamily: "'Lora', Georgia, 'Times New Roman', serif", backgroundColor: '#ded4c2' }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Lora:ital,wght@0,400;1,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Lora:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap');
         .eg-root {
           /* Landing surfaces are pinned to the Ethaion design system — cream
              page (#efe7d9) and parchment paper (#fbf8f1) — so no runtime
              theme-token fallback can ever turn a section grey. */
           --page: #efe7d9;
           --paper: #fbf8f1;
-          --ink: ${palette?.text?.primary || '#3b2b1d'};
-          --accent: ${primaryColor};
-          --accent-deep: ${accentInk};
-          --divider: ${borderColor};
+          --ink: #3b2b1d;
+          --walnut: #241a12;
+          --accent: #a8712c;
+          --accent-deep: #7c4a17;
+          --divider: rgba(59,43,29,0.18);
           color: var(--ink);
         }
         .eg-root h1, .eg-root h2, .eg-root h3 {
@@ -1310,24 +1681,42 @@ export default function EmailGate({
           font-weight: 400;
         }
         .eg-root em { font-style: italic; }
+        .eg-root a { color: #7c4a17; text-decoration: none; }
+        .eg-root a:hover { color: #241a12; text-decoration: underline; }
+        .eg-root ::selection { background: rgba(168,113,44,.22); }
+        .eg-root input { font: inherit; }
+        .eg-root input:focus-visible, .eg-root a:focus-visible, .eg-root [tabindex]:focus-visible, .eg-root button:focus-visible { outline: 2px solid #a8712c; outline-offset: 2px; }
+        /* The reveal grammar — the reference page’s own rise and rule-draw. */
+        .eg-root [data-rise] { opacity: 0; transform: translateY(22px); transition: opacity .9s cubic-bezier(.2,.6,.2,1), transform .9s cubic-bezier(.2,.6,.2,1); }
+        .eg-root [data-rise].in { opacity: 1; transform: none; }
+        .eg-root [data-rise][data-delay="1"] { transition-delay: .09s; }
+        .eg-root [data-rise][data-delay="2"] { transition-delay: .18s; }
+        .eg-root [data-rise][data-delay="3"] { transition-delay: .27s; }
+        .eg-root [data-rule] { transform: scaleX(0); transform-origin: left; transition: transform 1.1s cubic-bezier(.2,.6,.2,1); }
+        .eg-root [data-rule].in { transform: none; }
+        @media (prefers-reduced-motion: reduce) {
+          .eg-root [data-rise], .eg-root [data-rule] { opacity: 1 !important; transform: none !important; transition: none !important; }
+        }
+        /* The one outlined control the modal shares with the page. */
         .eg-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          height: 42px;
-          padding: 0 30px;
-          border: 1px solid var(--accent);
-          border-radius: 4px;
-          background: transparent;
-          color: var(--ink);
-          font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-          font-size: 15px;
-          font-weight: 500;
-          letter-spacing: 0.06em;
+          min-height: 44px;
+          padding: 13px 24px;
+          border: 1px solid #a8712c;
+          border-radius: 0;
+          background: rgba(168,113,44,.12);
+          color: #241a12;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
           cursor: pointer;
+          white-space: nowrap;
           transition: background-color 0.2s ease;
         }
-        .eg-btn:hover { background-color: ${colorWithAlpha(primaryColor, 0.08)}; }
+        .eg-btn:hover { background-color: rgba(168,113,44,.24); }
         .eg-btn:disabled { opacity: 0.55; cursor: not-allowed; }
         .eg-btn--block { width: 100%; gap: 8px; }
         /* The dialog renders OUTSIDE .eg-root (it is a sibling of the landing
@@ -1337,35 +1726,33 @@ export default function EmailGate({
         .eg-portal {
           --page: #efe7d9;
           --paper: #fbf8f1;
-          --ink: ${palette?.text?.primary || '#3b2b1d'};
-          --accent: ${primaryColor};
-          --accent-deep: ${accentInk};
-          --divider: ${borderColor};
+          --ink: #3b2b1d;
+          --accent: #a8712c;
+          --accent-deep: #7c4a17;
+          --divider: rgba(59,43,29,0.18);
           font-family: 'Lora', Georgia, 'Times New Roman', serif;
           color: var(--ink);
         }
         /* THE SIGN-IN / REGISTER POPUP shares the page’s visual language:
-           parchment paper, hairline edges, a 4px radius, no shadow, the
-           display serif for the heading and the outlined-gold control.
-           It is declared with literal colours rather than the .eg-root
-           custom properties because the dialog renders OUTSIDE .eg-root. */
+           parchment paper, hairline edges, square corners, no shadow, the
+           display serif for the heading and the outlined-gold control. */
         .eg-modal {
           background: #fbf8f1;
-          border: 1px solid ${borderColor};
-          border-radius: 4px;
+          border: 1px solid #3b2b1d;
+          border-radius: 0;
         }
         .eg-modal-title {
           font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
           font-weight: 400;
           font-size: 30px;
           line-height: 1.15;
-          color: ${palette?.text?.primary || '#3b2b1d'};
+          color: #241a12;
         }
         .eg-modal-sub {
           font-family: 'Lora', Georgia, serif;
           font-size: 14px;
           line-height: 1.7;
-          color: ${palette?.text?.secondary || '#634e38'};
+          color: #634e38;
         }
         .eg-close {
           display: flex;
@@ -1374,35 +1761,35 @@ export default function EmailGate({
           width: 38px;
           height: 38px;
           background: transparent;
-          border: 1px solid ${borderColor};
-          border-radius: 4px;
-          color: ${palette?.text?.primary || '#3b2b1d'};
+          border: 1px solid rgba(59,43,29,0.3);
+          border-radius: 0;
+          color: #241a12;
           cursor: pointer;
           transition: background-color 0.2s ease;
         }
-        .eg-close:hover { background-color: ${colorWithAlpha(primaryColor, 0.08)}; }
-        /* One text box, identical to the Settings panel’s fields: transparent
-           ground, a single hairline, 4px corners, Lora at 14px. */
+        .eg-close:hover { background-color: rgba(168,113,44,.08); }
+        /* One text box, identical to the page’s own email fields: paper
+           ground, a single hairline, square corners, Lora at 15px. */
         .eg-input {
           width: 100%;
-          background: transparent;
-          border: 1px solid ${borderColor};
-          border-radius: 4px;
+          background: #fbf8f1;
+          border: 1px solid rgba(59,43,29,.3);
+          border-radius: 0;
           min-height: 46px;
-          padding: 0 14px;
+          padding: 0 15px;
           font-family: 'Lora', Georgia, serif;
-          font-size: 14px;
-          color: ${palette?.text?.primary || '#3b2b1d'};
+          font-size: 15px;
+          color: #241a12;
           outline: none;
         }
-        .eg-input:focus { border-color: ${primaryColor}; }
+        .eg-input:focus { border-color: #a8712c; }
         .eg-input::placeholder { color: #a68e70; opacity: 1; }
         .eg-input--error { border-color: #7d2a24; }
         .eg-fine {
           font-family: 'Lora', Georgia, serif;
           font-size: 12px;
           line-height: 1.7;
-          color: ${palette?.text?.secondary || '#634e38'};
+          color: #634e38;
         }
         @media (max-width: 640px) {
           .eg-modal-title { font-size: 25px; }
@@ -1418,470 +1805,427 @@ export default function EmailGate({
           transition: color 0.2s ease;
         }
         .eg-link:hover { color: var(--accent-deep); }
-        .eg-header {
-          position: sticky;
-          top: 0;
-          z-index: 30;
-          background: var(--paper);
-          border-bottom: 1px solid var(--ink);
+        /* ——— the landing page itself, on the reference’s own grammar ——— */
+        .el-page { width: 100%; max-width: 1440px; margin: 0 auto; background: #efe7d9; color: #3b2b1d; font-size: 15.5px; line-height: 1.6; }
+        .el-nav {
+          position: sticky; top: 0; z-index: 20;
+          display: flex; align-items: center; gap: 40px;
+          padding: 16px 56px;
+          background: rgba(251,248,241,.94);
+          backdrop-filter: blur(8px);
+          border-bottom: 1px solid #3b2b1d;
         }
-        .eg-header-inner {
-          position: relative;
-          max-width: 1120px;
-          margin: 0 auto;
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-          align-items: center;
-          column-gap: 18px;
-          padding: 18px 24px;
+        .el-nav-links { display: flex; align-items: center; gap: 30px; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; }
+        .el-nav-links a, .el-nav-links button.el-navlink { color: #634e38; background: none; border: none; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+        .el-nav-links a:hover, .el-nav-links button.el-navlink:hover { color: #241a12; text-decoration: underline; }
+        .el-navcta { padding: 8px 15px; border: 1px solid #a8712c; background: rgba(168,113,44,.1); color: #241a12 !important; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+        .el-navcta:hover { background: rgba(168,113,44,.2); text-decoration: none !important; }
+        .el-hero { display: grid; grid-template-columns: minmax(0,1fr) 520px; gap: 56px; align-items: start; padding: 70px 56px 66px; border-bottom: 1px solid #3b2b1d; background: #efe7d9; }
+        .el-hero h1 { margin: 16px 0 0; font-size: clamp(40px, 4.9vw, 70px); font-weight: 400; line-height: 1.02; letter-spacing: -.014em; color: #241a12; text-wrap: pretty; }
+        .el-field { flex: 1; padding: 13px 15px; background: #fbf8f1; border: 1px solid rgba(59,43,29,.3); color: #241a12; font-size: 15px; min-width: 0; }
+        .el-field::placeholder { color: #a68e70; }
+        .el-submit { padding: 13px 24px; border: 1px solid #a8712c; background: rgba(168,113,44,.12); font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #241a12; cursor: pointer; white-space: nowrap; display: flex; align-items: center; }
+        .el-submit:hover { background: rgba(168,113,44,.24); }
+        .el-submit:disabled { opacity: .55; cursor: not-allowed; }
+        .el-pill:hover { border-color: #a8712c !important; }
+        .el-prompt-row:hover { background: rgba(168,113,44,.06); }
+        .el-enemy { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 56px; align-items: baseline; }
+        .el-doubts-grid, .el-refusals-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); }
+        .el-steps { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); margin: 64px 56px 0; border: 1px solid #3b2b1d; background: #fbf8f1; }
+        .el-name-grid { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 56px; align-items: center; }
+        .el-join-grid { display: grid; grid-template-columns: minmax(0,1fr) 520px; gap: 56px; align-items: end; }
+        .el-join-field { flex: 1; padding: 13px 15px; background: transparent; border: 1px solid rgba(232,222,208,.4); color: #f4ece0; font-size: 15px; min-width: 0; }
+        .el-join-field::placeholder { color: rgba(232,222,208,.55); }
+        .el-join-submit { padding: 13px 24px; border: 1px solid #c9a672; background: rgba(201,166,114,.12); color: #f4ece0; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; white-space: nowrap; display: flex; align-items: center; }
+        .el-join-submit:hover { background: rgba(201,166,114,.26); }
+        .el-join-submit:disabled { opacity: .55; cursor: not-allowed; }
+        @media (max-width: 1080px) {
+          .el-hero { grid-template-columns: 1fr; }
         }
-        .eg-header-side {
-          display: flex;
-          align-items: center;
-          min-width: 0;
-        }
-        .eg-header-side--left { justify-content: flex-end; }
-        .eg-header-side--right { justify-content: space-between; gap: 18px; }
-        .eg-wordmark {
-          font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-          font-weight: 500;
-          font-size: 34px;
-          line-height: 1;
-          letter-spacing: 0.28em;
-          /* letter-spacing adds a trailing space after the final S, which
-             shifts the glyphs ~half that distance left of true centre — the
-             matching left padding cancels it so ETHAION sits dead centre in
-             the bar (the grid’s two 1fr side columns centre the box itself). */
-          padding-left: 0.28em;
-          text-transform: uppercase;
-          color: var(--ink);
-          white-space: nowrap;
-          justify-self: center;
-          text-align: center;
-        }
-        /* Perfect horizontal centring (v108): the VISIBLE wordmark is
-           absolutely positioned at the true centre of the header bar, so no
-           amount of side-column content (rules, nav links) can push it
-           off-centre at any viewport width. An invisible spacer copy stays in
-           the grid’s middle column to keep the rules and links laid out
-           exactly as before. */
-        .eg-wordmark--spacer { visibility: hidden; }
-        .eg-wordmark--centered {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          transform: translate(-50%, -50%);
-        }
-        .eg-wordmark-rule {
-          height: 1px;
-          background: var(--accent);
-          flex: 1 1 0%;
-          max-width: 200px;
-        }
-        .eg-header-links {
-          display: flex;
-          align-items: center;
-          gap: 22px;
-          flex-shrink: 0;
-        }
-        .eg-hero {
-          /* Literal cream (#efe7d9), never a variable — the hero must match
-             the rest of the landing page on every device and theme state. */
-          background: #efe7d9;
-          text-align: center;
-          padding: 130px 24px 140px;
-        }
-        .eg-hero h1 {
-          font-size: clamp(36px, 6vw, 52px);
-          line-height: 1.14;
-          max-width: 760px;
-          margin: 0 auto;
-          color: var(--ink);
-        }
-        .eg-hero-sub {
-          font-family: 'Lora', Georgia, serif;
-          font-size: 18px;
-          line-height: 1.7;
-          color: var(--ink);
-          opacity: 0.7;
-          max-width: 480px;
-          margin: 26px auto 44px;
-        }
-        .eg-section { padding: 92px 24px; }
-        .eg-section--paper { background: #fbf8f1; }
-        .eg-section--page { background: #efe7d9; }
-        .eg-section-inner { max-width: 620px; margin: 0 auto; }
-        .eg-section-head {
-          font-size: clamp(26px, 4vw, 32px);
-          line-height: 1.2;
-          color: var(--ink);
-          margin: 0 0 24px;
-          padding-bottom: 14px;
-          border-bottom: 1px solid var(--ink);
-        }
-        .eg-body {
-          font-family: 'Lora', Georgia, serif;
-          font-size: 15px;
-          line-height: 1.9;
-          color: var(--ink);
-          margin: 0;
-        }
-        .eg-rows { list-style: none; margin: 6px 0 0; padding: 0; }
-        .eg-rows li {
-          font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-          font-size: 24px;
-          font-weight: 400;
-          color: var(--ink);
-          padding: 18px 2px;
-          border-bottom: 1px solid var(--divider);
-        }
-        .eg-rows li:last-child { border-bottom: none; }
-        .eg-section-note {
-          font-family: 'Lora', Georgia, serif;
-          font-size: 15px;
-          font-style: italic;
-          line-height: 1.8;
-          color: var(--ink);
-          opacity: 0.75;
-          margin: 28px 0 0;
-          padding-top: 18px;
-          border-top: 1px solid var(--divider);
-        }
-        /* The problem — four editorial cards: hairline gutters (the divider
-           colour shows through 1px gaps), paper cells, no shadows. */
-        .eg-cards {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1px;
-          background: var(--divider);
-          border: 1px solid var(--divider);
-          margin-top: 6px;
-        }
-        .eg-card {
-          background: var(--paper);
-          padding: 26px 24px 28px;
-        }
-        .eg-card-title {
-          font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-          font-size: 21px;
-          font-weight: 400;
-          font-style: italic;
-          color: var(--ink);
-          margin: 0 0 10px;
-        }
-        .eg-card-body {
-          font-family: 'Lora', Georgia, serif;
-          font-size: 14px;
-          line-height: 1.8;
-          color: var(--ink);
-          margin: 0;
+        @media (max-width: 900px) {
+          .el-nav { padding: 14px 24px; gap: 20px; }
+          .el-nav-anchor { display: none; }
+          .el-hero { padding: 48px 24px 52px; gap: 40px; }
+          .el-pad { padding-left: 24px !important; padding-right: 24px !important; }
+          .el-inset { margin-left: 24px !important; margin-right: 24px !important; }
+          .el-enemy { grid-template-columns: 1fr; gap: 20px; }
+          .el-doubts-grid, .el-refusals-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+          .el-steps { grid-template-columns: 1fr; margin: 48px 24px 0; }
+          .el-steps > div { border-right: none !important; border-bottom: 1px solid rgba(59,43,29,.2); }
+          .el-name-grid { grid-template-columns: 1fr; gap: 32px; }
+          .el-join-grid { grid-template-columns: 1fr; gap: 36px; }
         }
         @media (max-width: 560px) {
-          .eg-cards { grid-template-columns: 1fr; }
-        }
-        /* What Beau does — three beats parted by hairlines, like .eg-rows
-           but with a body line under each title. */
-        .eg-beats { margin: 6px 0 0; }
-        .eg-beat {
-          padding: 26px 2px;
-          border-bottom: 1px solid var(--divider);
-        }
-        .eg-beat:last-child { border-bottom: none; padding-bottom: 0; }
-        .eg-beat-title {
-          font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-          font-size: 24px;
-          font-weight: 400;
-          color: var(--ink);
-          margin: 0 0 10px;
-        }
-        .eg-beat-body {
-          font-family: 'Lora', Georgia, serif;
-          font-size: 15px;
-          line-height: 1.9;
-          color: var(--ink);
-          margin: 0;
-        }
-        .eg-cta-band {
-          background: var(--paper);
-          border-top: 1px solid var(--divider);
-          text-align: center;
-        }
-        .eg-cta-band h2 {
-          font-size: clamp(28px, 4vw, 34px);
-          margin: 0 0 30px;
-          color: var(--ink);
-        }
-        .eg-cta-note {
-          font-family: 'Lora', Georgia, serif;
-          font-size: 13px;
-          color: var(--ink);
-          opacity: 0.65;
-          margin: 20px 0 0;
-        }
-        .eg-cta-note .eg-link {
-          font-size: 13px;
-          text-decoration: underline;
-          text-decoration-color: var(--accent);
-          text-underline-offset: 3px;
-        }
-        .eg-footer {
-          background: var(--paper);
-          border-top: 1px solid var(--ink);
-          padding: 44px 24px 32px;
-        }
-        .eg-footer-inner {
-          max-width: 1120px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 18px;
-          flex-wrap: wrap;
-        }
-        .eg-footer-wordmark {
-          font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-          font-weight: 500;
-          font-size: 24px;
-          letter-spacing: 0.28em;
-          text-transform: uppercase;
-          color: var(--ink);
-        }
-        .eg-footer-copy {
-          max-width: 1120px;
-          margin: 26px auto 0;
-          text-align: center;
-          font-family: 'Lora', Georgia, serif;
-          font-size: 12px;
-          color: var(--ink);
-          opacity: 0.6;
-        }
-        @media (max-width: 640px) {
-          .eg-header-inner { padding: 14px 12px; column-gap: 10px; }
-          .eg-wordmark { font-size: 20px; letter-spacing: 0.18em; padding-left: 0.18em; }
-          .eg-wordmark-rule { display: none; }
-          .eg-header-side--right { justify-content: flex-end; gap: 0; }
-          .eg-header-links { gap: 12px; }
-          .eg-header-links .eg-link { font-size: 13px; white-space: nowrap; }
-          .eg-hero { padding: 88px 20px 96px; }
-          .eg-section { padding: 64px 20px; }
-        }
-        @media (max-width: 340px) {
-          /* Very narrow phones: tighten the wordmark so the absolutely-centred
-             mark clears the Sign in / Register links. */
-          .eg-wordmark { font-size: 17px; letter-spacing: 0.12em; padding-left: 0.12em; }
+          .el-doubts-grid, .el-refusals-grid { grid-template-columns: 1fr; }
+          .el-doubts-grid > div, .el-refusals-grid > div { border-right: none !important; }
+          .el-hero-form { flex-direction: column; align-items: stretch; }
+          .el-hero-form .el-submit, .el-hero-form .el-join-submit { justify-content: center; }
         }
       `}</style>
-      <header className="eg-header">
-        <div className="eg-header-inner">
-          <div className="eg-header-side eg-header-side--left" aria-hidden="true">
-            <span className="eg-wordmark-rule" />
+
+      <div className="el-page" data-screen-label="Landing">
+        {/* ——— the sticky masthead ——— */}
+        <div className="el-nav">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+            <div style={{ width: '24px', height: '24px', border: '1px solid #241a12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '15px', lineHeight: 1, color: '#241a12' }}>E</span>
+            </div>
+            <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '17px', letterSpacing: '.26em', color: '#241a12' }}>ETHAION</span>
           </div>
-          <span className="eg-wordmark eg-wordmark--spacer" aria-hidden="true">{brandName}</span>
-          <div className="eg-header-side eg-header-side--right">
-            <span className="eg-wordmark-rule" aria-hidden="true" />
-            <nav className="eg-header-links" aria-label="Account">
-              <button
-                type="button"
-                onClick={() => openLogin('signin')}
-                className="eg-link"
-                data-testid="button-open-login"
+          <span style={{ flex: 1 }} />
+          <div className="el-nav-links">
+            <a className="el-nav-anchor" href="#doubts">Four doubts</a>
+            <a className="el-nav-anchor" href="#beau">How Beau works</a>
+            <a className="el-nav-anchor" href="#refuses">No commission</a>
+            <span className="el-nav-anchor" style={{ width: '1px', height: '14px', background: 'rgba(59,43,29,.28)' }} />
+            <button type="button" className="el-navlink" onClick={() => openLogin('signin')} data-testid="button-open-login">Sign in</button>
+            <button type="button" className="el-navcta" onClick={() => openLogin('register')} disabled={loading} data-testid="button-register">Create account</button>
+          </div>
+        </div>
+
+        {/* ——— the hero: the claim on the left, Beau’s verdict card on the right ——— */}
+        <section className="el-hero" data-light-hero="true" data-screen-label="Hero">
+          <div>
+            <div data-rise="" style={landingMono(9.5, '#7c4a17', '0.14em')}>A scout for your wardrobe · four questions, scored</div>
+            <h1 data-rise="" data-delay="1">The last wardrobe you’ll have to guess at.</h1>
+            <p data-rise="" data-delay="2" style={{ margin: '22px 0 0', maxWidth: '60ch', fontSize: '17px', lineHeight: 1.62 }}>
+              Every purchase feels like a gamble you might regret. Beau already knows your proportions, your colouring
+              and your budget — and scores every piece against the same four questions before you pay.
+            </p>
+            <p data-rise="" data-delay="2" style={{ margin: '14px 0 0', maxWidth: '60ch', color: '#634e38' }}>
+              <em>Beau is your valet — named for George Bryan “Beau” Brummell, the father of modern menswear.</em> He looks high and low on your behalf: the construction, the cloth,
+              whether the label will still make it in five years, whether the proportions work on <em>your</em> frame.
+              He does the legwork. You decide.
+            </p>
+
+            <div data-rise="" data-delay="3" style={{ display: 'flex', flexDirection: 'column', gap: '11px', marginTop: '30px', maxWidth: '470px' }}>
+              <form
+                className="el-hero-form"
+                style={{ display: 'flex', gap: '11px' }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  openLogin('register');
+                }}
               >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={() => openLogin('register')}
-                disabled={loading}
-                className="eg-link"
-                data-testid="button-register"
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="your@email.com"
+                  aria-label="Email address"
+                  className="el-field"
+                  data-testid="input-hero-email"
+                />
+                <button type="submit" className="el-submit" disabled={loading} data-testid="button-enter-guest">
+                  {loading ? 'One moment…' : 'Create your account'}
+                </button>
+              </form>
+              <div style={landingMono(9, '#a68e70')}>Free to join. You’re in straight away — no newsletter, no drops, no noise.</div>
+              <div style={{ fontSize: '13.5px', color: '#634e38' }}>
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => openLogin('signin')}
+                  className="eg-link"
+                  style={{ fontSize: '13.5px', borderBottom: '1px solid rgba(168,113,44,.6)' }}
+                >
+                  Sign in
+                </button>
+              </div>
+            </div>
+
+            <div data-rise="" data-delay="3" style={{ display: 'flex', gap: '44px', marginTop: '40px', paddingTop: '26px', borderTop: '1px solid rgba(59,43,29,.22)' }}>
+              <div>
+                <div style={{ ...landingSerif(40, '#241a12'), lineHeight: 1, fontFeatureSettings: "'tnum'" }}>4</div>
+                <div style={{ ...landingMono(9, '#856c51'), marginTop: '6px' }}>doubts closed before you pay</div>
+              </div>
+              <div>
+                <div style={{ ...landingSerif(40, '#241a12'), lineHeight: 1, fontFeatureSettings: "'tnum'" }}>1</div>
+                <div style={{ ...landingMono(9, '#856c51'), marginTop: '6px' }}>valet who knows you</div>
+              </div>
+              <div>
+                <div style={{ ...landingSerif(40, '#a8712c'), lineHeight: 1, fontFeatureSettings: "'tnum'" }}>0</div>
+                <div style={{ ...landingMono(9, '#856c51'), marginTop: '6px' }}>commission, ever</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Beau’s verdict card — live: tap a piece to read the other verdict. */}
+          <div data-screen-label="Beau verdict" data-rise="" data-delay="1" style={{ border: '1px solid #3b2b1d', background: '#fbf8f1' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexWrap: 'wrap', padding: '13px 18px', borderBottom: '1px solid rgba(59,43,29,.2)' }}>
+              <span style={landingMono(8.5, '#a68e70')}>Under consideration</span>
+              {LANDING_PIECES.map((p, i) => {
+                const on = i === verdictPiece;
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setVerdictPiece(i)}
+                    className="el-pill"
+                    style={{
+                      ...landingMono(9, on ? '#241a12' : '#856c51', '0.06em'),
+                      padding: '5px 12px',
+                      border: `1px solid ${on ? '#a8712c' : 'rgba(59,43,29,.28)'}`,
+                      background: on ? 'rgba(168,113,44,.14)' : 'transparent',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    data-testid={`button-verdict-piece-${i}`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ padding: '16px 18px 4px' }}>
+              <div style={{ ...landingSerif(26, '#241a12'), lineHeight: 1.13 }}>{LANDING_PIECES[verdictPiece].name}</div>
+              <div style={{ ...landingMono(9, '#856c51', '0.05em'), marginTop: '5px', fontFeatureSettings: "'tnum'" }}>{LANDING_PIECES[verdictPiece].meta}</div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: '10px', padding: '14px 18px 0' }}>
+              {LANDING_PIECES[verdictPiece].rows.map((row) => (
+                <div key={row.label}>
+                  <div style={{ height: '3px', background: row.good ? LANDING_GOOD : 'rgba(140,90,60,.35)' }} />
+                  <div style={{ ...landingMono(7.5, '#856c51', '0.1em'), marginTop: '6px' }}>{row.label}</div>
+                  <div style={{ ...landingMono(7.5, row.good ? '#7c4a17' : LANDING_BAD, '0.1em'), marginTop: '2px' }}>
+                    {row.good ? 'Answered' : 'Not answered'}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '82px minmax(0,1fr)', gap: '10px', padding: '14px 18px 7px', ...landingMono(8, '#a68e70', '0.06em') }}>
+              <span>The test</span>
+              <span>What Beau found</span>
+            </div>
+
+            {LANDING_PIECES[verdictPiece].rows.map((row) => (
+              <div
+                key={row.label}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '82px minmax(0,1fr)',
+                  gap: '10px',
+                  padding: '11px 18px',
+                  borderTop: '1px solid rgba(59,43,29,.13)',
+                  borderLeft: `3px solid ${row.good ? LANDING_GOOD : LANDING_BAD}`,
+                }}
               >
-                Register
-              </button>
-            </nav>
-          </div>
-          <span className="eg-wordmark eg-wordmark--centered">{brandName}</span>
-        </div>
-      </header>
-      <section
-        className="eg-hero"
-        data-light-hero="true"
-        style={{
-          opacity: entered ? 1 : 0,
-          transform: entered ? 'none' : 'translateY(16px)',
-          transition: 'opacity 0.7s ease, transform 0.7s ease',
-        }}
-      >
-        <h1>The wardrobe advisor who already knows you.</h1>
-        <p className="eg-hero-sub">
-          Beau is your scout — he knows your proportions, your gaps, your taste, and does the
-          searching so you decide with conviction.
-        </p>
-        <button
-          type="button"
-          onClick={() => openLogin('register')}
-          disabled={loading}
-          className="eg-btn"
-          data-testid="button-enter-guest"
-        >
-          {loading ? 'One moment…' : 'Start building your wardrobe'}
-        </button>
-      </section>
+                <span style={landingMono(8.5, '#856c51', '0.05em')}>{row.label}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '13.5px', lineHeight: 1.5, color: '#3b2b1d' }}>{row.note}</div>
+                  <div style={{ ...landingMono(8.5, row.good ? '#7c4a17' : LANDING_BAD, '0.05em'), marginTop: '3px' }}>{row.mark2}</div>
+                </div>
+              </div>
+            ))}
 
-      <section className="eg-section eg-section--paper">
-        <div className="eg-section-inner">
-          <h2 className="eg-section-head">Every purchase feels like a gamble.</h2>
-          <p className="eg-body">
-            Hours of searching. Tab after tab, forum thread after forum thread. And still not
-            completely sure when you finally buy. Beau does that searching for you — so confidence
-            is earned before money changes hands, not discovered after.
-          </p>
-        </div>
-      </section>
-
-      <section className="eg-section eg-section--page">
-        <div className="eg-section-inner">
-          <h2 className="eg-section-head">Your wardrobe, built with conviction.</h2>
-          <ul className="eg-rows">
-            <li>Knows what you own and what’s missing</li>
-            <li>Hunts for pieces he can justify</li>
-            <li>Gets better the longer you use him</li>
-          </ul>
-          <p className="eg-section-note">
-            Your advisor is Beau — named for George Bryan “Beau” Brummell, the father of modern men’s
-            style.
-          </p>
-        </div>
-      </section>
-
-      <section className="eg-section eg-section--paper">
-        <div className="eg-section-inner">
-          <h2 className="eg-section-head">On the name.</h2>
-          <p className="eg-body">
-            Ethaion draws from two Greek words: <em>ethos</em> — the animating character of a
-            person, the spirit from which everything flows — and <em>aion</em>, enduring time. A
-            wardrobe that ages with you.
-          </p>
-        </div>
-      </section>
-
-      <section className="eg-section eg-section--page">
-        <div className="eg-section-inner">
-          <h2 className="eg-section-head">What we stand for.</h2>
-          <p className="eg-body">
-            A wardrobe built with conviction. Not chasing trends, not collecting labels — choosing
-            pieces that earn their place and stay there.
-          </p>
-        </div>
-      </section>
-
-      <section className="eg-section eg-section--paper">
-        <div className="eg-section-inner">
-          <h2 className="eg-section-head">The problem.</h2>
-          <div className="eg-cards">
-            <div className="eg-card">
-              <h3 className="eg-card-title">Origin stories</h3>
-              <p className="eg-card-body">
-                A brand can legally claim a piece was made somewhere when only minor steps in the
-                process happened there — while the actual construction took place on the other
-                side of the world. That rarely makes it onto the label.
-              </p>
-            </div>
-            <div className="eg-card">
-              <h3 className="eg-card-title">What it’s actually made of</h3>
-              <p className="eg-card-body">
-                More and more garments are primarily polyester — a plastic derived from petroleum.
-                It traps heat, holds odour, sheds microplastics with every wash. Wool breathes.
-                Linen regulates. Cotton softens with wear. Most brands don’t lead with what
-                they’re made of.
-              </p>
-            </div>
-            <div className="eg-card">
-              <h3 className="eg-card-title">Quality hides</h3>
-              <p className="eg-card-body">
-                It reveals itself in wear — six months later, when the money’s already gone and
-                the return window isn’t.
-              </p>
-            </div>
-            <div className="eg-card">
-              <h3 className="eg-card-title">The search</h3>
-              <p className="eg-card-body">
-                You lose hours — sometimes days — across tabs, forums, and dead ends, and walk
-                away less certain than when you started.
-              </p>
+            <div style={{ padding: '14px 18px 17px', borderTop: '1px solid #3b2b1d', background: 'rgba(168,113,44,.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '16px' }}>
+                <span style={landingMono(8, '#7c4a17', '0.07em')}>Beau, on whether to buy</span>
+                <span style={landingMono(8, '#856c51', '0.07em')}>
+                  {LANDING_PIECES[verdictPiece].rows.filter((r) => r.good).length} of 4 questions answered
+                </span>
+              </div>
+              <p style={{ ...landingSerif(21, '#241a12'), margin: '7px 0 0', lineHeight: 1.2 }}>{LANDING_PIECES[verdictPiece].verdict}</p>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="eg-section eg-section--page">
-        <div className="eg-section-inner">
-          <h2 className="eg-section-head">What Beau does.</h2>
-          <div className="eg-beats">
-            <div className="eg-beat">
-              <h3 className="eg-beat-title">Beau understands you first.</h3>
-              <p className="eg-beat-body">
-                Your proportions, your skin tone, your style sensibility, what you already own —
-                and what’s genuinely missing from it. He builds a picture before he starts
-                looking.
+        {/* ——— the enemy ——— */}
+        <div className="el-pad" data-screen-label="The enemy" style={{ padding: '64px 56px 0' }}>
+          <div className="el-enemy">
+            <h2 data-rise="" style={{ margin: 0, fontSize: 'clamp(30px, 3vw, 42px)', fontWeight: 400, lineHeight: 1.06, color: '#241a12' }}>
+              Regret is the enemy. Ignorance at the till is how it gets in.
+            </h2>
+            <p data-rise="" data-delay="1" style={{ margin: 0, fontSize: '15.5px', lineHeight: 1.62, textAlign: 'justify' }}>
+              You search until you’re tired — tab after tab, thread after thread — buy anyway, and find out whether it
+              was right after the money is gone. Quality is opaque at the till. Fit only reveals itself in wear. The
+              run ends and you can’t build on the piece. Ethaion closes that gap before your money moves: Beau holds
+              your proportions, your colouring, your budget, everything you own and everything you’ve turned down,
+              then brings back only what he can justify line by line.
+            </p>
+          </div>
+        </div>
+
+        {/* ——— Plate I ——— */}
+        <div className="el-inset" data-screen-label="Plate" data-rise="" style={{ margin: '56px 56px 0', position: 'relative', height: '400px', border: '1px solid #3b2b1d', padding: '11px', background: '#fbf8f1' }}>
+          <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+            <img
+              src={LANDING_PLATE_WIDE}
+              alt="The make, up close — a tailor’s hands at work on a wool lapel"
+              loading="lazy"
+              decoding="async"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </div>
+        </div>
+        <div className="el-inset" style={{ display: 'flex', justifyContent: 'space-between', gap: '24px', margin: '9px 56px 0', ...landingMono(8.5, '#a68e70') }}>
+          <span>Plate I — the make, up close</span>
+          <span>Ethaion</span>
+        </div>
+
+        {/* ——— the four doubts ——— */}
+        <div id="doubts" className="el-pad" data-screen-label="Four doubts" style={{ padding: '56px 56px 0' }}>
+          <div data-rise="" style={landingMono(9.5, '#7c4a17', '0.14em')}>Four doubts, answered before you buy</div>
+          <div data-rule="" style={{ height: '1px', background: '#3b2b1d', marginTop: '22px' }} />
+          <div className="el-doubts-grid">
+            {LANDING_DOUBTS.map((d, i) => (
+              <div key={d.n} data-rise="" data-delay={String(i)} style={{ padding: '22px 22px 30px 0', borderRight: '1px solid rgba(59,43,29,.2)' }}>
+                <div style={{ ...landingMono(9, '#a8712c', '0.06em'), fontFeatureSettings: "'tnum'" }}>{d.n}</div>
+                <div style={{ ...landingSerif(26, '#241a12'), marginTop: '10px', lineHeight: 1.1 }}>{d.title}</div>
+                <p style={{ margin: '10px 0 0', fontSize: '13.5px', lineHeight: 1.55, color: '#3b2b1d' }}>{d.body}</p>
+                <div style={{ marginTop: '13px', paddingTop: '11px', borderTop: '1px solid rgba(168,113,44,.4)', fontSize: '13px', lineHeight: 1.5, color: '#7c4a17' }}>
+                  <em>{d.answer}</em>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ——— how Beau works ——— */}
+        <div id="beau" className="el-steps" data-screen-label="How Beau works">
+          {LANDING_STEPS.map((s, i) => (
+            <div key={s.n} data-rise="" data-delay={String(i)} style={{ padding: '26px 26px 30px', borderRight: '1px solid rgba(59,43,29,.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: '#a8712c', fontFeatureSettings: "'tnum'" }}>{s.n}</span>
+                <span style={landingMono(8.5, '#7c4a17')}>{s.kicker}</span>
+              </div>
+              <div style={{ ...landingSerif(27, '#241a12'), marginTop: '12px', lineHeight: 1.08 }}>{s.title}</div>
+              <p style={{ margin: '11px 0 0', fontSize: '13.5px', lineHeight: 1.58, color: '#3b2b1d' }}>{s.body}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ——— the house rules ——— */}
+        <div id="refuses" className="el-pad" data-screen-label="Refusals" style={{ padding: '70px 56px 0' }}>
+          <div data-rise="" style={{ maxWidth: '64ch' }}>
+            <div style={landingMono(9.5, '#7c4a17', '0.14em')}>The house rules</div>
+            <h2 style={{ margin: '14px 0 0', fontSize: 'clamp(34px, 3.6vw, 52px)', fontWeight: 400, lineHeight: 1.04, color: '#241a12' }}>
+              No brand can buy its way into your wardrobe.
+            </h2>
+            <p style={{ margin: '16px 0 0', color: '#634e38' }}>
+              Brands can pay to be assessed. None can pay to be recommended, and Ethaion takes no commission on
+              anything you buy — so there is nothing on this page, or in Beau’s advice, that a cheque changed. An
+              advisor is only worth having if you know what he won’t say.
+            </p>
+          </div>
+          <div data-rule="" style={{ height: '1px', background: '#3b2b1d', marginTop: '30px' }} />
+          <div className="el-refusals-grid">
+            {LANDING_REFUSALS.map((r, i) => (
+              <div key={r.title} data-rise="" data-delay={String(i)} style={{ padding: '20px 22px 26px 0', borderRight: '1px solid rgba(59,43,29,.2)' }}>
+                <div style={{ ...landingSerif(24, '#241a12'), lineHeight: 1.1 }}>{r.title}</div>
+                <p style={{ margin: '8px 0 0', fontSize: '13.5px', lineHeight: 1.55, color: '#3b2b1d' }}>{r.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ——— on the name ——— */}
+        <div data-screen-label="On the name" style={{ marginTop: '70px', background: '#fbf8f1', borderTop: '1px solid #3b2b1d', borderBottom: '1px solid #3b2b1d', padding: '56px' }} className="el-pad">
+          <div className="el-name-grid">
+            <div data-rise="">
+              <div style={landingMono(9.5, '#a68e70', '0.14em')}>On the name</div>
+              <p style={{ ...landingSerif(29, '#241a12'), margin: '16px 0 0', maxWidth: '56ch', lineHeight: 1.28 }}>
+                Ethaion draws on two Greek words: <em>ethos</em>, the animating character of a person — the spirit
+                everything else flows from — and <em>aion</em>, enduring time. A wardrobe that ages with you.
               </p>
             </div>
-            <div className="eg-beat">
-              <h3 className="eg-beat-title">Then he goes looking.</h3>
-              <p className="eg-beat-body">
-                Not just through the obvious names. The established houses that actually earn
-                their reputation — and the smaller makers that rarely surface unless you know
-                exactly where to look. A wool mill that’s been doing the same thing for a
-                century. A shoemaker nobody outside the trade has heard of. Wherever the best
-                version exists, Beau finds it.
-              </p>
-            </div>
-            <div className="eg-beat">
-              <h3 className="eg-beat-title">Every recommendation comes with his reasoning.</h3>
-              <p className="eg-beat-body">
-                The construction, the material, the fit for your build, why this piece and not
-                the twenty others like it. The goal isn’t to help you buy more. It’s to help you
-                buy once, with complete confidence — so the only feeling left is the pleasure of
-                wearing it for decades.
-              </p>
+            <div data-rise="" data-delay="1" style={{ position: 'relative', height: '220px', border: '1px solid rgba(59,43,29,.35)', padding: '9px', background: '#efe7d9' }}>
+              <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+                <img
+                  src={LANDING_PLATE_SMALL}
+                  alt="A cloth swatch and horn buttons on warm paper"
+                  loading="lazy"
+                  decoding="async"
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
             </div>
           </div>
         </div>
-      </section>
 
-      <section className="eg-section eg-cta-band">
-        <div className="eg-section-inner">
-          <h2>Ready to start?</h2>
-          <button
-            type="button"
-            onClick={() => openLogin('register')}
-            disabled={loading}
-            className="eg-btn"
-          >
-            Start building your wardrobe
-          </button>
-          <p className="eg-cta-note">
-            Already have an account?{' '}
-            <button type="button" onClick={() => openLogin('signin')} className="eg-link">
-              Sign in →
-            </button>
-          </p>
+        {/* ——— the join band ——— */}
+        <div id="join" className="el-pad" data-screen-label="Join" style={{ background: '#241a12', color: '#e8ded0', padding: '64px 56px' }}>
+          <div className="el-join-grid">
+            <div data-rise="">
+              <div style={landingMono(9.5, '#c9a672', '0.14em')}>Private beta · open now, and small</div>
+              <h2 style={{ margin: '16px 0 0', fontSize: 'clamp(34px, 3.6vw, 52px)', fontWeight: 400, lineHeight: 1.02, color: '#f4ece0' }}>
+                Stop gambling on your own wardrobe.
+              </h2>
+              <p style={{ margin: '18px 0 0', maxWidth: '52ch', color: 'rgba(232,222,208,.78)' }}>
+                Tell Beau what you own and where you’re going — the first questions take about five minutes — and
+                he’ll tell you what’s missing, and what’s worth the money when you find it. No queue: you start
+                tonight.
+              </p>
+            </div>
+            <div data-rise="" data-delay="1" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <form
+                className="el-hero-form"
+                style={{ display: 'flex', gap: '11px' }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  openLogin('register');
+                }}
+              >
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="your@email.com"
+                  aria-label="Email address"
+                  className="el-join-field"
+                  data-testid="input-join-email"
+                />
+                <button type="submit" className="el-join-submit" disabled={loading} data-testid="button-join-register">
+                  {loading ? 'One moment…' : 'Create your account'}
+                </button>
+              </form>
+              <div style={landingMono(9, 'rgba(232,222,208,.6)')}>Free to join. You’re in straight away — no newsletter, no drops, no noise.</div>
+              <div style={{ fontSize: '13.5px', color: 'rgba(232,222,208,.72)' }}>
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => openLogin('signin')}
+                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: '13.5px', color: '#c9a672', borderBottom: '1px solid rgba(201,166,114,.5)', cursor: 'pointer' }}
+                >
+                  Sign in
+                </button>
+              </div>
+              {/* CONTACT & INQUIRIES (founder’s request, August 2026) — this
+                  slot used to carry the founder’s own story; it now carries
+                  the way to reach him. */}
+              <p style={{ margin: '10px 0 0', paddingTop: '16px', borderTop: '1px solid rgba(232,222,208,.2)', fontSize: '13.5px', lineHeight: 1.6, color: 'rgba(232,222,208,.7)' }}>
+                Questions or inquiries — write to{' '}
+                <a
+                  href="mailto:toby.ethaion@gmail.com"
+                  style={{ color: '#c9a672', textDecoration: 'none', borderBottom: '1px solid rgba(201,166,114,.5)' }}
+                >
+                  toby.ethaion@gmail.com
+                </a>
+              </p>
+            </div>
+          </div>
         </div>
-      </section>
 
-      <footer className="eg-footer">
-        <div className="eg-footer-inner">
-          <span className="eg-footer-wordmark">{brandName}</span>
-          <nav className="eg-header-links" aria-label="Account">
-            <button type="button" onClick={() => openLogin('signin')} className="eg-link">
-              Sign in
-            </button>
-            <button type="button" onClick={() => openLogin('register')} disabled={loading} className="eg-link">
-              Register
-            </button>
-          </nav>
+        {/* ——— the colophon ——— */}
+        <div className="el-pad" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '12px 40px', padding: '18px 56px', background: '#fbf8f1', borderTop: '1px solid #3b2b1d', ...landingMono(9, '#856c51', '0.08em') }}>
+          <span>Ethaion — building wardrobes with intention</span>
+          <span>
+            Inquiries —{' '}
+            <a href="mailto:toby.ethaion@gmail.com" style={{ color: '#7c4a17', textDecoration: 'none', borderBottom: '1px solid rgba(124,74,23,.4)' }}>
+              toby.ethaion@gmail.com
+            </a>
+          </span>
+          <span>No commission · no trend-chasing · no cosplay</span>
         </div>
-        <p className="eg-footer-copy">© {new Date().getFullYear()} {brandName}.</p>
-      </footer>
+      </div>
     </div>
       {/* AUDOS:LANDING_SHELL:END */}
 
@@ -1910,12 +2254,18 @@ export default function EmailGate({
             </button>
             <div className="px-5 py-6 sm:p-8">
               <h2 id="email-gate-login-title" className="eg-modal-title mb-2 pr-12">
-                {authMode === 'signin' ? `Welcome back to ${brandName}` : `Join ${brandName}`}
+                {step === 'otp'
+                  ? 'Check your email'
+                  : authMode === 'signin'
+                    ? `Welcome back to ${brandName}`
+                    : `Join ${brandName}`}
               </h2>
               <p className="eg-modal-sub mb-5">
-                {authMode === 'signin'
-                  ? 'Enter the email you saved your profile with — your wardrobe will be waiting.'
-                  : 'Enter your email to begin. Everything after this is optional, and you can skip straight through.'}
+                {step === 'otp'
+                  ? `Enter the 4-digit code sent to ${pendingAuth?.email || email}.`
+                  : authMode === 'signin'
+                    ? 'Enter the email you saved your profile with — your wardrobe will be waiting.'
+                    : 'Enter your email to begin. Everything after this is optional, and you can skip straight through.'}
               </p>
               {renderLoginPanel(true)}
             </div>

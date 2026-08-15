@@ -417,7 +417,7 @@ export function IndexMakersFace({
             >
               {p.brand}
             </button>
-            {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your ledger</span>}
+            {onLedger && <span style={{ ...mono(6.5, ACCENT_DEEP), display: 'block', marginTop: '3px' }}>On your rail</span>}
             <span className="lg:hidden block" style={{ ...mono(7, FAINT), marginTop: '3px' }}>
               {[where, priceNewOf(p)].filter((v) => v && v !== '\u2014').join(MIDDOT)}
             </span>
@@ -697,7 +697,7 @@ export function IndexMakersFace({
           {grouped ? (
             <>
               {sectionHead(
-                'Beau\u2019s fifty \u00b7 chosen against your profile and your ledger',
+                'Beau\u2019s fifty \u00b7 chosen against your profile and your rail',
                 fifty.generated
                   ? 'Written by Beau for you \u2014 re-drawn when your wardrobe or dossier changes'
                   : 'Drawn from your record \u2014 Beau is refining the order',

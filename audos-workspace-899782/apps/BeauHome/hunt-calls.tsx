@@ -13,6 +13,12 @@
  * And a call is never a one-way door: the tag can be CHANGED in place from
  * the controls at the end of the row, or REMOVED entirely, and Beau's next
  * draw reads the change.
+ *
+ * The same controls carry the WATCH eye, so a piece already put by can be
+ * handed to Beau to keep an eye on without leaving the table — it appears on
+ * the Watchlist face and its call here is untouched. WATCH BRAND sits beside
+ * it as a text link where the row names a maker: the whole house goes on the
+ * Watchlist and Beau reads its new arrivals.
  */
 import { useMemo, useState } from 'react';
 import type React from 'react';
@@ -41,6 +47,7 @@ import {
   type HuntTag,
 } from './hunt-model';
 import { HuntPhoto, HuntQuietLine, type HuntCallsState } from './hunt-cards';
+import { WatchBrandLink, WatchButton } from './watchlist-watch';
 
 type SortKey = 'name' | 'brand' | 'price' | 'status' | 'date';
 
@@ -108,7 +115,8 @@ function valueFor(call: HuntCall, key: SortKey): string | number {
   }
 }
 
-/** The three small tag controls on a row — tap the held one to remove it. */
+/** The three small tag controls on a row, the watch eye and Remove — tap the
+ * call it already holds to take it off. */
 function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState }) {
   const busy = calls.writingKey === call.cardKey;
   const icons: Record<HuntTag, React.ReactNode> = {
@@ -165,6 +173,29 @@ function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState })
           </button>
         );
       })}
+      <WatchButton
+        size="icon"
+        target={{
+          pieceName: call.pieceName,
+          brand: call.maker || null,
+          retailerUrl: call.productUrl || null,
+          imageUrl: call.imageUrl || null,
+          price: call.priceGuide || null,
+          verdict: call.note || null,
+          source: 'your_calls',
+        }}
+      />
+      <WatchBrandLink
+        target={{
+          pieceName: call.pieceName,
+          brand: call.maker || null,
+          retailerUrl: call.productUrl || null,
+          imageUrl: call.imageUrl || null,
+          price: call.priceGuide || null,
+          verdict: call.note || null,
+          source: 'your_calls',
+        }}
+      />
       <button
         type="button"
         disabled={busy}
@@ -304,7 +335,7 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
                   );
                 })}
                 <th scope="col" style={{ borderBottom: `1px solid ${WALNUT}` }}>
-                  <span className="sr-only">Change or remove this call</span>
+                  <span className="sr-only">Change this call, watch the piece or its maker, or remove it</span>
                 </th>
               </tr>
             </thead>
