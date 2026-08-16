@@ -706,10 +706,13 @@ export function LedgerTab({
   // breadcrumb, which is the ONE place the path is drawn. With a piece sheet
   // open, the trail's Ledger segments climb back out of it.
   const closePieceSheet = () => setOpenPieceId(null);
+  // The trail names PAGES, never view modes (founder's correction, August
+  // 2026): the List · Tiles toggle is not a place, so it no longer appears
+  // as a crumb — only a live search does.
   const trailSegs: CrumbSegment[] = [
     { label: 'Ethaion' },
     openPiece ? { label: 'The Rail', onClick: closePieceSheet } : { label: 'The Rail' },
-    { label: q ? `“${q}”` : view === 'list' ? 'List' : 'Tiles', onClick: openPiece ? closePieceSheet : undefined },
+    ...(q ? [{ label: `“${q}”`, onClick: openPiece ? closePieceSheet : undefined }] : []),
     ...(openPiece ? [{ label: openPiece.name }] : []),
   ];
 

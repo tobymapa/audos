@@ -18,7 +18,9 @@ import type React from 'react';
 import { ArrowUp, Settings as SettingsIcon } from 'lucide-react';
 import {
   ACCENT_DEEP,
+  FAINT,
   FAINTER,
+  INK,
   PAPER,
   RULE,
   SECONDARY,
@@ -515,15 +517,71 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
   }
 
   const segs = shown.segs || [];
+
+  // THE PHONE CHROME (founder's correction, August 2026) — drawn to the
+  // reference (“Nine screens, drawn at 390”): NO back capsule on a phone —
+  // the phone has its own back control, and the parent crumb is the way up.
+  // The trail is a REAL ROW: full-width paper with a walnut rule beneath,
+  // running edge to edge, naming ONLY the last two pages — the parent in
+  // faint ink (tappable), the page the reader is on in walnut. The settings
+  // gear holds the row's right end.
+  const tail = segs.slice(-2);
+  const parentSeg = tail.length > 1 ? tail[0] : null;
+  const currentSeg = tail.length > 0 ? tail[tail.length - 1] : null;
+
   return (
+    <>
     <div
-      // THE RAIL — zero height and no ground of its own, so it is not a row:
-      // it adds nothing to the page and paints nothing across it. Sticky so
-      // the clusters hold their place under the tab strip as the page
-      // scrolls: top-0 on a phone (where the strip moves to the bottom bar
-      // and this is the first thing in the page), and from sm up 46px — just
-      // inside the strip's 47px row, whose higher z-index covers the seam.
-      className="sticky top-0 sm:top-[46px] z-[28] flex-shrink-0"
+      className="sm:hidden sticky top-0 z-[28] flex-shrink-0 flex items-center"
+      style={{ gap: '7px', minHeight: '42px', padding: '0 16px', background: PAPER, borderBottom: `1px solid ${INK}` }}
+    >
+      {parentSeg &&
+        (parentSeg.onClick ? (
+          <button
+            type="button"
+            onClick={parentSeg.onClick}
+            className="flex-shrink-0"
+            style={{ ...mono(9, FAINT), background: 'transparent', border: 'none', padding: '12px 0', whiteSpace: 'nowrap' }}
+          >
+            {parentSeg.label}
+          </button>
+        ) : (
+          <span className="flex-shrink-0" style={{ ...mono(9, FAINT), whiteSpace: 'nowrap' }}>
+            {parentSeg.label}
+          </span>
+        ))}
+      {parentSeg && (
+        <span aria-hidden="true" style={{ ...mono(9, FAINTER), letterSpacing: 0 }}>
+          {'\u2039'}
+        </span>
+      )}
+      {currentSeg && (
+        <span
+          aria-current="page"
+          className="min-w-0 flex-1"
+          style={{ ...mono(9, WALNUT), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+        >
+          {currentSeg.label}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT))}
+        title="Settings"
+        aria-label="Settings"
+        className="flex-shrink-0 inline-flex items-center justify-center transition-opacity hover:opacity-70"
+        style={{ width: '40px', height: '40px', marginRight: '-11px', background: 'transparent', border: 'none', color: ACCENT_DEEP, cursor: 'pointer' }}
+      >
+        <SettingsIcon width={15} height={15} strokeWidth={1.5} aria-hidden="true" />
+      </button>
+    </div>
+
+    <div
+      // THE DESKTOP RAIL — zero height and no ground of its own, so it is
+      // not a row: it adds nothing to the page and paints nothing across it.
+      // Sticky at 46px — just inside the strip's 47px row, whose higher
+      // z-index covers the seam. Phones get the real row above instead.
+      className="hidden sm:block sticky top-[46px] z-[28] flex-shrink-0"
       style={{ height: 0 }}
     >
       {/* MOBILE: the two clusters share one line at 44pt-friendly sizes and
@@ -598,5 +656,6 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
         </div>
       </div>
     </div>
+    </>
   );
 }

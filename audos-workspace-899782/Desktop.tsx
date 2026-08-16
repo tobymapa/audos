@@ -1729,6 +1729,17 @@ export default function SpaceDesktop({
              instead, so no filter is hidden behind a gesture. */
           .hab-chip-wrap{flex-wrap:wrap!important;overflow-x:visible!important}
 
+          /* FACE CHIPS AND SEGMENTED CONTROLS FIT THE SCREEN (founder's
+             correction, August 2026): the masthead face bars (The Search's
+             four, The Index's two, The Rail's sub-tabs, The Fitting's five
+             occasions) become a full-width row on a phone — the chips share
+             the line, wrap onto the next when they must, and never scroll
+             off the right edge. */
+          .sub-tab--index-face,.sub-tab--style-a,.sub-tab--style-b{width:100%!important;flex-wrap:wrap!important;overflow-x:visible!important}
+          .sub-tab--index-face__tab,.sub-tab--style-b__tab{flex:1 1 auto!important}
+          .hab-segmented{width:100%!important}
+          .hab-segmented>button{flex:1 1 auto!important}
+
           /* CROWDING: the desktop stack rhythm (32-48px between blocks) reads
              as dead air on a 375px screen and pushes the copy that matters
              below the fold. The large steps are trimmed; the small ones that

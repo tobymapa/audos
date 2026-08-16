@@ -268,7 +268,7 @@ export interface SegmentedItem {
 
 export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; activeKey: string }) {
   return (
-    <div className="flex flex-wrap" style={{ border: `1px solid rgba(59,43,29,0.22)` }} role="group" aria-label="How this board is made">
+    <div className="flex flex-wrap hab-segmented" style={{ border: `1px solid rgba(59,43,29,0.22)` }} role="group" aria-label="How this board is made">
       {items.map((item, i) => {
         const on = item.key === activeKey;
         return (
