@@ -206,6 +206,11 @@ export default function BeauScorePanel() {
   const [pieceField, setPieceField] = useState('');
   const [makerField, setMakerField] = useState('');
   const [priceField, setPriceField] = useState('');
+  // The pillar facts Beau scores on — fill what you know (founder's
+  // correction, August 2026); longevity is his call, not an input.
+  const [clothField, setClothField] = useState('');
+  const [cutField, setCutField] = useState('');
+  const [makeField, setMakeField] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string>('');
   const [busy, setBusy] = useState(false);
@@ -230,6 +235,9 @@ export default function BeauScorePanel() {
     pieceField.trim() ? `The piece: ${pieceField.trim()}` : null,
     makerField.trim() ? `Maker: ${makerField.trim()}` : null,
     priceField.trim() ? `Price: ${priceField.trim()}` : null,
+    clothField.trim() ? `Cloth / material: ${clothField.trim()}` : null,
+    cutField.trim() ? `Cut / fit: ${cutField.trim()}` : null,
+    makeField.trim() ? `Make / construction: ${makeField.trim()}` : null,
   ]
     .filter(Boolean)
     .join('\n');
@@ -250,6 +258,9 @@ export default function BeauScorePanel() {
       setPieceField('');
       setMakerField('');
       setPriceField('');
+      setClothField('');
+      setCutField('');
+      setMakeField('');
       setPhoto(null);
       setPhotoName('');
     } catch (e) {
@@ -265,6 +276,9 @@ export default function BeauScorePanel() {
     { label: 'The piece', value: pieceField, set: setPieceField, placeholder: 'e.g. navy wool overcoat', testid: 'input-score-piece' },
     { label: 'Maker', value: makerField, set: setMakerField, placeholder: 'optional', testid: 'input-score-maker' },
     { label: 'Price', value: priceField, set: setPriceField, placeholder: 'optional', testid: 'input-score-price' },
+    { label: 'Cloth', value: clothField, set: setClothField, placeholder: 'material, if you know it — e.g. 100% lambswool', testid: 'input-score-cloth' },
+    { label: 'Cut', value: cutField, set: setCutField, placeholder: 'fit · silhouette (optional)', testid: 'input-score-cut' },
+    { label: 'Make', value: makeField, set: setMakeField, placeholder: 'construction · where it’s made (optional)', testid: 'input-score-make' },
   ];
 
   return (

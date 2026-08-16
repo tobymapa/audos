@@ -349,6 +349,31 @@ function pieceVerdictColor(v: string | null): string {
   return FAINT; // niche · unweighted
 }
 
+/** FORMALITY, most casual first (founder's ordering, August 2026): a type
+ * ranks by the most formal register it reaches, and the same read is the
+ * kicker above its name in the list. */
+const FORMALITY_RANK: Record<string, number> = {
+  Casual: 0,
+  'Outdoor-Work': 1,
+  'Smart-Casual': 2,
+  Business: 3,
+  Formal: 4,
+  'Black-Tie': 5,
+};
+
+function formalityOf(t: { reach?: readonly Register[] }): { rank: number; label: string } {
+  let top = 'Casual';
+  let rank = 0;
+  for (const r of t.reach || []) {
+    const v = FORMALITY_RANK[String(r)] ?? 0;
+    if (v >= rank) {
+      rank = v;
+      top = String(r);
+    }
+  }
+  return { rank, label: FIELD_REGISTER_LABELS[top] || top };
+}
+
 /** Beau's verdict under the category name — COLLAPSED to one line by
  * default (layout pass, August 2026), with an expand tap. The generation
  * itself is unchanged (index-tab-copy.ts — settled, cached, deterministic
@@ -774,11 +799,15 @@ function PiecesFace({
   const shown = useMemo(() => {
     const list = heldBand ? preBand.filter((t) => t.band === heldBand) : [...preBand];
     if (!banded) return list.sort((a, b) => a.name.localeCompare(b.name));
+    // Bands coldest first, then FORMALITY most casual → most formal within
+    // the band (founder's ordering, August 2026), then the name.
     return list.sort((a, b) => {
       const sa = spanOf(a);
       const sb = spanOf(b);
-      if (sa && sb) return sa.lo - sb.lo || sa.hi - sb.hi || a.name.localeCompare(b.name);
-      return a.name.localeCompare(b.name);
+      const fa = formalityOf(a).rank;
+      const fb = formalityOf(b).rank;
+      if (sa && sb) return sa.lo - sb.lo || sa.hi - sb.hi || fa - fb || a.name.localeCompare(b.name);
+      return fa - fb || a.name.localeCompare(b.name);
     });
   }, [preBand, heldBand, banded]);
 
@@ -901,12 +930,9 @@ function PiecesFace({
           every control in it stretches to the same height. */}
       <div className="flex items-center flex-wrap hab-filter-bar" style={{ gap: '10px 12px', paddingBottom: '22px' }}>
         <FindLine value={find} onChange={setFind} placeholder='a piece — try “teba”, “raglan”, “overshirt”' maxWidth="400px" />
-        <FilterMenu
-          label="Formality"
-          options={REGISTER_OPTIONS.map((r) => ({ id: r, label: FIELD_REGISTER_LABELS[r] || r }))}
-          active={regs}
-          onToggle={(id) => setRegs((cur) => toggleIn(cur, id))}
-        />
+        {/* The Formality FILTER is gone (founder's correction, August
+            2026) — formality now orders the list itself, inside each
+            temperature band, and rides as the kicker above every name. */}
         <FilterMenu label="Occasion" options={OCCASIONS.map((o) => ({ id: o.id, label: o.label }))} active={occs} onToggle={(id) => setOccs((cur) => toggleIn(cur, id))} />
         {runOptions.length > 1 && <FilterMenu label="Run" options={runOptions} active={runs} onToggle={(id) => setRuns((cur) => toggleIn(cur, id))} />}
       </div>
@@ -949,6 +975,7 @@ function PiecesFace({
                           className="sm:hidden"
                           style={{ padding: '10px 0', borderBottom: ROW_HAIRLINE, background: gap ? GAP_TINT : 'transparent' }}
                         >
+                          <div style={{ ...mono(7, FAINT), marginBottom: '3px' }}>{formalityOf(t).label}</div>
                           <div className="flex items-center" style={{ gap: '10px' }}>
                             <span className="min-w-0 flex-1 flex items-baseline" style={{ gap: '8px' }}>
                               {gap && <span style={{ ...mono(6.5, ACCENT_DEEP), flexShrink: 0 }}>Gap</span>}
@@ -1007,7 +1034,10 @@ function PiecesFace({
                           className={`${PIECE_GRID} items-center hidden sm:grid`}
                           style={{ gap: '0 14px', padding: '8.5px 0', borderBottom: ROW_HAIRLINE, background: gap ? GAP_TINT : 'transparent' }}
                         >
-                          <span className="min-w-0 flex items-baseline" style={{ gap: '8px' }}>
+                          <span className="min-w-0 block">
+                            {/* The formality kicker rides above the name. */}
+                            <span className="block" style={{ ...mono(6.5, FAINT), marginBottom: '2px' }}>{formalityOf(t).label}</span>
+                            <span className="min-w-0 flex items-baseline" style={{ gap: '8px' }}>
                             {gap && <span style={{ ...mono(6.5, ACCENT_DEEP), flexShrink: 0 }}>Gap</span>}
                             <button
                               type="button"
@@ -1026,6 +1056,7 @@ function PiecesFace({
                             >
                               {t.name}
                             </button>
+                            </span>
                           </span>
                           <span className="flex justify-center" aria-hidden>
                             {owned && <span title="On your rail" style={{ width: '6px', height: '6px', borderRadius: '999px', background: '#2e2115', display: 'block' }} />}

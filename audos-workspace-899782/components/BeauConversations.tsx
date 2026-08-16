@@ -226,21 +226,22 @@ export default function BeauConversations({
   const mainClaimKey = `beau_main_claimed_${spaceId}`;
 
   // Restore where the visitor was (list vs a specific thread) across the
-  // shell's mount/unmount cycles (e.g. the chat moving between the main
-  // surface and the app overlay). A fresh browser session lands on the list.
+  // shell's mount/unmount cycles. THE DRAWER OPENS IN THE CHAT (founder's
+  // correction, August 2026): a fresh session lands straight in the primary
+  // thread — never on the Recent list. ‹ Threads remains the way there.
   const [view, setView] = useState<'list' | 'thread'>(() => {
     try {
       const stored = JSON.parse(sessionStorage.getItem(navKey) || 'null');
-      if (stored?.view === 'thread' && typeof stored.threadId === 'string' && stored.threadId) return 'thread';
+      if (stored?.view === 'list') return 'list';
     } catch (e) { /* ignore */ }
-    return 'list';
+    return 'thread';
   });
   const [activeThreadId, setActiveThreadId] = useState<string | null>(() => {
     try {
       const stored = JSON.parse(sessionStorage.getItem(navKey) || 'null');
-      if (stored?.view === 'thread' && typeof stored.threadId === 'string' && stored.threadId) return stored.threadId;
+      if (typeof stored?.threadId === 'string' && stored.threadId) return stored.threadId;
     } catch (e) { /* ignore */ }
-    return null;
+    return PRIMARY_THREAD_ID;
   });
 
   useEffect(() => {
