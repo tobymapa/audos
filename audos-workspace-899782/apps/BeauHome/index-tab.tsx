@@ -273,7 +273,7 @@ function FindLine({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="min-w-0 flex-1 bg-transparent outline-none"
-        style={{ ...body(14, INK), lineHeight: 1.3 }}
+        style={{ ...body(14, INK), fontSize: 'max(var(--eth-input, 0px), 12px)', lineHeight: 1.3 }}
       />
       {value && (
         <button
@@ -851,16 +851,16 @@ function PiecesFace({
         })}
       </div>
 
-      {/* ——— the filter-state line */}
-      <StateLine
-        text={
-          filtersHeld === 0
-            ? `No filters held — the whole category, ${banded ? 'coldest first' : 'alphabetical'}`
-            : `${filtersHeld} filter${filtersHeld === 1 ? '' : 's'} held — ${shown.length} of ${category?.total || 0} ${catName} types`
-        }
-        active={filtersHeld > 0}
-        onReset={reset}
-      />
+      {/* ——— the filter-state line — drawn ONLY while filters are held
+          (founder's correction, August 2026): the “no filters held” read
+          is gone. */}
+      {filtersHeld > 0 && (
+        <StateLine
+          text={`${filtersHeld} filter${filtersHeld === 1 ? '' : 's'} held — ${shown.length} of ${category?.total || 0} ${catName} types`}
+          active
+          onReset={reset}
+        />
+      )}
 
       {/* ——— the temperature bands (banded categories only) */}
       {banded && (
@@ -2555,8 +2555,8 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
         aside={
           <SubTabs
             items={[
-              { id: 'pieces' as const, label: `Pieces · ${model.typeTotal} types` },
-              { id: 'makers' as const, label: `Makers · ${entries.length} on file` },
+              { id: 'pieces' as const, label: `Pieces · ${model.typeTotal}` },
+              { id: 'makers' as const, label: `Makers · ${entries.length}` },
             ]}
             active={face}
             onChange={setFace}

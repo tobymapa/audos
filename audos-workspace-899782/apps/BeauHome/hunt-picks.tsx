@@ -44,7 +44,6 @@ import {
   mono,
   serif,
 } from './index-style';
-import { numberWord } from './mono-type';
 import { HUNT_CATEGORIES, type HuntCategory } from './hunt-model';
 import { getHuntCategoryReads, peekLatestHuntReads } from './hunt-picks-ai';
 import {
@@ -130,38 +129,29 @@ function CategoryRow({
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={`hunt-picks-${category.id}`}
-        className="w-full text-left grid grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
-        style={{ gap: '18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
+        className="w-full text-left grid grid-cols-[26px_minmax(0,1fr)] md:grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+        style={{ gap: '7px 18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
       >
         <span style={{ ...mono(15, ACCENT), letterSpacing: 0 }}>{open ? '\u2212' : '+'}</span>
         <span className="min-w-0 block">
-          <span className="block" style={{ ...serif(27, WALNUT), lineHeight: 1.1 }}>
+          {/* ONE line, the same size for every category (founder's rule) —
+              the phone drops the size a step (hab-cat-name, Desktop.tsx). */}
+          <span
+            className="block hab-cat-name"
+            style={{ ...serif(27, WALNUT), lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
             {category.name}
           </span>
-          {read && (
-            <span
-              className="block"
-              style={{
-                ...body(13, SECONDARY),
-                marginTop: '5px',
-                lineHeight: 1.5,
-                // Folded categories keep Beau's line to ONE line (layout
-                // pass) — unfolding shows it in full.
-                ...(open
-                  ? null
-                  : {
-                      display: '-webkit-box',
-                      WebkitBoxOrient: 'vertical' as const,
-                      WebkitLineClamp: 1,
-                      overflow: 'hidden',
-                    }),
-              }}
-            >
+          {/* Beau's line shows only when the category is UNFOLDED
+              (founder's correction, August 2026) — a folded row carries
+              the name alone. */}
+          {read && open && (
+            <span className="block" style={{ ...body(13, SECONDARY), marginTop: '5px', lineHeight: 1.5 }}>
               {read}
             </span>
           )}
         </span>
-        <span className="flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
+        <span className="col-start-2 md:col-start-auto flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
           <span style={mono(9.5, badge.tone)}>{badge.text}</span>
           <span style={{ ...mono(11, SECONDARY), letterSpacing: 0 }}>
             {category.subCategories.length} sub-categories
@@ -388,15 +378,6 @@ export function HuntPicks({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey, reader ? 'ready' : 'waiting']);
 
-  const drawnCount = useMemo(
-    () =>
-      HUNT_CATEGORIES.reduce(
-        (total, category) => total + (open[category.id] ? (states[category.id]?.subs || []).length : 0),
-        0,
-      ),
-    [open, states],
-  );
-
   // The ten-pick page stands in front of the list while it is open — the
   // list (and everything unfolded on it) is exactly as he left it beneath.
   if (detail && reader) {
@@ -413,21 +394,9 @@ export function HuntPicks({
 
   return (
     <div>
-      {/* The long how-it-reads paragraph is gone (layout pass, August 2026):
-          the tab's standfirst already carries the one-line framing. */}
-      <div
-        className="flex items-end justify-between gap-4 flex-wrap"
-        style={{ marginTop: '4px', paddingBottom: '9px' }}
-      >
-        <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>By category · open one and he chooses</h3>
-        <span style={mono(8, FAINT)}>
-          {drawnCount > 0
-            ? `${numberWord(drawnCount)} shortlist${drawnCount === 1 ? '' : 's'} in front of you`
-            : 'Unfold one to set him going'}
-        </span>
-      </div>
-
-      <section aria-label="Beau's picks, by category" data-tour="tour-hunt-picks">
+      {/* The header row is GONE (founder's correction, August 2026) — the
+          list starts straight at the first category. */}
+      <section aria-label="Beau's picks, by category" data-tour="tour-hunt-picks" style={{ marginTop: '4px' }}>
         {HUNT_CATEGORIES.map((category) => (
           <CategoryRow
             key={category.id}

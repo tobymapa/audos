@@ -607,30 +607,11 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
  * (LegacyAnnotatedBoard) is retired and has no call site.
  */
 function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: React.ReactNode }) {
-  const placed = useMemo(() => composeFlatLayBoard(pieces), [pieces]);
-  if (pieces.length === 0) return <>{children}</>;
-  return (
-    <div>
-      <div className="min-w-0">{children}</div>
-      {/* The zone list under the canvas is a desktop reading — on a phone
-          the canvas speaks for itself (founder's correction, August 2026). */}
-      <div className="hidden sm:block pt-3">
-        {placed.map(({ piece }) => {
-          const p = piece as BoardPiece;
-          const status = boardStatusOf(p);
-          return (
-            <div key={p.key} className="flex items-baseline gap-2.5 flex-wrap" style={{ padding: '3px 0' }}>
-              <span style={{ ...annMono, color: MUTED, width: '102px', flexShrink: 0 }}>{zoneLabelFor(p)}</span>
-              <span style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 13px)', color: WALNUT }}>{p.name}</span>
-              {status && (
-                <span style={{ ...annMono, color: p.key.startsWith('curated-') ? OXBLOOD : ACCENT_DEEP }}>{status}</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  // NO CLOTHES LABELS AT ALL (founder's correction, August 2026): the
+  // top · bottom · feet list under the canvas is gone on every width —
+  // the board shows just the clothes.
+  void pieces;
+  return <>{children}</>;
 }
 
 /**
@@ -1361,12 +1342,12 @@ export function FittingRoomTab({
   // Edit, The Search and The Index read), as chips over the shelves. Null
   // shows everything; a chip narrows all three shelves at once.
   const [shelfCategory, setShelfCategory] = useState<string | null>(null);
-  // THE COMPACT SOURCE PICKER (layout & performance pass, August 2026): no
-  // source is expanded on the tab's initial render — opening one mounts
-  // just that shelf, and a shelf once visited stays mounted (hidden) so
-  // folding it away and back costs nothing.
-  const [openShelf, setOpenShelf] = useState<'owned' | 'saved' | 'picks' | null>(null);
-  const [visitedShelves, setVisitedShelves] = useState<Record<string, boolean>>({});
+  // THE COMPACT SOURCE PICKER: “Yours” opens UNFOLDED on the first visit
+  // (founder's correction, August 2026) — the other two mount when tapped,
+  // and a shelf once visited stays mounted (hidden) so folding it away and
+  // back costs nothing.
+  const [openShelf, setOpenShelf] = useState<'owned' | 'saved' | 'picks' | null>('owned');
+  const [visitedShelves, setVisitedShelves] = useState<Record<string, boolean>>({ owned: true });
   const pickShelf = (id: 'owned' | 'saved' | 'picks') => {
     setOpenShelf((cur) => (cur === id ? null : id));
     setVisitedShelves((cur) => (cur[id] ? cur : { ...cur, [id]: true }));

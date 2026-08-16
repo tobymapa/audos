@@ -164,7 +164,7 @@ export function FittingContextBar({ right: _right }: { right?: React.ReactNode }
               disabled={busy}
               className="px-2.5 min-h-[36px] max-sm:min-h-[46px] focus:outline-none disabled:opacity-50"
               // A field under 16px makes iOS Safari zoom the page in on focus.
-              style={{ ...body(13, INK), fontSize: 'max(var(--eth-input, 0px), 13px)', borderRadius: 0, border: `1px solid ${HAIRLINE}`, background: CANVAS, maxWidth: '220px' }}
+              style={{ ...body(13, INK), fontSize: 'max(var(--eth-input, 0px), 11px)', borderRadius: 0, border: `1px solid ${HAIRLINE}`, background: CANVAS, maxWidth: '220px' }}
             />
             <button
               type="button"

@@ -1620,11 +1620,12 @@ export default function SpaceDesktop({
             /* Form furniture. A field whose height and type size are set
                inline (which no stylesheet can raise) reads these instead:
                --eth-field-h is the height a thumb can hit, and --eth-input is
-               the size below which iOS Safari zooms the page in on focus.
-               Both are undefined above the breakpoint, so var(--eth-field-h,
-               38px) resolves to the desktop value the call site wrote. */
+               the text-box type size. Both are undefined above the
+               breakpoint, so var(--eth-field-h, 38px) resolves to the desktop
+               value the call site wrote. Text boxes sit two sizes below the
+               old 16px floor (founder's correction, August 2026). */
             --eth-field-h:46px;
-            --eth-input:16px;
+            --eth-input:14px;
             /* The photo-carousel arrows (YourStyle). The 28px drawn circle
                is the design; on a phone the BUTTON grows to the 44px touch
                minimum through a transparent border of this width on every
@@ -1662,11 +1663,14 @@ export default function SpaceDesktop({
           .hab-standfirst-line{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
           .hab-section-head{font-size:21px}
           .hab-row-title{font-size:18px}
-          /* 16px is the size below which iOS Safari zooms the whole page in
-             when a field takes focus -- every text box gets it. */
-          input,textarea,select{font-size:16px}
-          .hab-input{min-height:46px;font-size:16px}
+          /* Text boxes read two sizes smaller (founder's correction,
+             August 2026). */
+          input,textarea,select{font-size:14px}
+          .hab-input{min-height:46px;font-size:14px}
           select{min-height:46px}
+          /* Category names hold ONE line at the same size everywhere — on a
+             phone the size drops a step so the longest name still fits. */
+          .hab-cat-name{font-size:21px!important}
         }
 
         /* TOUCH TARGETS. .hab-tap marks a control a thumb has to hit -- a

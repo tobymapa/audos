@@ -301,7 +301,12 @@ function CategoryBlock({
       >
         <span style={{ ...mono(15, ACCENT), letterSpacing: 0 }}>{open ? '\u2212' : '+'}</span>
         <span className="min-w-0 block">
-          <span className="block" style={{ ...serif(27, WALNUT), lineHeight: 1.1 }}>
+          {/* ONE line, the same size for every category (founder's rule) —
+              the phone drops the size a step (hab-cat-name, Desktop.tsx). */}
+          <span
+            className="block hab-cat-name"
+            style={{ ...serif(27, WALNUT), lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
             {category.name}
           </span>
           <span
@@ -785,7 +790,7 @@ export function LedgerTab({
                 border: 'none',
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
-                fontSize: 'max(var(--eth-body, 0px), 14px)',
+                fontSize: 'max(var(--eth-input, 0px), 12px)',
                 color: WALNUT,
                 outline: 'none',
               }}
@@ -886,7 +891,7 @@ export function LedgerTab({
                 border: 'none',
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
-                fontSize: 'max(var(--eth-body, 0px), 13.5px)',
+                fontSize: 'max(var(--eth-input, 0px), 11.5px)',
                 color: WALNUT,
                 outline: 'none',
               }}

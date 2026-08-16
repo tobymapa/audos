@@ -421,6 +421,7 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
             aria-label="Ask Beau"
             style={{
               ...body(14.5, INK),
+              fontSize: 'max(var(--eth-input, 0px), 12.5px)',
               width: '100%',
               background: 'transparent',
               border: 'none',
