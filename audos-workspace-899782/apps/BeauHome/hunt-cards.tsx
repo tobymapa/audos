@@ -54,6 +54,7 @@ import {
   mono,
   serif,
 } from './index-style';
+import { BeauProgressBar } from './beau-progress';
 import {
   cappedImageUrl,
   peekProductImageCandidate,
@@ -654,12 +655,13 @@ export function HuntQuietLine({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The waiting line, with Beau's current phase — never a bare spinner. */
+/** The waiting line, with Beau's current phase — a progress bar that
+ * advances while he works (founder's request, August 2026), never a bare
+ * spinner. */
 export function HuntWorkingLine({ phase }: { phase: string }) {
   return (
-    <p aria-live="polite" className="flex items-center gap-2" style={{ ...mono(8.5, FAINT), margin: 0, padding: '18px 0' }}>
-      <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-      {phase}
-    </p>
+    <div aria-live="polite" style={{ padding: '18px 0' }}>
+      <BeauProgressBar label={phase} />
+    </div>
   );
 }

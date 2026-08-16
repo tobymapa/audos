@@ -72,6 +72,7 @@ import {
   serif,
 } from './index-style';
 import { HairlineRowsSkeleton } from './skeleton';
+import { BeauProgressBar } from './beau-progress';
 import { useReassessStatus } from './reassess-queue';
 import { hostLabel, loadHuntReader, looksLikeBareUrl, normaliseUrl } from './hunt-reader';
 import { loadHuntCallsMirror } from './hunt-model';
@@ -765,7 +766,6 @@ export function LedgerTab({
             borderBottom: '1px solid rgba(59,43,29,0.2)',
           }}
         >
-          <span className="hidden sm:inline" style={mono(9, FAINT)}>Log a piece</span>
           <div
             className="flex items-center flex-1 hab-filter-field"
             style={{
@@ -783,7 +783,7 @@ export function LedgerTab({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') logIt();
               }}
-              placeholder={'paste the link \u2014 the shop\u2019s page, or a resale listing'}
+              placeholder={'log a piece \u2014 paste a link or upload photo'}
               aria-label="Paste a link, or name the piece"
               className="flex-1 min-w-0"
               style={{
@@ -847,7 +847,6 @@ export function LedgerTab({
           style={{ gap: '14px 20px', padding: '16px 0 14px' }}
         >
           <div className="flex items-center flex-wrap" style={{ gap: '8px' }}>
-            <span className="hidden sm:inline" style={mono(9, FAINT)}>Show as</span>
             <Chip label="List" active={view === 'list'} onClick={() => setView('list')} />
             <Chip label="Tiles" active={view === 'tiles'} onClick={() => setView('tiles')} />
             <button
@@ -866,9 +865,11 @@ export function LedgerTab({
             >
               {allOpen ? 'Close every category' : 'Open every category'}
             </button>
-            <span aria-live="polite" style={mono(9, FAINT)}>
-              {thinking && !reading ? 'Beau is reading your rail\u2026' : ''}
-            </span>
+            {thinking && !reading && (
+              <span aria-live="polite" className="w-full sm:w-auto sm:min-w-[220px]">
+                <BeauProgressBar label={'Beau is reading your rail\u2026'} />
+              </span>
+            )}
           </div>
           <div
             className="flex items-center hab-filter-field"

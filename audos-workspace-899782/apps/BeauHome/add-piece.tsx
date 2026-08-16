@@ -216,6 +216,11 @@ export function PhotoConfirmFlow({
   const uploadRef = useRef<Promise<string> | null>(null);
   // Stale-merge guard: a Discard/new pick invalidates in-flight AI merges.
   const pickSeqRef = useRef(0);
+  // MULTIPLE PHOTOS AT ONCE (founder's request, August 2026): extra files
+  // picked together wait here — each opens for editing as the one before it
+  // is saved or discarded, so every piece is confirmed before it files.
+  const [photoQueue, setPhotoQueue] = useState<File[]>([]);
+  const photoQueueRef = useRef<File[]>([]);
 
   const openPicker = () => inputRef.current?.click();
   useEffect(() => {
@@ -246,9 +251,27 @@ export function PhotoConfirmFlow({
   // instant, and the upload + Beau's AI read run BEHIND the open card,
   // filling fields in as they land. Nothing blocks the form or Save.
   const onPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     if (inputRef.current) inputRef.current.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
+    // The first photo opens now; the rest queue and open one after another
+    // as each card is saved or discarded.
+    photoQueueRef.current = files.slice(1);
+    setPhotoQueue(photoQueueRef.current);
+    await startFile(files[0]);
+  };
+
+  /** Open the next queued photo, if any, straight into the flow. */
+  const startNextQueued = (): boolean => {
+    const [next, ...rest] = photoQueueRef.current;
+    if (!next) return false;
+    photoQueueRef.current = rest;
+    setPhotoQueue(rest);
+    void startFile(next);
+    return true;
+  };
+
+  const startFile = async (file: File) => {
     const seq = ++pickSeqRef.current;
     setError(null);
     setSavedFlash(null);
@@ -469,9 +492,12 @@ export function PhotoConfirmFlow({
       reset();
       onAdded();
       window.setTimeout(() => setSavedFlash(null), 3000);
-      // SAVE AND ADD ANOTHER (23a): wardrobes are logged in sittings, not
-      // one piece at a time — the second button re-opens the picker at once.
-      if (addAnother) window.setTimeout(() => inputRef.current?.click(), 200);
+      // THE QUEUE ADVANCES ITSELF: the next photo picked in the same batch
+      // opens for editing the moment this one is saved. With nothing queued,
+      // SAVE AND ADD ANOTHER re-opens the picker (23a: wardrobes are logged
+      // in sittings, not one piece at a time).
+      const advanced = startNextQueued();
+      if (!advanced && addAnother) window.setTimeout(() => inputRef.current?.click(), 200);
     } catch (err) {
       // Failed save: remove the optimistic row and surface an inline error —
       // the draft stays so one more tap retries.
@@ -569,8 +595,9 @@ export function PhotoConfirmFlow({
               color: SECONDARY,
             }}
           >
-            One piece at a time, laid flat, daylight if you have it. The background comes off after you save — this
-            photograph stays as the piece’s anchor either way.
+            One piece per photo, laid flat, daylight if you have it — pick several photos at once and each opens
+            for editing as you save. The background comes off after you save; the photograph stays as the piece’s
+            anchor either way.
           </p>
         </div>
 
@@ -585,6 +612,9 @@ export function PhotoConfirmFlow({
                   </span>
                   <span style={{ ...monoLabel(9), color: FAINT }}>
                     {analysing ? 'Beau is reading the photo…' : 'Named from the fields below'}
+                    {photoQueue.length > 0
+                      ? ` · ${photoQueue.length} more photo${photoQueue.length === 1 ? '' : 's'} waiting`
+                      : ''}
                   </span>
                 </div>
 
@@ -821,11 +851,14 @@ export function PhotoConfirmFlow({
                 </button>
                 <button
                   type="button"
-                  onClick={reset}
+                  onClick={() => {
+                    reset();
+                    startNextQueued();
+                  }}
                   className="hover:underline"
                   style={{ ...monoLabel(9.5), color: MUTED, background: 'transparent' }}
                 >
-                  Discard
+                  {photoQueue.length > 0 ? 'Discard · next photo' : 'Discard'}
                 </button>
                 <span className="ml-auto hidden sm:inline" style={{ ...monoLabel(9), color: MUTED }}>
                   Appears in The Rail immediately
@@ -877,9 +910,10 @@ export function PhotoConfirmFlow({
         ref={inputRef}
         type="file"
         accept="image/*"
+        multiple
         onChange={(e) => void onPicked(e)}
         className="hidden"
-        aria-label="Take a photo or upload one from your library"
+        aria-label="Take a photo or upload photos from your library"
       />
     </div>
   );

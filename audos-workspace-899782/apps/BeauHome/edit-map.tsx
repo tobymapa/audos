@@ -339,6 +339,11 @@ export function EditRuler({
               <div key={row.id} style={{ display: 'contents' }}>
                 <div
                   className="hab-map-rowhead"
+                  // The sub-category line is PARKED, not deleted (founder's
+                  // correction, August 2026): it now shows on HOVER over the
+                  // category name via this title. To put it back on screen,
+                  // restore the commented span below.
+                  title={row.note ? `${row.name} \u2014 ${row.note}` : row.name}
                   style={{
                     padding: '13px 12px',
                     borderBottom: CELL_RULE,
@@ -349,7 +354,7 @@ export function EditRuler({
                   }}
                 >
                   <span style={{ ...body(14, WALNUT), lineHeight: 1.25 }}>{row.name}</span>
-                  <span style={mono(8.5, row.hasGap ? ACCENT_DEEP : '#856c51')}>{row.note}</span>
+                  {/* <span style={mono(8.5, row.hasGap ? ACCENT_DEEP : '#856c51')}>{row.note}</span> */}
                 </div>
                 {row.cells.map((cell) => {
                   const on = cell.key === selected;

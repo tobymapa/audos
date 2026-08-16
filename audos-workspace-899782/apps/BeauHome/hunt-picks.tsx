@@ -55,6 +55,7 @@ import {
 import type { HuntReader } from './hunt-reader';
 import { HuntQuietLine, type HuntCallsState } from './hunt-cards';
 import { HairlineRowsSkeleton } from './skeleton';
+import { BeauProgressBar } from './beau-progress';
 import { HuntSubRows, HuntTenPicksPage } from './hunt-shortlist';
 import { HUNT_OPEN_CATEGORY_EVENT, takeHuntTarget, type HuntTarget } from './edit-links';
 
@@ -171,9 +172,9 @@ function CategoryRow({
             <>
               <HuntSubRows subs={state.subs} onTenPicks={onTenPicks} />
               {refreshing && (
-                <p aria-live="polite" style={{ ...mono(8, FAINT), margin: '10px 0 0' }}>
-                  Beau is bringing these up to date…
-                </p>
+                <div aria-live="polite" style={{ margin: '10px 0 0' }}>
+                  <BeauProgressBar label="Beau is bringing these up to date…" />
+                </div>
               )}
             </>
           )}

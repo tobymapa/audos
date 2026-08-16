@@ -42,6 +42,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlexMono } from './mono-type';
 import { ACCENT, ACCENT_DEEP, FAINT, INK, SECONDARY, WALNUT, body, mono, serif } from './index-style';
 import { TabHeader } from './tab-header';
+import { BeauProgressBar } from './beau-progress';
 import { CrumbPublisher } from './crumb-trail';
 import { fetchMaterials, type CategoryBudget, type StylePrefs, type StyleProfile, type WardrobePiece } from './profile-data';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
@@ -393,9 +394,11 @@ export function BeauTab(props: {
                 <span style={mono(9, FAINT)}>Read it</span>
                 <ViewChip label="By temperature" active={view === 'ruler'} onClick={() => setView('ruler')} />
                 <ViewChip label="By category" active={view === 'cats'} onClick={() => setView('cats')} />
-                <span aria-live="polite" style={mono(9, FAINT)}>
-                  {thinking && !reading ? 'Beau is reading your year\u2026' : ''}
-                </span>
+                {thinking && !reading && (
+                  <span aria-live="polite" className="w-full sm:w-auto sm:min-w-[220px]">
+                    <BeauProgressBar label={'Beau is reading your year\u2026'} />
+                  </span>
+                )}
               </div>
               <MapLegend />
             </div>

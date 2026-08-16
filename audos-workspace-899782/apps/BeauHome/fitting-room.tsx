@@ -107,6 +107,7 @@ import {
 } from './index-style';
 import { openInBeausPicks } from './edit-links';
 import { TabHeader } from './tab-header';
+import { BeauProgressBar } from './beau-progress';
 import {
   DayRail,
   FittingContextBar,
@@ -606,6 +607,21 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
  * the phone always used. The measured callout board below
  * (LegacyAnnotatedBoard) is retired and has no call site.
  */
+/** True below the phone breakpoint — the canvas asks for more height there
+ * (founder's correction, August 2026: pieces overlapped in the 260px cap). */
+function usePhoneWidth(): boolean {
+  const [phone, setPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639.98px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639.98px)');
+    const onChange = () => setPhone(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return phone;
+}
+
 function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: React.ReactNode }) {
   // NO CLOTHES LABELS AT ALL (founder's correction, August 2026): the
   // top · bottom · feet list under the canvas is gone on every width —
@@ -906,6 +922,9 @@ export function FittingRoomTab({
 
   const [day, setDay] = useState(todayIndex);
   const [occasion, setOccasion] = useState('office');
+  // The canvas height cap opens up on a phone, so the composed outfit never
+  // overlaps itself (founder's correction, August 2026).
+  const phoneCanvas = usePhoneWidth();
   const meta = OCCASIONS.find((o) => o.key === occasion) || OCCASIONS[0];
   const dayName = DAY_NAMES[day];
   const fittingKey = `${day}:${occasion}`;
@@ -1597,7 +1616,7 @@ export function FittingRoomTab({
                     onRemove={removeFromBoard}
                     seed={`fitting-${fittingKey}`}
                     canvasMaxWidth="760px"
-                    canvasMaxHeight="260px"
+                    canvasMaxHeight={phoneCanvas ? '440px' : '260px'}
                     quiet={composing}
                   />
                 </AnnotatedBoard>
@@ -1608,7 +1627,9 @@ export function FittingRoomTab({
                   style={{ background: 'rgba(244,238,227,0.9)' }}
                   aria-live="polite"
                 >
-                  <span className="block w-12 h-[3px] bg-[var(--color-accent,#a8712c)] animate-pulse" aria-hidden="true" />
+                  <span className="block w-48 max-w-full" aria-hidden="true">
+                    <BeauProgressBar />
+                  </span>
                   <p style={{ fontFamily: SERIF, fontSize: '18px', lineHeight: 1.3, maxWidth: '28ch', color: WALNUT, marginTop: '16px' }}>
                     {composingLine}
                   </p>
@@ -1720,7 +1741,38 @@ export function FittingRoomTab({
                 once a source is open. One tap narrows the open shelf; All
                 brings everything back. */}
             {openShelf != null && (
-            <div className="flex items-center flex-wrap" style={{ gap: '6px', marginTop: '14px' }} role="group" aria-label="Filter the shelves by category">
+            <>
+            {/* PHONE: the eleven category chips read as one dropdown
+                (founder's correction, August 2026). */}
+            <div className="sm:hidden" style={{ marginTop: '14px' }}>
+              <label className="flex items-center" style={{ gap: '10px' }}>
+                <span style={fitLabel(8.5, MUTED, '0.16em')}>Filter</span>
+                <select
+                  value={shelfCategory || ''}
+                  onChange={(e) => setShelfCategory(e.target.value || null)}
+                  aria-label="Filter the shelves by category"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: '46px',
+                    border: '1px solid rgba(59,43,29,0.28)',
+                    background: 'transparent',
+                    color: WALNUT,
+                    fontFamily: 'var(--space-font-family)',
+                    borderRadius: 0,
+                    padding: '0 10px',
+                  }}
+                >
+                  <option value="">All</option>
+                  {shelfCategoryIds.map((id) => (
+                    <option key={id} value={id}>
+                      {categoryName(id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="hidden sm:flex items-center flex-wrap" style={{ gap: '6px', marginTop: '14px' }} role="group" aria-label="Filter the shelves by category">
               <span style={fitLabel(8.5, MUTED, '0.16em')}>Filter</span>
               <button
                 type="button"
@@ -1759,6 +1811,7 @@ export function FittingRoomTab({
                 );
               })}
             </div>
+            </>
             )}
 
             {visitedShelves.owned && (

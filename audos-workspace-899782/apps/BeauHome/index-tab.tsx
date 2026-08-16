@@ -1372,7 +1372,10 @@ function MakerTreeFilter({
           </button>
         )}
       </div>
-      <div className="flex items-center flex-wrap" style={{ gap: '6px 8px', marginTop: '9px' }}>
+      {/* ONE row on a desktop (founder's correction, August 2026) — the
+          eleven category pills share the line and scroll sideways if they
+          must; phones keep the wrap. */}
+      <div className="flex items-center flex-wrap sm:flex-nowrap sm:overflow-x-auto" style={{ gap: '6px 8px', marginTop: '9px' }}>
         {MAKER_TREE.map((cat) => (
           <span key={cat.id} className="inline-flex items-center" style={{ gap: '2px' }}>
             <TreePill on={cats.includes(cat.id)} label={categoryName(cat.id)} onClick={() => onCats(toggleIn(cats, cat.id))} />
@@ -2095,9 +2098,6 @@ function MakersFace({
               onChange={(e) => void onFile(e.target.files?.[0] || null)}
             />
           </div>
-          <p style={{ ...body(12.5, FAINT), margin: '9px 0 0', maxWidth: '74ch' }}>
-            Name a maker or paste their link and Beau researches them — country, speciality, price point, what they're known for — and files the full row himself.
-          </p>
           {notice && (
             <div
               aria-live="polite"
@@ -2241,16 +2241,16 @@ function MakersFace({
         </div>
       )}
 
-      {/* ——— the filter-state line */}
-      <StateLine
-        text={
-          filtersHeld === 0 && !typeFilter
-            ? `Beau's fifty, chosen for you — ${entries.length} makers on file behind them`
-            : `${filtersHeld + (typeFilter ? 1 : 0)} filter${filtersHeld + (typeFilter ? 1 : 0) === 1 ? '' : 's'} held — ${shown.length} of ${entries.length} makers`
-        }
-        active={filtersHeld > 0 || !!typeFilter}
-        onReset={reset}
-      />
+      {/* ——— the filter-state line — drawn ONLY while filters are held
+          (founder's correction, August 2026): the “Beau's fifty, chosen for
+          you” read is gone. */}
+      {(filtersHeld > 0 || !!typeFilter) && (
+        <StateLine
+          text={`${filtersHeld + (typeFilter ? 1 : 0)} filter${filtersHeld + (typeFilter ? 1 : 0) === 1 ? '' : 's'} held — ${shown.length} of ${entries.length} makers`}
+          active
+          onReset={reset}
+        />
+      )}
 
       {/* ——— the find line + drop-downs (see the note on the Pieces face). */}
       <div className="flex items-center flex-wrap hab-filter-bar" style={{ gap: '10px 12px', paddingBottom: '16px' }}>
