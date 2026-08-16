@@ -715,16 +715,10 @@ export function LedgerTab({
     <div>
       <TabHeader
         title="The Rail"
-        // The correction prompt stays on a desktop; on a phone the standfirst
-        // is the reference's own four words (mobile pass, August 2026). The
-        // correction itself is untouched — opening a piece still opens the
-        // sheet where Beau is corrected.
-        standfirst={
-          <>
-            {'Everything you own, by category'}
-            <span className="hidden md:inline">{' \u2014 open a piece to correct Beau'}</span>.
-          </>
-        }
+        // The reference's own four words on EVERY width (founder's
+        // correction, August 2026). The correction itself is untouched —
+        // opening a piece still opens the sheet where Beau is corrected.
+        standfirst={'Everything you own, by category.'}
         aside={
           <>
             <span style={{ ...serif(44, WALNUT), lineHeight: 1 }}>{model.total}</span>

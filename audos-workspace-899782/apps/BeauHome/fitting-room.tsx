@@ -320,7 +320,7 @@ const ShelfCard = memo(function ShelfCard({
   onToggle: (piece: FittingPiece) => void;
 }) {
   return (
-    <div className="w-full min-w-0 sm:w-[156px] sm:flex-shrink-0">
+    <div className="w-full min-w-0">
       <button
         type="button"
         onClick={() => onToggle(piece)}
