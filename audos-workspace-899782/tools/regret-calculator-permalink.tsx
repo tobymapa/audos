@@ -27,13 +27,15 @@
  * ── Deployment record ───────────────────────────────────────────────────────
  * Permalink page id : 6a1e7b3d-c9c2-4c10-bb32-1cd193b1913e
  * Slug              : regret-calculator
- * Live URL (once public): https://www.ethaion.com/p/regret-calculator
- * Review URL (draft) : https://www.ethaion.com/p/regret-calculator?token=ethaion-review-8k24qv
- * Status            : isPublic=false (draft for founder review; flip via PATCH)
+ * Live URL          : https://www.ethaion.com/p/regret-calculator
+ * Status            : PUBLIC since 2026-08-16 — isPublic=true, accessToken=null.
+ *                     No token required. The old review link
+ *                     ?token=ethaion-review-8k24qv still resolves (the query
+ *                     param is simply ignored now), so shared drafts stay alive.
  * Update the page   : PATCH /api/workspaces/3460cb2c-8c4f-405c-83a2-057f8b58da27/permalink-pages/6a1e7b3d-c9c2-4c10-bb32-1cd193b1913e
  *                     with header "x-session-id: <any-id>" and body { "tsxSource": <this file> }
  *                     (recompiles automatically; 422 on compile error).
- * Go live           : same PATCH with { "isPublic": true, "accessToken": null }
+ * Re-gate it        : same PATCH with { "isPublic": false, "accessToken": "<token>" }
  * Analytics table   : regret_calc_events (WorkspaceDB) — one row per calculation.
  * NOTE: this file is NOT a registered space app — it is the source of the
  * standalone permalink page above. Do not add it to config.json.
