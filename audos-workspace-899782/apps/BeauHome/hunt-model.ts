@@ -25,10 +25,17 @@
  *
  * Passed pieces feed BACK into the recommendation prompt (hunt-picks-ai.ts)
  * so Beau never offers the same piece twice in the same form.
+ *
+ * Explicit tags are also INTENTIONAL DECISIONS, so each Save / Favourite /
+ * Pass files one fact into Beau's persistent style memory (style-memory.ts,
+ * the beau_style_memory table) — read into his chat context every session.
+ * Passive scores and casual swipes never touch the memory; removing a tag
+ * removes its fact.
  */
 import { INDEX_CATEGORY_IDS, type GarmentCategoryId } from './garment-types';
 import { GARMENT_RUNS, type GarmentRun } from './garment-type-runs';
 import { categoryName } from './index-model';
+import { clearSearchTagFact, recordSearchTagFact } from './style-memory';
 
 // window.__workspaceDb is auto-injected by the platform compiler when it sees
 // this literal token in app source.
@@ -249,6 +256,18 @@ export async function setHuntTag(item: HuntTaggable, tag: HuntTag): Promise<void
   const taggedAt = new Date().toISOString();
   mergeIntoMirror({ ...item, id: null, cardKey, tag, taggedAt });
   announce();
+  // An explicit tag is an intentional decision — file it into Beau's
+  // persistent style memory too (fire-and-forget, never blocks the tag).
+  void recordSearchTagFact(
+    {
+      pieceName: item.pieceName,
+      maker: item.maker,
+      categoryId: item.categoryId,
+      subCategory: item.subCategory,
+    },
+    tag,
+    cardKey,
+  );
   const payload = {
     card_key: cardKey,
     piece_name: item.pieceName,
@@ -279,6 +298,8 @@ export async function setHuntTag(item: HuntTaggable, tag: HuntTag): Promise<void
 export async function clearHuntTag(cardKey: string): Promise<void> {
   storeMirror(loadHuntCallsMirror().filter((c) => c.cardKey !== cardKey));
   announce();
+  // An untagged card holds no opinion — its style-memory fact goes with it.
+  void clearSearchTagFact(cardKey);
   try {
     const { data } = await db().from('hunt_calls').eq('card_key', cardKey).limit(5).get();
     for (const row of (data || []) as CallRow[]) {

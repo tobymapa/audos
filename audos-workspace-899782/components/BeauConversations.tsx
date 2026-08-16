@@ -46,6 +46,7 @@ import {
   X,
 } from 'lucide-react';
 import AgentChat from './AgentChat';
+import { installStyleMemoryExtractor } from '../apps/BeauHome/style-memory';
 import { useSpaceRuntime } from '../SpaceRuntimeContext';
 import { beauChatRoom } from '../lib/colors';
 import { VoiceButton } from '../lib/voice';
@@ -520,6 +521,16 @@ export default function BeauConversations({
     window.addEventListener('audos:chat-user-message', onUserMessage);
     return () => window.removeEventListener('audos:chat-user-message', onUserMessage);
   }, [recordUserMessage]);
+
+  // BEAU CHAT MEMORY: the same platform event drives the persistent style
+  // memory — each user message runs one background extraction pass (hard
+  // preferences, body/fit feedback, explicit piece verdicts) into the
+  // beau_style_memory table, which the beau-get-rubric hook reads back into
+  // Beau's context at the start of every conversation. Installs once per
+  // page; never blocks or slows the chat.
+  useEffect(() => {
+    installStyleMemoryExtractor();
+  }, []);
 
   // --- Actions --------------------------------------------------------------
   const openConversation = (threadId: string) => {
