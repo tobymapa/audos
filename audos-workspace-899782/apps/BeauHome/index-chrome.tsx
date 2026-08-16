@@ -54,26 +54,22 @@ export const PAPER = '#fbf8f1';
 export const HAIRLINE = 'rgba(59,43,29,0.18)';
 export const RULE = 'rgba(59,43,29,0.34)';
 
-// Carries the phone reading floor: --eth-micro is declared in Desktop.tsx and is 0px above the phone breakpoint, so the size asked for is used exactly as written.
 export function mono(size = 9, color = FAINT): React.CSSProperties {
-  return { fontFamily: MONO, fontSize: `max(var(--eth-micro, 0px), ${size}px)`, letterSpacing: '0.07em', textTransform: 'uppercase', color };
+  return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.07em', textTransform: 'uppercase', color };
 }
 
-// Carries the phone reading floor: --eth-serif is declared in Desktop.tsx and is 0px above the phone breakpoint, so no desktop screen moves.
 export function serif(size = 17, color = WALNUT): React.CSSProperties {
-  return { fontFamily: SERIF, fontSize: `max(var(--eth-serif, 0px), ${size}px)`, fontWeight: 400, color };
+  return { fontFamily: SERIF, fontSize: `${size}px`, fontWeight: 400, color };
 }
 
-// Carries the phone reading floor: --eth-body is declared in Desktop.tsx and is 0px above the phone breakpoint, so no desktop screen moves.
 export function body(size = 14, color = INK): React.CSSProperties {
-  return { fontFamily: BODY, fontSize: `max(var(--eth-body, 0px), ${size}px)`, lineHeight: 1.6, color };
+  return { fontFamily: BODY, fontSize: `${size}px`, lineHeight: 1.6, color };
 }
 
 // ---------------------------------------------------------------------------
 // Down is always a name — the serif link.
 // ---------------------------------------------------------------------------
 
-// The name is set in the display serif, so it carries the same --eth-serif phone floor (Desktop.tsx) the serif() helper does.
 export function NameLink({ children, onClick, size = 14, color = WALNUT, title }: { children: React.ReactNode; onClick: () => void; size?: number; color?: string; title?: string }) {
   return (
     <button
@@ -81,7 +77,7 @@ export function NameLink({ children, onClick, size = 14, color = WALNUT, title }
       onClick={onClick}
       title={title}
       className="hover:underline text-left"
-      style={{ background: 'transparent', padding: 0, fontFamily: SERIF, fontSize: `max(var(--eth-serif, 0px), ${size}px)`, fontWeight: 400, lineHeight: 1.3, color }}
+      style={{ background: 'transparent', padding: 0, fontFamily: SERIF, fontSize: `${size}px`, fontWeight: 400, lineHeight: 1.3, color }}
     >
       {children}
     </button>

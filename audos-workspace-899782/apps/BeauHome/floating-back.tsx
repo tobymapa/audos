@@ -57,7 +57,7 @@ export function FloatingBackButton({ onBack, label = 'Back' }: { onBack: () => v
         top: '58px',
         left: '12px',
         fontFamily: 'var(--space-font-family)',
-        fontSize: 'max(var(--eth-label, 0px), 12.5px)',
+        fontSize: '12.5px',
         letterSpacing: '0.04em',
         color: '#241a12',
         background: '#FBF8F1',

@@ -47,7 +47,6 @@ import {
   type HuntTag,
 } from './hunt-model';
 import { HuntPhoto, HuntQuietLine, type HuntCallsState } from './hunt-cards';
-import { PhoneMore } from './phone-longform';
 import { WatchBrandLink, WatchButton } from './watchlist-watch';
 
 type SortKey = 'name' | 'brand' | 'price' | 'status' | 'date';
@@ -165,7 +164,7 @@ function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState })
               border: `1px solid ${active ? ACCENT_DEEP : HAIRLINE}`,
               background: active ? TINT : 'transparent',
               padding: '7px 8px',
-              minHeight: 'max(var(--eth-field-h, 0px), 34px)',
+              minHeight: '34px',
               cursor: busy ? 'default' : 'pointer',
               opacity: busy ? 0.55 : 1,
             }}
@@ -211,7 +210,7 @@ function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState })
           border: `1px solid ${HAIRLINE}`,
           background: 'transparent',
           padding: '7px 9px',
-          minHeight: 'max(var(--eth-field-h, 0px), 34px)',
+          minHeight: '34px',
           cursor: busy ? 'default' : 'pointer',
         }}
       >
@@ -296,14 +295,10 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
     <div>
       <div style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
         <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>Everything you have wanted, put by, or passed</h3>
-        {/* On a phone the standfirst is held to two lines with the rest a tap
-            away; a desktop reads it whole, exactly as before. */}
-        <PhoneMore lines={2}>
-          <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
-            Every piece you have tagged, from Beau’s Picks or from an Ask Beau result. Every column head sorts, a row
-            opens the piece’s own page, and a call can be changed or taken off — he reads the change on his next draw.
-          </p>
-        </PhoneMore>
+        <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
+          Every piece you have tagged, from Beau’s Picks or from an Ask Beau result. Every column head sorts, a row
+          opens the piece’s own page, and a call can be changed or taken off — he reads the change on his next draw.
+        </p>
       </div>
       <p style={{ ...mono(8.5, FAINT), margin: '12px 0 0' }}>
         {calls.calls.length === 0
@@ -326,7 +321,7 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
               border: `1px solid ${RULE}`,
               background: 'transparent',
               padding: '10px 15px',
-              minHeight: 'max(var(--eth-field-h, 0px), 42px)',
+              minHeight: '42px',
               cursor: 'pointer',
             }}
           >

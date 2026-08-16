@@ -121,7 +121,7 @@ const STATUSES: Array<{ id: EntryStatus; label: string; cls: string; idleCls: st
 function StatusBadge({ status }: { status: string | null | undefined }) {
   const def = STATUSES.find((s) => s.id === status);
   if (!def) return null;
-  return <span className={`${tw.badge.default} border ${def.cls}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>{def.label}</span>;
+  return <span className={`${tw.badge.default} border ${def.cls}`} style={{ fontSize: '10px' }}>{def.label}</span>;
 }
 
 function StatusPicker({
@@ -144,7 +144,7 @@ function StatusPicker({
             type="button"
             onClick={() => onChange(active ? null : s.id)}
             className={`rounded-full border transition-colors ${compact ? 'px-2 py-0.5' : 'px-2.5 py-1'} ${typography.size.xs} ${active ? s.cls : s.idleCls}`}
-            style={compact ? { fontSize: 'max(var(--eth-micro, 0px), 10px)' } : undefined}
+            style={compact ? { fontSize: '10px' } : undefined}
             title={active ? `Clear ${s.label}` : `Mark as ${s.label}`}
           >
             {s.label}
@@ -252,7 +252,7 @@ function DraftCard({
         )}
         <div className="flex-1 min-w-0">
           {needsName && (
-            <p className={`${typography.size.xs} text-[var(--space-semantic-warning)] mb-1`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
+            <p className={`${typography.size.xs} text-[var(--space-semantic-warning)] mb-1`} style={{ fontSize: '10px' }}>
               Ethaion couldn’t tell exactly what this is — name it yourself:
             </p>
           )}
@@ -269,14 +269,14 @@ function DraftCard({
               type="button"
               onClick={() => setShowCats((s) => !s)}
               className={`${tw.badge.default} ${tw.badge.primary} inline-flex items-center gap-1`}
-              style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
+              style={{ fontSize: '10px' }}
               title="Change category"
             >
               {draft.category ? categoryLabel(draft.category) : 'No category'}
             </button>
-            {draft.brand && <span className={`${tw.badge.default} ${tw.badge.neutral}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>{draft.brand}</span>}
-            {draft.price && <span className={`${tw.badge.default} ${tw.badge.neutral}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>{draft.price}</span>}
-            <span className={`${tw.badge.default} ${tw.badge.neutral}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>{sourceLabel(draft.source_type)}</span>
+            {draft.brand && <span className={`${tw.badge.default} ${tw.badge.neutral}`} style={{ fontSize: '10px' }}>{draft.brand}</span>}
+            {draft.price && <span className={`${tw.badge.default} ${tw.badge.neutral}`} style={{ fontSize: '10px' }}>{draft.price}</span>}
+            <span className={`${tw.badge.default} ${tw.badge.neutral}`} style={{ fontSize: '10px' }}>{sourceLabel(draft.source_type)}</span>
           </div>
           {showCats && (
             <div className="flex flex-wrap gap-1 mt-1.5">
@@ -293,7 +293,7 @@ function DraftCard({
                       ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
                       : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
                   }`}
-                  style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
+                  style={{ fontSize: '10px' }}
                 >
                   {c.label}
                 </button>
@@ -1052,7 +1052,7 @@ export function SavedTab() {
                               {row.name}
                             </button>
                             {row.notes && (
-                              <span className={`block ${typography.size.xs} ${typography.color.muted} truncate`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
+                              <span className={`block ${typography.size.xs} ${typography.color.muted} truncate`} style={{ fontSize: '10px' }}>
                                 {row.notes}
                               </span>
                             )}
