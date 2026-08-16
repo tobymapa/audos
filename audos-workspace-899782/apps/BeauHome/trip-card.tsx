@@ -46,7 +46,7 @@ export function TripBriefForm({
       <div className="max-w-[560px] mx-auto">
         <p
           className="uppercase text-[var(--color-neutral-600,#856c51)]"
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', marginBottom: '6px' }}
+          style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.16em', marginBottom: '6px' }}
         >
           The Fitting · trip
         </p>
@@ -58,7 +58,7 @@ export function TripBriefForm({
         </h3>
         <p
           className="mt-2 text-[var(--color-neutral-700,#634e38)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.55, maxWidth: '52ch' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, maxWidth: '52ch' }}
         >
           Destination, dates and the occasion mix — Beau builds one board per day from your own wardrobe, with a
           packing list underneath, and flags anything missing.
@@ -112,7 +112,7 @@ export function TripBriefForm({
             type="button"
             onClick={onCancel}
             className="min-h-[44px] px-2 hover:underline text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}
           >
             Not now
           </button>

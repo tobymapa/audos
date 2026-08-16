@@ -112,7 +112,7 @@ export function MeasureGuideModal({ onClose }: { onClose: () => void }) {
         <ol className="px-5 py-4 space-y-4">
           {STEPS.map((step, idx) => (
             <li key={step.title} className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-full bg-[var(--space-surface-accent-soft)] text-[var(--space-text-brand)] flex items-center justify-center flex-shrink-0 font-semibold" style={{ fontSize: '11px' }}>
+              <span className="w-6 h-6 rounded-full bg-[var(--space-surface-accent-soft)] text-[var(--space-text-brand)] flex items-center justify-center flex-shrink-0 font-semibold" style={{ fontSize: 'max(var(--eth-label, 0px), 11px)' }}>
                 {idx + 1}
               </span>
               <div className="min-w-0">

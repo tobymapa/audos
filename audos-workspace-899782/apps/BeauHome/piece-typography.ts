@@ -9,7 +9,11 @@
  *   3. CATEGORY / FABRIC — Lora, muted warm tone, ~12px. Supporting detail.
  *
  * These are inline-style objects (not classes) so they win over any legacy
- * utility classes still on a card while those are migrated.
+ * utility classes still on a card while those are migrated — which also
+ * means no stylesheet can raise them on a phone, so tiers 2 and 3 carry the
+ * house phone floor themselves: --eth-body / --eth-label are 0px above the
+ * breakpoint (Desktop.tsx), so the desktop card keeps 13px and 12px exactly,
+ * and a phone reads them at 15.5px and 14px.
  */
 import type React from 'react';
 
@@ -28,7 +32,7 @@ export const pieceNameType: React.CSSProperties = {
 /** Tier 2 — the brand: Lora, tobacco gold, clearly distinct from the name. */
 export const pieceBrandType: React.CSSProperties = {
   fontFamily: 'var(--space-font-family)',
-  fontSize: '13px',
+  fontSize: 'max(var(--eth-body, 0px), 13px)',
   fontWeight: 400,
   lineHeight: 1.4,
   color: 'var(--color-accent, #a8712c)',
@@ -37,7 +41,7 @@ export const pieceBrandType: React.CSSProperties = {
 /** Tier 3 — category + fabric: Lora, muted warm tone, supporting detail. */
 export const pieceMetaType: React.CSSProperties = {
   fontFamily: 'var(--space-font-family)',
-  fontSize: '12px',
+  fontSize: 'max(var(--eth-label, 0px), 12px)',
   fontWeight: 400,
   lineHeight: 1.4,
   color: '#9a8a7a',

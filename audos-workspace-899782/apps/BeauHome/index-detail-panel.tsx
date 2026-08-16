@@ -55,11 +55,12 @@ const PAGE = '#efe7d9';
 const HAIR = 'rgba(59,43,29,0.18)';
 const HAIR_STRONG = 'rgba(59,43,29,0.3)';
 
+// Carries the phone reading floor: --eth-micro is declared in Desktop.tsx and is 0px above the phone breakpoint, so the size asked for is used exactly as written.
 function mono(size = 9, color = FAINT): React.CSSProperties {
-  return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.06em', textTransform: 'uppercase', color };
+  return { fontFamily: MONO, fontSize: `max(var(--eth-micro, 0px), ${size}px)`, letterSpacing: '0.06em', textTransform: 'uppercase', color };
 }
 
-const bodyText: React.CSSProperties = { fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.62, color: INK };
+const bodyText: React.CSSProperties = { fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.62, color: INK };
 
 function SectionRule() {
   return <div style={{ borderTop: `1px solid ${HAIR_STRONG}`, margin: '20px 0 0' }} />;
@@ -68,7 +69,7 @@ function SectionRule() {
 function SectionHead({ children, right }: { children: string; right?: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4" style={{ margin: '16px 0 0' }}>
-      <span style={{ fontFamily: MONO, fontSize: '9.5px', letterSpacing: '0.14em', textTransform: 'uppercase', color: MUTED }}>{children}</span>
+      <span style={{ fontFamily: MONO, fontSize: 'max(var(--eth-micro, 0px), 9.5px)', letterSpacing: '0.14em', textTransform: 'uppercase', color: MUTED }}>{children}</span>
       {right}
     </div>
   );
@@ -193,7 +194,7 @@ function PanelTopBar({
           type="button"
           onClick={onClose}
           aria-label="Close the entry"
-          className="flex items-center justify-center hover:opacity-70"
+          className="hab-touch-icon flex items-center justify-center hover:opacity-70"
           style={{ width: '26px', height: '26px', border: `1px solid ${HAIR_STRONG}`, background: 'transparent', color: SECONDARY }}
         >
           <X className="w-3.5 h-3.5" />
@@ -250,7 +251,7 @@ function FactCell({ label, value, source }: { label: string; value: string; sour
   return (
     <div style={{ padding: '10px 14px 12px' }}>
       <div style={{ ...mono(8.5, MUTED), letterSpacing: '0.1em' }}>{label}</div>
-      <div style={{ marginTop: '5px', fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.4, color: WALNUT }}>{value}</div>
+      <div style={{ marginTop: '5px', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.4, color: WALNUT }}>{value}</div>
       {source && <div style={{ marginTop: '4px', ...mono(7.5, FAINT), letterSpacing: '0.08em' }}>{source}</div>}
     </div>
   );
@@ -289,7 +290,7 @@ function Chip({ name, suffix, dashed }: { name: string; suffix?: string | null; 
         background: dashed ? 'transparent' : PAPER,
       }}
     >
-      <span style={{ fontFamily: SERIF, fontSize: '14.5px', color: WALNUT }}>{name}</span>
+      <span style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 14.5px)', color: WALNUT }}>{name}</span>
       {suffix && <span style={{ ...mono(7.5, ACCENT_DEEP), letterSpacing: '0.08em' }}>{suffix}</span>}
     </span>
   );
@@ -301,7 +302,7 @@ function LedgerRow({ logged, swatches, right }: { logged: boolean; swatches?: st
     <div className="flex items-baseline justify-between gap-4" style={{ marginTop: '14px', paddingTop: '14px', borderTop: `1px solid ${HAIR}` }}>
       <span style={{ fontFamily: SERIF, fontSize: '15px', color: WALNUT }}>
         On your Rail ·{' '}
-        <span style={{ fontFamily: BODY, fontSize: '13.5px', color: logged ? INK : SECONDARY }}>
+        <span style={{ fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13.5px)', color: logged ? INK : SECONDARY }}>
           {logged ? 'logged' : 'none logged'}
         </span>
         {logged && swatches && swatches.length > 0 && (
@@ -468,7 +469,7 @@ export function PieceDetailPanel({
         />
 
         {/* The reading — the entry's own paragraph. */}
-        <p style={{ margin: '16px 0 0', ...bodyText, fontSize: '14px' }}>
+        <p style={{ margin: '16px 0 0', ...bodyText, fontSize: 'max(var(--eth-body, 0px), 14px)' }}>
           {bodyPara ||
             'The taxonomy lists it so you never need to already know it exists — the obscure ones are being written up entry by entry, and every type is already findable, filterable and mappable.'}
         </p>
@@ -484,7 +485,7 @@ export function PieceDetailPanel({
                   className="grid grid-cols-1 sm:grid-cols-[120px_minmax(0,1fr)]"
                   style={{ gap: '2px 18px', padding: '10px 0', borderBottom: `1px solid rgba(59,43,29,0.1)` }}
                 >
-                  <span style={{ fontFamily: SERIF, fontSize: '14px', color: WALNUT }}>{row.label}</span>
+                  <span style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 14px)', color: WALNUT }}>{row.label}</span>
                   <span style={bodyText}>{row.value}</span>
                 </div>
               ))}
@@ -498,7 +499,7 @@ export function PieceDetailPanel({
           {registers.map((reg, i) => (
             <div key={reg.title} style={{ padding: '12px 14px 14px', borderLeft: i > 0 ? `1px solid ${HAIR}` : 'none' }}>
               <div style={{ fontFamily: SERIF, fontSize: '15.5px', color: reg.muted ? FAINT : WALNUT }}>{reg.title}</div>
-              <div style={{ marginTop: '6px', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.5, color: reg.muted ? MUTED : INK }}>{reg.note}</div>
+              <div style={{ marginTop: '6px', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.5, color: reg.muted ? MUTED : INK }}>{reg.note}</div>
             </div>
           ))}
         </div>
@@ -522,18 +523,18 @@ export function PieceDetailPanel({
                 <Chip key={m.profile.brand} name={m.profile.brand} suffix={m.rating} />
               ))}
               {makers.length > 5 && (
-                <span className="inline-flex items-center" style={{ padding: '7px 4px', fontFamily: SERIF, fontSize: '14.5px', color: ACCENT_DEEP }}>
+                <span className="inline-flex items-center" style={{ padding: '7px 4px', fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 14.5px)', color: ACCENT_DEEP }}>
                   All {numberWord(makers.length)} →
                 </span>
               )}
             </div>
-            <p style={{ margin: '10px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY, maxWidth: '64ch' }}>
+            <p style={{ margin: '10px 0 0', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: SECONDARY, maxWidth: '64ch' }}>
               It stays a list of who makes it well, not a recommendation to buy one — for a pick ranked against
               your dossier, ask Beau in the chat.
             </p>
           </>
         ) : (
-          <p style={{ margin: '10px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY }}>
+          <p style={{ margin: '10px 0 0', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: SECONDARY }}>
             No maker in the directory is rated for it yet — add one in the makers index and Beau reads it.
           </p>
         )}
@@ -582,7 +583,7 @@ function StatementBox({ label, children, footer }: { label: string; children: Re
   return (
     <div style={{ marginTop: '16px', background: PAPER, borderLeft: `3px solid ${ACCENT}`, padding: '13px 16px 14px' }}>
       <div style={{ ...mono(8.5, ACCENT_DEEP), letterSpacing: '0.12em' }}>{label}</div>
-      <div style={{ marginTop: '7px', ...bodyText, fontSize: '14px' }}>{children}</div>
+      <div style={{ marginTop: '7px', ...bodyText, fontSize: 'max(var(--eth-body, 0px), 14px)' }}>{children}</div>
       {footer && <div style={{ marginTop: '9px' }}>{footer}</div>}
     </div>
   );
@@ -754,7 +755,7 @@ export function MakerDetailPanel({
 
         <FactsTable cells={factCells} />
         {unrated && (
-          <p style={{ margin: '10px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY, maxWidth: '66ch' }}>
+          <p style={{ margin: '10px 0 0', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: SECONDARY, maxWidth: '66ch' }}>
             Every field says where it came from — your file, their site, or nowhere. An unrated entry is only
             trustworthy if it’s clear which parts nobody has checked.
           </p>
@@ -773,14 +774,14 @@ export function MakerDetailPanel({
                 <Chip key={piece} name={piece} dashed={unrated} />
               ))}
             </div>
-            <p style={{ margin: '10px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY, maxWidth: '66ch' }}>
+            <p style={{ margin: '10px 0 0', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: SECONDARY, maxWidth: '66ch' }}>
               {unrated
                 ? 'Dashed, because this came from their own copy. A rated maker’s chips are solid — Beau agreed with them.'
                 : 'Each one is a type in the piece index — the index lists this maker back under it.'}
             </p>
           </>
         ) : (
-          <p style={{ margin: '10px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY }}>
+          <p style={{ margin: '10px 0 0', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: SECONDARY }}>
             Nothing on file yet{unrated ? ' — their own copy names no specialities.' : '.'}
           </p>
         )}
@@ -807,7 +808,7 @@ export function MakerDetailPanel({
                   onClick={() => void askBeau()}
                   disabled={askBusy || askDone}
                   className="inline-flex items-center gap-2 hover:opacity-85 disabled:opacity-50"
-                  style={{ padding: '9px 16px', border: `1px solid ${ACCENT}`, background: 'transparent', fontFamily: SERIF, fontSize: '14.5px', color: ACCENT_DEEP }}
+                  style={{ padding: '9px 16px', border: `1px solid ${ACCENT}`, background: 'transparent', fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 14.5px)', color: ACCENT_DEEP }}
                 >
                   {askBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {askDone ? 'Beau is reading it' : 'Ask Beau to read it'}
@@ -817,12 +818,12 @@ export function MakerDetailPanel({
                 type="button"
                 onClick={() => setLeftUnrated(true)}
                 className="hover:underline"
-                style={{ background: 'transparent', fontFamily: SERIF, fontSize: '14.5px', color: MUTED }}
+                style={{ background: 'transparent', fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 14.5px)', color: MUTED }}
               >
                 {leftUnrated ? 'Left unrated' : 'Leave it unrated'}
               </button>
             </div>
-            <p style={{ margin: '12px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY, maxWidth: '66ch' }}>
+            <p style={{ margin: '12px 0 0', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: SECONDARY, maxWidth: '66ch' }}>
               Unrated is a resting state, not an error. Leaving it is a real choice — the maker still surfaces when
               it answers a gap, carrying your note instead of his tier.
             </p>
@@ -864,7 +865,7 @@ export function MakerDetailPanel({
           }
         />
         {ownedFromMaker.length > 0 && (
-          <p style={{ margin: '4px 0 0', ...bodyText, fontSize: '12.5px', color: SECONDARY }}>
+          <p style={{ margin: '4px 0 0', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: SECONDARY }}>
             {capWord(numberWord(ownedFromMaker.length))} piece{ownedFromMaker.length === 1 ? '' : 's'} of theirs in your
             Ledger — {ownedFromMaker.slice(0, 3).map((piece) => piece.name).join(' · ')}
             {ownedFromMaker.length > 3 ? ' · …' : ''}.
@@ -881,13 +882,13 @@ export function MakerDetailPanel({
               type="button"
               onClick={() => setConfirmRemove(true)}
               className="hover:underline"
-              style={{ background: 'transparent', ...bodyText, fontSize: '12.5px', color: MUTED }}
+              style={{ background: 'transparent', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: MUTED }}
             >
               Remove {p.brand} from my index ›
             </button>
           ) : (
             <span className="inline-flex items-baseline flex-wrap" style={{ gap: '14px' }}>
-              <span style={{ ...bodyText, fontSize: '12.5px', color: INK }}>
+              <span style={{ ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: INK }}>
                 {isAddition ? 'Remove it for good?' : 'Hold it out of your index?'}
               </span>
               <button
@@ -895,7 +896,7 @@ export function MakerDetailPanel({
                 onClick={() => void removeMaker()}
                 disabled={removing}
                 className="hover:underline disabled:opacity-50"
-                style={{ background: 'transparent', ...bodyText, fontSize: '12.5px', color: ACCENT_DEEP }}
+                style={{ background: 'transparent', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: ACCENT_DEEP }}
               >
                 {removing ? 'Removing…' : 'Yes, remove it'}
               </button>
@@ -904,7 +905,7 @@ export function MakerDetailPanel({
                 onClick={() => setConfirmRemove(false)}
                 disabled={removing}
                 className="hover:underline disabled:opacity-50"
-                style={{ background: 'transparent', ...bodyText, fontSize: '12.5px', color: MUTED }}
+                style={{ background: 'transparent', ...bodyText, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: MUTED }}
               >
                 Keep
               </button>

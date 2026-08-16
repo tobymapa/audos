@@ -33,7 +33,7 @@ function Chip({ label }: { label: string }) {
       className="uppercase text-[var(--color-neutral-700,#634e38)]"
       style={{
         fontFamily: 'var(--space-font-heading)',
-        fontSize: '9.5px',
+        fontSize: 'max(var(--eth-serif, 0px), 9.5px)',
         letterSpacing: '0.12em',
         border: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
         padding: '2px 5px',
@@ -115,7 +115,7 @@ export function FindCheaperAction({
         className="px-3 min-h-[40px] inline-flex items-center gap-1.5 bg-transparent transition-colors hover:bg-[var(--color-accent-100,#fbf1de)]"
         style={{
           fontFamily: 'var(--space-font-family)',
-          fontSize: '13px',
+          fontSize: 'max(var(--eth-body, 0px), 13px)',
           borderRadius: 0,
           border: '1px solid var(--color-divider,rgba(59,43,29,0.34))',
           color: '#241a12',
@@ -124,7 +124,7 @@ export function FindCheaperAction({
       >
         {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
         {open ? 'Hide cheaper' : 'Find it cheaper'}
-        <span aria-hidden="true" style={{ fontSize: '11px', lineHeight: 1 }}>
+        <span aria-hidden="true" style={{ fontSize: 'max(var(--eth-label, 0px), 11px)', lineHeight: 1 }}>
           {open ? '↑' : '→'}
         </span>
       </button>
@@ -138,7 +138,7 @@ export function FindCheaperAction({
           {busy && (
             <p
               className="text-[var(--color-neutral-600,#856c51)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', paddingTop: '8px' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', paddingTop: '8px' }}
               aria-live="polite"
             >
               {phase || 'Beau is sweeping the marketplaces…'}
@@ -148,7 +148,7 @@ export function FindCheaperAction({
           {!busy && error && (
             <p
               className="text-[var(--space-semantic-danger)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', paddingTop: '8px' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', paddingTop: '8px' }}
             >
               {error}
             </p>
@@ -157,7 +157,7 @@ export function FindCheaperAction({
           {!busy && !error && listings.length === 0 && outcome && (
             <p
               className="text-[var(--color-neutral-700,#634e38)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.55, paddingTop: '8px', maxWidth: '54ch' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.55, paddingTop: '8px', maxWidth: '54ch' }}
             >
               {outcome.note}
             </p>
@@ -180,7 +180,7 @@ export function FindCheaperAction({
                       className={`block ${typography.color.primary} group-hover:underline`}
                       style={{
                         fontFamily: 'var(--space-font-family)',
-                        fontSize: '12.5px',
+                        fontSize: 'max(var(--eth-label, 0px), 12.5px)',
                         lineHeight: 1.45,
                         display: '-webkit-box',
                         WebkitLineClamp: '2',
@@ -195,7 +195,7 @@ export function FindCheaperAction({
                       {listing.sizeText && <Chip label={`Size ${listing.sizeText}`} />}
                       <span
                         className="text-[var(--color-neutral-600,#856c51)]"
-                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px' }}
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)' }}
                       >
                         {listing.source}
                       </span>
@@ -215,7 +215,7 @@ export function FindCheaperAction({
           {!busy && listings.length > 0 && (
             <p
               className={`${typography.color.muted}`}
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px', lineHeight: 1.5, paddingTop: '8px', maxWidth: '54ch' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-micro, 0px), 10px)', lineHeight: 1.5, paddingTop: '8px', maxWidth: '54ch' }}
             >
               Live from {(outcome?.sourcesTried || []).join(' · ') || 'the open market'}. Prices, sizes and conditions are
               the seller&rsquo;s own — open the listing before you commit.

@@ -1954,6 +1954,19 @@ export default function EmailGate({
           .eg-input { min-height: 48px; font-size: 16px; }
           .eg-btn { min-height: 48px; font-size: 11px; }
 
+          /* The dialog’s own reading floor. These three render inside
+             .eg-portal — a sibling of the landing shell, outside .el-page —
+             so they cannot read --el-body-min and need their phone sizes
+             written here rather than through the shared token. */
+          .eg-modal-sub { font-size: 15.5px; }
+          .eg-link { font-size: 15.5px; }
+          .eg-fine { font-size: 14px; }
+          /* The dialog’s link is a full-width control, so it takes a thumb
+             target too; the landing page’s inline "Sign in" keeps the height
+             of the sentence it sits in. The close cross was a 38px square. */
+          .eg-modal .eg-link { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+          .eg-close { width: 44px; height: 44px; }
+
           /* The three hero figures sat in one row on a 44px gap, which is
              wider than the screen. They share the width and wrap. */
           .el-hero-stats { gap: 18px 24px !important; flex-wrap: wrap; margin-top: 32px !important; }
@@ -1992,7 +2005,7 @@ export default function EmailGate({
           .el-prose-more {
             display: inline-flex;
             align-items: center;
-            min-height: 40px;
+            min-height: 44px;
             padding: 0;
             background: none;
             border: none;

@@ -393,7 +393,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
 
   if (editing) {
     return (
-      <span className="block" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: baseColor }}>
+      <span className="block" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: baseColor }}>
         <span className="flex items-center gap-2 flex-wrap">
           <input
             type="text"
@@ -409,7 +409,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
             className="px-2.5 min-h-[38px] min-w-[10rem] flex-1 focus:outline-none disabled:opacity-50"
             style={{
               fontFamily: 'var(--space-font-family)',
-              fontSize: '13px',
+              fontSize: 'max(var(--eth-body, 0px), 13px)',
               borderRadius: 0,
               border: hairline,
               background: dark ? 'transparent' : 'var(--color-paper,#fbf8f1)',
@@ -422,7 +422,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
             onClick={() => void applyCity()}
             disabled={busy}
             className="min-h-[38px] px-2.5 inline-flex items-center gap-1.5 hover:underline disabled:opacity-50"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: linkColor, background: 'transparent', border: 'none' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: linkColor, background: 'transparent', border: 'none' }}
           >
             {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
             Use this city
@@ -432,7 +432,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
             onClick={() => void applyDetect()}
             disabled={busy}
             className="min-h-[38px] px-2 inline-flex items-center gap-1 hover:underline disabled:opacity-50"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: mutedColor, background: 'transparent', border: 'none' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: mutedColor, background: 'transparent', border: 'none' }}
             title="Detect my location"
           >
             <LocateFixed className="w-3.5 h-3.5" />
@@ -453,7 +453,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
           </button>
         </span>
         {error && (
-          <span className="block mt-1" style={{ fontSize: '12px', color: mutedColor }}>
+          <span className="block mt-1" style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', color: mutedColor }}>
             {error}
           </span>
         )}
@@ -464,7 +464,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
   return (
     <span
       className="inline-flex items-center gap-1.5 flex-wrap"
-      style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: baseColor }}
+      style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: baseColor }}
       aria-live="polite"
     >
       <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: mutedColor }} aria-hidden="true" />
@@ -489,7 +489,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
               setError(null);
             }}
             className="hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: linkColor, background: 'transparent', border: 'none' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: linkColor, background: 'transparent', border: 'none' }}
             aria-label="Change your location"
           >
             · Change location
@@ -504,7 +504,7 @@ export function WeatherLine({ tone = 'light' }: { tone?: 'dark' | 'light' }) {
             setError(null);
           }}
           className="hover:underline"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: linkColor, background: 'transparent', border: 'none' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: linkColor, background: 'transparent', border: 'none' }}
         >
           Set your location — Beau checks the weather
         </button>

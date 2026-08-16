@@ -423,7 +423,7 @@ export function FavStar({ active, onToggle, brand }: { active: boolean; onToggle
       aria-label={(active ? 'Unfavourite ' : 'Favourite ') + brand}
       title={active ? 'A favourite \u2014 tap to release' : 'Mark a favourite'}
       className="transition-opacity hover:opacity-70 hab-touch-icon"
-      style={{ background: 'transparent', padding: 0, fontSize: '13px', lineHeight: 1, color: active ? ACCENT_DEEP : FAINTER }}
+      style={{ background: 'transparent', padding: 0, fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1, color: active ? ACCENT_DEEP : FAINTER }}
     >
       {active ? '\u2605' : '\u2606'}
     </button>

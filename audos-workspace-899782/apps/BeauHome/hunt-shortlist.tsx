@@ -127,7 +127,7 @@ export function HuntSubRows({
                 onClick={() => openInTheIndex({ typeId: infoTypeId })}
                 aria-label={`About ${sub.subName} — its page in the Index`}
                 title="About this piece — its page in the Index"
-                className="transition-colors hover:border-[#a8712c] flex items-center justify-center"
+                className="hab-touch-icon transition-colors hover:border-[#a8712c] flex items-center justify-center"
                 style={{ width: '31px', height: '31px', border: `1px solid ${RULE}`, background: 'transparent', color: SECONDARY, borderRadius: 0 }}
               >
                 <Info className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden="true" />
@@ -136,7 +136,7 @@ export function HuntSubRows({
             <button
               type="button"
               onClick={() => onTenPicks(sub)}
-              className="transition-colors hover:border-[#a8712c]"
+              className="hab-tap transition-colors hover:border-[#a8712c]"
               style={{
                 ...mono(9, ACCENT_DEEP),
                 border: `1px solid ${RULE}`,
@@ -282,7 +282,7 @@ function CallButton({
       disabled={busy}
       title={title}
       aria-pressed={active}
-      className="transition-colors hover:border-[#a8712c]"
+      className="hab-tap transition-colors hover:border-[#a8712c]"
       style={{
         ...mono(8, active ? ACCENT_DEEP : SECONDARY),
         border: `1px solid ${active ? ACCENT_DEEP : 'rgba(59,43,29,0.3)'}`,

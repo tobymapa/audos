@@ -65,6 +65,7 @@ import {
   type SortCol,
   type SortState,
 } from './index-maker-rows';
+import { PhoneMore, PhoneReveal } from './phone-longform';
 import {
   ACCENT_DEEP,
   FAINT,
@@ -522,10 +523,12 @@ export function IndexMakersFace({
           onChange={(e) => void onFile((e.target.files && e.target.files[0]) || null)}
         />
       </div>
-      <p style={{ ...body(12.5, FAINT), margin: '8px 0 0', maxWidth: '70ch' }}>
-        Name a house or paste their link and Beau researches them — country, speciality, price point, what they are
-        known for — and files the full row himself.
-      </p>
+      <PhoneMore lines={2}>
+        <p style={{ ...body(12.5, FAINT), margin: '8px 0 0', maxWidth: '70ch' }}>
+          Name a house or paste their link and Beau researches them — country, speciality, price point, what they are
+          known for — and files the full row himself.
+        </p>
+      </PhoneMore>
       {notice && <div style={{ ...mono(8, ACCENT_DEEP), paddingTop: '10px' }}>{notice}</div>}
     </div>
   );
@@ -548,7 +551,12 @@ export function IndexMakersFace({
       <span className="hidden lg:block">
         <SortHead label="Stocked" col="stocked" sort={sort} onSort={onSort} />
       </span>
-      <SortHead label={'Beau\u2019s read'} col="read" sort={sort} onSort={onSort} />
+      {/* Below sm the read has no column of its own — it rides with the maker
+          name — so its head is dropped there too and the header row keeps the
+          same number of cells as the rows beneath it. */}
+      <span className="hidden sm:block">
+        <SortHead label={'Beau\u2019s read'} col="read" sort={sort} onSort={onSort} />
+      </span>
       <span aria-hidden />
     </div>
   );
@@ -661,18 +669,22 @@ export function IndexMakersFace({
         />
       </div>
 
-      {/* ——— what the five reads mean */}
-      <div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-        style={{ gap: '9px 28px', padding: '14px 0 16px', borderTop: '1px solid ' + HAIRLINE, borderBottom: '1px solid ' + HAIRLINE }}
-      >
-        {READ_ORDER.map((r) => (
-          <div key={r} className="flex items-baseline" style={{ gap: '12px' }}>
-            <span style={{ ...mono(7.5, READ_COLORS[r]), flexShrink: 0, minWidth: '76px' }}>{READ_LABELS[r]}</span>
-            <span style={body(13, SECONDARY)}>{READ_BLURBS[r]}</span>
-          </div>
-        ))}
-      </div>
+      {/* ——— what the five reads mean. Five labels and five sentences are a
+          quarter of a phone screen of copy before the first maker, so the key
+          opens closed there and reads in full on a desktop. */}
+      <PhoneReveal label={'what Beau\u2019s five reads mean'}>
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          style={{ gap: '9px 28px', padding: '14px 0 16px', borderTop: '1px solid ' + HAIRLINE, borderBottom: '1px solid ' + HAIRLINE }}
+        >
+          {READ_ORDER.map((r) => (
+            <div key={r} className="flex items-baseline" style={{ gap: '12px' }}>
+              <span style={{ ...mono(7.5, READ_COLORS[r]), flexShrink: 0, minWidth: '76px' }}>{READ_LABELS[r]}</span>
+              <span style={body(13, SECONDARY)}>{READ_BLURBS[r]}</span>
+            </div>
+          ))}
+        </div>
+      </PhoneReveal>
 
       {/* ——— the count, and the compare bench */}
       <div className="flex items-center justify-between flex-wrap" style={{ gap: '8px 16px', padding: '13px 0' }}>

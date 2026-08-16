@@ -632,7 +632,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={loading || isUploadingAttachment || pendingAttachments.length >= 5}
-            className="hover:opacity-75 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            className="hab-tap hover:opacity-75 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ ...vMono(9, V_MUTED), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
             data-testid="button-attach-file"
             title="Add a photo or file — show Beau a garment, a look, or a screenshot"
@@ -642,7 +642,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <VoiceButton
             label="Dictate"
             labelStyle={vMono(9, V_MUTED)}
-            className="hover:opacity-75"
+            className="hab-tap hover:opacity-75"
             disabled={loading}
             onTranscript={(text) => {
               void sendMessageWithContent(text, []);
@@ -652,7 +652,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <LiveTalkButton
             label="Live"
             labelStyle={vMono(9, V_MUTED)}
-            className="hover:opacity-75"
+            className="hab-tap hover:opacity-75"
             disabled={loading}
             title="Talk live with Beau — a real-time voice conversation"
           />
@@ -660,7 +660,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <button
             onClick={loading ? abortStream : sendMessage}
             disabled={(!input.trim() && pendingAttachments.length === 0) && !loading}
-            className="transition-colors hover:bg-[rgba(124,45,45,0.08)] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="hab-tap transition-colors hover:bg-[rgba(124,45,45,0.08)] disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               ...vMono(9, V_OXBLOOD),
               padding: '6px 14px',

@@ -66,10 +66,11 @@ const S_MUTED = '#856c51';
 const S_FAINT = '#a68e70';
 const S_HAIRLINE = 'rgba(59,43,29,0.14)';
 
+// Carries the phone reading floor: --eth-micro is 0px above the breakpoint and the phone minimum below it (Desktop.tsx).
 function sMono(size: number, color: string, tracking = '0.1em') {
   return {
     fontFamily: S_MONO,
-    fontSize: `${size}px`,
+    fontSize: `max(var(--eth-micro, 0px), ${size}px)`,
     letterSpacing: tracking,
     textTransform: 'uppercase' as const,
     color,
@@ -158,7 +159,7 @@ export function BeauScoreCard({
             style={{ padding: '8px 16px', borderTop: i === 0 ? 'none' : `1px solid ${S_HAIRLINE}` }}
           >
             <span style={sMono(8.5, '#7c4a17', '0.13em')}>{label}</span>
-            <span style={{ fontSize: '13.5px', lineHeight: 1.55, color: S_BODY }}>{score[key]}</span>
+            <span style={{ fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, color: S_BODY }}>{score[key]}</span>
           </div>
         ))}
       </div>
@@ -248,7 +249,7 @@ export default function BeauScorePanel() {
       <p style={{ fontFamily: 'var(--space-font-heading)', fontSize: '22px', fontWeight: 400, lineHeight: 1.2, color: S_INK, margin: 0 }}>
         What are you considering?
       </p>
-      <p style={{ fontSize: '13px', lineHeight: 1.55, color: S_MUTED, margin: '6px 0 0' }}>
+      <p style={{ fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.55, color: S_MUTED, margin: '6px 0 0' }}>
         Paste a link, describe the piece, or add a photo — Beau reads it against your dossier and scores Cloth · Cut
         · Make · Longevity, then calls the Regret Risk.
       </p>
@@ -257,7 +258,7 @@ export default function BeauScorePanel() {
         {photo && (
           <div className="flex items-center gap-2" style={{ padding: '10px 16px 0' }}>
             <img src={photo} alt="" className="h-12 w-12 object-cover" style={{ border: `1px solid ${S_HAIRLINE}` }} />
-            <span className="max-w-[160px] truncate" style={{ fontSize: '12px', color: '#634e38' }}>{photoName || 'Photo attached'}</span>
+            <span className="max-w-[160px] truncate" style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', color: '#634e38' }}>{photoName || 'Photo attached'}</span>
             <button
               type="button"
               onClick={() => {
@@ -285,7 +286,7 @@ export default function BeauScorePanel() {
           rows={2}
           disabled={busy}
           className="beau-score-field w-full border-0 bg-transparent focus:outline-none focus:ring-0 resize-none"
-          style={{ padding: '13px 16px 8px', fontSize: '14px', lineHeight: 1.5, color: S_BODY }}
+          style={{ padding: '13px 16px 8px', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.5, color: S_BODY }}
           data-testid="input-score-piece"
         />
         <div className="flex items-center" style={{ gap: '16px', padding: '0 16px 12px' }}>
@@ -327,12 +328,12 @@ export default function BeauScorePanel() {
       </div>
 
       {busy && phase && (
-        <p className="mt-3 flex items-center gap-2" style={{ fontSize: '13px', color: S_MUTED }} aria-live="polite">
+        <p className="mt-3 flex items-center gap-2" style={{ fontSize: 'max(var(--eth-body, 0px), 13px)', color: S_MUTED }} aria-live="polite">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           {phase}
         </p>
       )}
-      {error && <p className="mt-3" style={{ fontSize: '13px', color: '#7d2a24' }}>{error}</p>}
+      {error && <p className="mt-3" style={{ fontSize: 'max(var(--eth-body, 0px), 13px)', color: '#7d2a24' }}>{error}</p>}
 
       {result && (
         <div className="mt-4">

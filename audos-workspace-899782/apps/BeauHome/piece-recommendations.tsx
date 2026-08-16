@@ -46,8 +46,10 @@ const PAPER = '#fbf8f1';
 const HAIR = 'rgba(59,43,29,0.18)';
 const HAIR_STRONG = 'rgba(59,43,29,0.3)';
 
+// The phone reading floor: --eth-micro is declared in Desktop.tsx and is 0px
+// above the breakpoint, so the size asked for here is what desktop draws.
 function mono(size = 9, color = FAINT): React.CSSProperties {
-  return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.06em', textTransform: 'uppercase', color };
+  return { fontFamily: MONO, fontSize: `max(var(--eth-micro, 0px), ${size}px)`, letterSpacing: '0.06em', textTransform: 'uppercase', color };
 }
 
 // ---------------------------------------------------------------------------

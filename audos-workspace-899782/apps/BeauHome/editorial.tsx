@@ -161,7 +161,7 @@ function FeaturedBand({ piece }: { piece: EditorialPiece }) {
         <div>
           <p
             className="uppercase"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em', color: '#e3c184', marginBottom: '10px' }}
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', letterSpacing: '0.16em', color: '#e3c184', marginBottom: '10px' }}
           >
             This week · {piece.kicker} · {piece.minutes} min
           </p>
@@ -209,7 +209,7 @@ function FeaturedBand({ piece }: { piece: EditorialPiece }) {
             height={600}
             style={{ filter: 'sepia(0.20) saturate(0.85) contrast(1.05)' }}
           />
-          <span className="block mt-1.5" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '10px', color: '#c5b193' }}>
+          <span className="block mt-1.5" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 'max(var(--eth-micro, 0px), 10px)', color: '#c5b193' }}>
             {piece.date} · {piece.minutes} min read
           </span>
         </div>
@@ -223,7 +223,7 @@ function FeaturedBand({ piece }: { piece: EditorialPiece }) {
                 {p}
               </p>
             ))}
-            <p style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '10px', color: '#f6f0e5', opacity: 0.55 }}>
+            <p style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 'max(var(--eth-micro, 0px), 10px)', color: '#f6f0e5', opacity: 0.55 }}>
               {piece.date} · {piece.minutes} min read
             </p>
           </div>
@@ -259,7 +259,7 @@ function ArticleSection({ piece }: { piece: EditorialPiece }) {
           />
           <span
             className="block text-left"
-            style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '10px', color: 'var(--color-neutral-600,#856c51)', marginTop: '6px' }}
+            style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 'max(var(--eth-micro, 0px), 10px)', color: 'var(--color-neutral-600,#856c51)', marginTop: '6px' }}
           >
             {piece.kicker} · {piece.date}
           </span>
@@ -277,7 +277,7 @@ function ArticleSection({ piece }: { piece: EditorialPiece }) {
             className="text-[var(--color-neutral-600,#856c51)]"
             style={{
               fontFamily: 'var(--space-font-family)',
-              fontSize: '14px',
+              fontSize: 'max(var(--eth-body, 0px), 14px)',
               lineHeight: 1.6,
               marginTop: '8px',
               maxWidth: '58ch',
@@ -293,13 +293,13 @@ function ArticleSection({ piece }: { piece: EditorialPiece }) {
           <span className="flex items-center flex-wrap" style={{ gap: '10px', marginTop: '14px' }}>
             <span
               className="uppercase border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-800,#5c3413)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', letterSpacing: '0.12em', borderRadius: '4px', padding: '3px 10px', background: 'transparent' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', letterSpacing: '0.12em', borderRadius: '4px', padding: '3px 10px', background: 'transparent' }}
             >
               {piece.tag}
             </span>
             <span
               className="uppercase text-[var(--color-neutral-600,#856c51)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', letterSpacing: '0.12em' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', letterSpacing: '0.12em' }}
             >
               {piece.minutes} min read
             </span>
@@ -310,7 +310,7 @@ function ArticleSection({ piece }: { piece: EditorialPiece }) {
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             className="inline-flex items-center gap-1 group hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)', marginTop: '16px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent,#a8712c)', marginTop: '16px' }}
           >
             {open ? 'Close' : 'Read'}
             <span
@@ -328,7 +328,7 @@ function ArticleSection({ piece }: { piece: EditorialPiece }) {
                   {p}
                 </p>
               ))}
-              <p style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '10px', color: 'var(--color-neutral-600,#856c51)' }}>
+              <p style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 'max(var(--eth-micro, 0px), 10px)', color: 'var(--color-neutral-600,#856c51)' }}>
                 {piece.date} · {piece.minutes} min read
               </p>
             </div>
@@ -394,7 +394,7 @@ export function FromHabitus() {
                         ? 'border-[var(--color-accent,#a8712c)] text-[var(--color-accent-800,#5c3413)]'
                         : 'border-[var(--color-neutral-300,#dccdb2)] text-[var(--color-neutral-700,#634e38)] hover:border-[var(--space-border-strong)] hover:text-[var(--space-text-primary)]'
                     }`}
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', letterSpacing: '0.12em', borderRadius: '4px', padding: '4px 11px' }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', letterSpacing: '0.12em', borderRadius: '4px', padding: '4px 11px' }}
                   >
                     {f.label}
                   </button>

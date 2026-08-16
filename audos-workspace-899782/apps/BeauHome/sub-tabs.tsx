@@ -79,7 +79,10 @@ const STYLE_A_BUTTON = 'uppercase flex-shrink-0 transition-colors hover:text-[va
 // Variant B — the hairline chips (active).
 // ---------------------------------------------------------------------------
 
-const STYLE_B_ROW = 'flex items-center gap-1.5 overflow-x-auto';
+// hab-chip-wrap (Desktop.tsx) wraps the row on a phone instead of scrolling
+// it: four chips at the phone type floor run past 375px, and a face hidden
+// behind a sideways gesture reads as a face that is not there.
+const STYLE_B_ROW = 'flex items-center gap-1.5 overflow-x-auto hab-chip-wrap';
 
 function styleBButton(active: boolean): React.CSSProperties {
   return {
@@ -102,7 +105,8 @@ function styleBClass(active: boolean): string {
 // Variant — the Index's face toggle, value for value.
 // ---------------------------------------------------------------------------
 
-const INDEX_FACE_ROW = 'flex overflow-x-auto';
+// Same rule as the chip row above: wraps on a phone, scrolls on a desktop.
+const INDEX_FACE_ROW = 'flex overflow-x-auto hab-chip-wrap';
 
 /** The cream the Index sets its active chip's type in. */
 const ON_WALNUT_CHIP = '#f6f0e5';

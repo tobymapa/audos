@@ -215,7 +215,7 @@ function TypeRow({ type, ownedCount, unit }: { type: GarmentType; ownedCount: nu
   return (
     <div className={`${ROW_GRID} items-center`} style={{ gap: '14px', padding: '8px 0', borderBottom: '1px solid rgba(59,43,29,0.10)' }}>
       <span className="min-w-0">
-        <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '14.5px', fontWeight: 400, lineHeight: 1.3, color: ownedCount > 0 ? WALNUT : INK }}>
+        <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 14.5px)', fontWeight: 400, lineHeight: 1.3, color: ownedCount > 0 ? WALNUT : INK }}>
           {type.name}
         </span>
         {ownedCount > 0 && (

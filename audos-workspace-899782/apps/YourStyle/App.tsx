@@ -376,7 +376,10 @@ const FIELD_LABEL: React.CSSProperties = {
   textTransform: 'uppercase',
   color: '#8A7F70',
   marginBottom: '6px',
-  whiteSpace: 'nowrap',
+  // One line on a desktop row; wrapping on a phone, where the lifted type
+  // floor makes a label like SHOULDER WIDTH wider than its 96px field and it
+  // used to run over the label beside it (--eth-label-wrap, Desktop.tsx).
+  whiteSpace: 'var(--eth-label-wrap, nowrap)' as React.CSSProperties['whiteSpace'],
 };
 
 const FIELD_INPUT: React.CSSProperties = {

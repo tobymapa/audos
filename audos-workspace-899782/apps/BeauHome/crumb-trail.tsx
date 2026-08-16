@@ -535,9 +535,16 @@ export function ChromeNavBar({ fallback }: { fallback: CrumbPublication }) {
         '@media (max-width:640px){' +
         '.hab-chrome-rail{top:6px;left:10px;right:10px;gap:8px}' +
         // Only the capsules themselves get the bigger tap target — not the
-        // individual path segments nested inside the breadcrumb frame.
-        '.hab-chrome-rail > div > button{min-height:34px}' +
-        '.hab-chrome-trail{max-width:46vw}' +
+        // individual path segments nested inside the breadcrumb frame. 44px
+        // is the thumb minimum; 34px was under it.
+        '.hab-chrome-rail > div > button{min-height:44px}' +
+        '.hab-chrome-trail{max-width:52vw}' +
+        // THE PATH IS THE PAGE, ON A PHONE. Back · path · gear cannot all
+        // fit across 375px, so the trail was capped at under half the screen
+        // and the path read as a cut-off fragment of its first segment. Here
+        // it shows the LAST segment only — the page the reader is actually
+        // on — which is the one thing the trail is for at this width.
+        '.hab-chrome-trail nav > span:not(:last-child){display:none}' +
         '}'
       }</style>
       <div

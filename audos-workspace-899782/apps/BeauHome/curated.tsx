@@ -597,7 +597,7 @@ function SubcategoryPage({
                   lineHeight: 1,
                   borderRadius: 0,
                   padding: '0 12px',
-                  height: '32px',
+                  height: 'max(var(--eth-field-h, 0px), 32px)',
                   whiteSpace: 'nowrap',
                   background: active ? '#241a12' : 'var(--color-paper,#fbf8f1)',
                   color: active ? '#fbf8f1' : 'var(--color-text,#3b2b1d)',

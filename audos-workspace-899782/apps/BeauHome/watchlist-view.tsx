@@ -65,6 +65,7 @@ import {
   unwatchPiece,
   type WatchedPiece,
 } from './watchlist-model';
+import { PhoneMore } from './phone-longform';
 import { WatchButton, useWatchlist } from './watchlist-watch';
 import {
   ANNOUNCEMENT_LABELS,
@@ -576,11 +577,16 @@ export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
     <div>
       <div style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
         <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>What Beau is keeping an eye on</h3>
-        <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
-          Watch a piece from Beau’s Picks, an Ask Beau verdict or a Your Calls row and he re-reads its retailer page
-          each time you open the app. Watch the MAKER instead — the text link under the eye — and he reads its new
-          arrivals, and subscribes to it himself, so a drop or a subscriber-only code reaches you here.
-        </p>
+        {/* Three sentences set for a 66-character column run to nine lines on a
+            phone. PhoneMore holds them to two there and reads the rest in
+            place; on a desktop it renders the paragraph untouched. */}
+        <PhoneMore lines={2}>
+          <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
+            Watch a piece from Beau’s Picks, an Ask Beau verdict or a Your Calls row and he re-reads its retailer page
+            each time you open the app. Watch the MAKER instead — the text link under the eye — and he reads its new
+            arrivals, and subscribes to it himself, so a drop or a subscriber-only code reaches you here.
+          </p>
+        </PhoneMore>
       </div>
       <p style={{ ...mono(8.5, alerts > 0 ? ACCENT_DEEP : FAINT), margin: '12px 0 0' }}>
         {rows.length === 0
@@ -641,10 +647,12 @@ export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
         </>
       )}
 
-      <p style={{ ...body(12.5, INK), margin: '18px 0 0', maxWidth: '62ch', opacity: 0.75 }}>
-        Retailer pages are not always readable. When one will not open, Beau says so on the row rather than guessing —
-        and he never clears something he has already flagged because a later read failed.
-      </p>
+      <PhoneMore lines={2} moreLabel="More on how he reads a page">
+        <p style={{ ...body(12.5, INK), margin: '18px 0 0', maxWidth: '62ch', opacity: 0.75 }}>
+          Retailer pages are not always readable. When one will not open, Beau says so on the row rather than guessing —
+          and he never clears something he has already flagged because a later read failed.
+        </p>
+      </PhoneMore>
 
       {brands.length > 0 && (
         <p style={{ ...body(12.5, SECONDARY), margin: '10px 0 0', maxWidth: '62ch' }}>

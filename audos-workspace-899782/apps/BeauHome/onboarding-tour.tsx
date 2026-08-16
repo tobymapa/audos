@@ -260,15 +260,15 @@ function TourOverlay({ onDone }: { onDone: () => void }) {
       >
         <p
           className="uppercase"
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', color: OXBLOOD }}
+          style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.16em', color: OXBLOOD }}
         >
           {current.kicker}
         </p>
-        <p style={{ fontFamily: 'var(--space-font-family)', fontSize: '14.5px', lineHeight: 1.6, color: WALNUT, marginTop: '6px' }}>
+        <p style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14.5px)', lineHeight: 1.6, color: WALNUT, marginTop: '6px' }}>
           {current.body}
         </p>
         <div className="flex items-center justify-between" style={{ marginTop: '14px' }}>
-          <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', color: MUTED }}>
+          <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', color: MUTED }}>
             {step + 1} of {STEPS.length}
           </span>
           <span className="flex items-center gap-3">
@@ -276,7 +276,7 @@ function TourOverlay({ onDone }: { onDone: () => void }) {
               <button
                 type="button"
                 onClick={onDone}
-                style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: MUTED, background: 'none', border: 'none', cursor: 'pointer' }}
+                style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: MUTED, background: 'none', border: 'none', cursor: 'pointer' }}
               >
                 Skip
               </button>
@@ -286,7 +286,7 @@ function TourOverlay({ onDone }: { onDone: () => void }) {
               onClick={() => (last ? onDone() : setStep((s) => s + 1))}
               style={{
                 fontFamily: 'var(--space-font-family)',
-                fontSize: '12.5px',
+                fontSize: 'max(var(--eth-label, 0px), 12.5px)',
                 letterSpacing: '0.04em',
                 color: PAPER,
                 background: WALNUT,

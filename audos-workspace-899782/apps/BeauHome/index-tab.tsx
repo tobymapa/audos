@@ -920,7 +920,7 @@ function PiecesFace({
                               onClick={() => onMakersForType(t)}
                               aria-label={`See the makers of ${t.name}`}
                               title={`Makers of ${t.name} →`}
-                              className="transition-colors hover:border-[var(--color-accent,#a8712c)]"
+                              className="transition-colors hover:border-[var(--color-accent,#a8712c)] hab-touch-icon"
                               style={{
                                 width: '32px',
                                 height: '32px',

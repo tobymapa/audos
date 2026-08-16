@@ -241,7 +241,7 @@ function AddRadarForm({ onAdded, onClose }: { onAdded: () => void; onClose: () =
           type="button"
           onClick={onClose}
           className="text-[var(--color-neutral-600,#856c51)] hover:underline flex-shrink-0"
-          style={{ fontSize: '13px' }}
+          style={{ fontSize: 'max(var(--eth-body, 0px), 13px)' }}
         >
           Close
         </button>
@@ -345,7 +345,7 @@ function AddRadarForm({ onAdded, onClose }: { onAdded: () => void; onClose: () =
                   ? 'bg-[var(--color-accent-100,#fbf1de)] text-[var(--color-accent-700,#7c4a17)] border-[var(--color-accent,#a8712c)]'
                   : 'border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
               }`}
-              style={{ fontSize: '10px' }}
+              style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
             >
               {c.label}
             </button>
@@ -380,7 +380,7 @@ function AddRadarForm({ onAdded, onClose }: { onAdded: () => void; onClose: () =
 // ---------------------------------------------------------------------------
 
 // Brand + price cells — Lora 14px neutral-600 (Pass Forty-Two spec).
-const CELL_TEXT: React.CSSProperties = { fontFamily: 'var(--space-font-family)', fontSize: '14px' };
+const CELL_TEXT: React.CSSProperties = { fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)' };
 
 function RadarTableRow({
   item,
@@ -516,7 +516,7 @@ function RadarTableRow({
           </span>
         </td>
         {/* Fills — the wardrobe gap this piece would close */}
-        <td className="py-4 pr-3 whitespace-nowrap text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+        <td className="py-4 pr-3 whitespace-nowrap text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
           {item.category ? `${categoryLabel(item.category)} gap` : '\u2014'}
         </td>
         {/* Price — Cormorant 20px tabular, delta beneath (accent for a drop) */}
@@ -531,7 +531,7 @@ function RadarTableRow({
             className="block tabular-nums"
             style={{
               fontFamily: 'var(--space-font-family)',
-              fontSize: '13px',
+              fontSize: 'max(var(--eth-body, 0px), 13px)',
               color: change
                 ? change.up
                   ? 'var(--space-semantic-danger,#7d2a24)'
@@ -543,7 +543,7 @@ function RadarTableRow({
           </span>
         </td>
         {/* Since — monospace date */}
-        <td className="py-4 pr-3 whitespace-nowrap text-right" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '11px', color: 'var(--color-neutral-600,#856c51)' }}>
+        <td className="py-4 pr-3 whitespace-nowrap text-right" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 'max(var(--eth-label, 0px), 11px)', color: 'var(--color-neutral-600,#856c51)' }}>
           {formatDate(item.created_at) || '\u2014'}
         </td>
         <td className="py-4 text-right whitespace-nowrap">
@@ -557,7 +557,7 @@ function RadarTableRow({
                   setRowConfirm(true);
                 }}
                 className="text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-accent-700,#7c4a17)] transition-colors"
-                style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1 }}
+                style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1 }}
                 aria-label={`Remove ${item.name} from the Reserve`}
                 title="Remove from the Reserve"
               >
@@ -575,7 +575,7 @@ function RadarTableRow({
             <span
               className="inline-flex items-center gap-2"
               onClick={(e) => e.stopPropagation()}
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)' }}
             >
               <span className="text-[var(--color-neutral-700,#634e38)]">Remove?</span>
               <button
@@ -604,7 +604,7 @@ function RadarTableRow({
             <div className="space-y-3">
               {/* Details line — all text. Pieces carry NO colour treatment
                   anywhere in the app: the colour is NAMED, never swatched. */}
-              <div className="flex items-center gap-3 flex-wrap" style={{ ...CELL_TEXT, fontSize: '13px' }}>
+              <div className="flex items-center gap-3 flex-wrap" style={{ ...CELL_TEXT, fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
                 {item.category && (
                   <span className="text-[var(--color-neutral-600,#856c51)]">{categoryLabel(item.category)}</span>
                 )}
@@ -626,7 +626,7 @@ function RadarTableRow({
                       setEditingSize(true);
                     }}
                     className="text-[var(--color-accent-700,#7c4a17)] hover:underline"
-                    style={{ fontSize: '12px' }}
+                    style={{ fontSize: 'max(var(--eth-label, 0px), 12px)' }}
                   >
                     {item.size ? `Edit size (${item.size})` : 'Add a size'}
                   </button>
@@ -771,7 +771,7 @@ function RadarTableRow({
                     type="button"
                     onClick={() => setConfirming(true)}
                     className="text-[var(--color-neutral-600,#856c51)] hover:underline"
-                    style={{ fontSize: '12px' }}
+                    style={{ fontSize: 'max(var(--eth-label, 0px), 12px)' }}
                     title="Passed on it — remove from the Reserve"
                   >
                     Passed on it
@@ -950,7 +950,7 @@ function ReserveWatchlist() {
           <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-[var(--color-text,#3b2b1d)]">
             <span
               className="uppercase text-[var(--color-neutral-700,#634e38)]"
-              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.14em' }}
+              style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 12px)', letterSpacing: '0.14em' }}
             >
               Watching
             </span>
@@ -961,7 +961,7 @@ function ReserveWatchlist() {
               {items.length}
             </span>
           </div>
-          <p className="mt-2.5 text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}>
+          <p className="mt-2.5 text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)' }}>
             {alerts.length > 0
               ? `${alerts.length === 1 ? 'One' : alerts.length} moved in price or stock recently.`
               : 'Beau re-checks watched pieces each time you visit.'}
@@ -972,7 +972,7 @@ function ReserveWatchlist() {
             type="button"
             onClick={() => setAdding((a) => !a)}
             className="mt-2 inline-flex items-center gap-1.5 group hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', color: 'var(--color-accent,#a8712c)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', color: 'var(--color-accent,#a8712c)' }}
           >
             {adding ? 'Close' : 'Add to the Reserve'}
             <span
@@ -1050,7 +1050,7 @@ function ReserveWatchlist() {
         <div className="overflow-x-auto mt-8">
           {/* Clear all — plain Lora 13px accent text link, top-right of the
               table, with a plain inline confirm (Pass Forty-Four). */}
-          <div className="flex justify-end items-baseline gap-3 mb-2" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+          <div className="flex justify-end items-baseline gap-3 mb-2" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
             {!confirmClearAll ? (
               <button
                 type="button"
@@ -1106,7 +1106,7 @@ function ReserveWatchlist() {
                   <th
                     key={i}
                     className={`pb-2.5 pr-3 uppercase text-[var(--color-neutral-700,#634e38)] whitespace-nowrap font-normal ${h.align === 'right' ? 'text-right' : ''}`}
-                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.14em' }}
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-label, 0px), 12px)', letterSpacing: '0.14em' }}
                   >
                     {h.label}
                   </th>
