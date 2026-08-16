@@ -47,10 +47,19 @@ export const ON_WALNUT_GOLD = '#e3c184';
 // size the caller asked for is used exactly as written and no desktop screen
 // can move; inside the query the variable becomes the smallest size that tab
 // is allowed to set. Retuning the whole app is therefore one edit there.
+//
+// AND THE PER-SURFACE BUMP (--eth-type-bump). A screen that wants ALL of its
+// type a step larger without editing its hundreds of call sites sets this one
+// inherited variable on the element its content hangs from; every size below
+// it moves by that amount and the hierarchy between them is kept exactly.
+// It is UNSET everywhere by default, so the fallback (0px) means no surface
+// changes unless it opts in — The Index's Pieces face is the first to
+// (hab-index-type, Desktop.tsx), and only above the phone breakpoint, where
+// the floors above already govern the size.
 export function mono(size = 9, color = FAINT): React.CSSProperties {
   return {
     fontFamily: MONO,
-    fontSize: `max(var(--eth-micro, 0px), ${size}px)`,
+    fontSize: `max(var(--eth-micro, 0px), calc(${size}px + var(--eth-type-bump, 0px)))`,
     letterSpacing: '0.07em',
     textTransform: 'uppercase',
     color,
@@ -60,11 +69,21 @@ export function mono(size = 9, color = FAINT): React.CSSProperties {
 export function serif(size = 17, color = WALNUT): React.CSSProperties {
   // Cormorant Garamond has a small x-height for its point size, so it needs a
   // higher floor than the sans body face to read at the same distance.
-  return { fontFamily: SERIF, fontSize: `max(var(--eth-serif, 0px), ${size}px)`, fontWeight: 400, color };
+  return {
+    fontFamily: SERIF,
+    fontSize: `max(var(--eth-serif, 0px), calc(${size}px + var(--eth-type-bump, 0px)))`,
+    fontWeight: 400,
+    color,
+  };
 }
 
 export function body(size = 14, color = INK): React.CSSProperties {
-  return { fontFamily: BODY, fontSize: `max(var(--eth-body, 0px), ${size}px)`, lineHeight: 1.6, color };
+  return {
+    fontFamily: BODY,
+    fontSize: `max(var(--eth-body, 0px), calc(${size}px + var(--eth-type-bump, 0px)))`,
+    lineHeight: 1.6,
+    color,
+  };
 }
 
 // ---------------------------------------------------------------------------

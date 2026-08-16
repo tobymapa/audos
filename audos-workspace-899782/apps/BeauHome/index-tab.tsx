@@ -275,7 +275,9 @@ function FindLine({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="min-w-0 flex-1 bg-transparent outline-none"
-        style={{ ...body(14, INK), fontSize: 'max(var(--eth-input, 0px), 12px)', lineHeight: 1.3 }}
+        // The text itself takes the surface's own step-up too, so the Find
+        // box does not read a size smaller than the labels beside it.
+        style={{ ...body(14, INK), fontSize: 'max(var(--eth-input, 0px), calc(12px + var(--eth-type-bump, 0px)))', lineHeight: 1.3 }}
       />
       {value && (
         <button
@@ -2623,7 +2625,17 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
         {/* Both faces stay mounted — filters, selections and scroll survive
             the toggle; only one shows. */}
-        <div style={{ display: face === 'pieces' ? undefined : 'none' }}>
+        {/* hab-index-type — THE PIECES FACE READS A STEP LARGER ON A DESKTOP
+            (founder's correction, August 2026). Everything below the masthead
+            — the category strip, the band ruler and its poles, the table's
+            degree heads and figures, the verdict words, the formality kickers,
+            the type names, Beau's category read and its More control, the
+            closing caption — is set +2px at once through --eth-type-bump
+            (index-style.tsx), so the face moves as one and the hierarchy
+            between its sizes is exactly as it was. The variable is declared on
+            this class in Desktop.tsx and reset to 0 on a phone, where the
+            reading floors already govern every size. */}
+        <div className="hab-index-type" style={{ display: face === 'pieces' ? undefined : 'none' }}>
           <PiecesFace model={model} pieces={pieces} profile={profile} warmth={warmth} materials={materials} onMakersForType={onMakersForType} />
         </div>
         <div style={{ display: face === 'makers' ? undefined : 'none' }}>
