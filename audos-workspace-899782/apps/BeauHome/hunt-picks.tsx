@@ -46,10 +46,11 @@ import {
 } from './index-style';
 import { numberWord } from './mono-type';
 import { HUNT_CATEGORIES, type HuntCategory } from './hunt-model';
-import { getHuntCategoryReads } from './hunt-picks-ai';
+import { getHuntCategoryReads, peekLatestHuntReads } from './hunt-picks-ai';
 import {
   SUB_PICKS_PER_CATEGORY,
   drawCategorySubPicks,
+  peekLatestSubPicks,
   type HuntSubPick,
 } from './hunt-shortlist-ai';
 import type { HuntReader } from './hunt-reader';
@@ -108,9 +109,11 @@ function CategoryRow({
   onToggle: () => void;
   onTenPicks: (sub: HuntSubPick) => void;
 }) {
-  // Skeletons while a draw is in flight and before the first one lands;
-  // rows when they come; one quiet neutral line when they do not.
-  const waiting = state.loading || (!state.subs && !state.failed);
+  // Skeletons ONLY while there is nothing at all to show — a held or
+  // last-known shelf paints instantly and refreshes in place
+  // (stale-while-revalidate, performance pass, August 2026).
+  const waiting = (!state.subs || state.subs.length === 0) && !state.failed;
+  const refreshing = state.loading && !!state.subs && state.subs.length > 0;
   const badge = badgeFor(state);
 
   return (
@@ -175,7 +178,14 @@ function CategoryRow({
           ) : !state.subs || state.subs.length === 0 ? (
             <HuntQuietLine>Nothing on this shelf just now.</HuntQuietLine>
           ) : (
-            <HuntSubRows subs={state.subs} onTenPicks={onTenPicks} />
+            <>
+              <HuntSubRows subs={state.subs} onTenPicks={onTenPicks} />
+              {refreshing && (
+                <p aria-live="polite" style={{ ...mono(8, FAINT), margin: '10px 0 0' }}>
+                  Beau is bringing these up to date…
+                </p>
+              )}
+            </>
           )}
         </div>
       )}
@@ -200,7 +210,9 @@ export function HuntPicks({
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [states, setStates] = useState<Record<string, ShelfState>>({});
-  const [reads, setReads] = useState<Record<string, string>>({});
+  // The last-known category lines paint the list on the FIRST frame; the
+  // record's own call re-writes them quietly when it lands.
+  const [reads, setReads] = useState<Record<string, string>>(() => peekLatestHuntReads());
   /** The ten-pick page in front of the list, when a 10 PICKS → is open. */
   const [detail, setDetail] = useState<{ category: HuntCategory; sub: HuntSubPick } | null>(null);
 
@@ -209,6 +221,10 @@ export function HuntPicks({
   // re-attempted.
   const openRef = useRef(open);
   openRef.current = open;
+  // What each shelf is currently showing, readable from inside a draw — a
+  // failed re-draw must never blank a shelf that already holds picks.
+  const statesRef = useRef(states);
+  statesRef.current = states;
 
   const patch = useCallback((categoryId: string, next: Partial<ShelfState>) => {
     setStates((cur) => ({ ...cur, [categoryId]: { ...(cur[categoryId] || EMPTY_STATE), ...next } }));
@@ -242,7 +258,18 @@ export function HuntPicks({
   const draw = useCallback(
     async (categoryId: string, force = false) => {
       if (!reader) return;
-      patch(categoryId, { loading: true, failed: false });
+      // STALE-WHILE-REVALIDATE (performance pass, August 2026): the last
+      // draw this category ever produced paints the shelf instantly while
+      // the current record's own draw runs behind it. The engine's
+      // fingerprint cache still answers immediately when the record has
+      // not moved — this only covers the genuine re-draws.
+      const held = statesRef.current[categoryId];
+      const stale = !held?.subs || held.subs.length === 0 ? peekLatestSubPicks(categoryId) : null;
+      patch(categoryId, {
+        loading: true,
+        failed: false,
+        ...(stale ? { subs: stale } : null),
+      });
 
       const ask = async (forceRefresh: boolean): Promise<HuntSubPick[] | null> => {
         try {
@@ -263,8 +290,16 @@ export function HuntPicks({
         subs = await ask(true);
       }
 
-      if (subs && subs.length > 0) patch(categoryId, { subs, loading: false, failed: false });
-      else patch(categoryId, { subs: [], loading: false, failed: true });
+      if (subs && subs.length > 0) {
+        patch(categoryId, { subs, loading: false, failed: false });
+      } else {
+        // The draw did not land — keep whatever the shelf is already
+        // showing (the last-known picks) rather than blanking it; only a
+        // shelf with nothing at all reads as empty.
+        const showing = statesRef.current[categoryId]?.subs;
+        if (showing && showing.length > 0) patch(categoryId, { loading: false, failed: false });
+        else patch(categoryId, { subs: [], loading: false, failed: true });
+      }
     },
     [patch, reader],
   );

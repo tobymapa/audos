@@ -60,6 +60,7 @@ import {
   drawTenPicks,
   getCategoryBudget,
   holdTenPicksSheet,
+  peekLatestTenPicks,
   type HuntPickQuality,
   type HuntSubPick,
   type HuntSubStatus,
@@ -523,19 +524,32 @@ export function HuntTenPicksPage({
 
   useEffect(() => {
     let alive = true;
+    // STALE-WHILE-REVALIDATE (performance pass, August 2026): the last sheet
+    // this sub-category ever produced paints the page instantly; the current
+    // record's own draw replaces it the moment it lands. The engine's
+    // fingerprint cache still answers immediately when the record has not
+    // moved — this only covers the genuine re-draws.
+    const stale = peekLatestTenPicks(category.id, sub.subName);
+    if (stale) setSheet(stale);
     setLoading(true);
     setFailed(false);
     drawTenPicks(reader, category.id, sub)
       .then((next) => {
         if (!alive) return;
-        setSheet(next);
         setLoading(false);
-        setFailed(!next || next.picks.length === 0);
+        if (next && next.picks.length > 0) {
+          setSheet(next);
+          setFailed(false);
+        } else {
+          // The draw did not land — keep the last-known sheet on the page
+          // rather than blanking it; only a page with nothing reads empty.
+          setFailed(!stale);
+        }
       })
       .catch(() => {
         if (!alive) return;
         setLoading(false);
-        setFailed(true);
+        setFailed(!stale);
       });
     return () => {
       alive = false;
@@ -651,6 +665,11 @@ export function HuntTenPicksPage({
           <HuntQuietLine>Nothing on this shelf just now — step back and open it again.</HuntQuietLine>
         ) : (
           <>
+            {loading && (
+              <p aria-live="polite" style={{ ...mono(8, FAINT), margin: '8px 0 0' }}>
+                Beau is bringing these up to date…
+              </p>
+            )}
             {sheet.picks.map((pick, i) => (
               <PickRow
                 key={pick.pieceName}

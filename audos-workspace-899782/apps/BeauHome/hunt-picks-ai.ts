@@ -414,8 +414,30 @@ export async function drawCategoryReplacement(input: {
 // ---------------------------------------------------------------------------
 
 const READS_PREFIX = 'ethaion:hunt-reads:v1:';
+const READS_LATEST_KEY = 'ethaion:hunt-reads:latest:v1';
 const readsMemory = new Map<string, Record<string, string>>();
 const readsInflight = new Map<string, Promise<Record<string, string>>>();
+
+function holdLatestReads(reads: Record<string, string>): void {
+  try {
+    window.localStorage.setItem(READS_LATEST_KEY, JSON.stringify(reads));
+  } catch {
+    /* storage full — the fresh call still paints them */
+  }
+}
+
+/** The last set of category lines ever written — stale-while-revalidate
+ * (performance pass, August 2026): they paint the list instantly while the
+ * current record's own call re-writes them behind the scenes. */
+export function peekLatestHuntReads(): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(READS_LATEST_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, string>) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 export async function getHuntCategoryReads(
   reader: HuntReader,
@@ -437,6 +459,7 @@ export async function getHuntCategoryReads(
         const parsed = JSON.parse(raw) as Record<string, string>;
         if (parsed && typeof parsed === 'object') {
           readsMemory.set(key, parsed);
+          holdLatestReads(parsed);
           return parsed;
         }
       }
@@ -483,6 +506,7 @@ export async function getHuntCategoryReads(
     }
     if (Object.keys(out).length === 0) return {};
     readsMemory.set(key, out);
+    holdLatestReads(out);
     try {
       window.localStorage.setItem(key, JSON.stringify(out));
     } catch {

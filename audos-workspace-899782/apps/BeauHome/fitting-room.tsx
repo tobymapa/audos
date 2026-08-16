@@ -1682,7 +1682,7 @@ export function FittingRoomTab({
               <div className="min-w-0">
                 <div style={{ fontFamily: SERIF, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>Board</div>
                 <p style={{ ...body(13.5, MUTED), margin: '6px 0 0', maxWidth: '64ch' }}>
-                  What you own, what you saved, and Beau’s picks — open a source to dress the board from it.
+                  What you own, what you saved, and Beau’s picks.
                 </p>
               </div>
               {activeBoard.length > 0 && (
@@ -1853,10 +1853,13 @@ export function FittingRoomTab({
                     See them in The Search · Beau’s Picks →
                   </button>
                 </div>
+                {/* Commented out (founder's request, August 2026) — the
+                    tiles speak for themselves without the instruction block.
                 <p style={{ ...body(12.5, MUTED), margin: '10px 0 0', maxWidth: '70ch' }}>
                   You don’t have the pieces for {meta.label.toLowerCase()} yet — these fill the gaps. Tap one to try
                   it on the board; the same recommendations live in The Search under their categories.
                 </p>
+                */}
                 <div className="flex flex-wrap gap-x-6 gap-y-7" style={{ paddingTop: '18px' }}>
                   {missingPicks.map((piece) => (
                     <ShelfCard

@@ -126,6 +126,49 @@ function writeStored(key: string, value: unknown): void {
 }
 
 // ---------------------------------------------------------------------------
+// THE LATEST DRAW — stale-while-revalidate (performance pass, August 2026).
+//
+// The fingerprint caches above stay the source of truth: a draw is only
+// re-made when the record actually moved, and the fresh draw is always what
+// lands. These pointers additionally remember the LAST GOOD draw per shelf,
+// whatever the record said at the time — so when the record HAS moved (a
+// piece logged, a call made, a correction), the reader sees his last
+// personalised shortlist instantly while the new one is drawn behind it,
+// instead of staring at skeletons for the length of a model call. Nothing
+// about the recommendations, the personalisation or the caching changes —
+// only what is on screen while a re-draw runs.
+// ---------------------------------------------------------------------------
+
+const SUBS_LATEST_PREFIX = 'ethaion:hunt-subpicks:latest:v1:';
+const TEN_LATEST_PREFIX = 'ethaion:hunt-tenpicks:latest:v1:';
+
+function holdLatestSubs(categoryId: string, subs: HuntSubPick[]): void {
+  writeStored(`${SUBS_LATEST_PREFIX}${categoryId}`, subs);
+}
+
+/** The last shortlist this category ever produced — for instant paint while
+ * the current record's own draw runs. Null when it has never drawn. */
+export function peekLatestSubPicks(categoryId: string): HuntSubPick[] | null {
+  const held = readStored<HuntSubPick[]>(`${SUBS_LATEST_PREFIX}${categoryId}`);
+  return Array.isArray(held) && held.length > 0 ? held : null;
+}
+
+function tenLatestKey(categoryId: string, subName: string): string {
+  return `${TEN_LATEST_PREFIX}${categoryId}:${subName.toLowerCase()}`;
+}
+
+function holdLatestTen(categoryId: string, subName: string, sheet: HuntTenPicksSheet): void {
+  writeStored(tenLatestKey(categoryId, subName), sheet);
+}
+
+/** The last ten-pick sheet this sub-category ever produced — the same
+ * instant-paint job for the ten-picks page. */
+export function peekLatestTenPicks(categoryId: string, subName: string): HuntTenPicksSheet | null {
+  const held = readStored<HuntTenPicksSheet>(tenLatestKey(categoryId, subName));
+  return held && Array.isArray(held.picks) && held.picks.length > 0 ? held : null;
+}
+
+// ---------------------------------------------------------------------------
 // The budget on file for one category — the MONEY the page picks against.
 // ---------------------------------------------------------------------------
 
@@ -377,6 +420,7 @@ export async function drawCategorySubPicks(
     const held = subsMemory.get(key) || readStored<HuntSubPick[]>(key);
     if (held && Array.isArray(held) && held.length > 0) {
       subsMemory.set(key, held);
+      holdLatestSubs(categoryId, held);
       return held;
     }
     const running = subsInflight.get(key);
@@ -436,6 +480,7 @@ export async function drawCategorySubPicks(
     if (subs.length === 0) return null;
     subsMemory.set(key, subs);
     writeStored(key, subs);
+    holdLatestSubs(categoryId, subs);
     return subs;
   })().finally(() => subsInflight.delete(key));
 
@@ -517,6 +562,7 @@ export async function drawTenPicks(
     const held = tenMemory.get(key) || readStored<HuntTenPicksSheet>(key);
     if (held && Array.isArray(held.picks) && held.picks.length > 0) {
       tenMemory.set(key, held);
+      holdLatestTen(categoryId, sub.subName, held);
       return held;
     }
     const running = tenInflight.get(key);
@@ -550,6 +596,7 @@ export async function drawTenPicks(
     };
     tenMemory.set(key, sheet);
     writeStored(key, sheet);
+    holdLatestTen(categoryId, sub.subName, sheet);
     return sheet;
   })().finally(() => tenInflight.delete(key));
 
@@ -573,6 +620,7 @@ export function holdTenPicksSheet(
   })}`;
   tenMemory.set(key, sheet);
   writeStored(key, sheet);
+  holdLatestTen(categoryId, sub.subName, sheet);
 }
 
 /**
