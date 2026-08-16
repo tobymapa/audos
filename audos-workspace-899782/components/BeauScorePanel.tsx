@@ -66,11 +66,10 @@ const S_MUTED = '#856c51';
 const S_FAINT = '#a68e70';
 const S_HAIRLINE = 'rgba(59,43,29,0.14)';
 
-// Carries the phone reading floor: --eth-micro is 0px above the breakpoint and the phone minimum below it (Desktop.tsx).
 function sMono(size: number, color: string, tracking = '0.1em') {
   return {
     fontFamily: S_MONO,
-    fontSize: `max(var(--eth-micro, 0px), ${size}px)`,
+    fontSize: `${size}px`,
     letterSpacing: tracking,
     textTransform: 'uppercase' as const,
     color,
@@ -159,7 +158,7 @@ export function BeauScoreCard({
             style={{ padding: '8px 16px', borderTop: i === 0 ? 'none' : `1px solid ${S_HAIRLINE}` }}
           >
             <span style={sMono(8.5, '#7c4a17', '0.13em')}>{label}</span>
-            <span style={{ fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, color: S_BODY }}>{score[key]}</span>
+            <span style={{ fontSize: '13.5px', lineHeight: 1.55, color: S_BODY }}>{score[key]}</span>
           </div>
         ))}
       </div>
@@ -198,9 +197,15 @@ export function BeauScoreCard({
   );
 }
 
-/** The Score-a-piece pane — what the drawer shows in score mode. */
+/** The Score-a-piece pane — structured fields (the public regret
+ * calculator's treatment): a link, the piece, maker and price — or a photo.
+ * The intro copy is gone (founder's correction, August 2026); the fields
+ * say it themselves. */
 export default function BeauScorePanel() {
-  const [value, setValue] = useState('');
+  const [link, setLink] = useState('');
+  const [pieceField, setPieceField] = useState('');
+  const [makerField, setMakerField] = useState('');
+  const [priceField, setPriceField] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string>('');
   const [busy, setBusy] = useState(false);
@@ -220,19 +225,31 @@ export default function BeauScorePanel() {
     }
   };
 
+  const composed = [
+    link.trim() ? `Link: ${link.trim()}` : null,
+    pieceField.trim() ? `The piece: ${pieceField.trim()}` : null,
+    makerField.trim() ? `Maker: ${makerField.trim()}` : null,
+    priceField.trim() ? `Price: ${priceField.trim()}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
   const submit = async () => {
     if (busy) return;
-    if (!value.trim() && !photo) {
-      setError('Give Beau a link, a description, or a photo first.');
+    if (!composed && !photo) {
+      setError('Give Beau a link, a few details, or a photo first.');
       return;
     }
     setBusy(true);
     setError(null);
     setResult(null);
     try {
-      const score = await runBeauScore({ input: value, imageDataUrl: photo, onPhase: setPhase });
+      const score = await runBeauScore({ input: composed, imageDataUrl: photo, onPhase: setPhase });
       setResult(score);
-      setValue('');
+      setLink('');
+      setPieceField('');
+      setMakerField('');
+      setPriceField('');
       setPhoto(null);
       setPhotoName('');
     } catch (e) {
@@ -243,22 +260,46 @@ export default function BeauScorePanel() {
     }
   };
 
+  const fields = [
+    { label: 'Link', value: link, set: setLink, placeholder: 'https:\u2026 (optional)', testid: 'input-score-link' },
+    { label: 'The piece', value: pieceField, set: setPieceField, placeholder: 'e.g. navy wool overcoat', testid: 'input-score-piece' },
+    { label: 'Maker', value: makerField, set: setMakerField, placeholder: 'optional', testid: 'input-score-maker' },
+    { label: 'Price', value: priceField, set: setPriceField, placeholder: 'optional', testid: 'input-score-price' },
+  ];
+
   return (
     <div data-testid="beau-score-panel">
       <style>{'.beau-score-field::placeholder{color:#a68e70;opacity:1;}'}</style>
-      <p style={{ fontFamily: 'var(--space-font-heading)', fontSize: '22px', fontWeight: 400, lineHeight: 1.2, color: S_INK, margin: 0 }}>
-        What are you considering?
-      </p>
-      <p style={{ fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.55, color: S_MUTED, margin: '6px 0 0' }}>
-        Paste a link, describe the piece, or add a photo — Beau reads it against your dossier and scores Cloth · Cut
-        · Make · Longevity, then calls the Regret Risk.
-      </p>
-
-      <div className="mt-3 bg-[var(--space-surface-card)] overflow-hidden" style={{ border: '1px solid rgba(59,43,29,0.34)' }}>
+      <div className="bg-[var(--space-surface-card)] overflow-hidden" style={{ border: '1px solid rgba(59,43,29,0.34)' }}>
+        {fields.map((f, i) => (
+          <label
+            key={f.label}
+            className="flex items-baseline gap-3"
+            style={{ padding: '10px 16px', borderTop: i === 0 ? 'none' : `1px solid ${S_HAIRLINE}` }}
+          >
+            <span style={{ ...sMono(8.5, S_MUTED, '0.1em'), width: '74px', flexShrink: 0 }}>{f.label}</span>
+            <input
+              type="text"
+              value={f.value}
+              onChange={(e) => f.set(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
+              placeholder={f.placeholder}
+              disabled={busy}
+              className="beau-score-field min-w-0 flex-1 border-0 bg-transparent focus:outline-none focus:ring-0"
+              style={{ fontSize: '14px', lineHeight: 1.5, color: S_BODY }}
+              data-testid={f.testid}
+            />
+          </label>
+        ))}
         {photo && (
-          <div className="flex items-center gap-2" style={{ padding: '10px 16px 0' }}>
+          <div className="flex items-center gap-2" style={{ padding: '10px 16px 0', borderTop: `1px solid ${S_HAIRLINE}` }}>
             <img src={photo} alt="" className="h-12 w-12 object-cover" style={{ border: `1px solid ${S_HAIRLINE}` }} />
-            <span className="max-w-[160px] truncate" style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', color: '#634e38' }}>{photoName || 'Photo attached'}</span>
+            <span className="max-w-[160px] truncate" style={{ fontSize: '12px', color: '#634e38' }}>{photoName || 'Photo attached'}</span>
             <button
               type="button"
               onClick={() => {
@@ -273,23 +314,7 @@ export default function BeauScorePanel() {
             </button>
           </div>
         )}
-        <textarea
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-          placeholder="What are you considering?"
-          rows={2}
-          disabled={busy}
-          className="beau-score-field w-full border-0 bg-transparent focus:outline-none focus:ring-0 resize-none"
-          style={{ padding: '13px 16px 8px', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.5, color: S_BODY }}
-          data-testid="input-score-piece"
-        />
-        <div className="flex items-center" style={{ gap: '16px', padding: '0 16px 12px' }}>
+        <div className="flex items-center" style={{ gap: '16px', padding: '10px 16px 12px', borderTop: `1px solid ${S_HAIRLINE}` }}>
           <input
             ref={fileRef}
             type="file"
@@ -316,7 +341,7 @@ export default function BeauScorePanel() {
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={busy || (!value.trim() && !photo)}
+            disabled={busy || (!composed && !photo)}
             className="inline-flex items-center gap-2 transition-colors hover:bg-[rgba(124,45,45,0.08)] disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ ...sMono(9, S_OXBLOOD), padding: '6px 14px', border: `1px solid ${S_OXBLOOD}`, background: 'transparent', cursor: 'pointer' }}
             data-testid="button-score-submit"
@@ -328,12 +353,12 @@ export default function BeauScorePanel() {
       </div>
 
       {busy && phase && (
-        <p className="mt-3 flex items-center gap-2" style={{ fontSize: 'max(var(--eth-body, 0px), 13px)', color: S_MUTED }} aria-live="polite">
+        <p className="mt-3 flex items-center gap-2" style={{ fontSize: '13px', color: S_MUTED }} aria-live="polite">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           {phase}
         </p>
       )}
-      {error && <p className="mt-3" style={{ fontSize: 'max(var(--eth-body, 0px), 13px)', color: '#7d2a24' }}>{error}</p>}
+      {error && <p className="mt-3" style={{ fontSize: '13px', color: '#7d2a24' }}>{error}</p>}
 
       {result && (
         <div className="mt-4">

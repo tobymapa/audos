@@ -422,7 +422,7 @@ function BandStrip({
       <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '4px 16px', paddingBottom: '7px' }}>
         {/* The numbers are apparent temperature in °C — said plainly, so a
             band reads as a temperature range and not an unexplained pair. */}
-        <span style={mono(9.5, FAINT)}>Temperature range in °C · click a band to hold it</span>
+        <span style={mono(9.5, FAINT)}>Temperature range in °C</span>
         {city ? (
           <span style={mono(7.5, ACCENT_DEEP)}>{city}</span>
         ) : (
@@ -474,16 +474,8 @@ function BandStrip({
                       background: owned ? ACCENT_DEEP : 'rgba(168,113,44,0.45)',
                     }}
                   />
-                  <span
-                    title={
-                      categoryTotal > 0
-                        ? `${yours} of your ${categoryTotal} ${categoryLabel.toLowerCase()} pieces suit ${BAND_CELL_LABELS[band]} — read from each piece's own category, material and make`
-                        : `No ${categoryLabel.toLowerCase()} on your rail yet`
-                    }
-                    style={{ ...mono(6.5, yours > 0 ? ACCENT_DEEP : FAINTER), display: 'block', marginTop: '6px', whiteSpace: 'nowrap' }}
-                  >
-                    {categoryTotal > 0 ? `${yours} of your ${categoryTotal}` : 'none logged yet'}
-                  </span>
+                  {/* The “x of your y” line is gone (founder's correction,
+                      August 2026) — the bar alone carries the depth. */}
                 </button>
               );
             })}
@@ -1057,7 +1049,7 @@ function PiecesFace({
           {/* ——— the foot line */}
           <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '4px 16px', padding: '12px 0 0' }}>
             <span style={mono(7.5, FAINT)}>
-              {shown.length} of {category?.total || 0} {catName} types shown · {filtersHeld === 0 ? 'no filters held' : `${filtersHeld} filter${filtersHeld === 1 ? '' : 's'} held`}
+              {shown.length} of {category?.total || 0} {catName} types shown{filtersHeld > 0 ? ` · ${filtersHeld} filter${filtersHeld === 1 ? '' : 's'} held` : ''}
             </span>
             <span className="hidden sm:inline" style={mono(7.5, FAINTER)}>
               A name opens the piece's page · the arrow lists its makers

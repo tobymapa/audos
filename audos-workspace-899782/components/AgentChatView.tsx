@@ -462,7 +462,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
         : "Tell me what happened, or what you're worried about..."
       : hasUserMessages
         ? 'Reply\u2026'
-        : 'Describe a piece you\u2019re after, paste a link or share a look you love';
+        : 'Ask Beau\u2026';
 
   const visibleMessages = messages.filter(
     (m) => !(m.role === 'user' && typeof m.content === 'string' && m.content.startsWith('[SYSTEM:')),
@@ -535,7 +535,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
   const fallbackOpening = openingContext
     ? `You were just looking at ${openingContext}. Ask me for my read on it — or bring me something else entirely.`
     : homeWelcomeText ||
-      'Describe a piece you\u2019re after, paste a link, or ask what to wear — I already know your dossier, so you\u2019ll never have to repeat yourself.';
+      'At your service — I already know your dossier, so you\u2019ll never have to repeat yourself.';
 
   // THE COMPOSER — anchored to the foot of the drawer at all times (the
   // reference's rule: it never floats mid-panel above the suggestions). One
@@ -632,7 +632,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={loading || isUploadingAttachment || pendingAttachments.length >= 5}
-            className="hab-tap hover:opacity-75 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            className="hover:opacity-75 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ ...vMono(9, V_MUTED), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
             data-testid="button-attach-file"
             title="Add a photo or file — show Beau a garment, a look, or a screenshot"
@@ -642,7 +642,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <VoiceButton
             label="Dictate"
             labelStyle={vMono(9, V_MUTED)}
-            className="hab-tap hover:opacity-75"
+            className="hover:opacity-75"
             disabled={loading}
             onTranscript={(text) => {
               void sendMessageWithContent(text, []);
@@ -652,7 +652,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <LiveTalkButton
             label="Live"
             labelStyle={vMono(9, V_MUTED)}
-            className="hab-tap hover:opacity-75"
+            className="hover:opacity-75"
             disabled={loading}
             title="Talk live with Beau — a real-time voice conversation"
           />
@@ -660,7 +660,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
           <button
             onClick={loading ? abortStream : sendMessage}
             disabled={(!input.trim() && pendingAttachments.length === 0) && !loading}
-            className="hab-tap transition-colors hover:bg-[rgba(124,45,45,0.08)] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="transition-colors hover:bg-[rgba(124,45,45,0.08)] disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               ...vMono(9, V_OXBLOOD),
               padding: '6px 14px',
@@ -687,9 +687,11 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
       aria-label="Beau modes"
       style={{ borderBottom: '1px solid rgba(59,43,29,0.2)' }}
     >
+      {/* No sub-headers under the modes (founder's correction, August
+          2026) — the two titles alone, straight into their starting views. */}
       {([
-        { id: 'chat', title: 'Chat', hint: 'Style · wardrobe · what to wear' },
-        { id: 'score', title: 'Score a piece', hint: 'Link · photo · description' },
+        { id: 'chat', title: 'Chat' },
+        { id: 'score', title: 'Score a piece' },
       ] as const).map((m, i) => {
         const active = drawerMode === m.id;
         return (
@@ -704,7 +706,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
               display: 'flex',
               flexDirection: 'column',
               gap: '2px',
-              padding: '8px 20px',
+              padding: '13px 20px',
               minWidth: 0,
               border: 'none',
               borderLeft: i === 0 ? `2px solid ${active ? V_OXBLOOD : 'transparent'}` : '1px solid rgba(59,43,29,0.2)',
@@ -714,7 +716,6 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
             data-testid={`button-beau-mode-${m.id}`}
           >
             <span style={{ ...vMono(8.5, active ? V_OXBLOOD : V_MUTED), whiteSpace: 'nowrap' }}>{m.title}</span>
-            <span className="truncate" style={{ fontSize: 'max(var(--eth-label, 0px), 11px)', lineHeight: 1.3, color: '#8a7057' }}>{m.hint}</span>
           </button>
         );
       })}
@@ -900,10 +901,9 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
               <div style={{ padding: '16px 20px 4px', borderLeft: `2px solid ${V_OXBLOOD}` }}>
                 <div style={vMono(8.5, V_OXBLOOD, '0.13em')}>Beau, at your service</div>
                 <p style={{ ...beauVoice, margin: '9px 0 0' }}>
-                  I’ve read your style profile, so I already know your direction, skin tone and budget. Describe a
-                  piece you’re after or paste a product link and I’ll tell you whether it’s worth buying — or share a
-                  look you love and I’ll read the signal underneath. I can also log a piece to The Rail, or hunt one
-                  down for you: just say the word.
+                  I’ve read your style profile, so I already know your direction, skin tone and budget. Bring me a
+                  piece, a link or a look and I’ll give you a straight verdict — and I can log a piece to The Rail,
+                  or hunt one down for you: just say the word.
                 </p>
               </div>
               {starterPrompts.length > 0 && !userIsTyping && (

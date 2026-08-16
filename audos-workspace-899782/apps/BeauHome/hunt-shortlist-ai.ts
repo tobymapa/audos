@@ -502,7 +502,7 @@ const PICK_SHAPE =
   + '"price" (one honest figure or tight range in his currency, e.g. "€180"), '
   + '"priceTier" (against HIS budget for this category: WELL UNDER, INSIDE COMFORTABLE or INSIDE STRETCHING), '
   + '"quality" (your call for HIM: SOUND, BUY FIRST, NOT FOR YOU or SPECIAL CASE — at least 2 of the first ten must be BUY FIRST), '
-  + '"why" (ONE line, max 160 chars — why this one for this man: name the fact in his profile or ledger it answers).';
+  + '"why" (ONE line, max 160 chars — why this one for this wearer, written TO them as “you/your” (never “he”, “his” or “this man”): name the fact in their profile or ledger it answers).';
 
 function tenPicksUserMessage(
   reader: HuntReader,

@@ -310,29 +310,19 @@ function CategoryBlock({
           >
             {category.name}
           </span>
-          <span
-            className="block"
-            style={{
-              ...body(13, SECONDARY),
-              marginTop: '5px',
-              lineHeight: 1.5,
-              // Folded categories keep Beau's line to ONE line (layout
-              // pass) — unfolding shows it in full.
-              ...(open
-                ? null
-                : {
-                    display: '-webkit-box',
-                    WebkitBoxOrient: 'vertical' as const,
-                    WebkitLineClamp: 1,
-                    overflow: 'hidden',
-                  }),
-            }}
-          >
-            {category.line}
-          </span>
+          {/* Beau's line shows only when the category is UNFOLDED
+              (founder's correction, August 2026) — a folded row carries the
+              name alone. */}
+          {open && (
+            <span className="block" style={{ ...body(13, SECONDARY), marginTop: '5px', lineHeight: 1.5 }}>
+              {category.line}
+            </span>
+          )}
         </span>
+        {/* The status word (“In order” · “Nothing logged” · “n to look
+            at”) is gone (founder's correction, August 2026) — the count
+            alone sits against the edge. */}
         <span className="col-start-2 md:col-start-auto flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
-          <span style={mono(9.5, category.toLookAt > 0 ? ACCENT_DEEP : FAINT)}>{category.status}</span>
           <span style={{ ...mono(11, SECONDARY), letterSpacing: 0 }}>{category.count}</span>
         </span>
       </button>

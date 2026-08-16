@@ -1564,9 +1564,31 @@ interface DossierCacheShape {
 const DOSSIER_STALE_MS = 60_000;
 let dossierCache: DossierCacheShape | null = null;
 
+// The cache also PERSISTS to localStorage (founder's correction, August
+// 2026: “why does the dossier load every time?”) — a fresh page session
+// paints instantly from the last visit's data while a background refresh
+// brings it current.
+const DOSSIER_LS_KEY = 'ethaion:dossier-cache:v1';
+try {
+  const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(DOSSIER_LS_KEY) : null;
+  if (raw) dossierCache = JSON.parse(raw) as DossierCacheShape;
+} catch {
+  /* a broken cache is simply ignored */
+}
+function persistDossierCache(): void {
+  try {
+    if (dossierCache) localStorage.setItem(DOSSIER_LS_KEY, JSON.stringify(dossierCache));
+    else localStorage.removeItem(DOSSIER_LS_KEY);
+  } catch {
+    /* storage full or blocked — the in-memory copy still carries the session */
+  }
+}
+
 export default function YourStyle() {
   const [profile, setProfile] = useState<StyleProfile | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // With a cache on file (module or localStorage) the screen paints at once
+  // — no “Reading your profile…” gate on a simple page.
+  const [loaded, setLoaded] = useState(() => dossierCache != null);
   // The Dossier-launched onboarding (founder's routing fix): “Start
   // onboarding” and “Retake onboarding” run the REAL wizard right here,
   // inline over this tab — finishing (or skipping) lands straight back on
@@ -1835,6 +1857,7 @@ export default function YourStyle() {
           tasteCount: refs.length,
           details: det,
         };
+        persistDossierCache();
       });
     };
 
@@ -1895,6 +1918,7 @@ export default function YourStyle() {
       tasteCount,
       details,
     };
+    persistDossierCache();
   }, [loaded, profile, budgets, prefs, trustedBrands, measurements, extras, dm, heightCm, heightUnit, weightKg, weightUnit, tasteCount, details]);
 
   // Seeding the sizing drafts from the rows themselves — and re-seeding
@@ -2028,6 +2052,7 @@ export default function YourStyle() {
       // wardrobe tab) — done or skipped, they land back on The Dossier.
       setProfile(null);
       dossierCache = null;
+      persistDossierCache();
       setOnboardingOpen(true);
     } finally {
       setResetting(false);

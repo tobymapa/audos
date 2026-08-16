@@ -218,9 +218,7 @@ function DetailPanel({
                 In the Index →
               </button>
             )}
-            <span style={mono(9, '#856c51')}>
-              {isGap ? 'Beau\u2019s picks, ranked, waiting in the Search' : categoryNote}
-            </span>
+            {!isGap && <span style={mono(9, '#856c51')}>{categoryNote}</span>}
           </div>
         </div>
 
