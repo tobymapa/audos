@@ -175,7 +175,7 @@ async function fetchLooksHolding(pieceId: number): Promise<LookIn[]> {
 /** The mono small-caps working-label register (16a) for the Beau panel. */
 const monoLabelStyle: React.CSSProperties = {
   fontFamily: MONO,
-  fontSize: '9px',
+  fontSize: 'max(var(--eth-micro, 0px), 9px)',
   letterSpacing: '0.06em',
   textTransform: 'uppercase',
 };
@@ -850,7 +850,7 @@ export function PieceEditForm({
         {enrichment?.status === 'found' ? (
           <div>
             {enrichment.summary && (
-              <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.6, color: '#3b2b1d', maxWidth: '76ch' }}>
+              <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.6, color: '#3b2b1d', maxWidth: '76ch' }}>
                 {enrichment.summary}
               </p>
             )}
@@ -869,7 +869,7 @@ export function PieceEditForm({
                     style={{ padding: '7px 0', borderBottom: i < rows.length - 1 ? '1px solid rgba(59,43,29,0.14)' : 'none' }}
                   >
                     <span style={{ ...monoLabelStyle, color: '#7a6349' }}>{label}</span>
-                    <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5, color: '#241a12' }}>{v}</span>
+                    <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.5, color: '#241a12' }}>{v}</span>
                   </div>
                 ))}
             </div>
@@ -879,18 +879,18 @@ export function PieceEditForm({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block hover:underline"
-                style={{ ...monoLabelStyle, fontSize: '9.5px', color: '#7c4a17', marginTop: '10px' }}
+                style={{ ...monoLabelStyle, fontSize: 'max(var(--eth-micro, 0px), 9.5px)', color: '#7c4a17', marginTop: '10px' }}
               >
                 {enrichment.source_title ? `From ${enrichment.source_title.slice(0, 60)}` : 'The page he leaned on'} →
               </a>
             )}
           </div>
         ) : enrichPending ? (
-          <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: '#856c51' }}>
+          <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.55, color: '#856c51' }}>
             Beau is reading up on this piece…
           </p>
         ) : (
-          <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.55, color: '#856c51' }}>
+          <p style={{ margin: '8px 0 0', fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.55, color: '#856c51' }}>
             Beau couldn’t find details for this piece — an unfamiliar maker, or not enough to go on. Everything you
             log below still counts.
           </p>
@@ -908,7 +908,7 @@ export function PieceEditForm({
             target="_blank"
             rel="noopener noreferrer"
             className="hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent,#a8712c)' }}
           >
             {source.label ? `See on ${source.label}` : 'View source'} ›
           </a>
@@ -919,7 +919,7 @@ export function PieceEditForm({
               setSourceEditing(true);
             }}
             className="hover:underline"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-500,#a68e70)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: 'var(--color-neutral-500,#a68e70)' }}
           >
             Change ›
           </button>
@@ -935,7 +935,7 @@ export function PieceEditForm({
             className="flex-1 min-w-[12rem] focus:outline-none focus:border-[var(--color-accent,#a8712c)] text-[var(--space-text-primary)] placeholder:text-[var(--color-neutral-500,#a68e70)]"
             style={{
               fontFamily: 'var(--space-font-family)',
-              fontSize: '13px',
+              fontSize: 'max(var(--eth-body, 0px), 13px)',
               border: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
               borderRadius: 0,
               background: '#fbf8f1',
@@ -948,7 +948,7 @@ export function PieceEditForm({
             onClick={() => void saveSourceLink()}
             disabled={sourceBusy}
             className="hover:underline disabled:opacity-50"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent,#a8712c)' }}
           >
             {sourceBusy ? 'Saving…' : 'Save ›'}
           </button>
@@ -957,7 +957,7 @@ export function PieceEditForm({
             onClick={() => setSourceEditing(false)}
             disabled={sourceBusy}
             className="hover:underline disabled:opacity-50"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-500,#a68e70)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: 'var(--color-neutral-500,#a68e70)' }}
           >
             Keep as is
           </button>
@@ -981,7 +981,7 @@ export function PieceEditForm({
             </span>
           )}
           {!moreOpen && (
-            <span className={`${typography.size.xs} ${typography.color.muted} truncate`} style={{ fontSize: '10px' }}>
+            <span className={`${typography.size.xs} ${typography.color.muted} truncate`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
               colour · material · type · maker · pattern · size · seasons · occasions
             </span>
           )}
@@ -991,7 +991,7 @@ export function PieceEditForm({
 
       {moreOpen && (
         <div className="mt-3 space-y-3">
-          <p className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
+          <p className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
             The details from first upload — review and correct anything here. Edits save themselves on blur or
             Enter; there is nothing to submit.
           </p>
@@ -1010,7 +1010,7 @@ export function PieceEditForm({
               aria-label="Name — saves when you leave the field"
             />
             <span className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className={labelCls} style={{ fontSize: '10px' }}>
+              <span className={labelCls} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
                 {nameIsCustom ? 'Your own name — kept as typed.' : 'Auto-named from colour, material and type.'}
               </span>
               {nameIsCustom && autoName && autoName.trim() !== nameDraft.trim() && (
@@ -1018,7 +1018,7 @@ export function PieceEditForm({
                   type="button"
                   onClick={resetToAutoName}
                   className={`inline-flex items-center gap-1 ${typography.color.brand} hover:underline`}
-                  style={{ fontSize: '10px' }}
+                  style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
                 >
                   <RotateCcw className="w-2.5 h-2.5" /> Use “{autoName}”
                 </button>
@@ -1117,7 +1117,7 @@ export function PieceEditForm({
               {warmthRead.min_comfortable_temp_c}–{warmthRead.max_comfortable_temp_c}°C · {warmthRead.warmth_level} warmth
               {warmthRead.weather_suited.length > 0 ? ` · suits ${warmthRead.weather_suited.join(', ')}` : ''}
             </p>
-            <p className={`${labelCls} mt-0.5`} style={{ fontSize: '10px' }}>
+            <p className={`${labelCls} mt-0.5`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
               Worked out from the type, fabric and season — Beau leaves this piece out of a day it isn’t rated for.
             </p>
           </div>
@@ -1145,7 +1145,7 @@ export function PieceEditForm({
           {value?.last_worn_at && (
             <span>
               <span className={`block ${typography.size.xs} uppercase tracking-[0.15em] ${typography.color.secondary}`}>Last worn</span>
-              <span className={`block ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.3, paddingTop: '6px' }}>
+              <span className={`block ${typography.color.primary}`} style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.3, paddingTop: '6px' }}>
                 {new Date(value.last_worn_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
               </span>
             </span>
@@ -1169,7 +1169,7 @@ export function PieceEditForm({
                 className="focus:outline-none focus:border-[var(--color-accent,#a8712c)] text-[var(--space-text-primary)]"
                 style={{
                   fontFamily: 'var(--space-font-family)',
-                  fontSize: '14px',
+                  fontSize: 'max(var(--eth-body, 0px), 14px)',
                   border: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
                   borderRadius: 0,
                   background: '#fbf8f1',
@@ -1279,7 +1279,7 @@ export function PieceEditForm({
               </div>
             ))}
           </div>
-          <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5`} style={{ fontSize: '10px' }}>
+          <p className={`${typography.size.xs} ${typography.color.muted} mt-1.5`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
             “Wore it” on a saved look moves this piece’s counter too — cost per wear follows real life.
           </p>
         </div>
@@ -1369,12 +1369,12 @@ export function PieceEditSheet({
               Edits here update every view — same piece, one record.
             </p>
             <span className="block mt-2" style={{ fontFamily: 'var(--space-font-family)' }}>
-              <span className="block text-[var(--color-neutral-500,#a68e70)]" style={{ fontSize: '12px', lineHeight: 1.35 }}>
+              <span className="block text-[var(--color-neutral-500,#a68e70)]" style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.35 }}>
                 Brand
               </span>
               <span
                 className="block text-[var(--color-text,#3b2b1d)]"
-                style={{ fontSize: piece.brand?.trim() ? '14px' : '12px', lineHeight: 1.45 }}
+                style={{ fontSize: piece.brand?.trim() ? 'max(var(--eth-body, 0px), 14px)' : 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.45 }}
               >
                 {piece.brand?.trim() ? piece.brand.trim().toUpperCase() : '—'}
               </span>

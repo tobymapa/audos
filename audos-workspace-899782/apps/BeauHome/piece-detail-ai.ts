@@ -168,7 +168,7 @@ function fallbackCopy(
 
   const colours = type.colours.map((name, i) => ({
     name,
-    why: i === 0 ? 'The canonical first colour — it sits under most of a considered wardrobe.' : 'Sound once the first colour is on the ledger.',
+    why: i === 0 ? 'The canonical first colour — it sits under most of a considered wardrobe.' : 'Sound once the first colour is on the rail.',
   }));
 
   const placeCards: DetailPlaceCard[] = places.map((p) => {
@@ -293,7 +293,7 @@ async function generateDetailCopy(
     'Return ONE JSON object with EXACTLY these keys:\n'
       + '"aka" (the subtitle line — also-known-as names, the tradition it comes from, the decade it settled, max 140 chars, small-caps register),\n'
       + '"intro" (2–4 sentences — what the piece is and why it matters for HIS wardrobe specifically, max 520 chars),\n'
-      + '"ledgerNote" (the AGAINST YOUR LEDGER panel line — read from what he owns of it and his climate, max 260 chars),\n'
+      + '"ledgerNote" (the AGAINST YOUR RAIL panel line — read from what he owns of it and his climate, max 260 chars),\n'
       + '"bandNote" (the sub-label under the temperature range — e.g. "over knitwear; 8–16° over a shirt alone", max 90 chars),\n'
       + `"registers" (an object with a key for EACH of: ${FIELD_REGISTERS.join(', ')} — each value {"note": how the piece works in that register FOR HIM (max 160 chars; empty string "" when the type does not reach it), "occasions": 1–3 short small-caps occasion labels like "client dinners", "weekend city" — [] when it does not reach}),\n`
       + '"colours" (the FIXED colour set re-ordered, best first FOR HIS LEDGER — each {"name": exact colour from the set, "why": one line naming the piece(s) he owns it sits with or clashes against, max 110 chars}),\n'
@@ -334,10 +334,10 @@ async function generateDetailCopy(
     const name = type.colours.find((c) => c.toLowerCase() === str(entry?.name, 40).toLowerCase());
     if (!name || seenColours.has(name) || !colourSet.has(name.toLowerCase())) continue;
     seenColours.add(name);
-    colours.push({ name, why: str(entry?.why, 140) || 'Ranked against your ledger.' });
+    colours.push({ name, why: str(entry?.why, 140) || 'Ranked against your rail.' });
   }
   for (const name of type.colours) {
-    if (!seenColours.has(name)) colours.push({ name, why: 'Sound once the colours above are on the ledger.' });
+    if (!seenColours.has(name)) colours.push({ name, why: 'Sound once the colours above are on the rail.' });
   }
 
   const placeCards: DetailPlaceCard[] = places.map((p, i) => {

@@ -127,6 +127,10 @@ function profileBlock(profile: StyleProfile | null): string | null {
   const occasions = (Array.isArray(profile.occasions) ? profile.occasions : []).filter(Boolean);
   if (occasions.length > 0) lines.push(`HE DRESSES FOR: ${occasions.join(', ')}`);
   if (profile.materials) lines.push(`HIS MATERIALS RULE: ${profile.materials}`);
+  const budget = (profile as unknown as { budget_range?: string | null }).budget_range;
+  if (typeof budget === 'string' && budget.trim()) {
+    lines.push(`HIS BUDGET COMFORT PER PIECE: ${budget.trim()} — a signal, never a hard ceiling.`);
+  }
   const city = (profile as any)?.lifestyle?.city;
   if (typeof city === 'string' && city.trim()) lines.push(`HOME CITY: ${city.trim()}`);
   return lines.length > 0 ? lines.join('\n') : null;

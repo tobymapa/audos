@@ -40,16 +40,31 @@ export const ON_WALNUT = '#fbf1de';
 /** The small-caps label on the walnut band. */
 export const ON_WALNUT_GOLD = '#e3c184';
 
+// THE PHONE READING FLOOR. Every tab sets its type through these three
+// helpers, so the mobile legibility floor belongs here rather than at the
+// hundreds of call sites. Each size is written as a max() against a variable
+// declared in Desktop.tsx: --eth-* is 0px above the phone breakpoint, so the
+// size the caller asked for is used exactly as written and no desktop screen
+// can move; inside the query the variable becomes the smallest size that tab
+// is allowed to set. Retuning the whole app is therefore one edit there.
 export function mono(size = 9, color = FAINT): React.CSSProperties {
-  return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.07em', textTransform: 'uppercase', color };
+  return {
+    fontFamily: MONO,
+    fontSize: `max(var(--eth-micro, 0px), ${size}px)`,
+    letterSpacing: '0.07em',
+    textTransform: 'uppercase',
+    color,
+  };
 }
 
 export function serif(size = 17, color = WALNUT): React.CSSProperties {
-  return { fontFamily: SERIF, fontSize: `${size}px`, fontWeight: 400, color };
+  // Cormorant Garamond has a small x-height for its point size, so it needs a
+  // higher floor than the sans body face to read at the same distance.
+  return { fontFamily: SERIF, fontSize: `max(var(--eth-serif, 0px), ${size}px)`, fontWeight: 400, color };
 }
 
 export function body(size = 14, color = INK): React.CSSProperties {
-  return { fontFamily: BODY, fontSize: `${size}px`, lineHeight: 1.6, color };
+  return { fontFamily: BODY, fontSize: `max(var(--eth-body, 0px), ${size}px)`, lineHeight: 1.6, color };
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +103,9 @@ export function Chip({
       onClick={onClick}
       aria-pressed={active}
       title={title}
-      className="transition-colors flex-shrink-0"
+      // hab-tap grows the chip to the 44px minimum touch target on a phone and
+      // is inert on desktop, where it keeps its compact editorial height.
+      className="transition-colors flex-shrink-0 hab-tap"
       style={{
         ...mono(9, active ? '#5c3413' : SECONDARY),
         background: active ? 'rgba(168,113,44,0.14)' : 'transparent',
@@ -103,9 +120,16 @@ export function Chip({
   );
 }
 
-/** The small left-hand label each filter row carries. */
+/** The small left-hand label each filter row carries. On a phone the fixed
+ * 76px column is more than a fifth of the screen and leaves the chips beside
+ * it squeezed into a ragged strip, so hab-tier-label gives the label the line
+ * above them instead and the chips wrap under it at full width. */
 export function TierLabel({ children }: { children: string }) {
-  return <span style={{ ...mono(8, FAINT), flexShrink: 0, width: '76px', paddingTop: '9px' }}>{children}</span>;
+  return (
+    <span className="hab-tier-label" style={{ ...mono(8, FAINT), flexShrink: 0, width: '76px', paddingTop: '9px' }}>
+      {children}
+    </span>
+  );
 }
 
 /** The one Reset — clears every filter row at once; top right of the bar. */
@@ -115,7 +139,7 @@ export function ResetButton({ active, onClick }: { active: boolean; onClick: () 
       type="button"
       onClick={onClick}
       title="Clear every active filter"
-      className="transition-colors flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)]"
+      className="transition-colors flex-shrink-0 hab-tap hover:bg-[rgba(168,113,44,0.06)]"
       style={{
         ...mono(8.5, active ? ACCENT_DEEP : FAINTER),
         background: 'transparent',

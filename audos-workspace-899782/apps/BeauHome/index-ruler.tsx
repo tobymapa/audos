@@ -126,7 +126,12 @@ export function IndexRuler({ model, catId, band, nav }: { model: IndexModel; cat
             aria-label={BAND_TITLES[def.id]}
             style={{ padding: '18px 0 14px', borderBottom: `1px solid ${HAIRLINE}`, scrollMarginTop: '72px' }}
           >
-            <div className="grid grid-cols-[150px_minmax(0,1fr)_auto] items-start" style={{ gap: '10px 26px' }}>
+            {/* MOBILE (founder's correction, August 2026): the three-column
+                band row — 150px label, names, stats — crushed everything on a
+                phone. Below sm the row STACKS: band title, then the names at
+                full width, then the count/status line, each with room to
+                breathe. */}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[150px_minmax(0,1fr)_auto] sm:gap-[10px_26px] items-start">
               <div>
                 <div style={serif(16)}>{BAND_TITLES[def.id].split(' · ')[0]}</div>
                 <div style={{ ...mono(8, FAINT), marginTop: '3px' }}>
@@ -167,7 +172,7 @@ export function IndexRuler({ model, catId, band, nav }: { model: IndexModel; cat
                   </>
                 )}
               </div>
-              <div style={{ textAlign: 'right' }}>
+              <div className="text-left sm:text-right">
                 <div style={mono(9, WALNUT)}>
                   {centred.length} · {byNature ? '—' : `you ${owned}`}
                 </div>

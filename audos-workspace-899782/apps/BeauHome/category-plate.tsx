@@ -175,7 +175,7 @@ export function PlateRow({
       onClick={onOpen}
       className="hover:underline text-left"
       aria-label={`${row.type.name} — open the entry`}
-      style={{ background: 'transparent', fontFamily: BODY, fontSize: '13.5px', lineHeight: 1.35, color: row.owned ? WALNUT : INK, padding: 0 }}
+      style={{ background: 'transparent', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.35, color: row.owned ? WALNUT : INK, padding: 0 }}
     >
       {row.type.name}
       {row.ownedBrand && <span style={{ color: MUTED }}> · {row.ownedBrand}</span>}
@@ -361,7 +361,7 @@ export function AnnotationFoot({
       {slots.map((slot) => (
         <div key={slot.label}>
           <div style={mono(8.5, FAINT)}>{slot.label}</div>
-          <p style={{ margin: '6px 0 0', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.55, color: INK }}>{slot.text}</p>
+          <p style={{ margin: '6px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.55, color: INK }}>{slot.text}</p>
           {slot.action && <div style={{ marginTop: '7px' }}>{slot.action}</div>}
         </div>
       ))}
@@ -500,16 +500,16 @@ export function CategoryPlate({
           >
             {cat.name}
           </h2>
-          <p style={{ margin: '12px 0 0', fontFamily: BODY, fontSize: '14.5px', lineHeight: 1.6, color: INK, maxWidth: '58ch' }}>
+          <p style={{ margin: '12px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-body, 0px), 14.5px)', lineHeight: 1.6, color: INK, maxWidth: '58ch' }}>
             {copy.description}
           </p>
         </div>
         <div style={{ borderLeft: `1px solid ${HAIR_MID}`, paddingLeft: '18px' }} className="md:justify-self-end md:w-full">
-          <div style={mono(8, ACCENT_DEEP)}>This category, against your ledger</div>
+          <div style={mono(8, ACCENT_DEEP)}>This category, against your rail</div>
           <div style={{ marginTop: '8px', fontFamily: SERIF, fontSize: '23px', lineHeight: 1.1, color: WALNUT }}>
             {ownedRows.length} of {rows.length} owned
           </div>
-          <p style={{ margin: '7px 0 0', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.55, color: SECONDARY }}>{copy.statNote}</p>
+          <p style={{ margin: '7px 0 0', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.55, color: SECONDARY }}>{copy.statNote}</p>
         </div>
       </div>
 
@@ -517,7 +517,7 @@ export function CategoryPlate({
       <div style={{ marginTop: '26px', paddingTop: '14px', borderTop: `1px solid ${HAIR_MID}` }}>
         <div style={mono(8, MUTED)}>What you can already put on, on the same ruler</div>
         <div className="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)]" style={{ gap: '14px 40px', marginTop: '12px' }}>
-          <p style={{ margin: 0, fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.55, color: SECONDARY }}>{copy.coverageNote}</p>
+          <p style={{ margin: 0, fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.55, color: SECONDARY }}>{copy.coverageNote}</p>
           <CoverageRuler ownedRows={ownedRows} hole={hole} scale={scale} />
         </div>
       </div>
@@ -540,7 +540,7 @@ export function CategoryPlate({
                 </h3>
                 <span style={mono(8.5, FAINT)}>{groupRows.length}</span>
               </div>
-              <p style={{ margin: '5px 0 10px', fontFamily: BODY, fontSize: '12.5px', lineHeight: 1.5, color: SECONDARY, maxWidth: '44ch' }}>
+              <p style={{ margin: '5px 0 10px', fontFamily: BODY, fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.5, color: SECONDARY, maxWidth: '44ch' }}>
                 {copy.groupNotes[group.label]}
               </p>
               <div style={{ borderTop: `1px solid ${HAIR_MID}` }}>

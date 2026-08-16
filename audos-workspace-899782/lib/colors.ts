@@ -392,7 +392,7 @@ export const settingsStyles = {
     `w-full px-4 min-h-[46px] ${tw.button.primary} inline-flex items-center justify-center gap-2 uppercase tracking-[0.12em] text-[13px] ${disabled ? tw.button.disabled : ''}`,
   /** The quieter companion action (Manage billing, Sign out). */
   secondaryButton:
-    `px-4 min-h-[42px] ${tw.button.secondary} inline-flex items-center justify-center gap-2 uppercase tracking-[0.12em] text-[12px]`,
+    `px-4 min-h-[44px] ${tw.button.secondary} inline-flex items-center justify-center gap-2 uppercase tracking-[0.12em] text-[12px]`,
 } as const;
 
 // =============================================================================

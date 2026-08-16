@@ -23,12 +23,19 @@ export function VoiceButton({
   disabled = false,
   className = '',
   title = 'Hold to speak — release to send',
+  label,
+  labelStyle,
 }: {
   /** Called with the final transcript when the press is released. */
   onTranscript: (text: string) => void;
   disabled?: boolean;
   className?: string;
   title?: string;
+  /** Render as a small-caps WORD (the drawer's editorial grammar) instead
+   * of the icon button — e.g. label="Dictate". */
+  label?: string;
+  /** Inline style for the label variant (font, size, colour). */
+  labelStyle?: React.CSSProperties;
 }) {
   const [recording, setRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -110,19 +117,33 @@ export function VoiceButton({
           }
         }}
         className={
-          'h-8 w-8 flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
-          (recording
-            ? 'bg-[var(--space-semantic-danger)] text-white'
-            : 'hover:bg-[var(--space-surface-muted)] text-[var(--space-text-muted)]') +
-          ' ' +
-          className
+          label
+            ? 'transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' + className
+            : 'h-8 w-8 flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
+              (recording
+                ? 'bg-[var(--space-semantic-danger)] text-white'
+                : 'hover:bg-[var(--space-surface-muted)] text-[var(--space-text-muted)]') +
+              ' ' +
+              className
+        }
+        style={
+          label
+            ? {
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                ...labelStyle,
+                ...(recording ? { color: 'var(--space-semantic-danger)' } : null),
+              }
+            : undefined
         }
         title={title}
         aria-pressed={recording}
         aria-label={recording ? 'Recording — release to send' : 'Hold to record a voice message'}
         data-testid="button-voice-input"
       >
-        <Mic className={'w-4 h-4 ' + (recording ? 'animate-pulse' : '')} />
+        {label ? (recording ? 'Listening…' : label) : <Mic className={'w-4 h-4 ' + (recording ? 'animate-pulse' : '')} />}
       </button>
       {recording && (
         <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--space-semantic-danger)] px-3 py-1 text-[11px] font-medium text-white shadow-md flex items-center gap-1.5">
@@ -183,12 +204,19 @@ export function LiveTalkButton({
   disabled = false,
   className = '',
   title = 'Talk live with Beau \u2014 a real-time voice conversation',
+  label,
+  labelStyle,
 }: {
   /** Extra context for this surface (appended to Beau's live persona). */
   instructions?: string;
   disabled?: boolean;
   className?: string;
   title?: string;
+  /** Render as a small-caps WORD (the drawer's editorial grammar) instead
+   * of the icon button — e.g. label="Live". */
+  label?: string;
+  /** Inline style for the label variant (font, size, colour). */
+  labelStyle?: React.CSSProperties;
 }) {
   const [state, setState] = useState<'idle' | 'connecting' | 'live'>('idle');
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -279,19 +307,35 @@ export function LiveTalkButton({
         disabled={disabled || state === 'connecting'}
         onClick={() => (state === 'live' ? end() : void start())}
         className={
-          'h-8 w-8 flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
-          (state === 'live'
-            ? 'bg-[var(--space-semantic-danger)] text-white'
-            : 'hover:bg-[var(--space-surface-muted)] text-[var(--space-text-muted)]') +
-          ' ' +
-          className
+          label
+            ? 'transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' + className
+            : 'h-8 w-8 flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
+              (state === 'live'
+                ? 'bg-[var(--space-semantic-danger)] text-white'
+                : 'hover:bg-[var(--space-surface-muted)] text-[var(--space-text-muted)]') +
+              ' ' +
+              className
+        }
+        style={
+          label
+            ? {
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                ...labelStyle,
+                ...(state === 'live' ? { color: 'var(--space-semantic-danger)' } : null),
+              }
+            : undefined
         }
         title={state === 'live' ? 'End the live conversation' : title}
         aria-pressed={state === 'live'}
         aria-label={state === 'live' ? 'End the live conversation with Beau' : 'Start a live voice conversation with Beau'}
         data-testid="button-live-talk"
       >
-        {state === 'connecting' ? (
+        {label ? (
+          state === 'connecting' ? 'Connecting…' : state === 'live' ? 'End live' : label
+        ) : state === 'connecting' ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : (
           <AudioLines className={'w-4 h-4 ' + (state === 'live' ? 'animate-pulse' : '')} />

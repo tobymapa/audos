@@ -87,7 +87,7 @@ function TagPill({ children, tone = 'neutral' }: { children: React.ReactNode; to
   return (
     <span
       className={`${tw.badge.default} ${tone === 'brand' ? tw.badge.primary : tw.badge.neutral}`}
-      style={{ fontSize: '10px' }}
+      style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
     >
       {children}
     </span>
@@ -101,7 +101,7 @@ function TagPill({ children, tone = 'neutral' }: { children: React.ReactNode; to
 function ColorNames({ colors }: { colors: string[] }) {
   if (!colors || colors.length === 0) return null;
   return (
-    <span className={`${typography.size.xs} ${typography.color.muted} capitalize`} style={{ fontSize: '10px' }}>
+    <span className={`${typography.size.xs} ${typography.color.muted} capitalize`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
       {colors.slice(0, 5).join(' · ')}
     </span>
   );
@@ -182,7 +182,7 @@ export function BudgetEditor({
       <button
         type="button"
         onClick={openEditor}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${typography.size.xs} border transition-colors ${
+        className={`hab-tap inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${typography.size.xs} border transition-colors ${
           hasBudget
             ? 'bg-[var(--space-surface-accent-soft)] border-[var(--space-brand-primary-200)] text-[var(--space-text-brand)]'
             : 'border-dashed border-[var(--space-border-strong)] text-[var(--space-text-muted)] hover:text-[var(--space-text-primary)]'
@@ -195,8 +195,12 @@ export function BudgetEditor({
     );
   }
 
+  // The two number boxes and the three controls came to about 320px on one
+  // line, which is wider than a phone once the category label beside them has
+  // taken its share. On a phone the range takes the first line and the
+  // controls the second, and every box and button is a 44px target.
   return (
-    <span className="inline-flex items-center gap-1.5 flex-wrap">
+    <span className="inline-flex items-center gap-1.5 flex-wrap max-sm:w-full">
       <span className={`${typography.size.xs} ${typography.color.muted}`}>{currencySymbol()}</span>
       <input
         type="number"
@@ -204,7 +208,7 @@ export function BudgetEditor({
         value={minVal}
         onChange={(e) => setMinVal(e.target.value)}
         placeholder="min"
-        className={`w-16 px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
+        className={`w-16 max-sm:flex-1 max-sm:min-h-[44px] px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
       />
       <span className={`${typography.size.xs} ${typography.color.muted}`}>– {currencySymbol()}</span>
       <input
@@ -213,13 +217,13 @@ export function BudgetEditor({
         value={maxVal}
         onChange={(e) => setMaxVal(e.target.value)}
         placeholder="max"
-        className={`w-16 px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
+        className={`w-16 max-sm:flex-1 max-sm:min-h-[44px] px-2 py-1 rounded-lg border border-[var(--space-border-default)] bg-[var(--space-surface-card)] ${typography.size.xs} focus:outline-none focus:ring-1 focus:ring-[var(--space-brand-primary)]`}
       />
       <button
         type="button"
         onClick={() => void save(false)}
         disabled={busy}
-        className={`px-2.5 py-1 rounded-lg ${typography.size.xs} ${tw.button.primary} disabled:opacity-50 inline-flex items-center gap-1`}
+        className={`hab-tap max-sm:basis-full px-3 py-1 rounded-lg ${typography.size.xs} ${tw.button.primary} disabled:opacity-50 inline-flex items-center gap-1`}
       >
         {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
         Save
@@ -229,7 +233,7 @@ export function BudgetEditor({
           type="button"
           onClick={() => void save(true)}
           disabled={busy}
-          className={`px-2 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}
+          className={`hab-tap px-3 py-1 rounded-lg ${typography.size.xs} ${tw.button.ghost} border border-[var(--space-border-default)]`}
         >
           Clear
         </button>
@@ -237,7 +241,7 @@ export function BudgetEditor({
       <button
         type="button"
         onClick={() => setEditing(false)}
-        className={`p-1 rounded-lg ${tw.button.ghost}`}
+        className={`hab-touch-icon p-1 rounded-lg ${tw.button.ghost}`}
         aria-label="Cancel"
       >
         <X className="w-3.5 h-3.5" />
@@ -264,7 +268,7 @@ export function BudgetFilters({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left"
+        className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3.5 text-left"
       >
         <span className="flex items-center gap-2 min-w-0">
           <SlidersHorizontal className={`w-4 h-4 ${tw.icon.primary} flex-shrink-0`} />
@@ -273,7 +277,7 @@ export function BudgetFilters({
               Price filter defaults — by category
             </span>
             <span className={`block ${typography.size.xs} ${typography.color.muted} mt-0.5`}>
-              Jacket budget isn’t shirt budget. {setCount > 0 ? `${setCount} set — ` : 'Set a range per category — '}The Rail’s picks start from these and can be adjusted per session there.
+              Jacket budget isn’t shirt budget. {setCount > 0 ? `${setCount} set — ` : 'Set a range per category — '}Beau’s picks start from these and can be adjusted per session there.
             </span>
           </span>
         </span>
@@ -283,8 +287,8 @@ export function BudgetFilters({
         <div className="px-4 pb-4 border-t border-[var(--space-border-default)]">
           <div className="divide-y divide-[var(--space-border-default)]">
             {WARDROBE_CATEGORIES.map((cat) => (
-              <div key={cat.id} className="py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                <span className={`${typography.size.sm} ${typography.color.primary} min-w-[7rem]`}>{cat.label}</span>
+              <div key={cat.id} className="py-2.5 flex items-center justify-between gap-x-3 gap-y-2 flex-wrap">
+                <span className={`${typography.size.sm} ${typography.color.primary} sm:min-w-[7rem]`}>{cat.label}</span>
                 <BudgetEditor category={cat} budget={budgets[cat.id]} onSaved={onSaved} />
               </div>
             ))}
@@ -407,14 +411,14 @@ export const CategoryGrid = memo(function CategoryGrid({
                     <span
                       aria-hidden="true"
                       className="text-[var(--color-neutral-500,#a68e70)]"
-                      style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5 }}
+                      style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.5 }}
                     >
                       ·
                     </span>
                   )}
                   <span
                     className="text-[var(--color-neutral-700,#634e38)] min-w-0"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5 }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.5 }}
                   >
                     {p.name}
                   </span>
@@ -426,7 +430,7 @@ export const CategoryGrid = memo(function CategoryGrid({
               "x / y needed" target (Milestones overhaul, Part 2b). */}
           <span
             className="justify-self-end self-center text-[var(--color-neutral-600,#856c51)] tabular-nums whitespace-nowrap"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)' }}
           >
             {catPieces.length} piece{catPieces.length === 1 ? '' : 's'}
           </span>
@@ -510,7 +514,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`px-3 py-1.5 min-h-[36px] rounded-full ${typography.size.xs} border transition-colors whitespace-nowrap ${
+      className={`hab-tap px-3.5 py-1.5 min-h-[36px] rounded-full ${typography.size.xs} border transition-colors whitespace-nowrap ${
         active
           ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
           : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
@@ -591,7 +595,7 @@ export function SeeAllPieces({
         onClick={onBack}
         className={`inline-flex items-center gap-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
       >
-        <ArrowLeft className="w-3.5 h-3.5" /> The Ledger
+        <ArrowLeft className="w-3.5 h-3.5" /> The Rail
       </button>
 
       <h3 className={`hab-page-title ${typography.color.primary} mt-3`} style={{ marginBottom: '10px' }}>
@@ -650,7 +654,7 @@ export function SeeAllPieces({
                   onClick={() => setAddFor((cur) => (cur === cat.id ? null : cat.id))}
                   aria-expanded={addFor === cat.id}
                   className="hover:underline"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent,#a8712c)' }}
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent,#a8712c)' }}
                 >
                   {addFor === cat.id ? 'Close ×' : '+ Add piece'}
                 </button>
@@ -775,7 +779,7 @@ const ItemCard = memo(function ItemCard({
                 </span>
               )}
               {costPerWearLabel(value) && (
-                <p className={`${typography.size.xs} ${typography.color.muted} mt-0.5`} style={{ fontSize: '10px' }}>
+                <p className={`${typography.size.xs} ${typography.color.muted} mt-0.5`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
                   {costPerWearLabel(value)}
                 </p>
               )}
@@ -1069,7 +1073,7 @@ export function CategoryPage({
                     </p>
                   )}
                   <div className="flex items-center gap-1 mt-1 flex-wrap">
-                    <span className={`${tw.badge.default} ${tw.badge.primary} inline-flex items-center gap-1`} style={{ fontSize: '10px' }}>
+                    <span className={`${tw.badge.default} ${tw.badge.primary} inline-flex items-center gap-1`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
                       Watching
                     </span>
                     {item.color && <TagPill>{item.color}</TagPill>}
@@ -1354,7 +1358,7 @@ function PreviewCard({
               type="button"
               onClick={() => setShowCats((s) => !s)}
               className={`${tw.badge.default} ${tw.badge.primary} inline-flex items-center gap-1`}
-              style={{ fontSize: '10px' }}
+              style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
               title="Change category"
             >
               {categoryLabel(piece.category)}
@@ -1379,7 +1383,7 @@ function PreviewCard({
                       ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
                       : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
                   }`}
-                  style={{ fontSize: '10px' }}
+                  style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
                 >
                   {c.label}
                 </button>
@@ -1389,7 +1393,7 @@ function PreviewCard({
           {/* Edit-before-saving essentials (Pass Twelve): brand and size are
               always present on the confirm card. */}
           <div className="grid sm:grid-cols-2 gap-2 mt-2">
-            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
+            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
               Brand
               <div className="mt-0.5">
                 <BrandField
@@ -1400,7 +1404,7 @@ function PreviewCard({
                 />
               </div>
             </label>
-            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
+            <label className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
               Size
               <div className="mt-0.5">
                 <SizeSelector

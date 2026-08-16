@@ -69,7 +69,7 @@ function AxisModeSwitch({ active, onChange }: { active: QuadrantMode; onChange: 
               border: `1px solid ${on ? ACCENT : HAIRLINE}`,
               borderLeftWidth: i > 0 ? 0 : 1,
               padding: '7px 12px',
-              minHeight: '32px',
+              minHeight: 'max(var(--eth-field-h, 0px), 32px)',
             }}
           >
             {m.label}

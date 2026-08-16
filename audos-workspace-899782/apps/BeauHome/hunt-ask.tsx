@@ -16,7 +16,10 @@
  *
  * Then his VERDICT AND RECOMMENDATION on the walnut band, and the real pieces
  * to act on under it — each carrying the same Save · Favourite · Pass as
- * Beau's Picks, so a call made here files on Your Calls beside one made there.
+ * Beau's Picks, so a call made here files on Your Calls beside one made there,
+ * and the same WATCH, so a piece he is not ready to decide on can be left to
+ * Beau to keep an eye on instead — or WATCH BRAND under it, which hands him the
+ * whole house and its new arrivals.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Trash2 } from 'lucide-react';
@@ -224,7 +227,7 @@ function ComparisonTable({
           </p>
         ))}
         {comparison.runnerUp && (
-          <p style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.6, color: ON_WALNUT, opacity: 0.8, margin: '14px 0 0', maxWidth: '58ch' }}>
+          <p style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.6, color: ON_WALNUT, opacity: 0.8, margin: '14px 0 0', maxWidth: '58ch' }}>
             <span style={{ ...mono(8.5, ON_WALNUT_GOLD), display: 'block', marginBottom: '3px' }}>The runner-up</span>
             {comparison.runnerUp}
           </p>
@@ -442,7 +445,7 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
               border: `1px solid ${HAIRLINE}`,
               background: 'transparent',
               padding: '7px 11px',
-              minHeight: '36px',
+              minHeight: 'max(var(--eth-field-h, 0px), 36px)',
               cursor: 'pointer',
             }}
           >
@@ -562,6 +565,17 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
                       );
                     },
                     busy: calls.writingKey === huntCardKey(taggable),
+                    // Read at the tap, so the photograph the card actually
+                    // painted travels onto the Watchlist row.
+                    watch: () => ({
+                      pieceName: product.pieceName,
+                      brand: product.maker,
+                      retailerUrl: product.url,
+                      imageUrl: photos.current.get(key) || null,
+                      price: product.priceGuide,
+                      verdict: product.whyYou || null,
+                      source: 'ask_beau',
+                    }),
                   }}
                 />
               );

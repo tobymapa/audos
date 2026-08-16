@@ -165,7 +165,7 @@ function sourceLabel(t: string): string {
     case 'url': return 'Link';
     case 'image': return 'Picture';
     case 'document': return 'Document';
-    case 'curated': return 'From The Rail';
+    case 'curated': return 'From Curated';
     default: return 'Note';
   }
 }
@@ -917,7 +917,7 @@ export function SavedTab() {
       <div>
         <h3 className={`hab-page-title ${typography.color.primary}`}>Saved</h3>
         <p className={`${typography.size.sm} ${typography.color.secondary} mt-1`}>
-          Bookmarked, not decided — the stage between Beau suggesting and you committing. Picks saved from The Rail
+          Bookmarked, not decided — the stage between Beau suggesting and you committing. Picks saved from Beau’s recommendations
           land here, alongside anything you’ve seen and didn’t want to lose. When you’re serious, move a piece to
           The Reserve; when you’ve bought it, mark it owned and it files into your wardrobe.
         </p>
@@ -1109,7 +1109,7 @@ export function SavedTab() {
           </span>
           <p className={`${typography.size.sm} ${typography.color.primary} font-medium mt-2`}>Nothing saved yet</p>
           <p className={`${typography.size.xs} ${typography.color.muted} mt-1 max-w-sm mx-auto`}>
-            Tap Save on any of Beau’s picks on The Rail and it lands here — or drop in a brand, a link or a screenshot
+            Tap Save on any of Beau’s picks and it lands here — or drop in a brand, a link or a screenshot
             above the next time something catches your eye.
           </p>
         </div>

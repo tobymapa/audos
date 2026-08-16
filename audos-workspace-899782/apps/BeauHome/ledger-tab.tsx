@@ -1,6 +1,7 @@
 /**
- * THE LEDGER — “Everything you own, by category” (rebuilt to the founder's
- * reference design; tab id 'wardrobe', label “The Ledger”).
+ * THE RAIL (formerly “The Ledger”) — “Everything you own, by category”
+ * (rebuilt to the founder's reference design; tab id 'wardrobe', label
+ * “The Rail” since the August 2026 rename).
  *
  * THE PAGE IS THE RECORD. One question, answered by his own ledger: what do
  * you own, and what is each piece actually doing for you?
@@ -110,7 +111,7 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="transition-colors hover:border-[#a8712c]"
+      className="transition-colors hover:border-[#a8712c] hab-tap"
       style={{
         ...mono(9.5, active ? WALNUT : SECONDARY),
         border: `1px solid ${active ? ACCENT : 'rgba(59,43,29,0.28)'}`,
@@ -171,7 +172,7 @@ function OpenButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="transition-colors hover:border-[#a8712c]"
+      className="transition-colors hover:border-[#a8712c] hab-tap"
       style={{ ...mono(9, SECONDARY), border: '1px solid rgba(59,43,29,0.3)', padding: '6px 12px', whiteSpace: 'nowrap' }}
     >
       Open
@@ -211,7 +212,7 @@ function PieceRow({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void }) 
       <div className="col-span-2 md:col-span-1 flex flex-col" style={{ gap: '4px' }}>
         <span style={body(13, INK)}>{[row.cloth, row.colour].filter(Boolean).join(` ${MIDDOT} `)}</span>
         <span style={mono(9, ACCENT_DEEP)}>
-          {[row.band, row.fit ? row.fit.toLowerCase() : null].filter(Boolean).join(` ${MIDDOT} `)}
+          {[row.band, row.fits.length > 0 ? row.fits.join(', ').toLowerCase() : null].filter(Boolean).join(` ${MIDDOT} `)}
         </span>
       </div>
       <div className="col-span-2 md:col-span-1 min-w-0">
@@ -290,8 +291,12 @@ function CategoryBlock({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full text-left grid grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
-        style={{ gap: '18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
+        // The count and status shared the category's line, leaving the name
+        // about 130px of a 375px screen. Below md they drop to their own line
+        // under it; the row-gap is only ever used there, so the desktop
+        // single-line header is unchanged.
+        className="w-full text-left grid grid-cols-[26px_minmax(0,1fr)] md:grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+        style={{ gap: '7px 18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
       >
         <span style={{ ...mono(15, ACCENT), letterSpacing: 0 }}>{open ? '\u2212' : '+'}</span>
         <span className="min-w-0 block">
@@ -302,7 +307,7 @@ function CategoryBlock({
             {category.line}
           </span>
         </span>
-        <span className="flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
+        <span className="col-start-2 md:col-start-auto flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
           <span style={mono(9.5, category.toLookAt > 0 ? ACCENT_DEEP : FAINT)}>{category.status}</span>
           <span style={{ ...mono(11, SECONDARY), letterSpacing: 0 }}>{category.count}</span>
         </span>
@@ -373,7 +378,7 @@ function CutTable({
 
       {cuts.length === 0 ? (
         <div style={{ ...body(13, SECONDARY), padding: '18px 22px', maxWidth: '110ch', lineHeight: 1.55 }}>
-          Nothing on your ledger argues against itself yet. A piece reaches this table when you tell Beau you never
+          Nothing on your rail argues against itself yet. A piece reaches this table when you tell Beau you never
           quite feel right in it, when your own note says it is finished, or when it is holding a slot it never
           leaves the house in — never because he would rather you owned something else.
         </div>
@@ -415,7 +420,7 @@ function CutTable({
                       type="button"
                       onClick={() => onCall(row, call.id)}
                       aria-pressed={on}
-                      className="transition-colors hover:border-[#a8712c]"
+                      className="transition-colors hover:border-[#a8712c] hab-tap"
                       style={{
                         ...mono(9, on ? WALNUT : SECONDARY),
                         border: `1px solid ${on ? (retire ? 'rgba(59,43,29,0.5)' : ACCENT) : 'rgba(59,43,29,0.3)'}`,
@@ -517,7 +522,7 @@ export function LedgerTab({
   const factsKey = useMemo(
     () =>
       computed.rows
-        .map((r) => `${r.id}:${r.cloth}:${r.colour}:${r.band}:${r.fit || ''}:${r.feel || ''}:${r.condition || ''}:${r.wears}`)
+        .map((r) => `${r.id}:${r.cloth}:${r.colour}:${r.band}:${r.fits.join('+')}:${r.feel || ''}:${r.condition || ''}:${r.wears}`)
         .sort()
         .join('|'),
     [computed],
@@ -648,7 +653,7 @@ export function LedgerTab({
       return {
         ...current,
         [row.id]: {
-          ...(onFile || { pieceId: row.id, fit: null, feel: null, wearContexts: [], tailoring: null, note: null, call: null }),
+          ...(onFile || { pieceId: row.id, fits: [], feel: null, wearContexts: [], tailoring: null, note: null, call: null }),
           call: next,
         },
       };
@@ -658,7 +663,7 @@ export function LedgerTab({
 
   // ---- the masthead's aside ---------------------------------------------
   const headNote = reassessing
-    ? 'Beau is re-reading your ledger'
+    ? 'Beau is re-reading your rail'
     : corrections > 0
       ? `${capWord(numberWord(corrections))} ${corrections === 1 ? 'correction' : 'corrections'} made ${MIDDOT} Beau is reading them`
       : model.total === 0
@@ -671,7 +676,7 @@ export function LedgerTab({
   const closePieceSheet = () => setOpenPieceId(null);
   const trailSegs: CrumbSegment[] = [
     { label: 'Ethaion' },
-    openPiece ? { label: 'The Ledger', onClick: closePieceSheet } : { label: 'The Ledger' },
+    openPiece ? { label: 'The Rail', onClick: closePieceSheet } : { label: 'The Rail' },
     { label: q ? `“${q}”` : view === 'list' ? 'List' : 'Tiles', onClick: openPiece ? closePieceSheet : undefined },
     ...(openPiece ? [{ label: openPiece.name }] : []),
   ];
@@ -679,7 +684,7 @@ export function LedgerTab({
   return (
     <div>
       <TabHeader
-        title="The Ledger"
+        title="The Rail"
         standfirst={'Everything you own, by category \u2014 open a piece to correct Beau.'}
         aside={
           <>
@@ -698,7 +703,7 @@ export function LedgerTab({
         <CrumbPublisher
           segs={trailSegs}
           onBack={openPiece ? closePieceSheet : undefined}
-          backLabel={openPiece ? 'The Ledger' : undefined}
+          backLabel={openPiece ? 'The Rail' : undefined}
         />
 
         {/* LOG A PIECE — a link in one end or a photograph in the other. */}
@@ -713,7 +718,7 @@ export function LedgerTab({
         >
           <span style={mono(9, FAINT)}>Log a piece</span>
           <div
-            className="flex items-center flex-1"
+            className="flex items-center flex-1 hab-filter-field"
             style={{
               gap: '12px',
               border: '1px solid rgba(59,43,29,0.35)',
@@ -736,7 +741,7 @@ export function LedgerTab({
                 border: 'none',
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
-                fontSize: '14px',
+                fontSize: 'max(var(--eth-body, 0px), 14px)',
                 color: WALNUT,
                 outline: 'none',
               }}
@@ -745,9 +750,10 @@ export function LedgerTab({
           <button
             type="button"
             onClick={logIt}
+            className="hab-tap"
             style={{
               fontFamily: 'var(--space-font-heading)',
-              fontSize: '13px',
+              fontSize: 'max(var(--eth-serif, 0px), 13px)',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               padding: '8px 16px',
@@ -763,7 +769,7 @@ export function LedgerTab({
           <button
             type="button"
             onClick={() => openPhotoPicker.current?.()}
-            className="transition-colors hover:border-[#a8712c]"
+            className="transition-colors hover:border-[#a8712c] hab-tap"
             style={{
               ...mono(9.5, SECONDARY),
               border: '1px solid rgba(59,43,29,0.4)',
@@ -798,6 +804,7 @@ export function LedgerTab({
             <button
               type="button"
               onClick={() => setOpenIds(allOpen ? [] : model.categories.map((c) => c.id))}
+              className="hab-tap"
               style={{
                 ...mono(9, ACCENT_DEEP),
                 marginLeft: '8px',
@@ -811,11 +818,11 @@ export function LedgerTab({
               {allOpen ? 'Close every category' : 'Open every category'}
             </button>
             <span aria-live="polite" style={mono(9, FAINT)}>
-              {thinking && !reading ? 'Beau is reading your ledger\u2026' : ''}
+              {thinking && !reading ? 'Beau is reading your rail\u2026' : ''}
             </span>
           </div>
           <div
-            className="flex items-center"
+            className="flex items-center hab-filter-field"
             style={{
               gap: '12px',
               border: '1px solid rgba(59,43,29,0.3)',
@@ -835,7 +842,7 @@ export function LedgerTab({
                 border: 'none',
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
-                fontSize: '13.5px',
+                fontSize: 'max(var(--eth-body, 0px), 13.5px)',
                 color: WALNUT,
                 outline: 'none',
               }}
@@ -871,7 +878,7 @@ export function LedgerTab({
 
             {model.total === 0 ? (
               <p style={{ ...body(14.5, SECONDARY), margin: '22px 0 0', maxWidth: '74ch' }}>
-                Nothing on the ledger yet. Paste a link or photograph one piece and Beau reads the cloth, the cut and
+                Nothing on the rail yet. Paste a link or photograph one piece and Beau reads the cloth, the cut and
                 the temperature band off it — you correct him, and the rest of the app has something to work from.
               </p>
             ) : (

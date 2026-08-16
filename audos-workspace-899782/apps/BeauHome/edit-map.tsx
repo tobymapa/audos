@@ -186,27 +186,27 @@ function DetailPanel({
               onClick={() =>
                 openInBeausPicks({ categoryId: cell.categoryId, subCategory: cell.subCategory })
               }
-              className="transition-colors hover:bg-[#3b2b1d]"
+              className="transition-colors hover:bg-[#3b2b1d] hab-tap"
               style={{
                 background: WALNUT,
                 color: '#f6f0e5',
                 border: `1px solid ${WALNUT}`,
                 padding: '9px 18px',
                 fontFamily: 'var(--space-font-heading)',
-                fontSize: '13px',
+                fontSize: 'max(var(--eth-serif, 0px), 13px)',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 textAlign: 'left',
               }}
             >
-              {cell.subCategory ? `Beau\u2019s picks \u00b7 ${cell.subCategory}` : 'Open The Hunt'}
+              {cell.subCategory ? `Beau\u2019s picks \u00b7 ${cell.subCategory}` : 'Open The Search'}
             </button>
             {cell.typeId && (
               <button
                 type="button"
                 onClick={() => openInTheIndex({ typeId: cell.typeId as string })}
                 title={`Open this in The Index`}
-                className="transition-colors hover:border-[#a8712c]"
+                className="transition-colors hover:border-[#a8712c] hab-tap"
                 style={{
                   ...mono(9, SECONDARY),
                   border: '1px solid rgba(59,43,29,0.35)',
@@ -219,7 +219,7 @@ function DetailPanel({
               </button>
             )}
             <span style={mono(9, '#856c51')}>
-              {isGap ? 'Beau\u2019s picks, ranked, waiting in the Hunt' : categoryNote}
+              {isGap ? 'Beau\u2019s picks, ranked, waiting in the Search' : categoryNote}
             </span>
           </div>
         </div>
@@ -278,7 +278,16 @@ export function EditRuler({
   ownedByCategory: Record<string, number>;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const columns = `186px repeat(${ruler.bands.length}, minmax(0, 1fr))`;
+  // A matrix is the one layout that cannot become a stack — nine columns of
+  // categories against temperature bands only mean anything side by side. On a
+  // phone it therefore keeps scrolling sideways, but three things make that
+  // readable rather than a guess: the label column narrows (--eth-map-label),
+  // the whole grid asks for less width so more bands are on screen at once
+  // (--eth-map-min), and each row's own label is pinned to the left edge
+  // (hab-map-rowhead) so the reader can always see which category the cell
+  // under their thumb belongs to. All three variables are unset on a desktop,
+  // where the fallbacks are the values this map has always used.
+  const columns = `var(--eth-map-label, 186px) repeat(${ruler.bands.length}, minmax(0, 1fr))`;
   const openCell =
     ruler.rows.flatMap((r) => r.cells).find((c) => c.key === selected && c.state !== 'na') || null;
   const openRow = openCell ? ruler.rows.find((r) => r.id === openCell.categoryId) || null : null;
@@ -286,7 +295,7 @@ export function EditRuler({
   return (
     <div>
       <div className="overflow-x-auto">
-        <div style={{ minWidth: '860px' }}>
+        <div style={{ minWidth: 'var(--eth-map-min, 860px)' }}>
           <div
             style={{
               display: 'grid',
@@ -295,7 +304,10 @@ export function EditRuler({
               background: PAPER,
             }}
           >
-            <div style={{ ...mono(9, FAINT), padding: '11px 12px', borderBottom: `1px solid ${INK}` }}>
+            <div
+              className="hab-map-rowhead"
+              style={{ ...mono(9, FAINT), padding: '11px 12px', borderBottom: `1px solid ${INK}`, background: PAPER }}
+            >
               Category · band
             </div>
             {ruler.bands.map((band) => (
@@ -326,9 +338,11 @@ export function EditRuler({
             {ruler.rows.map((row) => (
               <div key={row.id} style={{ display: 'contents' }}>
                 <div
+                  className="hab-map-rowhead"
                   style={{
                     padding: '13px 12px',
                     borderBottom: CELL_RULE,
+                    background: PAPER,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '3px',
@@ -398,7 +412,7 @@ export function EditRuler({
 
           {/* The year itself, drawn: each band as wide as the days it holds. */}
           {ruler.hasDays && (
-            <div style={{ display: 'grid', gridTemplateColumns: '186px minmax(0,1fr)', marginTop: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'var(--eth-map-label, 186px) minmax(0,1fr)', marginTop: '14px' }}>
               <div style={{ ...mono(9, FAINT), paddingTop: '4px' }}>Days of your year</div>
               <div>
                 <div style={{ display: 'flex', height: '26px', border: '1px solid rgba(59,43,29,0.3)' }}>

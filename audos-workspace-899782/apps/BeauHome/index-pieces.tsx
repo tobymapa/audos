@@ -230,14 +230,25 @@ function TypeRow({ type, ownedCount, unit }: { type: GarmentType; ownedCount: nu
   );
 }
 
-/** The degree header the bars hang from — sticky, mirroring the row grid. */
+/** The degree header the bars hang from — sticky, mirroring the row grid.
+ * The two flanking columns carry a compact label each (founder's fix,
+ * August 2026): the numbers under the temperature marks were reading as
+ * unexplained figures — the small · n after a piece's name is HOW MANY YOU
+ * OWN, and the figures at the right end of each row are that type's WEAR
+ * RANGE (the temperatures its bar spans). Same 20px header row — no extra
+ * vertical space. */
 function TrackHeader({ unit }: { unit: TempUnit }) {
   return (
     <div
       className={`${ROW_GRID} items-end`}
       style={{ gap: '0 14px', position: 'sticky', top: 0, zIndex: 3, background: 'var(--space-surface-page, #efe7d9)', paddingTop: '4px' }}
     >
-      <span aria-hidden style={{ borderBottom: `1px solid ${RULE}`, height: '20px' }} />
+      <span
+        style={{ ...mono(7.5, FAINT), borderBottom: `1px solid ${RULE}`, height: '20px', display: 'flex', alignItems: 'flex-end', paddingBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden' }}
+        title="The garment type — the small · n after a name is how many of it you own"
+      >
+        Piece · n = you own
+      </span>
       <div aria-hidden style={{ position: 'relative', height: '20px', borderBottom: `1px solid ${RULE}` }}>
         {marksFor(unit).map(({ atC, label }) => (
           <span
@@ -255,7 +266,12 @@ function TrackHeader({ unit }: { unit: TempUnit }) {
           </span>
         ))}
       </div>
-      <span aria-hidden style={{ borderBottom: `1px solid ${RULE}`, height: '20px' }} />
+      <span
+        style={{ ...mono(7.5, FAINT), borderBottom: `1px solid ${RULE}`, height: '20px', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: '3px', whiteSpace: 'nowrap' }}
+        title="The temperatures this piece dresses — the span its bar covers on the track above"
+      >
+        Wear range
+      </span>
     </div>
   );
 }

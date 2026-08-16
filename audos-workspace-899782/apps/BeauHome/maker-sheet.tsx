@@ -114,7 +114,7 @@ function parseJson(raw: string | null): any {
 }
 
 function fallbackNote(name: string, profile: BrandProfile | null, ownsIt: boolean): string {
-  if (ownsIt) return `Already proven on your ledger — you know how ${name} fits you, which is worth more than any review.`;
+  if (ownsIt) return `Already proven on your rail — you know how ${name} fits you, which is worth more than any review.`;
   if (!profile) return `Not fully on file yet — Beau adds the dossier as he learns the house.`;
   const price = PRICE_BAND_LABELS[profile.priceBand] || '';
   const make = profile.construction && profile.construction !== '—' ? profile.construction.toLowerCase() : 'honest make';
@@ -408,7 +408,7 @@ export function MakerSheetHost({
           <div className="grid grid-cols-2" style={{ gap: '0 18px' }}>
             <DataCell label="Runs it cuts">{runsItCuts}</DataCell>
             <DataCell label="Price, new">{priceNew}</DataCell>
-            <DataCell label="Your ledger">{yourLedger}</DataCell>
+            <DataCell label="Your rail">{yourLedger}</DataCell>
             <DataCell label="Stocked">{stocked}</DataCell>
           </div>
 
@@ -455,11 +455,11 @@ export function MakerSheetHost({
             <button
               type="button"
               onClick={sendToHunt}
-              title="Hand this maker to The Hunt — Ask Beau opens with the brief filled in"
+              title="Hand this maker to The Search — Ask Beau opens with the brief filled in"
               className="hover:opacity-90 transition-opacity"
               style={{ ...mono(9, '#f6f0e5'), background: WALNUT, border: `1px solid ${WALNUT}`, padding: '12px 18px', whiteSpace: 'nowrap' }}
             >
-              Send to the Hunt
+              Send to the Search
             </button>
             <button
               type="button"

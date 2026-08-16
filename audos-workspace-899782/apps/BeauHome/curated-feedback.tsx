@@ -354,7 +354,7 @@ export function CuratedFeedbackSheet({
           />
           <LiveTalkButton
             disabled={busy}
-            instructions={`The customer just pushed back on one of Beau's recommendations on The Rail: the ${card.item.brand} ${card.item.name} (${card.item.colors.join('/')}, ${card.item.materialNote}). Help them articulate what they'd prefer instead \u2014 colour, formality, silhouette \u2014 and suggest they type the conclusion into the feedback note.`}
+            instructions={`The customer just pushed back on one of Beau's recommendations: the ${card.item.brand} ${card.item.name} (${card.item.colors.join('/')}, ${card.item.materialNote}). Help them articulate what they'd prefer instead \u2014 colour, formality, silhouette \u2014 and suggest they type the conclusion into the feedback note.`}
           />
           <div className="flex-1" />
           <button

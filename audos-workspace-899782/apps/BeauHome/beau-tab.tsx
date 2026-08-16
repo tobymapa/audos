@@ -86,7 +86,7 @@ function ViewChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="transition-colors hover:border-[#a8712c]"
+      className="transition-colors hover:border-[#a8712c] hab-tap"
       style={{
         ...mono(9.5, active ? WALNUT : SECONDARY),
         border: `1px solid ${active ? ACCENT : 'rgba(59,43,29,0.28)'}`,
@@ -291,7 +291,7 @@ export function BeauTab(props: {
     {
       label: 'Open gaps',
       value: String(gaps.length),
-      note: 'Each one has Beau\u2019s picks waiting in The Hunt.',
+      note: 'Each one has Beau\u2019s picks waiting in The Search.',
       fg: WALNUT,
     },
   ];
@@ -375,7 +375,7 @@ export function BeauTab(props: {
 
         {pieces.length === 0 ? (
           <p style={{ ...body(14.5, SECONDARY), margin: 0, maxWidth: '70ch' }}>
-            Log your first piece on The Ledger and this page fills in — every day of your year against what you own,
+            Log your first piece on The Rail and this page fills in — every day of your year against what you own,
             band by band, with the gaps named in the order Beau would close them.
           </p>
         ) : (

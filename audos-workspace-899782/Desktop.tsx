@@ -924,6 +924,18 @@ export default function SpaceDesktop({
     return () => window.removeEventListener('closeApp', handleCloseApp as EventListener);
   }, []);
 
+  // Close ONLY the chat overlay (never a toggle) — used by in-chat deep links
+  // like the Score-a-piece result's “View in Your Calls”, which needs the page
+  // behind the drawer to come forward whatever state the drawer was in.
+  useEffect(() => {
+    const handleCloseAgentOverlay = () => {
+      setOverlayView(null);
+      setMobileView('panel');
+    };
+    window.addEventListener('ethaion:close-agent-overlay', handleCloseAgentOverlay);
+    return () => window.removeEventListener('ethaion:close-agent-overlay', handleCloseAgentOverlay);
+  }, []);
+
   // Keyboard shortcut: Cmd+M (Mac) / Ctrl+M (Windows) to toggle Memory panel
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1274,15 +1286,13 @@ export default function SpaceDesktop({
               onClick={toggleAgentView}
               className="flex items-center gap-1.5 px-3 sm:px-4 min-h-[42px] rounded text-[13px] font-medium flex-shrink-0 bg-transparent text-[var(--color-accent-700,#7c4a17)] border border-[var(--color-accent,#a8712c)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-all"
               title="Talk to Beau — tap again to come back"
-              aria-label="Ask Beau"
+              aria-label="Beau"
               data-testid="button-open-assistant"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-              {/* Narrow viewports drop the verb so the right-hand controls stay
-                  slim enough for a truly centred wordmark to clear them. The
-                  flex gap already separates the words — a trailing &nbsp; here
-                  used to read as a DOUBLE space between ASK and BEAU. */}
-              <span className="hidden sm:inline">Ask</span>Beau
+              {/* The button says just BEAU (founder's rename, August 2026) —
+                  the old ASK BEAU verb is gone everywhere. */}
+              Beau
             </button>
             {!isBuilderView && (
               <button
@@ -1343,7 +1353,7 @@ export default function SpaceDesktop({
           data-testid="button-panel-beau"
         >
           <MessageCircle className="w-3.5 h-3.5" />
-          Ask Beau
+          Beau
         </button>
         {!isBuilderView && (
           <button
@@ -1444,7 +1454,7 @@ export default function SpaceDesktop({
           Lora (400/500 + italic 400) for body. Never bold: 600 exists only
           for rare small-caps emphasis; headings cap at 500. */}
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Lora:ital,wght@0,400;0,500;1,400&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;1,400&display=swap"
         rel="stylesheet"
       />
       {/* Beau chat slide-in: the conversation eases in from the left instead
@@ -1564,6 +1574,194 @@ export default function SpaceDesktop({
            than tab by tab, so a new tab inherits it too. */
         @media (max-width: 640px){
           .px-6{padding-left:16px!important;padding-right:16px!important}
+        }
+
+        /* ======================================================================
+           MOBILE TYPE FLOOR (phone legibility pass)
+
+           The tabs were set for a desktop reading distance: working labels at
+           9-11px, secondary copy at 12px, body at 13px. On a phone held at
+           arm's length those are too small to read comfortably, so this block
+           establishes THREE reading floors for phone widths and nothing else.
+
+           Two kinds of type read them:
+
+           1. Tailwind size utilities (text-xs, text-[11px], ...) are lifted
+              directly by the rules below.
+           2. Inline fontSize -- which is how most of the app sets type, and
+              which no stylesheet can raise -- is written as
+              max(var(--eth-body, 0px), 13px). The variable is 0px above the
+              breakpoint, so the size the call site asked for is used exactly
+              as written and the desktop layout cannot move; inside the query
+              it becomes the floor.
+
+           Editing a floor here therefore re-scales every tab at once, and any
+           new screen inherits it. The tiers are deliberately coarse so the
+           hierarchy survives: micro labels stay smaller than secondary copy,
+           which stays smaller than body.
+           ====================================================================== */
+        :root{--eth-micro:0px;--eth-label:0px;--eth-body:0px;--eth-serif:0px;}
+        @media (max-width: 639.98px){
+          :root{
+            /* SECOND PHONE PASS (founder's review). The first floors still
+               left working labels at 12px and secondary copy at 13.5px —
+               both under the ~14px asked for — so every tier moves up a
+               step and NOTHING on a phone is set below 13px. */
+            --eth-micro:13px;   /* captions, axis labels, counts (was 8-10.5px) */
+            --eth-label:14px;   /* field labels, chips, secondary copy (was 11-12.5px) */
+            --eth-body:15.5px;  /* body and card copy (was 13-14.5px) */
+            --eth-serif:18px;   /* Cormorant titles: a small x-height for its size */
+            /* Form furniture. A field whose height and type size are set
+               inline (which no stylesheet can raise) reads these instead:
+               --eth-field-h is the height a thumb can hit, and --eth-input is
+               the size below which iOS Safari zooms the page in on focus.
+               Both are undefined above the breakpoint, so var(--eth-field-h,
+               38px) resolves to the desktop value the call site wrote. */
+            --eth-field-h:46px;
+            --eth-input:16px;
+            /* The Edit's category-by-band matrix. It cannot stack (a matrix
+               only reads side by side), so instead it narrows: a shorter row
+               label and a smaller overall width put roughly twice as many
+               temperature bands on screen at once. */
+            --eth-map-label:104px;
+            --eth-map-min:540px;
+          }
+          /* ...and each row's label is pinned to the left edge, so the category
+             a cell belongs to is still readable once the matrix is scrolled. */
+          .hab-map-rowhead{position:sticky;left:0;z-index:2}
+          /* The Tailwind size utilities, mapped onto the same three tiers.
+             These select the utility class itself, so a responsive variant
+             (md:text-xs, which compiles to .md\:text-xs) is untouched. */
+          .text-\[7px\],.text-\[8px\],.text-\[8\.5px\],.text-\[9px\],.text-\[9\.5px\],.text-\[10px\],.text-\[10\.5px\]{font-size:13px!important}
+          .text-\[11px\],.text-\[11\.5px\],.text-\[12px\],.text-\[12\.5px\],.text-xs{font-size:14px!important}
+          .text-\[13px\],.text-\[13\.5px\],.text-\[14px\],.text-\[14\.5px\],.text-sm{font-size:15.5px!important}
+          /* House utilities from the sheet above. */
+          .hab-caption{font-size:13px}
+          .hab-kicker{font-size:13px;letter-spacing:0.13em}
+          .hab-standfirst{font-size:16px;line-height:1.6}
+          /* Every tab masthead holds its standfirst to one ellipsed line, which
+             is right for a 1180px column and wrong for a 375px one: about
+             seventy characters of copy became four words and a full stop. On a
+             phone the sentence wraps and is read in full. */
+          .hab-standfirst-line{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+          .hab-section-head{font-size:21px}
+          .hab-row-title{font-size:18px}
+          /* 16px is the size below which iOS Safari zooms the whole page in
+             when a field takes focus -- every text box gets it. */
+          input,textarea,select{font-size:16px}
+          .hab-input{min-height:46px;font-size:16px}
+          select{min-height:46px}
+        }
+
+        /* TOUCH TARGETS. .hab-tap marks a control a thumb has to hit -- a
+           filter chip, a dropdown, a sort toggle. It is inert on desktop (the
+           control keeps its compact editorial height) and grows to the 44px
+           minimum on a phone, so a dense desktop bar and a usable phone bar
+           are the same markup. .hab-filter-bar is its container: a wrapping
+           row on a phone rather than one wide line that overflows, and
+           .hab-filter-field is a control that needs the row to itself rather
+           than a third of one. */
+        @media (max-width: 639.98px){
+          /* !important because the control's own call site usually sets an
+             inline minHeight (34px, 36px, 42px) for the desktop row, and an
+             inline declaration beats a plain class rule — which left .hab-tap
+             marking a control as a touch target without ever making it one. */
+          .hab-tap{min-height:44px!important;display:inline-flex;align-items:center;justify-content:center}
+          .hab-filter-bar{display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:8px!important;width:100%}
+          .hab-filter-bar>*{min-width:0}
+          .hab-filter-field{flex:1 1 100%!important;min-height:46px!important}
+          /* A filter row's left-hand label takes the line above its chips
+             rather than a fixed 76px column of a 375px screen. */
+          .hab-tier-label{width:100%!important;padding-top:0!important;padding-bottom:1px}
+
+          /* A drop-down filter's tick list. Anchored under its own control it
+             is cut off by the right edge whenever the control has wrapped
+             there, so on a phone it becomes a bottom sheet across the full
+             width, with rows a thumb can hit and a visible tick. It stops
+             short of the bottom so the app's own tab bar stays reachable. */
+          .hab-filter-menu{
+            position:fixed!important;
+            top:auto!important;
+            bottom:calc(64px + env(safe-area-inset-bottom))!important;
+            left:12px!important;
+            right:12px!important;
+            min-width:0!important;
+            max-height:62vh!important;
+            padding:6px 0!important;
+          }
+          .hab-filter-menu>button{min-height:48px!important;padding-left:16px!important;padding-right:16px!important}
+          .hab-filter-menu>button>span:first-child{width:15px!important;height:15px!important}
+
+          /* A search box shares its line with the chips on a desktop bar; on a
+             phone it takes the line above them at full width. */
+          .hab-find-line{flex:1 1 100%!important;max-width:none!important;min-height:46px}
+
+          /* A bare glyph control (the favourite star, a row's dismiss cross)
+             is a ~13px hit area. It keeps its drawn size and gains an
+             invisible margin of tappable space around it, so the row's
+             baseline grid does not move. */
+          .hab-touch-icon{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+
+          /* EVERY control in a filter bar is a thumb target, whether or not
+             its call site remembered .hab-tap: the editorial chip is a 7px /
+             14px pill about 27px tall, which is half the 44px minimum. The
+             bar's own children are lifted here so a new filter row inherits
+             the behaviour instead of having to opt in. */
+          .hab-filter-bar button,.hab-filter-bar select,.hab-filter-bar input,.hab-filter-bar label{min-height:44px!important}
+          .hab-filter-bar select,.hab-filter-bar input[type="text"],.hab-filter-bar input[type="search"]{width:100%;min-width:0}
+          /* A chip row set to scroll sideways on a desktop wraps on a phone
+             instead, so no filter is hidden behind a gesture. */
+          .hab-chip-wrap{flex-wrap:wrap!important;overflow-x:visible!important}
+
+          /* CROWDING: the desktop stack rhythm (32-48px between blocks) reads
+             as dead air on a 375px screen and pushes the copy that matters
+             below the fold. The large steps are trimmed; the small ones that
+             hold a card together are left exactly as they are. */
+          .space-y-8>*+*{margin-top:20px!important}
+          .space-y-10>*+*{margin-top:24px!important}
+          .space-y-12>*+*{margin-top:26px!important}
+          .gap-8{gap:20px!important}
+          .gap-10{gap:22px!important}
+          .py-10{padding-top:24px!important;padding-bottom:24px!important}
+          .py-12{padding-top:26px!important;padding-bottom:26px!important}
+          .mt-12{margin-top:26px!important}
+          .mb-12{margin-bottom:26px!important}
+
+          /* A WIDE TABLE, STACKED. A table with six columns and a several
+             hundred pixel minimum can only scroll sideways on a phone, which
+             hides half of every row behind a gesture. .hab-stack-table turns
+             each row into a card instead: the column heads go (a drop-down
+             beside the table carries the sort orders), every cell takes its own
+             line, and a cell that came from a named column announces itself
+             from its data-label so no value is left without its heading. */
+          .hab-stack-table{min-width:0!important;display:block}
+          .hab-stack-table thead{display:none}
+          .hab-stack-table tbody{display:block}
+          .hab-stack-table tr{
+            display:block;
+            padding:12px 12px 14px;
+            margin-bottom:10px;
+            border:1px solid var(--space-border-default);
+          }
+          .hab-stack-table td{
+            display:block;
+            width:auto!important;
+            max-width:none!important;
+            padding:6px 0 0 0!important;
+            border-bottom:none!important;
+            white-space:normal!important;
+          }
+          .hab-stack-table tr>td:first-child{padding-top:0!important}
+          .hab-stack-table td[data-label]::before{
+            content:attr(data-label);
+            display:block;
+            margin-bottom:2px;
+            font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+            font-size:11px;
+            letter-spacing:0.07em;
+            text-transform:uppercase;
+            color:var(--space-text-muted);
+          }
         }
       `}</style>
 
@@ -1811,40 +2009,45 @@ export default function SpaceDesktop({
                 IS the main surface and needs no overlay. */}
             {activePanelId && (
               <aside
-                className={`fixed z-[70] flex flex-col bg-[var(--space-surface-card)] transition-transform duration-300 ease-out max-md:inset-x-0 max-md:bottom-0 max-md:h-[94dvh] max-md:border-t max-md:border-[var(--space-border-default)] md:inset-y-0 md:right-0 md:w-[420px] md:min-w-[380px] md:max-w-[420px] md:border-l md:border-[var(--space-border-default)] ${
+                className={`fixed z-[70] flex flex-col bg-[var(--space-surface-card)] transition-transform duration-300 ease-out max-md:inset-x-0 max-md:bottom-0 max-md:h-[94dvh] max-md:border-t max-md:border-[#3b2b1d] md:inset-y-0 md:right-0 md:w-[420px] md:min-w-[380px] md:max-w-[420px] md:border-l md:border-[#3b2b1d] ${
                   overlayView === 'chat'
-                    ? 'max-md:translate-y-0 md:translate-x-0 shadow-[-12px_0_44px_rgba(0,0,0,0.16)]'
+                    ? 'max-md:translate-y-0 md:translate-x-0 shadow-[-10px_0_26px_rgba(36,26,18,0.12)]'
                     : 'max-md:translate-y-full md:translate-x-full'
                 }`}
                 aria-hidden={overlayView !== 'chat'}
                 data-testid="overlay-chat"
                 style={beauChatRoom}
               >
-                {/* The panel header matches the app's tab headers: the name in
-                    the display serif on paper, over a hairline rule. */}
-                <div className="flex items-center justify-between px-4 min-h-[52px] flex-shrink-0 border-b border-[var(--space-border-default)] bg-[var(--space-surface-card)]">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <MessageCircle className="w-4 h-4 text-[var(--space-text-brand)]" />
-                    <span
-                      className="truncate text-[var(--space-text-primary)]"
-                      style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', fontWeight: 400, lineHeight: 1.1 }}
-                    >
-                      {agentDisplayName}
-                    </span>
+                {/* The drawer's title bar (founder's reference, August 2026):
+                    a dark-walnut ground that seats the drawer over the page —
+                    the speech-bubble mark, the name in the display serif in
+                    cream, and CLOSE as a small-caps word, not an icon. New
+                    chat / conversation management live inside the
+                    BeauConversations list — this bar only closes. */}
+                <div
+                  className="flex items-center flex-shrink-0"
+                  style={{ gap: '9px', padding: '9px 20px', background: '#2a1d14', minHeight: '35px' }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{ width: '12px', height: '12px', border: '1px solid #c99a58', borderRadius: '50% 50% 50% 2px', flexShrink: 0 }}
+                  />
+                  <span
+                    className="flex-1 truncate"
+                    style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', fontWeight: 400, lineHeight: 1, letterSpacing: '0.02em', color: '#f2e8d8' }}
+                  >
+                    {agentDisplayName}
                   </span>
-                  <span className="flex items-center gap-0.5 flex-shrink-0">
-                    {/* New chat / conversation management live inside the
-                        BeauConversations list — the overlay chrome only closes. */}
-                    <button
-                      onClick={() => setOverlayView(null)}
-                      className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--space-surface-muted)] transition-colors text-[var(--space-text-secondary)]"
-                      title="Close"
-                      aria-label="Close the conversation"
-                      data-testid="button-overlay-chat-close"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </span>
+                  <button
+                    onClick={() => setOverlayView(null)}
+                    className="flex-shrink-0 hover:opacity-80 transition-opacity"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'max(var(--eth-micro, 0px), 8.5px)', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a8916f', background: 'transparent', border: 'none', padding: '8px 0 8px 12px', cursor: 'pointer', minHeight: 'max(var(--eth-field-h, 0px), 35px)' }}
+                    title="Close"
+                    aria-label="Close the conversation"
+                    data-testid="button-overlay-chat-close"
+                  >
+                    Close
+                  </button>
                 </div>
                 <div className="flex-1 overflow-hidden bg-[var(--space-surface-card)]">
                   {!isBuilderView && activePanelId ? customerChatElement : null}

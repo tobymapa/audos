@@ -330,7 +330,7 @@ export default function MakerScout() {
     <div ref={resultRef} className="space-y-5 transition-opacity duration-500">
       {/* Brand hero */}
       <div className={`${tw.card.default} p-0 overflow-hidden`}>
-        <div className="relative px-6 pt-6 pb-5 border-b border-[var(--space-border-default)]">
+        <div className="relative px-5 sm:px-6 pt-6 pb-5 border-b border-[var(--space-border-default)]">
           <div
             className="absolute inset-0 opacity-[0.04]"
             style={{
@@ -378,7 +378,7 @@ export default function MakerScout() {
           )}
         </div>
 
-        <div className="px-6 py-5">
+        <div className="px-5 sm:px-6 py-5">
           <p className={`${typography.size.sm} ${typography.color.secondary} leading-relaxed`}>
             {rec.whyMatch}
           </p>
@@ -425,12 +425,15 @@ export default function MakerScout() {
           </h4>
         </div>
         <dl className="divide-y divide-[var(--space-border-default)]">
+          {/* Label and value sat on one line, which on a phone squeezed a
+              specification like "13oz Japanese selvedge, one-wash" into a
+              ragged right-hand column. They stack below sm. */}
           {rec.materialSpecs.map((spec, i) => (
-            <div key={i} className="flex items-baseline justify-between gap-4 py-3 first:pt-0 last:pb-0">
-              <dt className={`${typography.size.xs} uppercase tracking-wide ${typography.color.muted} shrink-0`}>
+            <div key={i} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+              <dt className={`${typography.size.xs} uppercase tracking-wide ${typography.color.muted} sm:shrink-0`}>
                 {spec.label}
               </dt>
-              <dd className={`${typography.size.sm} ${typography.color.primary} text-right`}>
+              <dd className={`${typography.size.sm} ${typography.color.primary} sm:text-right`}>
                 {spec.value}
                 {spec.match && (
                   <span className={`ml-2 ${typography.size.xs} ${typography.color.brand}`}>✓ criteria met</span>
@@ -495,9 +498,13 @@ export default function MakerScout() {
   return (
     <div className="min-h-full flex flex-col w-full bg-transparent">
       {/* Editorial header strip */}
-      <div className="px-5 pt-4 pb-3 border-b border-[var(--space-border-default)]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+      {/* The heading and the Scout/History pair shared one row, which on a
+          375px screen left the standfirst about 180px to say a full sentence
+          in. Below sm they stack: heading and standfirst first, then the two
+          views as a full-width pair of 44px targets. */}
+      <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-[var(--space-border-default)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h2 className={`hab-section-head ${typography.color.primary}`}>
               Maker Scout
             </h2>
@@ -505,10 +512,10 @@ export default function MakerScout() {
               Log what you're looking for — we'll surface an obscure maker you couldn't find yourself.
             </p>
           </div>
-          <div className="flex gap-1 shrink-0">
+          <div className="flex gap-1 sm:shrink-0">
             <button
               onClick={() => setView('scout')}
-              className={`px-3 py-1.5 ${typography.size.sm} font-medium transition-all ${
+              className={`hab-tap flex-1 sm:flex-none px-3 py-1.5 ${typography.size.sm} font-medium transition-all ${
                 view === 'scout'
                   ? `${tw.button.primary}`
                   : `${tw.button.ghost} border border-[var(--space-border-default)]`
@@ -519,7 +526,7 @@ export default function MakerScout() {
             </button>
             <button
               onClick={() => setView('history')}
-              className={`px-3 py-1.5 ${typography.size.sm} font-medium transition-all ${
+              className={`hab-tap flex-1 sm:flex-none px-3 py-1.5 ${typography.size.sm} font-medium transition-all ${
                 view === 'history'
                   ? `${tw.button.primary}`
                   : `${tw.button.ghost} border border-[var(--space-border-default)]`
@@ -548,7 +555,7 @@ export default function MakerScout() {
             </button>
           </div>
         ) : view === 'history' ? (
-          <div className="p-5 max-w-2xl">
+          <div className="p-4 sm:p-5 max-w-2xl">
             {!requests?.length ? (
               <div className="text-center py-16">
                 <Search className={`w-10 h-10 mx-auto mb-3 ${tw.icon.muted}`} />
@@ -574,7 +581,7 @@ export default function MakerScout() {
                           setSelectedId(row.id);
                           setView('scout');
                         }}
-                        className={`w-full text-left ${tw.card.default} p-4 flex items-center gap-4 hover:border-[var(--space-brand-primary)]/50 transition-all group`}
+                        className={`w-full text-left ${tw.card.default} p-4 flex items-center gap-3 sm:gap-4 hover:border-[var(--space-brand-primary)]/50 transition-all group`}
                       >
                         <div className="flex-1 min-w-0">
                           <p className={`${typography.size.sm} ${typography.weight.medium} ${typography.color.primary} truncate`}>
@@ -585,7 +592,7 @@ export default function MakerScout() {
                           </p>
                         </div>
                         <span
-                          className={`${tw.badge.default} ${
+                          className={`${tw.badge.default} shrink-0 whitespace-nowrap ${
                             row.status === 'complete'
                               ? tw.badge.primary
                               : row.status === 'error'
@@ -604,7 +611,7 @@ export default function MakerScout() {
             )}
           </div>
         ) : (
-          <div className="p-5 grid lg:grid-cols-[minmax(280px,360px)_1fr] gap-6 max-w-5xl">
+          <div className="p-4 sm:p-5 grid lg:grid-cols-[minmax(280px,360px)_1fr] gap-5 sm:gap-6 max-w-5xl">
             {/* Scout form */}
             <div className="space-y-4">
               <div className={`${tw.card.default} p-5`}>
@@ -631,7 +638,7 @@ export default function MakerScout() {
                           key={s}
                           type="button"
                           onClick={() => setItemType(s)}
-                          className={`px-2 py-0.5 ${typography.size.xs} border border-[var(--space-border-default)] text-[var(--space-text-muted)] hover:border-[var(--space-brand-primary)] hover:text-[var(--space-text-primary)] transition-colors`}
+                          className={`hab-tap px-3 py-1 ${typography.size.xs} border border-[var(--space-border-default)] text-[var(--space-text-muted)] hover:border-[var(--space-brand-primary)] hover:text-[var(--space-text-primary)] transition-colors`}
                           disabled={scouting}
                         >
                           {s}
@@ -676,7 +683,7 @@ export default function MakerScout() {
                           onClick={() =>
                             setMaterialCriteria((prev) => (prev ? `${prev}, ${m}` : m))
                           }
-                          className={`px-2 py-0.5 ${typography.size.xs} border border-[var(--space-border-default)] ${typography.color.muted} hover:border-[var(--space-brand-highlight)] transition-colors`}
+                          className={`hab-tap px-3 py-1 ${typography.size.xs} border border-[var(--space-border-default)] ${typography.color.muted} hover:border-[var(--space-brand-highlight)] transition-colors`}
                           disabled={scouting}
                         >
                           + {m}
@@ -761,7 +768,7 @@ export default function MakerScout() {
                     </p>
                     <button
                       onClick={() => handleDelete(displayRow.id)}
-                      className={`p-1.5 ${tw.button.ghost} text-[var(--space-semantic-danger)] hover:bg-[var(--space-semantic-danger)]/10`}
+                      className={`hab-touch-icon p-1.5 ${tw.button.ghost} text-[var(--space-semantic-danger)] hover:bg-[var(--space-semantic-danger)]/10`}
                       aria-label="Delete scout"
                     >
                       <Trash2 className="w-4 h-4" />

@@ -78,7 +78,9 @@ export function huntCategory(id: string): HuntCategory | null {
 // ---------------------------------------------------------------------------
 
 export type HuntTag = 'saved' | 'favourite' | 'passed';
-export type HuntSource = 'picks' | 'ask';
+/** 'score' is the Ask Beau drawer's SCORE A PIECE mode — a structured
+ * Regret Risk assessment filed into Your Calls (August 2026). */
+export type HuntSource = 'picks' | 'ask' | 'score';
 
 export const HUNT_TAG_LABELS: Record<HuntTag, string> = {
   saved: 'Saved',
@@ -89,6 +91,7 @@ export const HUNT_TAG_LABELS: Record<HuntTag, string> = {
 export const HUNT_SOURCE_LABELS: Record<HuntSource, string> = {
   picks: "Beau's Picks",
   ask: 'Ask Beau',
+  score: "Beau's assessment",
 };
 
 /** The tag order the Your Calls table sorts by — a favourite outranks a
@@ -174,7 +177,7 @@ function callFromRow(row: CallRow): HuntCall | null {
     categoryId: row.category_id || null,
     subCategory: row.sub_category || null,
     tag: row.tag,
-    source: row.source === 'ask' ? 'ask' : 'picks',
+    source: row.source === 'ask' ? 'ask' : row.source === 'score' ? 'score' : 'picks',
     maker: row.maker || null,
     priceGuide: row.price_guide || null,
     note: row.note || null,

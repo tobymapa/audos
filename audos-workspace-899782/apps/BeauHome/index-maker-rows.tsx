@@ -239,7 +239,7 @@ export function MonoButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="transition-colors flex-shrink-0"
+      className="transition-colors flex-shrink-0 hab-tap"
       style={{
         ...mono(8.5, solid ? '#f6f0e5' : dim ? FAINTER : SECONDARY),
         background: solid ? WALNUT : 'transparent',
@@ -276,7 +276,7 @@ export function FilterMenu({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="transition-colors"
+        className="transition-colors hab-tap"
         style={{
           ...mono(8.5, held ? DEEP : SECONDARY),
           background: held ? 'rgba(168,113,44,0.12)' : 'transparent',
@@ -291,8 +291,15 @@ export function FilterMenu({
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} aria-hidden />
+          {/* On a phone hab-filter-menu re-anchors this list as a bottom sheet
+              across the full width: a 204px pane hung off a chip that has
+              wrapped to the right-hand edge of a 375px screen would be cut
+              off, and its 28px rows are below the touch minimum. Above the
+              breakpoint the class does nothing and the menu stays the compact
+              pane anchored under its own control. */}
           <div
             role="listbox"
+            className="hab-filter-menu"
             style={{
               position: 'absolute',
               top: 'calc(100% + 4px)',
@@ -351,7 +358,10 @@ export function FindLine({
   maxWidth?: string;
 }) {
   return (
-    <label className="flex items-center min-w-0 flex-1" style={{ gap: '12px', border: '1px solid ' + RULE, padding: '8px 12px', maxWidth }}>
+    <label
+      className="flex items-center min-w-0 flex-1 hab-find-line"
+      style={{ gap: '12px', border: '1px solid ' + RULE, padding: '8px 12px', maxWidth }}
+    >
       <span style={mono(8.5, FAINT)}>Find</span>
       <input
         type="text"
@@ -412,7 +422,7 @@ export function FavStar({ active, onToggle, brand }: { active: boolean; onToggle
       aria-pressed={active}
       aria-label={(active ? 'Unfavourite ' : 'Favourite ') + brand}
       title={active ? 'A favourite \u2014 tap to release' : 'Mark a favourite'}
-      className="transition-opacity hover:opacity-70"
+      className="transition-opacity hover:opacity-70 hab-touch-icon"
       style={{ background: 'transparent', padding: 0, fontSize: '13px', lineHeight: 1, color: active ? ACCENT_DEEP : FAINTER }}
     >
       {active ? '\u2605' : '\u2606'}
@@ -526,7 +536,7 @@ export function CompareSheet({
     { label: 'Beau\u2019s read', of: (e) => READ_LABELS[readOf(e)] },
     { label: 'Quality', of: (e) => (Number.isFinite(e.profile.qualityScore) && !isStubProfile(e.profile) ? e.profile.qualityScore + '/10' : '\u2014') },
     { label: 'Signature pieces', of: (e) => (e.profile.signaturePieces || []).slice(0, 3).join(MIDDOT) || '\u2014' },
-    { label: 'On your ledger', of: (e) => (ledger.has(e.profile.brand.toLowerCase()) ? 'Yes' : '\u2014') },
+    { label: 'On your rail', of: (e) => (ledger.has(e.profile.brand.toLowerCase()) ? 'Yes' : '\u2014') },
   ];
   return (
     <div>

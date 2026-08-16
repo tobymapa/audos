@@ -162,14 +162,15 @@ export function FittingContextBar({ right }: { right: React.ReactNode }) {
               aria-label="Your location"
               autoFocus
               disabled={busy}
-              className="px-2.5 min-h-[36px] focus:outline-none disabled:opacity-50"
-              style={{ ...body(13, INK), borderRadius: 0, border: `1px solid ${HAIRLINE}`, background: CANVAS, maxWidth: '220px' }}
+              className="px-2.5 min-h-[36px] max-sm:min-h-[46px] focus:outline-none disabled:opacity-50"
+              // A field under 16px makes iOS Safari zoom the page in on focus.
+              style={{ ...body(13, INK), fontSize: 'max(var(--eth-input, 0px), 13px)', borderRadius: 0, border: `1px solid ${HAIRLINE}`, background: CANVAS, maxWidth: '220px' }}
             />
             <button
               type="button"
               onClick={() => void applyCity()}
               disabled={busy}
-              className="min-h-[36px] px-2.5 inline-flex items-center gap-1.5 hover:underline disabled:opacity-50"
+              className="hab-tap min-h-[36px] px-2.5 inline-flex items-center gap-1.5 hover:underline disabled:opacity-50"
               style={{ ...label(8.5, ACCENT_DEEP, '0.1em'), background: 'transparent', border: 'none' }}
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
@@ -179,7 +180,7 @@ export function FittingContextBar({ right }: { right: React.ReactNode }) {
               type="button"
               onClick={() => void applyDetect()}
               disabled={busy}
-              className="min-h-[36px] px-2 inline-flex items-center gap-1 hover:underline disabled:opacity-50"
+              className="hab-tap min-h-[36px] px-2 inline-flex items-center gap-1 hover:underline disabled:opacity-50"
               style={{ ...label(8.5, MUTED, '0.1em'), background: 'transparent', border: 'none' }}
               title="Detect my location"
             >
@@ -194,7 +195,7 @@ export function FittingContextBar({ right }: { right: React.ReactNode }) {
               }}
               disabled={busy}
               aria-label="Close the location editor"
-              className="min-h-[36px] w-8 inline-flex items-center justify-center hover:opacity-70 disabled:opacity-50"
+              className="hab-touch-icon min-h-[36px] w-8 inline-flex items-center justify-center hover:opacity-70 disabled:opacity-50"
               style={{ color: MUTED, background: 'transparent', border: 'none' }}
             >
               <X className="w-3.5 h-3.5" />
@@ -277,7 +278,7 @@ export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; ac
             onClick={item.onSelect}
             aria-pressed={on}
             title={item.title}
-            className="transition-colors whitespace-nowrap"
+            className="transition-colors whitespace-nowrap hab-tap"
             style={{
               ...label(9.5, on ? '#f4eee3' : MUTED, '0.16em'),
               padding: '11px 19px',
@@ -402,13 +403,13 @@ export function SectionRule({
 export function HarmonyBars({ colors }: { colors: string[] }) {
   if (colors.length === 0) {
     return (
-      <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }} aria-hidden="true">
+      <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }} aria-hidden="true">
         <span style={{ flex: 1, height: '5px', borderRadius: '3px', background: 'rgba(59,43,29,0.12)' }} />
       </div>
     );
   }
   return (
-    <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }} aria-hidden="true">
+    <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }} aria-hidden="true">
       {colors.map((c, i) => (
         <span key={`${c}-${i}`} style={{ flex: 1, height: '5px', borderRadius: '3px', background: c }} />
       ))}
@@ -450,8 +451,10 @@ export function AvoidList({ notes }: { notes: string[] }) {
   );
 }
 
-/** One “Swap alternatives” row — the piece's own colour chip, its name, and
- * the one line saying why it is offered. */
+/** One “Swap alternatives” row — the piece's own colour chip and its name.
+ * Beau's one-line reasoning for WHY the swap works is revealed on hover (or
+ * keyboard focus) — the founder's hover treatment — and doubles as the
+ * row's tooltip for good measure. */
 export function SwapRow({
   swatch,
   name,
@@ -493,10 +496,13 @@ export function SwapRow({
       <span style={{ minWidth: 0 }}>
         {/* The piece's name — two sizes down from the board's own type, so
             the narrowed notes column reads as a margin note, not a heading. */}
-        <span className="block group-hover:underline" style={{ fontFamily: SERIF, fontSize: '14px', lineHeight: 1.3, color: WALNUT }}>
+        <span className="block group-hover:underline" style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 14px)', lineHeight: 1.3, color: WALNUT }}>
           {name}
         </span>
-        <span className="block" style={{ ...body(12.5, MUTED), marginTop: '2px' }}>
+        {/* Beau's reasoning — revealed on hover or focus on a desktop. A touch
+            screen has no hover, so on a phone it was unreachable: max-sm:block
+            shows it outright there. */}
+        <span className="hidden max-sm:block group-hover:block group-focus:block" style={{ ...body(12.5, MUTED), marginTop: '2px' }}>
           {why}
         </span>
       </span>
@@ -539,7 +545,7 @@ export function Shelf({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           title={open ? `Fold ${title}` : `Unfold ${title}`}
-          className="inline-flex items-center gap-2 text-left transition-opacity hover:opacity-70"
+          className="hab-tap inline-flex items-center gap-2 text-left transition-opacity hover:opacity-70"
           style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
         >
           <span aria-hidden="true" className="inline-flex self-center" style={{ color: ACCENT }}>

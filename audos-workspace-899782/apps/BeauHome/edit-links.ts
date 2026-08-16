@@ -27,6 +27,9 @@ export const HUNT_ASK_EVENT = 'ethaion:hunt-ask';
 /** The Index's MAKERS face, filtered to a set of maker names — the landing
  * after “Ask Beau to find makers” files its five new houses. */
 export const INDEX_OPEN_MAKERS_EVENT = 'ethaion:index-open-makers';
+/** The Search's YOUR CALLS face — the landing after “View in Your Calls”
+ * on a Score-a-piece result in the Ask Beau drawer. */
+export const HUNT_OPEN_CALLS_EVENT = 'ethaion:hunt-open-calls';
 
 export interface HuntTarget {
   /** An Index category id — 'shoes', 'outerwear'… */
@@ -53,6 +56,7 @@ let parkedHunt: HuntTarget | null = null;
 let parkedIndex: IndexTarget | null = null;
 let parkedAsk: string | null = null;
 let parkedIndexMakers: IndexMakersTarget | null = null;
+let parkedCalls = false;
 
 function goToTab(tab: string): void {
   window.dispatchEvent(new CustomEvent('ethaion:navigate', { detail: { tab } }));
@@ -115,6 +119,24 @@ export function openIndexMakers(target: IndexMakersTarget): void {
   window.setTimeout(() => {
     if (parkedIndexMakers === target) parkedIndexMakers = null;
   }, PARK_MS);
+}
+
+/** Open The Search's Your Calls face — dispatched AND parked exactly as the
+ * other deep links are, so a lazy Search tab still lands on it. */
+export function openYourCalls(): void {
+  parkedCalls = true;
+  goToTab('hunt');
+  window.dispatchEvent(new CustomEvent(HUNT_OPEN_CALLS_EVENT));
+  window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent(HUNT_OPEN_CALLS_EVENT));
+  }, 420);
+  window.setTimeout(() => {
+    parkedCalls = false;
+  }, PARK_MS);
+}
+
+export function peekCallsRequest(): boolean {
+  return parkedCalls;
 }
 
 export function peekIndexMakersTarget(): IndexMakersTarget | null {

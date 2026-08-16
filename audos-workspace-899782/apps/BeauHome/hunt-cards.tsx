@@ -24,6 +24,14 @@
  *     around it next time he draws.
  *   · REPLACE — Beau's Picks only: clears this card away and draws a
  *     different answer for the same category, leaving its siblings alone.
+ *   · WATCH — present wherever the surface passes a watch target: puts the
+ *     piece on the Watchlist so Beau re-reads its retailer page on every
+ *     open (watchlist-watch.tsx). It is a standing instruction, not an
+ *     opinion, so it sits alongside the calls rather than among them.
+ *   · WATCH BRAND — the same instruction one step wider, as a quiet text link
+ *     beside the eye: the MAKER goes on the Watchlist and Beau reads its new
+ *     arrivals instead of this one page. Shown only when the card names a
+ *     maker.
  * Tapping the tag a card already carries removes it — a call is never a
  * one-way door.
  */
@@ -64,6 +72,8 @@ import {
   type HuntTag,
   type HuntTaggable,
 } from './hunt-model';
+import { WatchBrandLink, WatchButton } from './watchlist-watch';
+import type { WatchTarget } from './watchlist-model';
 
 // ---------------------------------------------------------------------------
 // THE TAG STATE — one hook behind every card on the tab, so a piece saved in
@@ -321,13 +331,13 @@ function ActionButton({
       title={title}
       aria-label={title}
       aria-pressed={active}
-      className="transition-colors flex items-center gap-1.5 flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)]"
+      className="transition-colors flex items-center gap-1.5 flex-shrink-0 hover:bg-[rgba(168,113,44,0.06)] hab-tap"
       style={{
         ...mono(8.5, active ? ACCENT_DEEP : SECONDARY),
         background: active ? TINT : 'transparent',
         border: `1px solid ${active ? ACCENT_DEEP : HAIRLINE}`,
         padding: '8px 12px',
-        minHeight: '40px',
+        minHeight: 'max(var(--eth-field-h, 0px), 40px)',
         whiteSpace: 'nowrap',
         cursor: busy ? 'default' : 'pointer',
         opacity: busy ? 0.55 : 1,
@@ -348,10 +358,14 @@ export interface HuntCardActions {
   onReplace?: () => void;
   /** True while a tag write or a replacement draw is in flight. */
   busy?: boolean;
+  /** Present where the surface can name the piece to the Watchlist — a
+   * function when the card's photograph resolves after the first paint. */
+  watch?: WatchTarget | (() => WatchTarget);
 }
 
-/** Save · Favourite · Pass, and Replace where the surface has it. */
-export function HuntActionRow({ tag, onTag, onReplace, busy }: HuntCardActions) {
+/** Save · Favourite · Pass · Watch (· Watch brand), and Replace where the
+ * surface has it. */
+export function HuntActionRow({ tag, onTag, onReplace, busy, watch }: HuntCardActions) {
   return (
     <div className="flex items-center flex-wrap gap-1.5" style={{ marginTop: '15px' }}>
       <ActionButton
@@ -378,6 +392,8 @@ export function HuntActionRow({ tag, onTag, onReplace, busy }: HuntCardActions) 
         busy={busy}
         onClick={() => onTag('passed')}
       />
+      {watch && <WatchButton target={watch} />}
+      {watch && <WatchBrandLink target={watch} />}
       {onReplace && (
         <ActionButton
           label="Replace"
@@ -399,7 +415,9 @@ export function HuntActionRow({ tag, onTag, onReplace, busy }: HuntCardActions) 
 function CardNote({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <p className="flex gap-2.5" style={{ marginTop: '9px' }}>
-      <span style={{ ...mono(8, FAINT), flexShrink: 0, paddingTop: '3px', width: '52px' }}>{label}</span>
+      {/* A minimum, not a fixed width: at the phone type floor a label like
+          "Look for" is wider than 52px and was clipped by the old box. */}
+      <span style={{ ...mono(8, FAINT), flexShrink: 0, paddingTop: '3px', minWidth: '52px' }}>{label}</span>
       <span style={{ ...body(13, SECONDARY), lineHeight: 1.5, margin: 0 }}>{children}</span>
     </p>
   );
@@ -544,13 +562,13 @@ export function HuntButton({
       onClick={onClick}
       disabled={off}
       title={title}
-      className={`transition-colors inline-flex items-center gap-1.5 ${full ? 'w-full justify-center' : 'flex-shrink-0'}`}
+      className={`transition-colors inline-flex items-center gap-1.5 hab-tap ${full ? 'w-full justify-center' : 'flex-shrink-0'}`}
       style={{
         ...mono(9, solid ? ON_WALNUT : SECONDARY),
         background: solid ? WALNUT : 'transparent',
         border: `1px solid ${solid ? WALNUT : RULE}`,
         padding: '10px 15px',
-        minHeight: '42px',
+        minHeight: 'max(var(--eth-field-h, 0px), 42px)',
         whiteSpace: 'nowrap',
         cursor: off ? 'default' : 'pointer',
         opacity: off ? 0.55 : 1,

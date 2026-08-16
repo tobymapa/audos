@@ -103,6 +103,11 @@ export interface BoardPiece {
   category: string | null;
   /** Resolved thumbnail URL — '' while resolving / when none exists. */
   image: string;
+  /** The piece's ORIGINAL photograph (the wardrobe's normalized product
+   * shot) — the flat-lay's render fallback when the cutout is missing or
+   * broken, so a piece on the board always shows as clothes, never as a
+   * text label (founder's correction, August 2026). */
+  sourceImage?: string | null;
   /** false once ingestion has established that the only photography that
    * exists for this piece has a model in it (photo-enhance tier 2), or that
    * the cut itself did not pass verification. The flat-lay then holds it out
@@ -136,6 +141,7 @@ export function boardPieceFrom(piece: FittingPiece): BoardPiece {
     brand: piece.brand || null,
     category: piece.category || null,
     image: (piece.garmentImageUrl || '').trim(),
+    sourceImage: (piece.garmentImageUrl || '').trim() || null,
     notOwned: !piece.key.startsWith('owned-'),
   };
 }
@@ -183,7 +189,7 @@ function BoardCard({
         ) : (
           <span
             className="absolute inset-0 flex items-center justify-center text-center px-1 text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: '11px', lineHeight: 1.4 }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 11px)', lineHeight: 1.4 }}
           >
             {BOARD_SLOT_LABELS[piece.slot]}
           </span>
@@ -191,12 +197,12 @@ function BoardCard({
       </span>
       <span
         className="block mt-1 text-[var(--color-text,#241a12)] leading-tight break-words"
-        style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', fontWeight: 500 }}
+        style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', fontWeight: 500 }}
       >
         {piece.name}
       </span>
       {piece.brand && (
-        <span className="block leading-tight" style={{ fontFamily: 'var(--space-font-family)', fontSize: '10px', color: 'var(--color-accent,#a8712c)' }}>
+        <span className="block leading-tight" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-micro, 0px), 10px)', color: 'var(--color-accent,#a8712c)' }}>
           {piece.brand}
         </span>
       )}
@@ -207,7 +213,7 @@ function BoardCard({
           aria-label={`Remove ${piece.name} from the board`}
           title="Remove from the board"
           className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[var(--color-paper,#fbf8f1)] border border-[var(--color-divider,rgba(59,43,29,0.18))] text-[var(--color-neutral-600,#856c51)] hover:text-[var(--color-accent-700,#7c4a17)] rounded-full"
-          style={{ fontSize: '12px', lineHeight: 1 }}
+          style={{ fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1 }}
         >
           ×
         </button>
@@ -457,6 +463,7 @@ export function StyledOutfitBoard({
   onRemove,
   seed = 'ethaion',
   canvasMaxWidth = '420px',
+  canvasMaxHeight,
   quiet = false,
 }: {
   /** Every selected piece, in the order they were added. */
@@ -472,6 +479,11 @@ export function StyledOutfitBoard({
    * so this is what sizes the garments themselves — The Fitting's board is
    * the main event and asks for a large one. */
   canvasMaxWidth?: string;
+  /** HARD HEIGHT CAP (founder's correction, August 2026): the canvas box may
+   * never draw taller than this — The Fitting sets it so the band ends right
+   * below the day rail's last day. The stage scales the whole composition
+   * down to fit inside the cap. */
+  canvasMaxHeight?: string;
   /** Stable per-outfit seed — the SAME outfit always lays out identically;
    * it changes only when the outfit itself changes context (a new day, a
    * different saved outfit, a fresh manual board). */
@@ -485,11 +497,13 @@ export function StyledOutfitBoard({
   if (pieces.length === 0) {
     return (
       <div className="relative w-full" style={{ background: 'transparent' }}>
-        {/* The empty state holds the same SQUARE footprint the populated
-            board renders at, so nothing jumps when the first piece lands.
-            No field, no frame — the Fitting board is transparent space
-            (founder's correction). */}
-        <div className="relative w-full mx-auto" style={{ maxWidth: canvasMaxWidth, aspectRatio: '1 / 1' }}>
+        {/* The empty state holds a SHORT wide footprint (3/1 — founder's
+            height fix, August 2026): with no clothes on it there is nothing
+            to hold room for, so the invitation strip stays shallow even
+            though the populated canvas may draw much taller (its own
+            canvasMaxHeight cap). No field, no frame — the Fitting board is
+            transparent space (founder's correction). */}
+        <div className="relative w-full mx-auto" style={{ maxWidth: canvasMaxWidth, aspectRatio: '3 / 1', maxHeight: canvasMaxHeight }}>
           {!quiet && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 sm:px-8">
               <span className="block w-12 h-[3px] bg-[var(--color-neutral-300,#dccdb2)]" aria-hidden="true" />
@@ -520,7 +534,34 @@ export function StyledOutfitBoard({
   // #EDE8DF square survives ONLY on the "Beau · Today" card on The Ledger,
   // where it sits on the dark walnut slab and needs the visual frame.
   // Held-out pieces are still named beneath the board (`showHeldOut`).
+  // THE COLUMN STAGE (founder's correction, August 2026 — replacing the
+  // short-lived wide stage): the outfit reads top-to-bottom exactly as worn
+  // — headwear right under the top edge, clear air for the invisible head,
+  // then the tops, the bottoms tucked under their hem, and the shoes at the
+  // foot (the classic portrait zone composition, composeFlatLayBoard). The
+  // Fitting caps the canvas height so the whole column fits the band, and
+  // the pieces keep their TRUE category proportions on it (the
+  // garment-proportions.ts shares: tops 0.30, trousers 0.42, shoes 0.10
+  // of the column) — NO fit-to-content inflation: with the height cap in
+  // charge, the old rebase blew a sparse board's pieces up past their
+  // real-world proportions (founder's correction: “too big on the canvas”).
   const aspect = 480 / 600;
+  // FULL FIGURE SCALE (founder's correction, August 2026): the earlier 70%
+  // and 49% shrinks were judged against a broken Safari layout that spilled
+  // pieces out of the canvas; once the geometry was fixed, 49% read tiny —
+  // a thumbnail outfit lost in the field. At 1 the column uses its designed
+  // category proportions in full: the figure fills the capped canvas top to
+  // bottom — reserved head air, tops, the trousers' reserved band, shoes at
+  // the foot. This constant remains the ONE dial for piece size on this
+  // canvas alone.
+  const FITTING_PIECE_SCALE = 1.155; // +10% on the 1.05 pass (founder, August 2026)
+  // PER-ZONE SHIFTS (founder's corrections, August 2026): everything but
+  // the shoes came back UP half a centimetre (14% → 7% of the 260px cap),
+  // while the shoes' designated area went DOWN a further centimetre
+  // (14% → 28%) — the shoes may settle into the slack band just below the
+  // stage floor, which the frameless canvas no longer clips.
+  const FITTING_PIECE_OFFSET_Y = 7;
+  const FITTING_FEET_OFFSET_Y = 28;
 
   return (
     <div className="relative w-full" style={{ background: 'transparent' }}>
@@ -538,9 +579,14 @@ export function StyledOutfitBoard({
           aspect={aspect}
           maxWidth={canvasMaxWidth}
           trayMaxWidth={canvasMaxWidth}
+          trayMaxHeight={canvasMaxHeight}
           panel="paper"
           variant="tray"
           ground="transparent"
+          canvasAspect="480 / 600"
+          pieceScale={FITTING_PIECE_SCALE}
+          pieceOffsetY={FITTING_PIECE_OFFSET_Y}
+          feetOffsetY={FITTING_FEET_OFFSET_Y}
           showHeldOut
           onRemove={onRemove}
           className={`today-canvas--center${canvasMaxWidth === '420px' ? '' : ' today-canvas--flush'}`}
@@ -643,20 +689,20 @@ export function SavedOutfitsSection({
           aria-label="Outfit name"
           disabled={boardPieces.length === 0}
           className="flex-1 min-w-[180px] px-3 min-h-[44px] border border-[var(--color-divider,rgba(59,43,29,0.18))] bg-[var(--color-paper,#fbf8f1)] text-[var(--color-text,#241a12)] focus:outline-none focus:border-[var(--color-accent,#a8712c)] disabled:opacity-50"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', borderRadius: 0 }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', borderRadius: 0 }}
         />
         <button
           type="button"
           onClick={() => void save()}
           disabled={saving || boardPieces.length === 0}
           className="px-4 min-h-[44px] inline-flex items-center gap-1.5 border border-[var(--color-accent,#a8712c)] text-[var(--color-accent-700,#7c4a17)] hover:bg-[var(--color-accent-100,#fbf1de)] transition-colors disabled:opacity-40"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', borderRadius: 0 }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', borderRadius: 0 }}
         >
           {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           Save this outfit
         </button>
         {savedFlash && (
-          <span style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', color: 'var(--color-accent-700,#7c4a17)' }}>
+          <span style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-accent-700,#7c4a17)' }}>
             Saved — it’s on the shelf below.
           </span>
         )}
@@ -666,7 +712,7 @@ export function SavedOutfitsSection({
       <section aria-label="Saved outfits" className="pt-6">
         <p
           className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-divider,rgba(59,43,29,0.18))]"
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', letterSpacing: '0.16em' }}
+          style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 13px)', letterSpacing: '0.16em' }}
         >
           Saved outfits
         </p>
@@ -685,7 +731,7 @@ export function SavedOutfitsSection({
                     <span className="block truncate" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 500, color: 'var(--color-text,#241a12)' }}>
                       {row.name}
                     </span>
-                    <span className="block truncate group-hover:underline" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', color: 'var(--color-neutral-600,#856c51)' }}>
+                    <span className="block truncate group-hover:underline" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: 'var(--color-neutral-600,#856c51)' }}>
                       {pieces.length > 0 ? pieces.map((p) => p.name).join(' · ') : 'Empty board'}
                     </span>
                   </button>
@@ -696,7 +742,7 @@ export function SavedOutfitsSection({
                     aria-label={`Delete the saved outfit ${row.name}`}
                     title="Delete this saved outfit"
                     className="flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--color-neutral-500,#a68e70)] hover:text-[var(--color-accent-700,#7c4a17)] disabled:opacity-40"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)' }}
                   >
                     {deletingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '×'}
                   </button>
@@ -705,7 +751,7 @@ export function SavedOutfitsSection({
             })}
           </div>
         ) : (
-          <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}>
+          <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
             Nothing saved yet — build a board above and give it a name.
           </p>
         )}

@@ -1120,7 +1120,7 @@ export function StyleMeToday({
             onClick={() => goToTab('curated')}
             className={`mt-2 ${typography.size.xs} ${typography.color.brand} hover:underline`}
           >
-            See The Rail — Beau's picks for exactly these gaps →
+            See Beau's picks for exactly these gaps →
           </button>
         </div>
       )}
@@ -1186,7 +1186,7 @@ export function StyleMeToday({
             onClick={() => goToTab('curated')}
             className={`mt-1.5 ${typography.size.xs} ${typography.color.brand} hover:underline`}
           >
-            See The Rail’s picks for this gap →
+            See Beau’s picks for this gap →
           </button>
         </div>
       )}

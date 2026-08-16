@@ -109,8 +109,11 @@ export function IndexMatrix({ model, nav }: { model: IndexModel; nav: IndexNav }
         <ReadingSwitch active="matrix" onChange={(r) => { if (r === 'list') nav.goRoot(); if (r === 'quadrant') nav.goQuadrant('pieces'); if (r === 'ruler') nav.goRuler('outerwear'); if (r === 'field') nav.goField(); }} />
       </div>
 
-      <div className="overflow-x-auto" style={{ marginTop: '18px' }}>
-        <table className="w-full border-collapse" style={{ minWidth: '760px' }}>
+      {/* MOBILE (founder's correction, August 2026): the ten-column table
+          was crushed on a phone — the wider minimum keeps every cell a real
+          tap target and the table simply scrolls sideways inside this box. */}
+      <div className="overflow-x-auto" style={{ marginTop: '18px', WebkitOverflowScrolling: 'touch' }}>
+        <table className="w-full border-collapse" style={{ minWidth: '920px' }}>
           <thead>
             <tr>
               <th style={{ ...mono(8.5, FAINT), textAlign: 'left', padding: '8px 6px', borderBottom: `1px solid ${RULE}` }}>Category</th>
@@ -196,8 +199,8 @@ export function IndexMatrix({ model, nav }: { model: IndexModel; nav: IndexNav }
             {regGrid.grand === grid.bandedTotal ? ' — the same total as above, so the two readings agree' : ' — which DISAGREES with the table above'}
           </span>
         </div>
-        <div className="overflow-x-auto" style={{ marginTop: '12px' }}>
-          <table className="w-full border-collapse" style={{ minWidth: '760px' }}>
+        <div className="overflow-x-auto" style={{ marginTop: '12px', WebkitOverflowScrolling: 'touch' }}>
+          <table className="w-full border-collapse" style={{ minWidth: '920px' }}>
             <thead>
               <tr>
                 <th style={{ ...mono(8.5, FAINT), textAlign: 'left', padding: '8px 6px', borderBottom: `1px solid ${RULE}` }}>Register</th>

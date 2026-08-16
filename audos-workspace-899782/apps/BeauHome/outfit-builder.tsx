@@ -289,15 +289,15 @@ export function OutfitBuilderSheet({
               <CandidateThumb c={c} className="w-full aspect-[3/4]" />
               <div className="p-3">
                 {c.brand && (
-                  <p className={`${typography.size.xs} uppercase tracking-[0.15em] ${typography.color.muted} truncate`} style={{ fontSize: '9px' }}>
+                  <p className={`${typography.size.xs} uppercase tracking-[0.15em] ${typography.color.muted} truncate`} style={{ fontSize: 'max(var(--eth-micro, 0px), 9px)' }}>
                     {c.brand}
                   </p>
                 )}
                 <p className={`${typography.size.xs} ${typography.weight.medium} ${typography.color.primary} leading-snug line-clamp-2`}>
                   {c.name}
                 </p>
-                <p className={`${typography.size.xs} ${c.source === 'wardrobe' ? typography.color.muted : typography.color.brand} mt-0.5`} style={{ fontSize: '9px' }}>
-                  {c.source === 'wardrobe' ? 'Yours' : 'Beau’s pick on The Rail'}
+                <p className={`${typography.size.xs} ${c.source === 'wardrobe' ? typography.color.muted : typography.color.brand} mt-0.5`} style={{ fontSize: 'max(var(--eth-micro, 0px), 9px)' }}>
+                  {c.source === 'wardrobe' ? 'Yours' : 'Beau’s pick'}
                 </p>
               </div>
             </div>
@@ -333,7 +333,7 @@ export function OutfitBuilderSheet({
             <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto pr-1">{wardrobeOptions.map(chip)}</div>
           ) : (
             <p className={`${typography.size.xs} ${typography.color.muted}`}>
-              Nothing logged yet — add pieces in The Ledger and they'll appear here.
+              Nothing logged yet — add pieces in The Rail and they'll appear here.
             </p>
           )}
         </div>

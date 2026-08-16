@@ -189,7 +189,7 @@ export function ReadingSwitch({
               border: `1px solid ${on ? ACCENT : HAIRLINE}`,
               borderLeftWidth: i > 0 ? 0 : 1,
               padding: '7px 14px',
-              minHeight: '34px',
+              minHeight: 'max(var(--eth-field-h, 0px), 34px)',
             }}
           >
             {r.label}

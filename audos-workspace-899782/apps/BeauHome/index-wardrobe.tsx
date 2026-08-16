@@ -184,7 +184,7 @@ function PieceRow({
           border: '1px solid ' + HAIRLINE,
           background: 'transparent',
           color: SECONDARY,
-          fontSize: '12px',
+          fontSize: 'max(var(--eth-label, 0px), 12px)',
           lineHeight: 1,
           display: 'flex',
           alignItems: 'center',
@@ -277,7 +277,7 @@ function CategoryBlock({
             {total === 0 ? (
               <div style={{ padding: '6px 0 0' }}>
                 <p style={{ ...body(13.5, SECONDARY), margin: 0 }}>
-                  {'Nothing of ' + name.toLowerCase() + ' on your ledger yet.'}
+                  {'Nothing of ' + name.toLowerCase() + ' on your rail yet.'}
                 </p>
                 <button
                   type="button"
@@ -398,8 +398,8 @@ export function IndexPiecesFace({
     : q
       ? shownTotal + ' of your ' + reads.length + ' pieces match'
       : reads.length === 0
-        ? 'Nothing on your ledger yet \u2014 log a piece and it lands here'
-        : 'No band held \u2014 every piece on your ledger, category by category';
+        ? 'Nothing on your rail yet \u2014 log a piece and it lands here'
+        : 'No band held \u2014 every piece on your rail, category by category';
 
   const openRead = openPieceId != null ? reads.find((r) => r.piece.id === openPieceId) || null : null;
   const openSiblings = openRead && openRead.category ? (totalsByCategory[openRead.category] || []).length : 0;
@@ -483,7 +483,7 @@ export function IndexPiecesFace({
       {/* ——— the foot: the whole ledger in one line */}
       <div className="flex items-baseline justify-between flex-wrap" style={{ gap: '4px 16px', padding: '13px 0 0' }}>
         <span style={mono(7.5, FAINT)}>
-          {reads.length + (reads.length === 1 ? ' piece' : ' pieces') + ' on your ledger \u00b7 ' + INDEX_CATEGORY_IDS.length + ' categories'}
+          {reads.length + (reads.length === 1 ? ' piece' : ' pieces') + ' on your rail \u00b7 ' + INDEX_CATEGORY_IDS.length + ' categories'}
         </span>
         <span style={mono(7.5, FAINTER)}>
           {verdicts.generated ? 'Verdicts written by Beau for you' : 'Beau is writing your verdicts'}

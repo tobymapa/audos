@@ -9,9 +9,13 @@
  *    breadcrumb, the header with Beau's summary and longer explanation, the
  *    BEAU IS PICKING AGAINST sidebar (every value read from the dossier —
  *    never authored), and the numbered list of ten researched picks with
- *    PUT BY · WANT IT · PASS · REMOVE against each. Removing a pick promotes
- *    the next one up from Beau's bench, and the bench refills itself
- *    quietly when it runs low.
+ *    PUT BY · WANT IT · PASS · WATCH · REMOVE against each, and WATCH BRAND as
+ *    a text link under them. Removing a pick promotes the next one up from
+ *    Beau's bench, and the bench refills itself quietly when it runs low.
+ *    WATCH is the standing instruction rather than a call: the piece goes onto
+ *    the Watchlist face and Beau re-reads its page on every open. WATCH BRAND
+ *    is the same instruction widened to the maker — its new arrivals rather
+ *    than this one page.
  *
  * Design register is The Index's (index-style.ts): oatmeal ground, paper,
  * hairline rules, Cormorant headings, Lora body, IBM Plex Mono small-caps
@@ -39,6 +43,7 @@ import {
   serif,
 } from './index-style';
 import { HuntPhoto, HuntQuietLine, type HuntCallsState } from './hunt-cards';
+import { WatchBrandLink, WatchButton } from './watchlist-watch';
 import { huntCardKey, type HuntCategory, type HuntTag, type HuntTaggable } from './hunt-model';
 import { hostLabel, type HuntReader } from './hunt-reader';
 import { openInTheIndex } from './edit-links';
@@ -438,11 +443,38 @@ function PickRow({
             Pass
           </CallButton>
         </div>
-        <div>
+        <div className="flex" style={{ gap: '5px' }}>
+          {/* Read at the tap: the photograph resolves after the first paint
+              and is held on a ref, so the row can carry it onto the row the
+              Watchlist files. */}
+          <WatchButton
+            size="row"
+            target={() => ({
+              pieceName: pick.pieceName,
+              brand: pick.maker || null,
+              retailerUrl: pick.retailerUrl || null,
+              imageUrl: photo.current,
+              price: pick.price || null,
+              verdict: pick.why || null,
+              source: 'beaus_picks',
+            })}
+          />
           <CallButton title={'Take it off the page \u2014 the next comes up from Beau\u2019s bench'} onClick={onRemove}>
             Remove
           </CallButton>
         </div>
+        {/* The maker itself, one step wider than the piece — quiet on purpose. */}
+        <WatchBrandLink
+          target={() => ({
+            pieceName: pick.pieceName,
+            brand: pick.maker || null,
+            retailerUrl: pick.retailerUrl || null,
+            imageUrl: photo.current,
+            price: pick.price || null,
+            verdict: pick.why || null,
+            source: 'beaus_picks',
+          })}
+        />
       </div>
     </div>
   );
@@ -569,7 +601,7 @@ export function HuntTenPicksPage({
         onBack={onBack}
         segs={[
           { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
-          { label: 'The Hunt', onClick: onBack },
+          { label: 'The Search', onClick: onBack },
           { label: "Beau's Picks", onClick: onBack },
           { label: category.name, onClick: onBack },
           { label: sub.subName },

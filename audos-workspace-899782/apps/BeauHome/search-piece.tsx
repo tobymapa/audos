@@ -687,7 +687,7 @@ function ResultThumb({
       ) : (
         <span className="w-full h-full flex items-center justify-center">
           {failed ? (
-            <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: '13px', color: 'var(--color-neutral-500,#a68e70)' }}>—</span>
+            <span style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 13px)', color: 'var(--color-neutral-500,#a68e70)' }}>—</span>
           ) : (
             /* Shimmer while the image resolves — never a generic spinner */
             <>
@@ -1115,7 +1115,7 @@ export function SearchPieceFlow({
 
       {savedFlash && (
         <p className={`${typography.size.xs} text-[var(--space-semantic-success)] mt-2`}>
-          “{savedFlash}” logged — in The Ledger, under Your pieces.
+          “{savedFlash}” logged — in The Rail, under Your pieces.
         </p>
       )}
 
@@ -1194,12 +1194,12 @@ export function SearchPieceFlow({
                   {/* Product name — Lora 14px */}
                   <span
                     className={`block truncate ${typography.color.primary}`}
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.35 }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.35 }}
                   >
                     {result.name}
                   </span>
                   {/* Brand · price — Lora 12px neutral-600 */}
-                  <span className="block truncate text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', marginTop: '2px' }}>
+                  <span className="block truncate text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', marginTop: '2px' }}>
                     {[result.brand || null, result.price || null].filter(Boolean).join(' \u00b7 ') || '\u2014'}
                   </span>
                 </span>
@@ -1218,7 +1218,7 @@ export function SearchPieceFlow({
 
       {/* No results — plain inline Lora line, never a modal or banner */}
       {!draft && !searching && !fetchingUrl && results && results.length === 0 && (
-        <p className="mt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px' }}>
+        <p className="mt-3 text-[var(--color-neutral-600,#856c51)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)' }}>
           No results — try different keywords or paste a product link.
         </p>
       )}
@@ -1264,13 +1264,13 @@ export function SearchPieceFlow({
                   draft.brandProductName.trim().toUpperCase() !== draft.name.trim().toUpperCase() && (
                     <span
                       className="block text-[var(--color-neutral-600,#856c51)]"
-                      style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', marginTop: '4px' }}
+                      style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', marginTop: '4px' }}
                     >
                       Brand name: {draft.brandProductName}
                     </span>
                   )}
                 <span className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={labelCls} style={{ fontSize: '10px' }}>
+                  <span className={labelCls} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
                     {draft.nameIsCustom ? 'Beau\u2019s suggested name — edit it freely.' : 'Auto-named from the confirmed fields.'}
                   </span>
                   {draft.nameIsCustom && autoName && (
@@ -1278,7 +1278,7 @@ export function SearchPieceFlow({
                       type="button"
                       onClick={() => patch({ name: autoName, nameIsCustom: false })}
                       className={`inline-flex items-center gap-1 ${typography.color.brand} hover:underline`}
-                      style={{ fontSize: '10px' }}
+                      style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
                     >
                       <RotateCcw className="w-2.5 h-2.5" /> Use “{autoName}”
                     </button>
@@ -1318,7 +1318,7 @@ export function SearchPieceFlow({
                 <p className={`${labelCls} mb-1`}>Category</p>
                 <div className="flex flex-wrap gap-1">
                   {WARDROBE_CATEGORIES.map((c) => (
-                    <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: '10px' }}>
+                    <button key={c.id} type="button" onClick={() => patch({ category: c.id, slot: null })} className={chip(draft.category === c.id)} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
                       {c.label}
                     </button>
                   ))}
@@ -1353,7 +1353,7 @@ export function SearchPieceFlow({
                       className="focus:outline-none focus:border-[var(--color-accent,#a8712c)] text-[var(--space-text-primary)]"
                       style={{
                         fontFamily: 'var(--space-font-family)',
-                        fontSize: '14px',
+                        fontSize: 'max(var(--eth-body, 0px), 14px)',
                         border: '1px solid var(--color-divider,rgba(59,43,29,0.18))',
                         borderRadius: 0,
                         background: '#fbf8f1',
@@ -1385,7 +1385,7 @@ export function SearchPieceFlow({
                         type="button"
                         onClick={() => patch({ seasons: draft.seasons.includes(o.id) ? draft.seasons.filter((s) => s !== o.id) : [...draft.seasons, o.id] })}
                         className={chip(draft.seasons.includes(o.id))}
-                        style={{ fontSize: '10px' }}
+                        style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
                       >
                         {o.label}
                       </button>
@@ -1401,7 +1401,7 @@ export function SearchPieceFlow({
                         type="button"
                         onClick={() => patch({ occasions: draft.occasions.includes(o.id) ? draft.occasions.filter((s) => s !== o.id) : [...draft.occasions, o.id] })}
                         className={chip(draft.occasions.includes(o.id))}
-                        style={{ fontSize: '10px' }}
+                        style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}
                       >
                         {o.label}
                       </button>

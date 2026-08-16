@@ -148,7 +148,7 @@ export function IndexTypePage({
           <GenSlot slot="G1" scope={`type:${type.id}`} style={{ marginTop: '12px' }} />
         </div>
         <div style={{ border: `1px solid ${RULE}`, background: PAPER, padding: '14px 16px' }}>
-          <div style={mono(8.5, ACCENT_DEEP)}>Against your ledger</div>
+          <div style={mono(8.5, ACCENT_DEEP)}>Against your rail</div>
           <div style={{ ...serif(18), marginTop: '9px' }}>
             {owned ? `You own ${ownedNames.length === 1 ? 'one' : String(ownedNames.length)}.` : gapRank ? `A gap your board names — #${gapRank}.` : 'You own none.'}
           </div>
@@ -232,7 +232,7 @@ export function IndexTypePage({
 
       {/* ——— field 4 · colours — the set is FIX; the ORDER is fitted */}
       <section>
-        <FieldHead n={banded ? 4 : 2} title="Colours to buy it in" note="the set is fixed · the order is ranked for your ledger" />
+        <FieldHead n={banded ? 4 : 2} title="Colours to buy it in" note="the set is fixed · the order is ranked for your rail" />
         <div style={{ marginTop: '6px' }}>
           {type.colours.map((colour, i) => {
             const ownedHere = (model.ownership.swatches.get(type.id) || []).length > 0 && i === 0;
@@ -328,7 +328,7 @@ export function IndexTypePage({
         down={type.cuts.length > 0 ? <>A cut in field {banded ? 'five' : 'three'} → its own page. The only way to L3.</> : <>Nothing — this type carries no separate cuts.</>}
         out={
           <>
-            <ControlLink onClick={() => window.dispatchEvent(new CustomEvent('ethaion:add-piece', { detail: { name: type.name } }))}>Add to the Ledger</ControlLink> — it carries the type as context.
+            <ControlLink onClick={() => window.dispatchEvent(new CustomEvent('ethaion:add-piece', { detail: { name: type.name } }))}>Add to the Rail</ControlLink> — it carries the type as context.
           </>
         }
       />

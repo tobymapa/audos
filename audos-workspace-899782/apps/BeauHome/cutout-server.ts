@@ -38,7 +38,13 @@ function ws(): any {
 }
 
 const HOOK_NAME = 'ethaion-cutout-ingest';
-const HOOK_VERSION = 1;
+// v2: the hook VALIDATES that segmentation returned a real PNG before
+// storing anything (missing-pieces fix, August 2026). v1 stored whatever
+// bytes came back — including Photoroom's JSON error body — as a .png,
+// which poisoned the cutout store with non-image files that no <img> could
+// decode. A non-PNG response now fails loudly and the client-side remover
+// carries the piece instead.
+const HOOK_VERSION = 2;
 const HOOK_MARKER = `ethaion-cutout-ingest v${HOOK_VERSION}`;
 
 /** The server function's code — runs in the platform hook sandbox. */
@@ -58,6 +64,12 @@ if (!src) {
   });
   if (!seg.ok || seg.encoding !== 'base64' || !seg.body) {
     respond(502, { error: (seg && seg.error) || 'segmentation failed', code: (seg && seg.code) || 'not_binary' });
+  } else if (String(seg.body).slice(0, 10) !== 'iVBORw0KGg') {
+    // NOT A PNG (base64 of the PNG magic bytes always starts iVBORw0KGg):
+    // the segmentation API answered with an error body instead of an image.
+    // Storing it would poison the cutout table with a non-image file, so
+    // fail loudly — the caller falls back to the client-side remover.
+    respond(502, { error: 'segmentation returned a non-image response', code: 'not_png' });
   } else {
     let storedUrl = null;
     if (origin && /^https:\\/\\//i.test(origin)) {
