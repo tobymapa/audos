@@ -20,9 +20,10 @@
  *    Unfolding one lists its pieces — as a table (the piece, the cloth,
  *    colour and band, Beau's read) or as tiles. Opening a piece opens the
  *    sheet (ledger-piece.tsx), which is where he corrects Beau.
- *  · WHAT BEAU WOULD CUT closes the page: the pieces the record argues
- *    against, each with the evidence, and Keep it · Retire · Sell against
- *    them. The call he makes is stored — an override is part of the record.
+ *  · BEAU'S VERDICT closes the page: his read of where the rail stands —
+ *    what to build on, and the few pieces worth moving on from, each with
+ *    the evidence and Keep it · Retire · Sell against them. The call he
+ *    makes is stored — an override is part of the record.
  *
  * Every number is arithmetic over the ledger (ledger-model.ts). The WORDS —
  * the per-piece reads, the category lines, the cut reasons — are Beau's,
@@ -303,7 +304,24 @@ function CategoryBlock({
           <span className="block" style={{ ...serif(27, WALNUT), lineHeight: 1.1 }}>
             {category.name}
           </span>
-          <span className="block" style={{ ...body(13, SECONDARY), marginTop: '5px', lineHeight: 1.5 }}>
+          <span
+            className="block"
+            style={{
+              ...body(13, SECONDARY),
+              marginTop: '5px',
+              lineHeight: 1.5,
+              // Folded categories keep Beau's line to ONE line (layout
+              // pass) — unfolding shows it in full.
+              ...(open
+                ? null
+                : {
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical' as const,
+                    WebkitLineClamp: 1,
+                    overflow: 'hidden',
+                  }),
+            }}
+          >
             {category.line}
           </span>
         </span>
@@ -348,7 +366,9 @@ function CategoryBlock({
 }
 
 // ---------------------------------------------------------------------------
-// What Beau would cut
+// Beau's verdict — renamed and reframed (layout pass, August 2026): the
+// same evidence, the same Keep it · Retire · Sell, framed around what to
+// build toward rather than what to cut.
 // ---------------------------------------------------------------------------
 
 const CALLS: Array<{ id: LedgerCall; label: string }> = [
@@ -372,15 +392,14 @@ function CutTable({
         className="flex items-baseline justify-between flex-wrap"
         style={{ gap: '20px', padding: '16px 22px', borderBottom: '1px solid rgba(59,43,29,0.2)' }}
       >
-        <span style={serif(24, WALNUT)}>What Beau would cut</span>
+        <span style={serif(24, WALNUT)}>Beau’s verdict</span>
         <span style={mono(9.5, MUTED)}>{cutMeta(cuts)}</span>
       </div>
 
       {cuts.length === 0 ? (
         <div style={{ ...body(13, SECONDARY), padding: '18px 22px', maxWidth: '110ch', lineHeight: 1.55 }}>
-          Nothing on your rail argues against itself yet. A piece reaches this table when you tell Beau you never
-          quite feel right in it, when your own note says it is finished, or when it is holding a slot it never
-          leaves the house in — never because he would rather you owned something else.
+          Your rail holds up — every piece is earning its place. As the record grows, this is where Beau says what
+          to build on next.
         </div>
       ) : (
         <>
@@ -531,19 +550,32 @@ export function LedgerTab({
   useEffect(() => {
     if (computed.rows.length === 0) return undefined;
     let alive = true;
-    setThinking(true);
-    loadHuntReader({ profile, pieces, prefs, calls: loadHuntCallsMirror() })
-      .then((reader) => readLedgerVerdicts({ reader, model: held.current }))
-      .then((next) => {
-        if (!alive) return;
-        setReading(next);
-        setThinking(false);
-      })
-      .catch(() => {
-        if (alive) setThinking(false);
-      });
+    // DEFERRED (performance pass, August 2026): the verdict call waits for
+    // the browser's first idle moment instead of competing with the tab's
+    // first paint. The deterministic lines carry the page until it lands.
+    const start = () => {
+      if (!alive) return;
+      setThinking(true);
+      loadHuntReader({ profile, pieces, prefs, calls: loadHuntCallsMirror() })
+        .then((reader) => readLedgerVerdicts({ reader, model: held.current }))
+        .then((next) => {
+          if (!alive) return;
+          setReading(next);
+          setThinking(false);
+        })
+        .catch(() => {
+          if (alive) setThinking(false);
+        });
+    };
+    const idle = (window as any).requestIdleCallback as
+      | undefined
+      | ((cb: () => void, opts?: { timeout: number }) => number);
+    const idleId = idle ? idle(start, { timeout: 2500 }) : null;
+    const timer = idleId == null ? window.setTimeout(start, 900) : null;
     return () => {
       alive = false;
+      if (idleId != null && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(idleId);
+      if (timer != null) window.clearTimeout(timer);
     };
     // The facts stand in for the record itself — a re-render with the same
     // ledger and the same dossier never re-reads.
@@ -591,9 +623,9 @@ export function LedgerTab({
   const [draft, setDraft] = useState('');
   const [logQuery, setLogQuery] = useState('');
   const [logToken, setLogToken] = useState(0);
-  const [logNote, setLogNote] = useState(
-    'Paste a link or photograph it \u2014 Beau fills in the rest, you correct him',
-  );
+  // Quiet until an action is under way — the field's own placeholder
+  // carries the instruction (layout pass, August 2026).
+  const [logNote, setLogNote] = useState('');
   const openPhotoPicker = useRef<(() => void) | null>(null);
 
   const logIt = () => {
@@ -668,7 +700,7 @@ export function LedgerTab({
       ? `${capWord(numberWord(corrections))} ${corrections === 1 ? 'correction' : 'corrections'} made ${MIDDOT} Beau is reading them`
       : model.total === 0
         ? 'Nothing logged yet \u2014 start with one piece'
-        : `${capWord(numberWord(model.categories.length))} categories ${MIDDOT} open one to see what is in it`;
+        : `${capWord(numberWord(model.categories.length))} categories`;
 
   // Where you are inside the record — published to the app-wide floating
   // breadcrumb, which is the ONE place the path is drawn. With a piece sheet
@@ -877,9 +909,10 @@ export function LedgerTab({
             )}
 
             {model.total === 0 ? (
+              /* THE EMPTY STATE IS ONE LINE (layout pass, August 2026) — no
+                 multi-line instruction block. */
               <p style={{ ...body(14.5, SECONDARY), margin: '22px 0 0', maxWidth: '74ch' }}>
-                Nothing on the rail yet. Paste a link or photograph one piece and Beau reads the cloth, the cut and
-                the temperature band off it — you correct him, and the rest of the app has something to work from.
+                Nothing logged yet — paste a link or photograph a piece above.
               </p>
             ) : (
               <CutTable cuts={model.cuts} reading={read} onCall={onCall} />

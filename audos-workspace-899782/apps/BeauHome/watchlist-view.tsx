@@ -65,7 +65,6 @@ import {
   unwatchPiece,
   type WatchedPiece,
 } from './watchlist-model';
-import { PhoneMore } from './phone-longform';
 import { WatchButton, useWatchlist } from './watchlist-watch';
 import {
   ANNOUNCEMENT_LABELS,
@@ -548,6 +547,9 @@ function GroupLabel({ label, note }: { label: string; note: string }) {
 export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
   const { items } = useWatchlist();
   const inbox = useBeauInbox();
+  // PROGRESSIVE DISCLOSURE (layout pass, August 2026): the how-it-works
+  // copy sits behind one small tap instead of being always on screen.
+  const [showHow, setShowHow] = useState(false);
 
   // What Beau has noticed comes to the top of each group; the rest read newest
   // first.
@@ -576,17 +578,35 @@ export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
   return (
     <div>
       <div style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
-        <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>What Beau is keeping an eye on</h3>
-        {/* Three sentences set for a 66-character column run to nine lines on a
-            phone. PhoneMore holds them to two there and reads the rest in
-            place; on a desktop it renders the paragraph untouched. */}
-        <PhoneMore lines={2}>
-          <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
-            Watch a piece from Beau’s Picks, an Ask Beau verdict or a Your Calls row and he re-reads its retailer page
-            each time you open the app. Watch the MAKER instead — the text link under the eye — and he reads its new
-            arrivals, and subscribes to it himself, so a drop or a subscriber-only code reaches you here.
-          </p>
-        </PhoneMore>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>What Beau is keeping an eye on</h3>
+          <button
+            type="button"
+            onClick={() => setShowHow((v) => !v)}
+            aria-expanded={showHow}
+            className="hover:underline hab-tap"
+            style={{ ...mono(8, SECONDARY), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+          >
+            {showHow ? 'Hide how this works' : 'How this works'}
+          </button>
+        </div>
+        {showHow && (
+          <>
+            <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
+              Watch a piece from Beau’s Picks, an Ask Beau verdict or a Your Calls row and he re-reads its retailer
+              page each time you open the app. Watch the MAKER instead — the text link under the eye — and he reads
+              its new arrivals, and subscribes to it himself, so a drop or a subscriber-only code reaches you here.
+            </p>
+            <p style={{ ...body(13, SECONDARY), margin: '8px 0 0', maxWidth: '66ch' }}>
+              Retailer pages are not always readable. When one will not open, Beau says so on the row rather than
+              guessing — and he never clears something he has already flagged because a later read failed.
+            </p>
+            <p style={{ ...body(13, SECONDARY), margin: '8px 0 0', maxWidth: '66ch' }}>
+              Beau subscribes to brands you watch using his own inbox ({BEAU_INBOX_ADDRESS}), so subscriber-only
+              announcements land on the brand’s row here.
+            </p>
+          </>
+        )}
       </div>
       <p style={{ ...mono(8.5, alerts > 0 ? ACCENT_DEEP : FAINT), margin: '12px 0 0' }}>
         {rows.length === 0
@@ -596,10 +616,7 @@ export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
 
       {rows.length === 0 ? (
         <div style={{ marginTop: '18px', borderTop: `1px solid ${RULE}` }}>
-          <HuntQuietLine>
-            Nothing on your Watchlist yet — press the eye on a piece from Beau’s Picks, Ask Beau or Your Calls to
-            track it, or “Watch brand” under it to have him follow the whole maker.
-          </HuntQuietLine>
+          <HuntQuietLine>Nothing on watch yet — press the eye on any pick to start.</HuntQuietLine>
           <button
             type="button"
             onClick={onGoToPicks}
@@ -647,19 +664,6 @@ export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
         </>
       )}
 
-      <PhoneMore lines={2} moreLabel="More on how he reads a page">
-        <p style={{ ...body(12.5, INK), margin: '18px 0 0', maxWidth: '62ch', opacity: 0.75 }}>
-          Retailer pages are not always readable. When one will not open, Beau says so on the row rather than guessing —
-          and he never clears something he has already flagged because a later read failed.
-        </p>
-      </PhoneMore>
-
-      {brands.length > 0 && (
-        <p style={{ ...body(12.5, SECONDARY), margin: '10px 0 0', maxWidth: '62ch' }}>
-          Beau subscribes to brands you watch using his own inbox ({BEAU_INBOX_ADDRESS}). Email alerts arrive when
-          brands send subscriber-only announcements.
-        </p>
-      )}
     </div>
   );
 }

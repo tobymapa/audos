@@ -1600,6 +1600,12 @@ export default function SpaceDesktop({
            hierarchy survives: micro labels stay smaller than secondary copy,
            which stays smaller than body.
            ====================================================================== */
+        /* LAYOUT TIGHTENING (layout pass, August 2026): on small phones the
+           tabs' 24px gutters read as crowding — the shared px-6 gutter pulls
+           to 16px below 431px. Tablet and desktop are untouched. */
+        @media (max-width: 430.98px){
+          .px-6{padding-left:16px!important;padding-right:16px!important}
+        }
         :root{--eth-micro:0px;--eth-label:0px;--eth-body:0px;--eth-serif:0px;}
         @media (max-width: 639.98px){
           :root{

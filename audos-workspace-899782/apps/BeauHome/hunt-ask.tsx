@@ -242,6 +242,9 @@ function ComparisonTable({
 // ---------------------------------------------------------------------------
 
 export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: HuntCallsState }) {
+  // PROGRESSIVE DISCLOSURE (layout pass, August 2026): the how-it-works
+  // copy sits behind one small tap instead of being always on screen.
+  const [showHow, setShowHow] = useState(false);
   const [text, setText] = useState('');
   const [queued, setQueued] = useState<QueuedProduct[]>([]);
   const [answer, setAnswer] = useState<AskAnswer | null>(null);
@@ -378,12 +381,25 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
   return (
     <div>
       <div style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
-        <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>Ask Beau, or put a link in front of him</h3>
-        <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
-          One box for both. A question comes back as an answer with what he ruled out; a link comes back as a
-          verdict — what the thing is, who the house is, what it would mean for you. Queue up to{' '}
-          {ASK_QUEUE_LIMIT} links and he will compare them.
-        </p>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>Ask Beau, or put a link in front of him</h3>
+          <button
+            type="button"
+            onClick={() => setShowHow((v) => !v)}
+            aria-expanded={showHow}
+            className="hover:underline hab-tap"
+            style={{ ...mono(8, SECONDARY), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+          >
+            {showHow ? 'Hide how this works' : 'How this works'}
+          </button>
+        </div>
+        {showHow && (
+          <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
+            One box for both. A question comes back as an answer with what he ruled out; a link comes back as a
+            verdict — what the thing is, who the house is, what it would mean for you. Queue up to{' '}
+            {ASK_QUEUE_LIMIT} links and he will compare them.
+          </p>
+        )}
       </div>
 
       {/* THE BOX — the field, with Send above Queue in its own column. */}

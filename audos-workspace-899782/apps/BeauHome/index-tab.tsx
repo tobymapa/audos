@@ -349,6 +349,47 @@ function pieceVerdictColor(v: string | null): string {
   return FAINT; // niche · unweighted
 }
 
+/** Beau's verdict under the category name — COLLAPSED to one line by
+ * default (layout pass, August 2026), with an expand tap. The generation
+ * itself is unchanged (index-tab-copy.ts — settled, cached, deterministic
+ * fallback); only what is shown by default moves. */
+function RailVerdict({ text }: { text: string }) {
+  const [openVerdict, setOpenVerdict] = useState(false);
+  if (!text) return null;
+  const clampable = text.length > 44;
+  return (
+    <div style={{ margin: '9px 0 0', maxWidth: '30ch' }}>
+      <p
+        style={{
+          ...body(13.5, SECONDARY),
+          margin: 0,
+          ...(openVerdict || !clampable
+            ? null
+            : {
+                display: '-webkit-box',
+                WebkitBoxOrient: 'vertical' as const,
+                WebkitLineClamp: 1,
+                overflow: 'hidden',
+              }),
+        }}
+      >
+        {text}
+      </p>
+      {clampable && (
+        <button
+          type="button"
+          onClick={() => setOpenVerdict((v) => !v)}
+          aria-expanded={openVerdict}
+          className="hover:underline"
+          style={{ ...mono(8, ACCENT_DEEP), background: 'transparent', border: 'none', padding: 0, marginTop: '4px', cursor: 'pointer' }}
+        >
+          {openVerdict ? 'Less' : 'More'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** The temperature-band selector — click a band to hold it. Every band
  * carries the count of the reader's OWN pieces IN THIS CATEGORY that
  * answer it — live arithmetic over the ledger, each piece read from its
@@ -866,9 +907,7 @@ function PiecesFace({
             {/* The category name alone heads the rail; Beau's verdict for
                 THIS reader sits directly under it — never a stock line. */}
             <h4 style={{ ...serif(25, WALNUT), lineHeight: 1.15, margin: 0 }}>{category?.name}</h4>
-            <p style={{ ...body(13.5, SECONDARY), margin: '9px 0 0', maxWidth: '30ch' }}>
-              {catVerdicts.verdicts[category?.id || ''] || ''}
-            </p>
+            <RailVerdict key={category?.id || 'none'} text={catVerdicts.verdicts[category?.id || ''] || ''} />
           </div>
         </aside>
 
@@ -920,7 +959,7 @@ function PiecesFace({
                               onClick={() => onMakersForType(t)}
                               aria-label={`See the makers of ${t.name}`}
                               title={`Makers of ${t.name} →`}
-                              className="transition-colors hover:border-[var(--color-accent,#a8712c)] hab-touch-icon"
+                              className="transition-colors hover:border-[var(--color-accent,#a8712c)]"
                               style={{
                                 width: '32px',
                                 height: '32px',

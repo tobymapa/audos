@@ -598,7 +598,119 @@ function EdgeLabelBlock({ label }: { label: EdgeLabel }) {
   );
 }
 
+/**
+ * THE BOARD, NAMED IN PLAIN TEXT (layout pass, August 2026). The boxed
+ * callouts and their SVG leader lines are gone — no measuring, no
+ * observers, no overlay. The fitting draws clean, and the pieces are named
+ * as a simple inline list beneath the board on every width — the treatment
+ * the phone always used. The measured callout board below
+ * (LegacyAnnotatedBoard) is retired and has no call site.
+ */
 function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: React.ReactNode }) {
+  const placed = useMemo(() => composeFlatLayBoard(pieces), [pieces]);
+  if (pieces.length === 0) return <>{children}</>;
+  return (
+    <div>
+      <div className="min-w-0">{children}</div>
+      <div className="pt-3">
+        {placed.map(({ piece }) => {
+          const p = piece as BoardPiece;
+          const status = boardStatusOf(p);
+          return (
+            <div key={p.key} className="flex items-baseline gap-2.5 flex-wrap" style={{ padding: '3px 0' }}>
+              <span style={{ ...annMono, color: MUTED, width: '102px', flexShrink: 0 }}>{zoneLabelFor(p)}</span>
+              <span style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 13px)', color: WALNUT }}>{p.name}</span>
+              {status && (
+                <span style={{ ...annMono, color: p.key.startsWith('curated-') ? OXBLOOD : ACCENT_DEEP }}>{status}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * THE SAVED SHELF — fetch-on-tap (performance pass, August 2026). This
+ * component only mounts when the reader opens the Saved source on the
+ * board, so the radar_items read fires then — never on the tab's initial
+ * render. The staleness window and the change events behave exactly as
+ * before, scoped to the mounted shelf.
+ */
+function SavedShelf({
+  hasCategory,
+  filter,
+  selectedKeys,
+  onToggle,
+  note,
+}: {
+  /** True while a category chip is narrowing the shelves. */
+  hasCategory: boolean;
+  filter: (piece: FittingPiece) => boolean;
+  selectedKeys: Set<string>;
+  onToggle: (piece: FittingPiece) => void;
+  note: (list: FittingPiece[]) => string;
+}) {
+  const { data: radarRows, refresh } = window.useWorkspaceDB<RadarItem>('radar_items', {
+    orderBy: { column: 'created_at', direction: 'desc' },
+    limit: 50,
+  });
+  useEffect(() => {
+    if (radarRows) fittingReserveFetchedAt = Date.now();
+  }, [radarRows]);
+  // Re-activating the tab refreshes the saved shelf only when it is stale.
+  useEffect(() => {
+    const onActivated = (event: Event) => {
+      if ((event as CustomEvent).detail?.tab !== 'fitting-room') return;
+      if (Date.now() - fittingReserveFetchedAt > FITTING_RESERVE_STALE_MS) refresh();
+    };
+    window.addEventListener('ethaion:tab-activated', onActivated);
+    return () => window.removeEventListener('ethaion:tab-activated', onActivated);
+  }, [refresh]);
+  useEffect(() => {
+    const onChanged = () => {
+      fittingReserveFetchedAt = 0;
+      refresh();
+    };
+    window.addEventListener(RESERVE_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(RESERVE_CHANGED_EVENT, onChanged);
+  }, [refresh]);
+  const radarPieces = useMemo<FittingPiece[]>(
+    () =>
+      (radarRows || []).map((item) => ({
+        key: `radar-${item.id}`,
+        name: item.name,
+        brand: item.brand || null,
+        category: item.category || null,
+        productUrl: item.product_url || null,
+        note: item.notes || null,
+      })),
+    [radarRows],
+  );
+  const shown = useMemo(() => radarPieces.filter(filter), [radarPieces, filter]);
+  return (
+    <Shelf title="Saved · watched in the Search" note={note(shown)}>
+      {shown.length > 0 ? (
+        shown.map((piece) => (
+          <ShelfCard key={piece.key} piece={piece} selected={selectedKeys.has(piece.key)} onToggle={onToggle} />
+        ))
+      ) : (
+        <ShelfEmpty>
+          {radarPieces.length > 0 && hasCategory
+            ? 'Nothing of this category saved — tap All to see everything.'
+            : 'Nothing saved yet — watch a piece in The Search and it appears here.'}
+        </ShelfEmpty>
+      )}
+    </Shelf>
+  );
+}
+
+/* LEGACY — the measured callout board, retired by the layout pass (the
+   boxes-and-leader-lines treatment). Kept compiled but unmounted; nothing
+   renders it. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyAnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: React.ReactNode }) {
   const railsRef = useRef<HTMLDivElement | null>(null);
   const boardColRef = useRef<HTMLDivElement | null>(null);
   const [labels, setLabels] = useState<EdgeLabel[]>([]);
@@ -1206,43 +1318,9 @@ export function FittingRoomTab({
     [pieces],
   );
 
-  const { data: radarRows, loading: radarRowsLoading, refresh: refreshRadarRows } = window.useWorkspaceDB<RadarItem>('radar_items', {
-    orderBy: { column: 'created_at', direction: 'desc' },
-    limit: 50,
-  });
-  useEffect(() => {
-    if (!radarRowsLoading && radarRows) fittingReserveFetchedAt = Date.now();
-  }, [radarRows, radarRowsLoading]);
-  const radarPieces = useMemo<FittingPiece[]>(
-    () =>
-      (radarRows || []).map((item) => ({
-        key: `radar-${item.id}`,
-        name: item.name,
-        brand: item.brand || null,
-        category: item.category || null,
-        productUrl: item.product_url || null,
-        note: item.notes || null,
-      })),
-    [radarRows],
-  );
-
-  // Re-activating the tab refreshes the saved shelf only when it is stale.
-  useEffect(() => {
-    const onActivated = (event: Event) => {
-      if ((event as CustomEvent).detail?.tab !== 'fitting-room') return;
-      if (Date.now() - fittingReserveFetchedAt > FITTING_RESERVE_STALE_MS) refreshRadarRows();
-    };
-    window.addEventListener('ethaion:tab-activated', onActivated);
-    return () => window.removeEventListener('ethaion:tab-activated', onActivated);
-  }, [refreshRadarRows]);
-  useEffect(() => {
-    const onChanged = () => {
-      fittingReserveFetchedAt = 0;
-      refreshRadarRows();
-    };
-    window.addEventListener(RESERVE_CHANGED_EVENT, onChanged);
-    return () => window.removeEventListener(RESERVE_CHANGED_EVENT, onChanged);
-  }, [refreshRadarRows]);
+  // The saved (radar) shelf reads its rows inside SavedShelf — mounted on
+  // first open of the Saved source, so nothing is fetched until the reader
+  // asks for it (performance pass, August 2026).
 
   const beauPicks = useMemo<FittingPiece[]>(() => {
     try {
@@ -1281,6 +1359,16 @@ export function FittingRoomTab({
   // Edit, The Search and The Index read), as chips over the shelves. Null
   // shows everything; a chip narrows all three shelves at once.
   const [shelfCategory, setShelfCategory] = useState<string | null>(null);
+  // THE COMPACT SOURCE PICKER (layout & performance pass, August 2026): no
+  // source is expanded on the tab's initial render — opening one mounts
+  // just that shelf, and a shelf once visited stays mounted (hidden) so
+  // folding it away and back costs nothing.
+  const [openShelf, setOpenShelf] = useState<'owned' | 'saved' | 'picks' | null>(null);
+  const [visitedShelves, setVisitedShelves] = useState<Record<string, boolean>>({});
+  const pickShelf = (id: 'owned' | 'saved' | 'picks') => {
+    setOpenShelf((cur) => (cur === id ? null : id));
+    setVisitedShelves((cur) => (cur[id] ? cur : { ...cur, [id]: true }));
+  };
   const shelfCategoryIds = useMemo(() => CATEGORY_ORDER.filter((id) => id !== 'other'), []);
   const inShelfCategory = useCallback(
     (piece: FittingPiece) => {
@@ -1291,7 +1379,6 @@ export function FittingRoomTab({
     [shelfCategory],
   );
   const shownOwned = useMemo(() => ownedPieces.filter(inShelfCategory), [ownedPieces, inShelfCategory]);
-  const shownRadar = useMemo(() => radarPieces.filter(inShelfCategory), [radarPieces, inShelfCategory]);
   const shownPicks = useMemo(() => beauPicks.filter(inShelfCategory), [beauPicks, inShelfCategory]);
   const onCount = (list: FittingPiece[]) => list.filter((p) => selectedKeys.has(p.key)).length;
   const shelfNote = (list: FittingPiece[]) => {
@@ -1595,8 +1682,7 @@ export function FittingRoomTab({
               <div className="min-w-0">
                 <div style={{ fontFamily: SERIF, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>Board</div>
                 <p style={{ ...body(13.5, MUTED), margin: '6px 0 0', maxWidth: '64ch' }}>
-                  Everything you can dress the fitting in: what you own, what you saved in the Search, and what Beau has
-                  put up.
+                  What you own, what you saved, and Beau’s picks — open a source to dress the board from it.
                 </p>
               </div>
               {activeBoard.length > 0 && (
@@ -1606,9 +1692,47 @@ export function FittingRoomTab({
               )}
             </div>
 
-            {/* THE CATEGORY FILTER — the canonical eleven categories, the
-                same set every other tab reads (category-order.ts). One tap
-                narrows all three shelves; All brings everything back. */}
+            {/* THE SOURCE PICKER (layout & performance pass, August 2026):
+                the three sources arrive as a compact picker — nothing
+                expands, and nothing fetches, until a source is opened. */}
+            <div
+              className="flex items-center flex-wrap"
+              style={{ gap: '6px', marginTop: '16px' }}
+              role="group"
+              aria-label="Dress the fitting from"
+            >
+              <span style={fitLabel(8.5, MUTED, '0.16em')}>Dress it from</span>
+              {([
+                { id: 'owned', label: `Yours · ${ownedPieces.length}` },
+                { id: 'saved', label: 'Saved in the Search' },
+                { id: 'picks', label: `Beau’s picks · ${beauPicks.length}` },
+              ] as const).map(({ id, label: shelfLabel }) => {
+                const active = openShelf === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => pickShelf(id)}
+                    aria-pressed={active}
+                    className="transition-colors hover:border-[#a8712c] hab-tap"
+                    style={{
+                      ...fitLabel(8.5, active ? WALNUT : MUTED, '0.1em'),
+                      border: `1px solid ${active ? ACCENT : 'rgba(59,43,29,0.28)'}`,
+                      background: active ? 'rgba(168,113,44,0.14)' : 'transparent',
+                      padding: '7px 13px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {shelfLabel}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* THE CATEGORY FILTER — the canonical eleven categories, shown
+                once a source is open. One tap narrows the open shelf; All
+                brings everything back. */}
+            {openShelf != null && (
             <div className="flex items-center flex-wrap" style={{ gap: '6px', marginTop: '14px' }} role="group" aria-label="Filter the shelves by category">
               <span style={fitLabel(8.5, MUTED, '0.16em')}>Filter</span>
               <button
@@ -1648,7 +1772,10 @@ export function FittingRoomTab({
                 );
               })}
             </div>
+            )}
 
+            {visitedShelves.owned && (
+            <div style={openShelf === 'owned' ? undefined : { display: 'none' }}>
             <Shelf title="Yours · logged in the Rail" note={shelfNote(shownOwned)}>
               {shownOwned.length > 0 ? (
                 shownOwned.map((piece) => (
@@ -1667,26 +1794,23 @@ export function FittingRoomTab({
                 </ShelfEmpty>
               )}
             </Shelf>
+            </div>
+            )}
 
-            <Shelf title="Saved · watched in the Search" note={shelfNote(shownRadar)}>
-              {shownRadar.length > 0 ? (
-                shownRadar.map((piece) => (
-                  <ShelfCard
-                    key={piece.key}
-                    piece={piece}
-                    selected={selectedKeys.has(piece.key)}
-                    onToggle={tapShelfPiece}
-                  />
-                ))
-              ) : (
-                <ShelfEmpty>
-                  {radarPieces.length > 0
-                    ? 'Nothing of this category saved — tap All to see everything.'
-                    : 'Nothing saved yet — watch a piece in The Search and it appears here.'}
-                </ShelfEmpty>
-              )}
-            </Shelf>
+            {visitedShelves.saved && (
+            <div style={openShelf === 'saved' ? undefined : { display: 'none' }}>
+              <SavedShelf
+                hasCategory={shelfCategory != null}
+                filter={inShelfCategory}
+                selectedKeys={selectedKeys}
+                onToggle={tapShelfPiece}
+                note={shelfNote}
+              />
+            </div>
+            )}
 
+            {visitedShelves.picks && (
+            <div style={openShelf === 'picks' ? undefined : { display: 'none' }}>
             <Shelf title="Beau’s picks · not yours yet" note={shelfNote(shownPicks)}>
               {shownPicks.length > 0 ? (
                 shownPicks.map((piece) => (
@@ -1705,6 +1829,8 @@ export function FittingRoomTab({
                 </ShelfEmpty>
               )}
             </Shelf>
+            </div>
+            )}
 
             {/* BEAU'S PICKS FOR THE OCCASION — only when the wardrobe cannot
                 dress it: his recommendations for the missing pieces, with the

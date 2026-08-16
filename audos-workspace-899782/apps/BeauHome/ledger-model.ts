@@ -425,17 +425,17 @@ export function cutWhy(row: LedgerPieceRow): string {
   return `Under-used: ${note}`;
 }
 
-/** The meta line under “What Beau would cut”. */
+/** The meta line under “Beau’s verdict”. */
 export function cutMeta(cuts: LedgerPieceRow[]): string {
-  if (cuts.length === 0) return 'Nothing on your rail argues against itself';
-  return `${cuts.length} ${cuts.length === 1 ? 'piece' : 'pieces'} the record argues against`;
+  if (cuts.length === 0) return 'Your rail holds up';
+  return `${cuts.length} ${cuts.length === 1 ? 'piece' : 'pieces'} worth moving on from`;
 }
 
-/** The closing line under the cut table when Beau has not written one. */
+/** The closing line under the verdict table when Beau has not written one. */
 export const CUT_FOOT =
-  'Beau cuts on evidence, not taste: a piece is here because you told him you never quite feel right in it, or '
-  + 'because it is holding a slot something better should hold. Keep anything you like — the override is part of '
-  + 'the record too, and it changes what he suggests next.';
+  'Beau reads on evidence, not taste: a piece appears here because you told him you never quite feel right in '
+  + 'it, or because its slot is ready for something better. Keep anything you like — the override is part of the '
+  + 'record too, and it sharpens what he suggests you build toward next.';
 
 /** The one search over the ledger — name, maker, cloth, colour, category,
  * sub-type. */

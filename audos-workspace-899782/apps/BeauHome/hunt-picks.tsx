@@ -136,7 +136,24 @@ function CategoryRow({
             {category.name}
           </span>
           {read && (
-            <span className="block" style={{ ...body(13, SECONDARY), marginTop: '5px', lineHeight: 1.5 }}>
+            <span
+              className="block"
+              style={{
+                ...body(13, SECONDARY),
+                marginTop: '5px',
+                lineHeight: 1.5,
+                // Folded categories keep Beau's line to ONE line (layout
+                // pass) — unfolding shows it in full.
+                ...(open
+                  ? null
+                  : {
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical' as const,
+                      WebkitLineClamp: 1,
+                      overflow: 'hidden',
+                    }),
+              }}
+            >
               {read}
             </span>
           )}
@@ -361,15 +378,11 @@ export function HuntPicks({
 
   return (
     <div>
-      <p style={{ ...body(14, INK), margin: '0 0 4px', maxWidth: '64ch' }}>
-        The same categories The Index reads across, read down. Unfold one and Beau names the{' '}
-        {numberWord(SUB_PICKS_PER_CATEGORY)} sub-categories that matter most for you right now — what each is
-        doing for you, what you own in it, and ten researched picks behind every one.
-      </p>
-
+      {/* The long how-it-reads paragraph is gone (layout pass, August 2026):
+          the tab's standfirst already carries the one-line framing. */}
       <div
         className="flex items-end justify-between gap-4 flex-wrap"
-        style={{ marginTop: '26px', paddingBottom: '9px' }}
+        style={{ marginTop: '4px', paddingBottom: '9px' }}
       >
         <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>By category · open one and he chooses</h3>
         <span style={mono(8, FAINT)}>

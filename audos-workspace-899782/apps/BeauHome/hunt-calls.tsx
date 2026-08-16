@@ -226,6 +226,9 @@ function TagControls({ call, calls }: { call: HuntCall; calls: HuntCallsState })
 
 export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoToPicks: () => void }) {
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'date', asc: true });
+  // PROGRESSIVE DISCLOSURE (layout pass, August 2026): the how-it-works
+  // copy sits behind one small tap instead of being always on screen.
+  const [showHow, setShowHow] = useState(false);
 
   const rows = useMemo(() => {
     const list = [...calls.calls];
@@ -294,11 +297,24 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
   return (
     <div>
       <div style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
-        <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>Everything you have wanted, put by, or passed</h3>
-        <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
-          Every piece you have tagged, from Beau’s Picks or from an Ask Beau result. Every column head sorts, a row
-          opens the piece’s own page, and a call can be changed or taken off — he reads the change on his next draw.
-        </p>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>Everything you have wanted, put by, or passed</h3>
+          <button
+            type="button"
+            onClick={() => setShowHow((v) => !v)}
+            aria-expanded={showHow}
+            className="hover:underline hab-tap"
+            style={{ ...mono(8, SECONDARY), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+          >
+            {showHow ? 'Hide how this works' : 'How this works'}
+          </button>
+        </div>
+        {showHow && (
+          <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
+            Every piece you have tagged, from Beau’s Picks or from an Ask Beau result. Every column head sorts, a row
+            opens the piece’s own page, and a call can be changed or taken off — he reads the change on his next draw.
+          </p>
+        )}
       </div>
       <p style={{ ...mono(8.5, FAINT), margin: '12px 0 0' }}>
         {calls.calls.length === 0
@@ -308,10 +324,7 @@ export function HuntCalls({ calls, onGoToPicks }: { calls: HuntCallsState; onGoT
 
       {calls.calls.length === 0 ? (
         <div style={{ marginTop: '18px', borderTop: `1px solid ${RULE}` }}>
-          <HuntQuietLine>
-            Nothing here yet. Unfold a category in Beau’s Picks and save what you like the look of — or pass on what
-            you do not, which is just as useful to him.
-          </HuntQuietLine>
+          <HuntQuietLine>No calls yet — tag a pick in Beau’s Picks and it files here.</HuntQuietLine>
           <button
             type="button"
             onClick={onGoToPicks}

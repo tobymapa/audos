@@ -79,7 +79,7 @@ const FACE_TRAIL: Record<HuntFace, string> = {
 /** The standfirst changes with the face; the title never does. ONE short
  * sentence each, so the masthead wraps exactly as the other five tabs do. */
 const FACE_STANDFIRST: Record<HuntFace, string> = {
-  picks: 'Unfold a category and Beau names the three sub-categories to hunt in \u2014 ten picks apiece.',
+  picks: 'Beau names the pieces in each category that matter most for you right now.',
   ask: 'Ask him anything, or paste a link — he answers against your dossier.',
   calls: 'Every piece you have saved, favourited or passed — and why.',
   watchlist: 'The pieces and makers Beau is watching for you — he tells you when one moves.',

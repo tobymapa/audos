@@ -514,8 +514,7 @@ export function StyledOutfitBoard({
                 Build the look flat — no rendering, no wait.
               </p>
               <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontFamily: 'var(--space-font-family)', maxWidth: '40ch' }}>
-                Tap pieces on the shelf below and they land here instantly — each in its own place, head to
-                toe, clean catalog style. Tap a piece again to take it off the board.
+                Tap a piece on a shelf below and it lands here.
               </p>
             </div>
           )}
