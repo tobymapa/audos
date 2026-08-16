@@ -1616,7 +1616,7 @@ export function FittingRoomTab({
                     onRemove={removeFromBoard}
                     seed={`fitting-${fittingKey}`}
                     canvasMaxWidth="760px"
-                    canvasMaxHeight={phoneCanvas ? '440px' : '260px'}
+                    canvasMaxHeight={phoneCanvas ? '480px' : '260px'}
                     quiet={composing}
                   />
                 </AnnotatedBoard>

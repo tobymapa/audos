@@ -816,9 +816,37 @@ function PiecesFace({
 
   return (
     <div>
+      {/* PHONE: the eleven categories read as ONE dropdown (founder's
+          correction, August 2026) — the chip strip stays from sm up. */}
+      <div className="sm:hidden" style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
+        <label className="flex items-center" style={{ gap: '10px' }}>
+          <span style={mono(8, FAINT)}>Category</span>
+          <select
+            value={cat}
+            onChange={(e) => pickCategory(e.target.value as (typeof model.categories)[number]['id'])}
+            aria-label="Category"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: '46px',
+              border: `1px solid ${RULE}`,
+              background: 'transparent',
+              color: WALNUT,
+              fontFamily: 'var(--space-font-family)',
+              borderRadius: 0,
+              padding: '0 10px',
+            }}
+          >
+            {model.categories.map((c) => (
+              <option key={c.id} value={c.id}>{`${c.name} · ${c.total}`}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       {/* ——— the category strip — every category on one compact row, never a
           scroll (founder's correction: the count strip must not scroll) */}
-      <div className="flex flex-wrap" style={{ gap: '4px 18px', borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
+      <div className="hidden sm:flex flex-wrap" style={{ gap: '4px 18px', borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
         {model.categories.map((c) => {
           const active = c.id === cat;
           return (

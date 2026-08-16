@@ -130,8 +130,8 @@ function CategoryRow({
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={`hunt-picks-${category.id}`}
-        className="w-full text-left grid grid-cols-[26px_minmax(0,1fr)] md:grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
-        style={{ gap: '7px 18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
+        className="w-full text-left grid grid-cols-[26px_minmax(0,1fr)_auto] md:grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+        style={{ gap: '7px 14px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
       >
         <span style={{ ...mono(15, ACCENT), letterSpacing: 0 }}>{open ? '\u2212' : '+'}</span>
         <span className="min-w-0 block">
@@ -152,9 +152,11 @@ function CategoryRow({
             </span>
           )}
         </span>
-        <span className="col-start-2 md:col-start-auto flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
+        {/* The counts ride the NAME'S OWN ROW, right-aligned and light
+            (founder's correction, August 2026). */}
+        <span className="flex items-center whitespace-nowrap" style={{ gap: '12px' }}>
           <span style={mono(9.5, badge.tone)}>{badge.text}</span>
-          <span style={{ ...mono(11, SECONDARY), letterSpacing: 0 }}>
+          <span style={{ ...mono(11, FAINT), letterSpacing: 0 }}>
             {category.subCategories.length} sub-categories
           </span>
         </span>

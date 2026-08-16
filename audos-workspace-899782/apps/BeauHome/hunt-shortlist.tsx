@@ -107,10 +107,14 @@ export function HuntSubRows({
         return (
         <div
           key={sub.subName}
-          className="flex items-start justify-between gap-x-5 gap-y-2 flex-wrap md:flex-nowrap"
+          // ON A PHONE the row STACKS (founder's correction, August 2026):
+          // the name and Beau's line take the full width, and the controls
+          // sit on their own row beneath — the copy never shares the line
+          // with the buttons. From md up the two sit side by side as before.
+          className="md:flex md:items-start md:justify-between md:gap-x-5"
           style={{ padding: '14px 0', borderBottom: '1px solid rgba(59,43,29,0.12)' }}
         >
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 md:flex-1">
             <div className="flex items-baseline flex-wrap" style={{ gap: '11px' }}>
               <span style={{ ...serif(20, WALNUT), lineHeight: 1.15 }}>{sub.subName}</span>
               <span style={mono(8.5, MUTED)}>{sub.seasonTag}</span>
@@ -120,7 +124,7 @@ export function HuntSubRows({
               <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', lineHeight: 1.5, maxWidth: '62ch' }}>{sub.reason}</p>
             )}
           </div>
-          <div className="flex items-center flex-shrink-0" style={{ gap: '16px', paddingTop: '5px' }}>
+          <div className="flex items-center md:flex-shrink-0 mt-3 md:mt-0" style={{ gap: '16px', paddingTop: '5px' }}>
             <span style={mono(8.5, FAINT)}>You own {sub.youOwn}</span>
             {infoTypeId && (
               <button

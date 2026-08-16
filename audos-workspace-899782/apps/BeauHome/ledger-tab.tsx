@@ -38,7 +38,7 @@
  * labels, square corners, no shadows.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Info } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Info } from 'lucide-react';
 import { usePlexMono, capWord, numberWord } from './mono-type';
 import { TabHeader } from './tab-header';
 import { matchGarmentTypeId } from './index-model';
@@ -297,8 +297,8 @@ function CategoryBlock({
         // about 130px of a 375px screen. Below md they drop to their own line
         // under it; the row-gap is only ever used there, so the desktop
         // single-line header is unchanged.
-        className="w-full text-left grid grid-cols-[26px_minmax(0,1fr)] md:grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
-        style={{ gap: '7px 18px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
+        className="w-full text-left grid grid-cols-[26px_minmax(0,1fr)_auto] md:grid-cols-[34px_minmax(0,1fr)_auto] items-baseline transition-colors hover:bg-[rgba(168,113,44,0.06)]"
+        style={{ gap: '7px 14px', padding: '17px 8px 17px 0', background: 'transparent', borderRadius: 0 }}
       >
         <span style={{ ...mono(15, ACCENT), letterSpacing: 0 }}>{open ? '\u2212' : '+'}</span>
         <span className="min-w-0 block">
@@ -319,11 +319,10 @@ function CategoryBlock({
             </span>
           )}
         </span>
-        {/* The status word (“In order” · “Nothing logged” · “n to look
-            at”) is gone (founder's correction, August 2026) — the count
-            alone sits against the edge. */}
-        <span className="col-start-2 md:col-start-auto flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
-          <span style={{ ...mono(11, SECONDARY), letterSpacing: 0 }}>{category.count}</span>
+        {/* The count rides the NAME'S OWN ROW, right-aligned and light
+            (founder's correction, August 2026). */}
+        <span className="flex items-center whitespace-nowrap" style={{ gap: '14px' }}>
+          <span style={{ ...mono(11, FAINT), letterSpacing: 0 }}>{category.count}</span>
         </span>
       </button>
 
@@ -749,10 +748,11 @@ export function LedgerTab({
         {/* LOG A PIECE — a link in one end or a photograph in the other. */}
         <div
           className="flex items-center flex-wrap"
+          // The heavy rule above this row is gone (founder's correction,
+          // August 2026) — only the hairline beneath remains.
           style={{
             gap: '12px',
             padding: '14px 0',
-            borderTop: `1px solid ${INK}`,
             borderBottom: '1px solid rgba(59,43,29,0.2)',
           }}
         >
@@ -839,21 +839,31 @@ export function LedgerTab({
           <div className="flex items-center flex-wrap" style={{ gap: '8px' }}>
             <Chip label="List" active={view === 'list'} onClick={() => setView('list')} />
             <Chip label="Tiles" active={view === 'tiles'} onClick={() => setView('tiles')} />
+            {/* Open/close every category is a compact GLYPH now (founder's
+                correction, August 2026) — the double chevron, with the full
+                instruction on its tooltip. */}
             <button
               type="button"
               onClick={() => setOpenIds(allOpen ? [] : model.categories.map((c) => c.id))}
-              className="hab-tap"
+              title={allOpen ? 'Close every category' : 'Open every category'}
+              aria-label={allOpen ? 'Close every category' : 'Open every category'}
+              className="hab-tap transition-colors hover:border-[#a8712c] flex items-center justify-center flex-shrink-0"
               style={{
-                ...mono(9, ACCENT_DEEP),
-                marginLeft: '8px',
+                marginLeft: '2px',
+                width: '34px',
+                height: '31px',
                 background: 'transparent',
-                border: 'none',
-                borderBottom: '1px solid rgba(168,113,44,0.4)',
+                border: '1px solid rgba(59,43,29,0.3)',
+                color: ACCENT_DEEP,
                 padding: 0,
                 borderRadius: 0,
               }}
             >
-              {allOpen ? 'Close every category' : 'Open every category'}
+              {allOpen ? (
+                <ChevronsDownUp className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden="true" />
+              ) : (
+                <ChevronsUpDown className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden="true" />
+              )}
             </button>
             {thinking && !reading && (
               <span aria-live="polite" className="w-full sm:w-auto sm:min-w-[220px]">
@@ -861,13 +871,16 @@ export function LedgerTab({
               </span>
             )}
           </div>
+          {/* The find box shares the row with List · Tiles on every width
+              (founder's correction, August 2026). */}
           <div
-            className="flex items-center hab-filter-field"
+            className="flex items-center flex-1 min-w-0"
             style={{
-              gap: '12px',
+              gap: '10px',
               border: '1px solid rgba(59,43,29,0.3)',
               padding: '7px 13px',
-              minWidth: '280px',
+              minWidth: '150px',
+              maxWidth: '360px',
               background: PAPER,
             }}
           >
