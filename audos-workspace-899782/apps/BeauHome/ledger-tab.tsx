@@ -717,7 +717,16 @@ export function LedgerTab({
     <div>
       <TabHeader
         title="The Rail"
-        standfirst={'Everything you own, by category \u2014 open a piece to correct Beau.'}
+        // The correction prompt stays on a desktop; on a phone the standfirst
+        // is the reference's own four words (mobile pass, August 2026). The
+        // correction itself is untouched — opening a piece still opens the
+        // sheet where Beau is corrected.
+        standfirst={
+          <>
+            {'Everything you own, by category'}
+            <span className="hidden md:inline">{' \u2014 open a piece to correct Beau'}</span>.
+          </>
+        }
         aside={
           <>
             <span style={{ ...serif(44, WALNUT), lineHeight: 1 }}>{model.total}</span>
@@ -748,7 +757,7 @@ export function LedgerTab({
             borderBottom: '1px solid rgba(59,43,29,0.2)',
           }}
         >
-          <span style={mono(9, FAINT)}>Log a piece</span>
+          <span className="hidden sm:inline" style={mono(9, FAINT)}>Log a piece</span>
           <div
             className="flex items-center flex-1 hab-filter-field"
             style={{
@@ -830,7 +839,7 @@ export function LedgerTab({
           style={{ gap: '14px 20px', padding: '16px 0 14px' }}
         >
           <div className="flex items-center flex-wrap" style={{ gap: '8px' }}>
-            <span style={mono(9, FAINT)}>Show as</span>
+            <span className="hidden sm:inline" style={mono(9, FAINT)}>Show as</span>
             <Chip label="List" active={view === 'list'} onClick={() => setView('list')} />
             <Chip label="Tiles" active={view === 'tiles'} onClick={() => setView('tiles')} />
             <button
