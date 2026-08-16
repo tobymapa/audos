@@ -612,7 +612,9 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
   return (
     <div>
       <div className="min-w-0">{children}</div>
-      <div className="pt-3">
+      {/* The zone list under the canvas is a desktop reading — on a phone
+          the canvas speaks for itself (founder's correction, August 2026). */}
+      <div className="hidden sm:block pt-3">
         {placed.map(({ piece }) => {
           const p = piece as BoardPiece;
           const status = boardStatusOf(p);
@@ -1503,7 +1505,7 @@ export function FittingRoomTab({
 
       {/* 2 · THE CONTEXT BAR — the shared weather reading and the location
           control, BELOW the masthead so the header itself stays uniform. */}
-      <FittingContextBar right={`The Fitting · ${dayName}`} />
+      <FittingContextBar />
 
       {/* 3 · THE BAND — the days (with the swap alternatives beneath them),
           the fitting, the notes. The left column widened so the alternatives
@@ -1638,7 +1640,9 @@ export function FittingRoomTab({
 
           {/* THE NOTES — the alternatives moved under the day rail on a
               desktop; on a phone they keep their old place here. */}
-          <aside aria-label="Notes on this look" className="flex flex-col" style={{ background: PAPER, padding: '26px 16px 32px' }}>
+          {/* Hidden on a phone (founder's correction, August 2026) — the
+              swaps are a desktop margin note. */}
+          <aside aria-label="Notes on this look" className="hidden sm:flex flex-col" style={{ background: PAPER, padding: '26px 16px 32px' }}>
             {/* SWAP ALTERNATIVES — the column's ONLY section now (founder's
                 cut, August 2026: Style notes and What not to do are gone).
                 Real pieces he owns that could take a slot; hovering (or
@@ -1695,17 +1699,19 @@ export function FittingRoomTab({
             {/* THE SOURCE PICKER (layout & performance pass, August 2026):
                 the three sources arrive as a compact picker — nothing
                 expands, and nothing fetches, until a source is opened. */}
+            {/* No “Dress it from” label (founder's correction, August 2026)
+                — the three sources speak for themselves, and on a phone they
+                hold ONE row of three equal buttons (hab-source-row). */}
             <div
-              className="flex items-center flex-wrap"
+              className="flex items-center flex-wrap hab-source-row"
               style={{ gap: '6px', marginTop: '16px' }}
               role="group"
               aria-label="Dress the fitting from"
             >
-              <span style={fitLabel(8.5, MUTED, '0.16em')}>Dress it from</span>
               {([
-                { id: 'owned', label: `Yours · ${ownedPieces.length}` },
+                { id: 'owned', label: 'Yours' },
                 { id: 'saved', label: 'Saved in the Search' },
-                { id: 'picks', label: `Beau’s picks · ${beauPicks.length}` },
+                { id: 'picks', label: 'Beau’s picks' },
               ] as const).map(({ id, label: shelfLabel }) => {
                 const active = openShelf === id;
                 return (
@@ -1883,7 +1889,7 @@ export function FittingRoomTab({
           { dot: MUTED, label: 'Neutrals' },
           { dot: ACCENT, label: 'Accents' },
         ]}
-        note="Tap a day or an occasion and the fitting re-dresses"
+        note=""
       />
 
       {/* THE FULL-SCREEN BOARD (founder's request, August 2026): the canvas

@@ -423,7 +423,7 @@ export function HuntPicks({
         <span style={mono(8, FAINT)}>
           {drawnCount > 0
             ? `${numberWord(drawnCount)} shortlist${drawnCount === 1 ? '' : 's'} in front of you`
-            : `${numberWord(HUNT_CATEGORIES.length)} categories · unfold one to set him going`}
+            : 'Unfold one to set him going'}
         </span>
       </div>
 

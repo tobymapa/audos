@@ -380,9 +380,11 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
 
   return (
     <div>
+      {/* The heading is GONE (founder's correction, August 2026) — the
+          tab's standfirst already says it. Only the quiet how-it-works
+          reveal keeps the line. */}
       <div style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
-        <div className="flex items-baseline justify-between gap-3 flex-wrap">
-          <h3 style={{ ...serif(20, WALNUT), margin: 0 }}>Ask Beau, or put a link in front of him</h3>
+        <div className="flex items-baseline justify-end gap-3 flex-wrap">
           <button
             type="button"
             onClick={() => setShowHow((v) => !v)}
@@ -483,11 +485,13 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
       {/* THE BENCH */}
       <section aria-label="The bench" style={{ marginTop: '22px', borderTop: `1px solid ${HAIRLINE}`, paddingTop: '13px' }}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span style={{ ...mono(8, FAINT) }}>
-            {queued.length === 0
-              ? 'The queue is empty — paste a link and queue it'
-              : `${queued.length} of ${ASK_QUEUE_LIMIT} on the bench · two or more and he will compare them properly`}
-          </span>
+          {queued.length === 0 ? (
+            <span aria-hidden="true" />
+          ) : (
+            <span style={{ ...mono(8, FAINT) }}>
+              {`${queued.length} of ${ASK_QUEUE_LIMIT} on the bench · two or more and he will compare them properly`}
+            </span>
+          )}
           <HuntButton
             onClick={() => void compare()}
             busy={!!comparePhase}
@@ -600,11 +604,6 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
         </section>
       )}
 
-      {!answer && !phase && queued.length === 0 && (
-        <p style={{ ...body(13, FAINTER), margin: '22px 0 0', maxWidth: '58ch' }}>
-          Nothing asked yet. He reasons with your whole dossier every time — there is no profile switch to remember.
-        </p>
-      )}
     </div>
   );
 }

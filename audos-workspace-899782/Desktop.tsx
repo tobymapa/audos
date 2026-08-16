@@ -1738,7 +1738,12 @@ export default function SpaceDesktop({
           .sub-tab--index-face,.sub-tab--style-a,.sub-tab--style-b{width:100%!important;flex-wrap:wrap!important;overflow-x:visible!important}
           .sub-tab--index-face__tab,.sub-tab--style-b__tab{flex:1 1 auto!important}
           .hab-segmented{width:100%!important}
-          .hab-segmented>button{flex:1 1 auto!important}
+          .hab-segmented>button{flex:1 1 auto!important;white-space:normal!important}
+          /* The Fitting's three board sources hold ONE row on a phone —
+             three equal buttons sharing the width (founder's correction,
+             August 2026). */
+          .hab-source-row{display:flex!important;width:100%!important;flex-wrap:nowrap!important}
+          .hab-source-row>button{flex:1 1 0!important;white-space:normal!important;text-align:center;padding-left:6px!important;padding-right:6px!important}
 
           /* CROWDING: the desktop stack rhythm (32-48px between blocks) reads
              as dead air on a 375px screen and pushes the copy that matters

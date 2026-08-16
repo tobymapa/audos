@@ -79,7 +79,7 @@ export function swatchForPiece(name: string, colors?: string[] | null): string |
 // Changing the city here changes it everywhere, exactly as before.
 // ---------------------------------------------------------------------------
 
-export function FittingContextBar({ right }: { right: React.ReactNode }) {
+export function FittingContextBar({ right: _right }: { right?: React.ReactNode } = {}) {
   const { weather, status } = useSharedWeather();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -118,7 +118,7 @@ export function FittingContextBar({ right }: { right: React.ReactNode }) {
       }`
     : status === 'loading'
       ? 'Reading today\u2019s weather\u2026'
-      : 'No location set \u2014 Beau checks the weather';
+      : 'No location set';
 
   return (
     <div style={{ background: PAPER, borderBottom: `1px solid ${HAIRLINE}` }}>
@@ -135,19 +135,19 @@ export function FittingContextBar({ right }: { right: React.ReactNode }) {
               {reading}
             </span>
           </span>
-          <span className="inline-flex items-center gap-5 flex-wrap">
-            <button
-              type="button"
-              onClick={editing ? () => setEditing(false) : openEditor}
-              className="hover:underline"
-              style={{ ...label(9.5, ACCENT_DEEP, '0.1em'), background: 'transparent', border: 'none' }}
-              aria-expanded={editing}
-              title="Set the city Beau dresses you for — it changes everywhere"
-            >
-              Change location
-            </button>
-            <span style={label(9.5, MUTED, '0.1em')}>{right}</span>
-          </span>
+          {/* ONE control for set AND change (founder's correction, August
+              2026), and nothing else on the line — the tab · day note is
+              gone. */}
+          <button
+            type="button"
+            onClick={editing ? () => setEditing(false) : openEditor}
+            className="hover:underline"
+            style={{ ...label(9.5, ACCENT_DEEP, '0.1em'), background: 'transparent', border: 'none' }}
+            aria-expanded={editing}
+            title="Set the city Beau dresses you for — it changes everywhere"
+          >
+            Set location
+          </button>
         </div>
         {editing && (
           <div className="max-w-[1180px] mx-auto flex items-center gap-2 flex-wrap" style={{ paddingBottom: '10px' }}>
@@ -267,8 +267,12 @@ export interface SegmentedItem {
 }
 
 export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; activeKey: string }) {
+  // EVERY SEGMENT IS A DRAWN BOX (founder's correction, August 2026): each
+  // face carries its own full outline, butted -1px into its neighbour, so
+  // the dividing lines INSIDE the control read as clearly as the outside —
+  // the same treatment The Search's face chips wear.
   return (
-    <div className="flex flex-wrap hab-segmented" style={{ border: `1px solid rgba(59,43,29,0.22)` }} role="group" aria-label="How this board is made">
+    <div className="flex flex-wrap hab-segmented" role="group" aria-label="How this board is made">
       {items.map((item, i) => {
         const on = item.key === activeKey;
         return (
@@ -282,8 +286,8 @@ export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; ac
             style={{
               ...label(9.5, on ? '#f4eee3' : MUTED, '0.16em'),
               padding: '11px 19px',
-              border: 'none',
-              borderRight: i === items.length - 1 ? 'none' : `1px solid ${HAIRLINE}`,
+              border: `1px solid ${on ? WALNUT : 'rgba(59,43,29,0.22)'}`,
+              marginLeft: i === 0 ? 0 : '-1px',
               background: on ? WALNUT : 'transparent',
               cursor: 'pointer',
             }}
@@ -587,7 +591,7 @@ export function FooterLegend({ items, note }: { items: Array<{ dot: string; labe
               </span>
             ))}
           </div>
-          <span style={label(9, MUTED, '0.16em')}>{note}</span>
+          {note ? <span style={label(9, MUTED, '0.16em')}>{note}</span> : null}
         </div>
       </div>
     </div>

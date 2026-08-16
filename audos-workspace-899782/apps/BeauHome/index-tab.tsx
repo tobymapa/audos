@@ -462,17 +462,8 @@ function BandStrip({
                   }}
                 >
                   <span style={{ ...mono(10, count > 0 ? SECONDARY : FAINTER), display: 'block', whiteSpace: 'nowrap' }}>{BAND_CELL_LABELS[band]}</span>
-                  <span
-                    style={{
-                      ...serif(24, count > 0 ? WALNUT : FAINTER),
-                      display: 'block',
-                      lineHeight: 1.15,
-                      marginTop: '3px',
-                      fontFeatureSettings: "'onum' 1",
-                    }}
-                  >
-                    {count}
-                  </span>
+                  {/* The bare count under each band is gone (founder's
+                      correction, August 2026) — the bar carries the depth. */}
                   <span
                     aria-hidden
                     style={{

@@ -700,7 +700,7 @@ export function LedgerTab({
       ? `${capWord(numberWord(corrections))} ${corrections === 1 ? 'correction' : 'corrections'} made ${MIDDOT} Beau is reading them`
       : model.total === 0
         ? 'Nothing logged yet \u2014 start with one piece'
-        : `${capWord(numberWord(model.categories.length))} categories`;
+        : '';
 
   // Where you are inside the record — published to the app-wide floating
   // breadcrumb, which is the ONE place the path is drawn. With a piece sheet
