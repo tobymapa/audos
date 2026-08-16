@@ -557,10 +557,12 @@ export function Shelf({
           </span>
           <span style={label(9, tone, '0.18em')}>{title}</span>
         </button>
-        <span style={label(9, MUTED, '0.18em')}>{note}</span>
+        {note ? <span style={label(9, MUTED, '0.18em')}>{note}</span> : null}
       </div>
       {open && (
-        <div className="flex flex-wrap gap-x-6 gap-y-7" style={{ paddingTop: '18px' }}>
+        // THREE TILES PER ROW on a phone (founder's correction, August
+        // 2026); from sm up the shelf keeps its flowing wrap.
+        <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:flex sm:flex-wrap sm:gap-x-6 sm:gap-y-7" style={{ paddingTop: '18px' }}>
           {children}
         </div>
       )}

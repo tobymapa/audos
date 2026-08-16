@@ -320,7 +320,7 @@ const ShelfCard = memo(function ShelfCard({
   onToggle: (piece: FittingPiece) => void;
 }) {
   return (
-    <div className="w-[132px] sm:w-[156px] flex-shrink-0">
+    <div className="w-full min-w-0 sm:w-[156px] sm:flex-shrink-0">
       <button
         type="button"
         onClick={() => onToggle(piece)}
@@ -1685,17 +1685,11 @@ export function FittingRoomTab({
         <div className="px-6 sm:px-10" style={{ paddingTop: '22px', paddingBottom: '32px' }}>
           <div className="max-w-[1180px] mx-auto">
             <div className="flex items-baseline justify-between gap-5 flex-wrap">
+              {/* The sub-line and the pieces-on-board count are gone
+                  (founder's correction, August 2026) — the heading alone. */}
               <div className="min-w-0">
                 <div style={{ fontFamily: SERIF, fontSize: '28px', lineHeight: 1.1, color: WALNUT }}>Board</div>
-                <p style={{ ...body(13.5, MUTED), margin: '6px 0 0', maxWidth: '64ch' }}>
-                  What you own, what you saved, and Beau’s picks.
-                </p>
               </div>
-              {activeBoard.length > 0 && (
-                <span style={fitLabel(9, ACCENT_DEEP, '0.16em')}>
-                  {`${activeBoard.length} piece${activeBoard.length === 1 ? '' : 's'} on board`}
-                </span>
-              )}
             </div>
 
             {/* THE SOURCE PICKER (layout & performance pass, August 2026):
@@ -1816,7 +1810,7 @@ export function FittingRoomTab({
 
             {visitedShelves.owned && (
             <div style={openShelf === 'owned' ? undefined : { display: 'none' }}>
-            <Shelf title="Yours · logged in the Rail" note={shelfNote(shownOwned)}>
+            <Shelf title="Yours" note="">
               {shownOwned.length > 0 ? (
                 shownOwned.map((piece) => (
                   <ShelfCard

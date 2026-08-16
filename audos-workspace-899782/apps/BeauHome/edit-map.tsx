@@ -199,7 +199,7 @@ function DetailPanel({
                 textAlign: 'left',
               }}
             >
-              {cell.subCategory ? `Beau\u2019s picks \u00b7 ${cell.subCategory}` : 'Open The Search'}
+              {'Beau\u2019s picks'}
             </button>
             {cell.typeId && (
               <button
@@ -218,7 +218,6 @@ function DetailPanel({
                 In the Index →
               </button>
             )}
-            {!isGap && <span style={mono(9, '#856c51')}>{categoryNote}</span>}
           </div>
         </div>
 

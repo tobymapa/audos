@@ -736,7 +736,7 @@ export function LedgerTab({
         }
       />
 
-      <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
+      <div className="px-6 sm:px-10 pt-3 max-w-[1180px] mx-auto w-full pb-28">
         {/* Where you are inside the record. The trail itself is drawn ONCE,
             by the floating chrome row — this only publishes to it. */}
         <CrumbPublisher
@@ -757,12 +757,12 @@ export function LedgerTab({
           }}
         >
           <div
-            className="flex items-center flex-1 hab-filter-field"
+            className="flex items-center flex-1 min-w-0"
             style={{
               gap: '12px',
               border: '1px solid rgba(59,43,29,0.35)',
               padding: '8px 14px',
-              minWidth: '260px',
+              minWidth: '120px',
               maxWidth: '460px',
               background: PAPER,
             }}
@@ -816,7 +816,7 @@ export function LedgerTab({
               whiteSpace: 'nowrap',
             }}
           >
-            Photograph a piece
+            Photograph
           </button>
           <span style={mono(9, ACCENT_DEEP)}>{logNote}</span>
         </div>
@@ -833,8 +833,8 @@ export function LedgerTab({
 
         {/* Show as · open every category · find. */}
         <div
-          className="flex items-center justify-between flex-wrap"
-          style={{ gap: '14px 20px', padding: '16px 0 14px' }}
+          className="flex items-center flex-wrap"
+          style={{ gap: '8px', padding: '16px 0 14px' }}
         >
           <div className="flex items-center flex-wrap" style={{ gap: '8px' }}>
             <Chip label="List" active={view === 'list'} onClick={() => setView('list')} />
@@ -880,7 +880,6 @@ export function LedgerTab({
               border: '1px solid rgba(59,43,29,0.3)',
               padding: '7px 13px',
               minWidth: '150px',
-              maxWidth: '360px',
               background: PAPER,
             }}
           >
@@ -888,7 +887,7 @@ export function LedgerTab({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="a piece, a maker, a cloth"
+              placeholder="piece / maker"
               aria-label="Find a piece"
               className="flex-1 min-w-0"
               style={{

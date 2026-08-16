@@ -351,13 +351,15 @@ export function BeauTab(props: {
         }
       />
 
-      <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
+      <div className="px-6 sm:px-10 pt-3 max-w-[1180px] mx-auto w-full pb-28">
         {/* The four figures — the page's own furniture, BELOW the masthead's
             closing rule, so this tab's header is exactly the height of the
             other five. */}
+        {/* No rule of its own above the four figures (founder's correction,
+            August 2026) — the masthead's grey line is the only one. */}
         <div
           className="grid grid-cols-2 md:grid-cols-4"
-          style={{ marginBottom: '26px', borderTop: `1px solid ${INK}` }}
+          style={{ marginBottom: '26px' }}
         >
           {figures.map((figure, i) => (
             <div

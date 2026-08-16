@@ -264,7 +264,9 @@ function FindLine({
   return (
     <label
       className="flex items-center min-w-0 flex-1 hab-find-line"
-      style={{ gap: '13px', border: `1px solid ${RULE}`, padding: '9px 13px', maxWidth, background: 'transparent' }}
+      // The same box treatment as every text box in the app (founder's
+      // correction, August 2026) — paper ground, the standard rule.
+      style={{ gap: '13px', border: '1px solid rgba(59,43,29,0.3)', padding: '9px 13px', maxWidth, background: PAPER }}
     >
       <span style={mono(8.5, FAINT)}>Find</span>
       <input
@@ -847,7 +849,7 @@ function PiecesFace({
     <div>
       {/* PHONE: the eleven categories read as ONE dropdown (founder's
           correction, August 2026) — the chip strip stays from sm up. */}
-      <div className="sm:hidden" style={{ borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
+      <div className="sm:hidden" style={{ paddingBottom: '9px' }}>
         <label className="flex items-center" style={{ gap: '10px' }}>
           <span style={mono(8, FAINT)}>Category</span>
           <select
@@ -875,7 +877,7 @@ function PiecesFace({
 
       {/* ——— the category strip — every category on one compact row, never a
           scroll (founder's correction: the count strip must not scroll) */}
-      <div className="hidden sm:flex flex-wrap" style={{ gap: '4px 18px', borderBottom: `1px solid ${HAIRLINE}`, paddingBottom: '9px' }}>
+      <div className="hidden sm:flex flex-wrap" style={{ gap: '4px 18px', paddingBottom: '9px' }}>
         {model.categories.map((c) => {
           const active = c.id === cat;
           return (
