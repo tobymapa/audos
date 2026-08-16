@@ -1619,6 +1619,16 @@ export default function SpaceDesktop({
                38px) resolves to the desktop value the call site wrote. */
             --eth-field-h:46px;
             --eth-input:16px;
+            /* The photo-carousel arrows (YourStyle). The 28px drawn circle
+               is the design; on a phone the BUTTON grows to the 44px touch
+               minimum through a transparent border of this width on every
+               side, with the background clipped to the padding box — so the
+               thumb target grows but the visible circle never covers one
+               more pixel of the photograph it sits on. The drop shadow is
+               parked while the border is on (box-shadow draws at the border
+               box and would ring 8px off the circle). */
+            --eth-arrow-pad:8px;
+            --eth-arrow-shadow:none;
             /* The Edit's category-by-band matrix. It cannot stack (a matrix
                only reads side by side), so instead it narrows: a shorter row
                label and a smaller overall width put roughly twice as many

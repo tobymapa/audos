@@ -350,7 +350,7 @@ const ShelfCard = memo(function ShelfCard({
         </span>
         <span
           className="block group-hover:underline break-words"
-          style={{ fontFamily: SERIF, fontSize: '17px', lineHeight: 1.25, color: WALNUT, marginTop: '10px' }}
+          style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 17px)', lineHeight: 1.25, color: WALNUT, marginTop: '10px' }}
         >
           {piece.name}
         </span>
@@ -765,8 +765,13 @@ function AnnotatedBoard({ pieces, children }: { pieces: BoardPiece[]; children: 
           const p = piece as BoardPiece;
           const status = boardStatusOf(p);
           return (
-            <div key={p.key} className="flex items-baseline gap-2.5" style={{ padding: '3px 0' }}>
-              <span style={{ ...annMono, color: MUTED, width: '74px', flexShrink: 0 }}>{zoneLabelFor(p)}</span>
+            <div key={p.key} className="flex items-baseline gap-2.5 flex-wrap" style={{ padding: '3px 0' }}>
+              {/* This list only renders under 640px, where annMono reads the
+                  13px --eth-micro floor — the zone column is sized for THAT
+                  type ("Outer layer" ≈ 97px), not the 7px desktop register
+                  the old 74px fitted. flex-wrap drops a long status line
+                  under the name instead of forcing it off the screen. */}
+              <span style={{ ...annMono, color: MUTED, width: '102px', flexShrink: 0 }}>{zoneLabelFor(p)}</span>
               <span style={{ fontFamily: SERIF, fontSize: 'max(var(--eth-serif, 0px), 13px)', color: WALNUT }}>{p.name}</span>
               {status && <span style={{ ...annMono, color: ACCENT_DEEP }}>{status}</span>}
             </div>

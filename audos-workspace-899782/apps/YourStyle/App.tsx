@@ -376,10 +376,7 @@ const FIELD_LABEL: React.CSSProperties = {
   textTransform: 'uppercase',
   color: '#8A7F70',
   marginBottom: '6px',
-  // One line on a desktop row; wrapping on a phone, where the lifted type
-  // floor makes a label like SHOULDER WIDTH wider than its 96px field and it
-  // used to run over the label beside it (--eth-label-wrap, Desktop.tsx).
-  whiteSpace: 'var(--eth-label-wrap, nowrap)' as React.CSSProperties['whiteSpace'],
+  whiteSpace: 'nowrap',
 };
 
 const FIELD_INPUT: React.CSSProperties = {
@@ -718,14 +715,20 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
     position: 'absolute',
     top: '50%',
     transform: 'translateY(-50%)',
-    width: '28px',
-    height: '28px',
-    border: 'none',
+    // 28px is the drawn circle. On a phone the button grows to the 44px
+    // touch minimum through a transparent border (--eth-arrow-pad, declared
+    // in Desktop.tsx's mobile block; 0px on desktop) with the background
+    // clipped to the padding box — the visible circle stays 28px, so the
+    // bigger thumb target never covers more of the photograph beneath it.
+    width: 'calc(28px + var(--eth-arrow-pad, 0px) * 2)',
+    height: 'calc(28px + var(--eth-arrow-pad, 0px) * 2)',
+    border: 'var(--eth-arrow-pad, 0px) solid transparent',
     outline: 'none',
     borderRadius: '50%',
     background: '#d4c9b8',
+    backgroundClip: 'padding-box',
     color: '#241a12',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+    boxShadow: 'var(--eth-arrow-shadow, 0 1px 4px rgba(0,0,0,0.15))',
     fontFamily: 'var(--space-font-heading)',
     fontSize: '16px',
     lineHeight: 1,
@@ -770,7 +773,7 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
                   <button
                     type="button"
                     onClick={() => step(-1)}
-                    style={{ ...arrowStyle, left: '10px' }}
+                    style={{ ...arrowStyle, left: 'calc(10px - var(--eth-arrow-pad, 0px))' }}
                     aria-label={`Previous ${label.archetype(id)} look`}
                   >
                     ‹
@@ -778,7 +781,7 @@ const ArchetypeCell = memo(function ArchetypeCell({ id, primary }: { id: string;
                   <button
                     type="button"
                     onClick={() => step(1)}
-                    style={{ ...arrowStyle, right: '10px' }}
+                    style={{ ...arrowStyle, right: 'calc(10px - var(--eth-arrow-pad, 0px))' }}
                     aria-label={`Next ${label.archetype(id)} look`}
                   >
                     ›

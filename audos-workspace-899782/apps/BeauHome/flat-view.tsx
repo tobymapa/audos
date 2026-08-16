@@ -728,7 +728,7 @@ export function SavedOutfitsSection({
                     className="flex-1 min-w-0 min-h-[44px] py-2.5 text-left group"
                     title={`Load “${row.name}” onto the board`}
                   >
-                    <span className="block truncate" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 500, color: 'var(--color-text,#241a12)' }}>
+                    <span className="block truncate" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 16px)', fontWeight: 500, color: 'var(--color-text,#241a12)' }}>
                       {row.name}
                     </span>
                     <span className="block truncate group-hover:underline" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', color: 'var(--color-neutral-600,#856c51)' }}>
