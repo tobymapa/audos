@@ -180,7 +180,10 @@ function DetailPanel({
           </div>
           <div style={{ ...serif(29, WALNUT), marginTop: '7px', lineHeight: 1.1 }}>{note.title}</div>
           <p style={{ ...body(14, INK), margin: '11px 0 0', maxWidth: '74ch' }}>{note.body}</p>
-          <div className="flex items-center flex-wrap" style={{ gap: '10px', marginTop: '14px' }}>
+          {/* The two ways on hold ONE row on every width (founder's
+              correction, August 2026) — Beau's picks and In the Index sit
+              side by side on a phone exactly as they do on a desktop. */}
+          <div className="flex items-center flex-nowrap" style={{ gap: '10px', marginTop: '14px' }}>
             <button
               type="button"
               onClick={() =>

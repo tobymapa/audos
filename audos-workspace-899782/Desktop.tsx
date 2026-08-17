@@ -1607,21 +1607,6 @@ export default function SpaceDesktop({
           .px-6{padding-left:16px!important;padding-right:16px!important}
         }
         :root{--eth-micro:0px;--eth-label:0px;--eth-body:0px;--eth-serif:0px;}
-        /* THE PER-SURFACE TYPE BUMP (founder's correction, August 2026).
-           --eth-type-bump is read by the three shared type helpers
-           (index-style.tsx), so every size a surface sets moves by it AT ONCE
-           and the hierarchy between those sizes is kept exactly. It is
-           declared on one class rather than at :root, so only the surface that
-           opts in moves: The Index's Pieces face is the first, where the
-           founder asked for every label, figure and name under the masthead to
-           read a step larger on a desktop. */
-        .hab-index-type{--eth-type-bump:2px}
-        /* THE MASTHEAD FACE CHIPS, ONE MEASURE. The Search's four faces and
-           The Index's Pieces · Makers toggle (the sub-tab--index-face variant)
-           take the type size, tracking and box that The Fitting's five
-           occasions carry (SegmentedTabs, fitting-design.tsx), so the three
-           mastheads read as the same control rather than three sizes. */
-        :root{--eth-face-chip-size:9.5px;--eth-face-chip-track:0.16em;--eth-face-chip-pad:11px 19px;}
         @media (max-width: 639.98px){
           :root{
             /* SECOND PHONE PASS (founder's review). The first floors still
@@ -1657,15 +1642,7 @@ export default function SpaceDesktop({
                temperature bands on screen at once. */
             --eth-map-label:104px;
             --eth-map-min:540px;
-            /* The face chips keep their own compact measure on a phone, where
-               they already stretch to share the full width of the row. */
-            --eth-face-chip-size:8.5px;
-            --eth-face-chip-track:0.07em;
-            --eth-face-chip-pad:9px 16px;
           }
-          /* The Index's step-up is a DESKTOP change only — on a phone the
-             reading floors above already govern every size on that face. */
-          .hab-index-type{--eth-type-bump:0px}
           /* ...and each row's label is pinned to the left edge, so the category
              a cell belongs to is still readable once the matrix is scrolled. */
           .hab-map-rowhead{position:sticky;left:0;z-index:2}
@@ -1764,6 +1741,22 @@ export default function SpaceDesktop({
              off the right edge. */
           .sub-tab--index-face,.sub-tab--style-a,.sub-tab--style-b{width:100%!important;flex-wrap:wrap!important;overflow-x:visible!important}
           .sub-tab--index-face__tab,.sub-tab--style-b__tab{flex:1 1 auto!important}
+          /* THE FACE CHIPS CLOSE A CLEAN RECTANGLE ON A PHONE (founder's
+             correction, August 2026). A wrapping flex row sized every chip to
+             its own label, so The Search's four read as a ragged block: Beau's
+             Picks wider than Ask Beau, Your Calls wider than Watchlist. They
+             are laid out as a TWO-COLUMN GRID instead — equal halves, equal
+             rows — so Beau's Picks is exactly as wide as Your Calls beneath
+             it, Ask Beau exactly as wide as Watchlist, and the four together
+             make one even rectangle. The Index's two chips take the same
+             treatment: one row of two equal halves.
+             The chips are BUTTED, not gapped: the inline -1px pull that joins
+             them in a row is re-aimed here at the second COLUMN and the second
+             ROW, so every join is a single hairline rather than a doubled one. */
+          .sub-tab--index-face{display:grid!important;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}
+          .sub-tab--index-face__tab{margin-left:0!important;min-width:0;text-align:center}
+          .sub-tab--index-face__tab:nth-child(even){margin-left:-1px!important}
+          .sub-tab--index-face__tab:nth-child(n+3){margin-top:-1px!important}
           .hab-segmented{width:100%!important}
           .hab-segmented>button{flex:1 1 auto!important;white-space:normal!important}
           /* The Fitting's three board sources hold ONE row on a phone —

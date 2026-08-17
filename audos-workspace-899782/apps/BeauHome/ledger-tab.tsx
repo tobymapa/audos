@@ -761,13 +761,18 @@ export function LedgerTab({
               background: PAPER,
             }}
           >
+            {/* THE SAME FORM AS THE FIND BOX (founder's correction, August
+                2026): the verb is a mono small-caps prefix and the field's
+                own placeholder carries on from it — LOG a piece, exactly as
+                FIND a piece reads. */}
+            <span style={mono(9, FAINT)}>Log</span>
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') logIt();
               }}
-              placeholder={'log a piece \u2014 paste a link or upload photo'}
+              placeholder={'a piece \u2014 paste a link or upload photo'}
               aria-label="Paste a link, or name the piece"
               className="flex-1 min-w-0"
               style={{

@@ -560,9 +560,11 @@ export function Shelf({
         {note ? <span style={label(9, MUTED, '0.18em')}>{note}</span> : null}
       </div>
       {open && (
-        // THREE TILES PER ROW on every width (founder's correction, August
-        // 2026) — desktop and phone alike.
-        <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:gap-x-6 sm:gap-y-7" style={{ paddingTop: '18px' }}>
+        // FIVE TILES PER ROW ON A DESKTOP, THREE ON A PHONE (founder's
+        // correction, August 2026). The shelf runs the full width of the page
+        // beneath the band, so five sit comfortably across it there, while a
+        // phone keeps the three it can actually show at a readable size.
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-3 gap-y-6 sm:gap-x-6 sm:gap-y-7" style={{ paddingTop: '18px' }}>
           {children}
         </div>
       )}

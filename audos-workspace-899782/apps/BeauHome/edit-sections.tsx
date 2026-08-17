@@ -87,7 +87,9 @@ function PicksButton({
         border: `1px solid ${ACCENT}`,
         background: 'rgba(168,113,44,0.12)',
         padding: block ? '8px 15px' : '6px 13px',
-        whiteSpace: 'nowrap',
+        // Side by side in a narrow cell, the label wraps rather than spilling
+        // out of its own box (founder's correction, August 2026).
+        whiteSpace: block ? 'normal' : 'nowrap',
         textAlign: 'center',
         width: block ? '100%' : undefined,
       }}
@@ -109,7 +111,7 @@ function IndexButton({ typeId, block = false }: { typeId: string; block?: boolea
         border: '1px solid rgba(59,43,29,0.28)',
         background: 'transparent',
         padding: block ? '7px 15px' : '6px 13px',
-        whiteSpace: 'nowrap',
+        whiteSpace: block ? 'normal' : 'nowrap',
         textAlign: 'center',
         width: block ? '100%' : undefined,
       }}
@@ -278,7 +280,9 @@ export function CategoryList({
 // THE GAP TABLE
 // ---------------------------------------------------------------------------
 
-const GAP_GRID = 'grid grid-cols-1 md:grid-cols-[34px_210px_118px_minmax(0,1fr)_148px]';
+/** The last column holds BOTH ways on, side by side (founder's correction,
+ * August 2026), so it is wide enough for the two buttons on one line. */
+const GAP_GRID = 'grid grid-cols-1 md:grid-cols-[34px_210px_118px_minmax(0,1fr)_276px]';
 
 export function GapTable({
   gaps,
@@ -349,9 +353,12 @@ export function GapTable({
                 </div>
               </div>
               <span style={{ ...body(13, INK), lineHeight: 1.52 }}>{gap.why}</span>
+              {/* THE TWO WAYS ON SIT SIDE BY SIDE, on every width (founder's
+                  correction, August 2026) — they used to stack into a column
+                  from md up, which read as two separate controls. */}
               <div
-                className="md:justify-self-end flex flex-row md:flex-col"
-                style={{ gap: '6px', alignItems: 'stretch', minWidth: '148px' }}
+                className="md:justify-self-end flex flex-row w-full"
+                style={{ gap: '6px', alignItems: 'stretch', minWidth: '200px' }}
               >
                 <PicksButton
                   categoryId={gap.categoryId}
