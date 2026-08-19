@@ -268,7 +268,7 @@ function FindLine({
       // 2026): the same paper ground, the same rule, the same 8×14 padding,
       // the same 12px gap and the same prefix size as the LOG A PIECE and
       // FIND boxes on The Rail — so a text box is ONE height across the app.
-      style={{ gap: '12px', border: '1px solid rgba(59,43,29,0.35)', padding: '8px 14px', maxWidth, background: PAPER }}
+      style={{ gap: '12px', border: '1px solid rgba(59,43,29,0.35)', padding: '8px 14px', minWidth: '120px', maxWidth, background: PAPER }}
     >
       <span style={mono(9, FAINT)}>Find</span>
       <input
@@ -277,7 +277,7 @@ function FindLine({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="min-w-0 flex-1 bg-transparent outline-none"
-        style={{ ...body(14, INK), fontSize: 'max(var(--eth-input, 0px), 12px)', lineHeight: 1.3 }}
+        style={{ ...body(14, WALNUT), fontSize: 'max(var(--eth-input, 0px), 12px)', lineHeight: 1.3 }}
       />
       {value && (
         <button

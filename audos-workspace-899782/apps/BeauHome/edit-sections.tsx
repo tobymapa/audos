@@ -63,11 +63,51 @@ const TIER_MARK_BG: Record<CoverageTier, string> = {
 // The two ways on, as the design draws them.
 // ---------------------------------------------------------------------------
 
+/**
+ * THE ONE BOX BOTH WAYS ON WEAR (founder's correction, August 2026). The same
+ * type size, tracking, padding and minimum height, so “Beau's picks” and “the
+ * piece's page” always stand at ONE height — and the label and its arrow are
+ * two items of a NOWRAP flex row, so the arrow can never drop to a line of
+ * its own. The Edit's map panel wears the same box, which is why this is
+ * exported rather than kept to this file.
+ */
+export const WAY_ON_BOX = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexWrap: 'nowrap',
+  gap: '6px',
+  // A step under the shared small-caps floor (--eth-micro): at 13px the two
+  // boxes cannot each hold one line side by side on a 375px screen.
+  fontSize: 'max(var(--eth-cta, 0px), 9px)',
+  letterSpacing: '0.04em',
+  whiteSpace: 'nowrap',
+  lineHeight: 1.15,
+  minHeight: '30px',
+  padding: '8px 11px',
+  textAlign: 'center',
+  overflow: 'hidden',
+} as const;
+
+/** The label gives way — never the arrow — when the cell is narrow. */
+export function WayOnLabel({ children }: { children: string }) {
+  return <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</span>;
+}
+
+export function WayOnArrow() {
+  return (
+    <span aria-hidden="true" style={{ flexShrink: 0 }}>
+      →
+    </span>
+  );
+}
+
 function PicksButton({
   categoryId,
   subCategory,
   // The no-break space holds “Beau's picks” on ONE line on a phone
-  // (founder's correction, August 2026) — only the arrow may wrap.
+  // (founder's correction, August 2026); the arrow sits beside it on that
+  // same line, never under it.
   label = 'Beau\u2019s\u00a0picks',
   title,
   block = false,
@@ -83,20 +123,20 @@ function PicksButton({
       type="button"
       onClick={() => openInBeausPicks({ categoryId, subCategory })}
       title={title}
-      className="transition-colors hover:bg-[rgba(168,113,44,0.22)]"
+      className="transition-colors hover:bg-[rgba(168,113,44,0.22)] hab-tap"
       style={{
         ...mono(9, WALNUT),
+        ...WAY_ON_BOX,
         border: `1px solid ${ACCENT}`,
         background: 'rgba(168,113,44,0.12)',
-        padding: block ? '8px 15px' : '6px 13px',
-        // Side by side in a narrow cell, the label wraps rather than spilling
-        // out of its own box (founder's correction, August 2026).
-        whiteSpace: block ? 'normal' : 'nowrap',
-        textAlign: 'center',
-        width: block ? '100%' : undefined,
+        // Side by side in the cell, sharing its width — and on a screen too
+        // narrow to hold both whole, each takes a full-width line of its own
+        // rather than squeezing its label away from its arrow.
+        ...(block ? { flex: '1 1 auto' } : null),
       }}
     >
-      {label} →
+      <WayOnLabel>{label}</WayOnLabel>
+      <WayOnArrow />
     </button>
   );
 }
@@ -107,20 +147,19 @@ function IndexButton({ typeId, block = false }: { typeId: string; block?: boolea
       type="button"
       onClick={() => openInTheIndex({ typeId })}
       title="About this piece — its full page in The Index"
-      className="transition-colors hover:border-[#a8712c]"
+      className="transition-colors hover:border-[#a8712c] hab-tap"
       style={{
         ...mono(9, SECONDARY),
+        // The SAME box as PicksButton beside it, so the pair stands at ONE
+        // height on every width (founder's correction, August 2026).
+        ...WAY_ON_BOX,
         border: '1px solid rgba(59,43,29,0.28)',
         background: 'transparent',
-        // The same vertical padding as PicksButton, so the pair stands at
-        // ONE height (founder's correction, August 2026).
-        padding: block ? '8px 15px' : '6px 13px',
-        whiteSpace: block ? 'normal' : 'nowrap',
-        textAlign: 'center',
-        width: block ? '100%' : undefined,
+        ...(block ? { flex: '1 1 auto' } : null),
       }}
     >
-      The piece's page →
+      <WayOnLabel>The piece's page</WayOnLabel>
+      <WayOnArrow />
     </button>
   );
 }
@@ -134,7 +173,7 @@ function SubInfoButton({ typeId, label }: { typeId: string; label: string }) {
       onClick={() => openInTheIndex({ typeId })}
       aria-label={`About ${label} — its page in the Index`}
       title="About this piece — its page in the Index"
-      className="transition-colors hover:border-[#a8712c] flex items-center justify-center flex-shrink-0"
+      className="transition-colors hover:border-[#a8712c] flex items-center justify-center flex-shrink-0 hab-tap"
       style={{ width: '30px', height: '30px', border: '1px solid rgba(59,43,29,0.28)', background: 'transparent', color: SECONDARY, borderRadius: 0 }}
     >
       <Info className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden="true" />
@@ -361,7 +400,7 @@ export function GapTable({
                   correction, August 2026) — they used to stack into a column
                   from md up, which read as two separate controls. */}
               <div
-                className="md:justify-self-end flex flex-row w-full"
+                className="md:justify-self-end flex flex-row flex-wrap w-full"
                 style={{ gap: '6px', alignItems: 'stretch', minWidth: '200px' }}
               >
                 <PicksButton

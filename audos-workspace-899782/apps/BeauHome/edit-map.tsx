@@ -48,6 +48,9 @@ import {
 } from './edit-model';
 import { fallbackCellNote, type EditReading } from './edit-coverage-ai';
 import { openInBeausPicks, openInTheIndex } from './edit-links';
+// The two ways on wear the SAME box here as they do on the gap table — one
+// definition, so the pair can never drift apart again.
+import { WAY_ON_BOX, WayOnArrow, WayOnLabel } from './edit-sections';
 
 /** The design's own rules, at the two weights the map uses. */
 const CELL_RULE = '1px solid rgba(59,43,29,0.12)';
@@ -183,7 +186,7 @@ function DetailPanel({
           {/* The two ways on hold ONE row on every width (founder's
               correction, August 2026) — Beau's picks and In the Index sit
               side by side on a phone exactly as they do on a desktop. */}
-          <div className="flex items-center flex-nowrap" style={{ gap: '10px', marginTop: '14px' }}>
+          <div className="flex items-stretch flex-nowrap" style={{ gap: '10px', marginTop: '14px' }}>
             <button
               type="button"
               onClick={() =>
@@ -191,19 +194,18 @@ function DetailPanel({
               }
               className="transition-colors hover:bg-[#3b2b1d] hab-tap"
               // The SAME box as “In the Index” beside it (founder's
-              // correction, August 2026): the same mono size and 9×16
-              // padding so the two buttons stand at ONE height, and nowrap
-              // so “Beau's picks” never breaks over two lines on a phone.
+              // correction, August 2026): one shared definition (WAY_ON_BOX,
+              // edit-sections.tsx), so the two stand at ONE height on every
+              // width, and the no-break space holds “Beau's picks” on a
+              // single line on a phone.
               style={{
                 ...mono(9, '#f6f0e5'),
+                ...WAY_ON_BOX,
                 background: WALNUT,
                 border: `1px solid ${WALNUT}`,
-                padding: '9px 16px',
-                whiteSpace: 'nowrap',
-                textAlign: 'left',
               }}
             >
-              {'Beau\u2019s picks'}
+              <WayOnLabel>{'Beau\u2019s\u00a0picks'}</WayOnLabel>
             </button>
             {cell.typeId && (
               <button
@@ -213,13 +215,13 @@ function DetailPanel({
                 className="transition-colors hover:border-[#a8712c] hab-tap"
                 style={{
                   ...mono(9, SECONDARY),
+                  ...WAY_ON_BOX,
                   border: '1px solid rgba(59,43,29,0.35)',
                   background: 'transparent',
-                  padding: '9px 16px',
-                  whiteSpace: 'nowrap',
                 }}
               >
-                In the Index →
+                <WayOnLabel>In the Index</WayOnLabel>
+                <WayOnArrow />
               </button>
             )}
           </div>

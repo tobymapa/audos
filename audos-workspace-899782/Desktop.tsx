@@ -1642,6 +1642,12 @@ export default function SpaceDesktop({
                temperature bands on screen at once. */
             --eth-map-label:104px;
             --eth-map-min:540px;
+            /* THE TWO WAYS ON. The Edit's “Beau's picks” and “the piece's
+               page” sit side by side inside one cell, each carrying an
+               arrow, so their small-caps type takes a floor of its own — a
+               step under --eth-micro. It is what lets both labels hold ONE
+               line, arrow beside label, on a 375px screen. */
+            --eth-cta:11.5px;
           }
           /* ...and each row's label is pinned to the left edge, so the category
              a cell belongs to is still readable once the matrix is scrolled. */
@@ -1757,6 +1763,10 @@ export default function SpaceDesktop({
           .sub-tab--index-face__tab{margin-left:0!important;min-width:0;text-align:center}
           .sub-tab--index-face__tab:nth-child(even){margin-left:-1px!important}
           .sub-tab--index-face__tab:nth-child(n+3){margin-top:-1px!important}
+          /* An ODD last chip (The Fitting's fifth occasion) takes the whole
+             closing row rather than leaving a hole beside it, so a five-chip
+             run still reads as one clean rectangle. */
+          .sub-tab--index-face__tab:nth-child(odd):last-child{grid-column:1 / -1}
           .hab-segmented{width:100%!important}
           .hab-segmented>button{flex:1 1 auto!important;white-space:normal!important}
           /* The Fitting's three board sources hold ONE row on a phone —

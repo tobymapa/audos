@@ -751,7 +751,10 @@ export function LedgerTab({
           }}
         >
           <div
-            className="flex items-center flex-1 min-w-0"
+            // hab-input holds the box at the phone's 46px field height — the
+            // same height The Index's Find box stands at, so a text box is
+            // ONE size across the app on a phone as well as on a desktop.
+            className="flex items-center flex-1 min-w-0 hab-input"
             style={{
               gap: '12px',
               border: '1px solid rgba(59,43,29,0.35)',
@@ -780,6 +783,7 @@ export function LedgerTab({
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
                 fontSize: 'max(var(--eth-input, 0px), 12px)',
+                lineHeight: 1.3,
                 color: WALNUT,
                 outline: 'none',
               }}
@@ -873,11 +877,13 @@ export function LedgerTab({
           {/* The find box shares the row with List · Tiles on every width
               (founder's correction, August 2026). */}
           <div
-            className="flex items-center flex-1 min-w-0"
+            // The LOG box's own measurements, to the pixel — the two boxes on
+            // this tab and the Find box on The Index are one control.
+            className="flex items-center flex-1 min-w-0 hab-input"
             style={{
-              gap: '10px',
-              border: '1px solid rgba(59,43,29,0.3)',
-              padding: '7px 13px',
+              gap: '12px',
+              border: '1px solid rgba(59,43,29,0.35)',
+              padding: '8px 14px',
               minWidth: '150px',
               background: PAPER,
             }}
@@ -893,7 +899,8 @@ export function LedgerTab({
                 border: 'none',
                 background: 'transparent',
                 fontFamily: 'var(--space-font-family)',
-                fontSize: 'max(var(--eth-input, 0px), 11.5px)',
+                fontSize: 'max(var(--eth-input, 0px), 12px)',
+                lineHeight: 1.3,
                 color: WALNUT,
                 outline: 'none',
               }}

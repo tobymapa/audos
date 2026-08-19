@@ -275,8 +275,16 @@ export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; ac
   // standard rule when off, filled walnut with cream type when on, 9×16
   // padding, each box butted -1px into its neighbour so the run reads as one
   // smooth-lined box on every width.
+  // The Search's own chip CLASSES ride along with them, so on a phone this
+  // run gets the identical treatment its four face chips get (Desktop.tsx):
+  // an even two-column grid of butted boxes — one smooth-lined rectangle —
+  // rather than a ragged wrapping row of differently sized pills.
   return (
-    <div className="flex flex-wrap hab-segmented" role="group" aria-label="How this board is made">
+    <div
+      className="flex flex-wrap hab-segmented sub-tab--index-face"
+      role="group"
+      aria-label="How this board is made"
+    >
       {items.map((item, i) => {
         const on = item.key === activeKey;
         return (
@@ -286,7 +294,7 @@ export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; ac
             onClick={item.onSelect}
             aria-pressed={on}
             title={item.title}
-            className="transition-colors whitespace-nowrap hab-tap"
+            className="transition-colors whitespace-nowrap hab-tap sub-tab--index-face__tab"
             style={{
               ...mono(8.5, on ? '#f6f0e5' : SECONDARY),
               padding: '9px 16px',
