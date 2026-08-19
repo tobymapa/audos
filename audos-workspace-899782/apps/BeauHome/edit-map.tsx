@@ -190,15 +190,16 @@ function DetailPanel({
                 openInBeausPicks({ categoryId: cell.categoryId, subCategory: cell.subCategory })
               }
               className="transition-colors hover:bg-[#3b2b1d] hab-tap"
+              // The SAME box as “In the Index” beside it (founder's
+              // correction, August 2026): the same mono size and 9×16
+              // padding so the two buttons stand at ONE height, and nowrap
+              // so “Beau's picks” never breaks over two lines on a phone.
               style={{
+                ...mono(9, '#f6f0e5'),
                 background: WALNUT,
-                color: '#f6f0e5',
                 border: `1px solid ${WALNUT}`,
-                padding: '9px 18px',
-                fontFamily: 'var(--space-font-heading)',
-                fontSize: 'max(var(--eth-serif, 0px), 13px)',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
+                padding: '9px 16px',
+                whiteSpace: 'nowrap',
                 textAlign: 'left',
               }}
             >

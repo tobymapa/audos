@@ -268,7 +268,7 @@ function FindLine({
       // 2026): the same paper ground, the same rule, the same 8×14 padding,
       // the same 12px gap and the same prefix size as the LOG A PIECE and
       // FIND boxes on The Rail — so a text box is ONE height across the app.
-      style={{ gap: '12px', border: '1px solid rgba(59,43,29,0.3)', padding: '8px 14px', maxWidth, background: PAPER }}
+      style={{ gap: '12px', border: '1px solid rgba(59,43,29,0.35)', padding: '8px 14px', maxWidth, background: PAPER }}
     >
       <span style={mono(9, FAINT)}>Find</span>
       <input
@@ -938,7 +938,7 @@ function PiecesFace({
           cleanly on a phone: the search box takes the line above the chips and
           every control in it stretches to the same height. */}
       <div className="flex items-center flex-wrap hab-filter-bar" style={{ gap: '10px 12px', paddingBottom: '22px' }}>
-        <FindLine value={find} onChange={setFind} placeholder='a piece — try “teba”, “raglan”, “overshirt”' maxWidth="400px" />
+        <FindLine value={find} onChange={setFind} placeholder='a piece — try “teba”, “raglan”, “overshirt”' maxWidth="460px" />
         {/* The Formality FILTER is gone (founder's correction, August
             2026) — formality now orders the list itself, inside each
             temperature band, and rides as the kicker above every name. */}
@@ -2314,7 +2314,7 @@ function MakersFace({
 
       {/* ——— the find line + drop-downs (see the note on the Pieces face). */}
       <div className="flex items-center flex-wrap hab-filter-bar" style={{ gap: '10px 12px', paddingBottom: '16px' }}>
-        <FindLine value={find} onChange={setFind} placeholder='a maker — “Rubinacci”, “Naples”' maxWidth="320px" />
+        <FindLine value={find} onChange={setFind} placeholder='a maker — “Rubinacci”, “Naples”' maxWidth="460px" />
         <button
           type="button"
           onClick={() => setFavesOnly((f) => !f)}

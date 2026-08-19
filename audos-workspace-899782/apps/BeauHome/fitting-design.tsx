@@ -37,6 +37,8 @@ import {
   INK,
   MUTED,
   PAPER,
+  RULE,
+  SECONDARY,
   SERIF,
   WALNUT,
   body,
@@ -267,10 +269,12 @@ export interface SegmentedItem {
 }
 
 export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; activeKey: string }) {
-  // EVERY SEGMENT IS A DRAWN BOX (founder's correction, August 2026): each
-  // face carries its own full outline, butted -1px into its neighbour, so
-  // the dividing lines INSIDE the control read as clearly as the outside —
-  // the same treatment The Search's face chips wear.
+  // THE SEARCH'S OWN CHIPS, VALUE FOR VALUE (founder's correction, August
+  // 2026): the occasion faces carry exactly the treatment the Search's face
+  // chips wear (sub-tabs.tsx, 'sub-tab--index-face') — paper ground with the
+  // standard rule when off, filled walnut with cream type when on, 9×16
+  // padding, each box butted -1px into its neighbour so the run reads as one
+  // smooth-lined box on every width.
   return (
     <div className="flex flex-wrap hab-segmented" role="group" aria-label="How this board is made">
       {items.map((item, i) => {
@@ -284,11 +288,11 @@ export function SegmentedTabs({ items, activeKey }: { items: SegmentedItem[]; ac
             title={item.title}
             className="transition-colors whitespace-nowrap hab-tap"
             style={{
-              ...label(9.5, on ? '#f4eee3' : MUTED, '0.16em'),
-              padding: '11px 19px',
-              border: `1px solid ${on ? WALNUT : 'rgba(59,43,29,0.22)'}`,
+              ...mono(8.5, on ? '#f6f0e5' : SECONDARY),
+              padding: '9px 16px',
+              border: `1px solid ${on ? WALNUT : RULE}`,
               marginLeft: i === 0 ? 0 : '-1px',
-              background: on ? WALNUT : 'transparent',
+              background: on ? WALNUT : PAPER,
               cursor: 'pointer',
             }}
           >

@@ -66,7 +66,9 @@ const TIER_MARK_BG: Record<CoverageTier, string> = {
 function PicksButton({
   categoryId,
   subCategory,
-  label = 'Beau\u2019s picks',
+  // The no-break space holds “Beau's picks” on ONE line on a phone
+  // (founder's correction, August 2026) — only the arrow may wrap.
+  label = 'Beau\u2019s\u00a0picks',
   title,
   block = false,
 }: {
@@ -110,7 +112,9 @@ function IndexButton({ typeId, block = false }: { typeId: string; block?: boolea
         ...mono(9, SECONDARY),
         border: '1px solid rgba(59,43,29,0.28)',
         background: 'transparent',
-        padding: block ? '7px 15px' : '6px 13px',
+        // The same vertical padding as PicksButton, so the pair stands at
+        // ONE height (founder's correction, August 2026).
+        padding: block ? '8px 15px' : '6px 13px',
         whiteSpace: block ? 'normal' : 'nowrap',
         textAlign: 'center',
         width: block ? '100%' : undefined,
