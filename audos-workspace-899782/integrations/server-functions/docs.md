@@ -446,7 +446,7 @@ respond(200, { result: data });
 
 ## Platform Helpers
 
-The `platform` object provides convenience methods for common workspace actions. These are pre-scoped to the current workspace — no need to pass `workspaceId`.
+The `platform` object provides convenience methods for common workspace actions. These are pre-scoped to the current workspace — no need to pass `workspaceId`. The subsections below cover the complete helper set: `Object.keys(platform)` inside a hook returns exactly these twelve names.
 
 ### platform.postAgentMessage({ message, contextType?, contextId?, sessionId? })
 
@@ -492,6 +492,29 @@ console.log('Last thing the user said:', lastUserMessage?.content);
 - `sessionId` — Required. The session UUID to read messages from.
 - `limit` — Optional. Maximum number of messages to return. Defaults to 50.
 - `excludeSystem` — Optional. Defaults to `true`. When true, filters out `[SYSTEM:...]` messages and raw JSON blobs, returning only readable conversation content.
+
+### platform.getLatestSession({ contactId, limit?, workspaceId? })
+
+Look up the workspace session linked to a CRM contact and return its recent readable chat messages. This is the contact-centric companion to `getChatHistory`: pass a contact id (the `id` field of an entry from `platform.getContacts`) instead of a session UUID, and the platform resolves the contact's linked `workspaceSessionId` for you. Use it instead of re-deriving a visitor's session by hand.
+
+```javascript
+const crm = await platform.getContacts({ limit: 1 });
+const contact = crm.contacts?.[0];
+
+const session = await platform.getLatestSession({ contactId: contact.id, limit: 10 });
+if (!session) {
+  respond(404, { error: 'Contact has no linked chat session' });
+} else {
+  const lastUserMessage = session.messages.filter(m => m.role === 'user').pop();
+  respond(200, { sessionId: session.sessionId, lastSaid: lastUserMessage?.content });
+}
+```
+
+- `contactId` — Required. A CRM contact id (from `platform.getContacts`).
+- `limit` — Optional. Maximum number of messages to return. Defaults to 50.
+- `workspaceId` — Optional. Defaults to the current workspace.
+
+**Returns** `{ sessionId, messages: [{ role, content, createdAt }] }`, with `[SYSTEM:...]` messages and raw JSON blobs filtered out (the same filtering `getChatHistory` applies). It **never throws** — it returns `null` when the contact does not exist, has no linked workspace session, or the lookup fails — so always null-check the result. The returned `sessionId` is valid input for `platform.postAgentMessage`, `platform.getChatHistory`, and `platform.createSignInLink`.
 
 ### platform.generateText({ userPrompt, systemPrompt?, model? })
 
@@ -543,6 +566,29 @@ await platform.createContact({
 respond(200, { created: true });
 ```
 
+### platform.createSignInLink({ email?, to?, sessionId? })
+
+Mint a one-time sign-in (magic-link) URL for an **existing customer** of this workspace, so a hook can send a customer a working way back into the space. This is the supported way to produce a sign-in URL — do not hand-roll magic-link URLs in hook code.
+
+```javascript
+const minted = await platform.createSignInLink({ email: 'customer@example.com' });
+if (!minted) {
+  respond(404, { error: 'Not an existing customer of this workspace' });
+} else {
+  await platform.sendEmail({
+    to: minted.email,
+    subject: 'Your sign-in link',
+    html: `<p><a href="${minted.link}">Click here to sign in</a> — the link expires ${minted.expiresAt}.</p>`,
+  });
+  respond(200, { sent: true });
+}
+```
+
+- `email` — The customer's email address (`to` is accepted as an alias).
+- `sessionId` — A known workspace session UUID (e.g. from `platform.getLatestSession`). Either `email` or `sessionId` is sufficient on its own; when only `sessionId` is given, the returned `email` is resolved from that session.
+
+**Returns** `{ link, email, expiresAt }` on success — the link is minted on the workspace's branded host when one is configured, and `expiresAt` is roughly 24 hours out. Returns **`null`** (with a console warning, no throw) when the recipient is not already a known customer — it never creates accounts, so calling it with an unknown email is a safe existence check. Minting does **not** deliver anything: pair it with `platform.sendEmail` or `platform.postAgentMessage`. Treat the minted link as a credential — it signs the recipient in — so never log it or write it to a shared (ownerless) database row.
+
 ### platform.secretsProxy(request)
 
 Call a third-party API with one of the founder's stored API keys, without the
@@ -575,6 +621,41 @@ if (!res.ok) {
 ### platform.fetch(url, options)
 
 Same as the global `fetch` — an alias for the scoped fetch function.
+
+### platform.externalFetch(url, options?)
+
+A raw outbound HTTP client for **external** targets. The signature and return value are standard fetch — it resolves to a normal `Response` object — but it deliberately bypasses the global `fetch`'s bookkeeping and conveniences. Verified differences from the global `fetch`:
+
+- **The 50-calls-per-execution cap does NOT apply.** 55 consecutive `externalFetch` calls completed inside one execution, and they do not count against the global `fetch` counter either.
+- **The same per-request timeout DOES apply** — 90s by default, or the hook's `metadata.timeout` when set (see Timeout section).
+- **No URL rewriting and no platform auth.** The global `fetch` rewrites retired platform domains and attaches workspace context headers to self-targeted platform URLs; `externalFetch` sends exactly the request you give it. Platform endpoints that need workspace authentication will not work through it — keep using the global `fetch` for platform APIs.
+- **Absolute URLs only.** A relative URL throws (`external-fetch: upstream /api/... unreachable: Failed to parse URL ...`). Plain `http://` targets are allowed.
+- **Network-level failures throw** an `Error` shaped like `external-fetch: upstream <host> unreachable: <cause>` instead of returning a response — wrap calls in try/catch.
+
+Use it for high-volume external polling where the 50-call cap would otherwise bite. For calls that need a stored founder API key, still use `platform.secretsProxy`.
+
+```javascript
+const results = [];
+for (const id of idsToCheck) { // may be well over 50 items
+  try {
+    const res = await platform.externalFetch(`https://api.example.com/items/${id}`);
+    results.push(await res.json());
+  } catch (e) {
+    console.warn(`item ${id} unreachable: ${e.message}`);
+  }
+}
+respond(200, { results });
+```
+
+### platform.integrations — internal registry accessor, do not use
+
+`platform.integrations` is an **object** (not a function) with two members, `isAvailable(name)` and `proxy(name, path, options)`. It is an internal accessor for the platform's server-side integration registry, and it is **not a supported way to call integrations from hook code**:
+
+- The `name` values are internal registry ids — currently `openai`, `stripe`, `twilio`, `heygen` — **not** the catalog integration ids used everywhere else in these docs (`isAvailable('stripe-payments')` is always `false`).
+- `isAvailable(name)` may return a plain boolean or a Promise depending on the integration — always `await` it. Unknown names return `false`.
+- `proxy(name, path, options)` throws for unknown ids (`does not have proxy support`) and for known-but-unconfigured ones (`not configured. Missing keys: ...`). For configured ids it forwards to an internal platform proxy route whose upstream path contract is not documented or discoverable from hook code — in live verification, `proxy('openai', 'v1/models')` returned HTTP 200 containing the platform's HTML app shell rather than an OpenAI API response.
+
+Use the supported alternatives instead: `platform.generateText` for AI text, `platform.secretsProxy` for third-party APIs keyed by a founder secret, and the documented catalog integration endpoints (called with the global `fetch`) for everything else. This entry exists so the runtime helper list contains no undocumented names.
 
 ---
 
