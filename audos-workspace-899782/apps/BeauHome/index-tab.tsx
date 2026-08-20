@@ -263,7 +263,11 @@ function FindLine({
 }) {
   return (
     <label
-      className="flex items-center min-w-0 flex-1 hab-find-line"
+      // hab-input rides along with hab-find-line (founder's correction,
+      // August 2026): it is the class The Rail's LOG and FIND boxes carry,
+      // and it is what holds the 46px height and the corner treatment — so
+      // this box and The Rail's two are ONE control on desktop AND phone.
+      className="flex items-center min-w-0 flex-1 hab-find-line hab-input"
       // THE RAIL'S OWN BOX, MEASURE FOR MEASURE (founder's correction, August
       // 2026): the same paper ground, the same rule, the same 8×14 padding,
       // the same 12px gap and the same prefix size as the LOG A PIECE and

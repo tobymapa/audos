@@ -1769,6 +1769,18 @@ export default function SpaceDesktop({
           .sub-tab--index-face__tab:nth-child(odd):last-child{grid-column:1 / -1}
           .hab-segmented{width:100%!important}
           .hab-segmented>button{flex:1 1 auto!important;white-space:normal!important}
+          /* THE FITTING'S FIVE OCCASIONS HOLD EXACTLY TWO ROWS ON A PHONE
+             (founder's correction, August 2026): three equal boxes across the
+             first row, two across the second — never three rows. Scoped to
+             the Fitting's own segmented run (.hab-segmented), so The Search's
+             four face chips keep their even 2×2 grid above. The six-column
+             template is what makes both rows close flush: row one's three
+             boxes span two columns each, row two's pair span three each, and
+             the -1px pulls keep every join a single hairline. */
+          .hab-segmented.sub-tab--index-face{grid-template-columns:repeat(6,1fr)}
+          .hab-segmented.sub-tab--index-face>.sub-tab--index-face__tab{grid-column:span 2;margin-left:0!important;margin-top:0!important}
+          .hab-segmented.sub-tab--index-face>.sub-tab--index-face__tab:nth-child(2),.hab-segmented.sub-tab--index-face>.sub-tab--index-face__tab:nth-child(3),.hab-segmented.sub-tab--index-face>.sub-tab--index-face__tab:nth-child(5){margin-left:-1px!important}
+          .hab-segmented.sub-tab--index-face>.sub-tab--index-face__tab:nth-child(n+4){grid-column:span 3;margin-top:-1px!important}
           /* The Fitting's three board sources hold ONE row on a phone —
              three equal buttons sharing the width (founder's correction,
              August 2026). */
