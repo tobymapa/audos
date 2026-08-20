@@ -160,7 +160,7 @@ export function WatchBrandLink({ target }: { target: WatchTarget | (() => WatchT
   const title = watching
     ? `Watching ${brand} \u2014 tap to stop watching the maker`
     : guess.kind === 'arrivals'
-      ? `Watch ${brand} \u2014 Beau reads its new arrivals each time you open the app`
+      ? `Watch ${brand} \u2014 Beau reads its new arrivals for you about once a day`
       : `Watch ${brand} \u2014 Beau reads the maker's site; you can give him its new arrivals link on the Watchlist`;
 
   return (

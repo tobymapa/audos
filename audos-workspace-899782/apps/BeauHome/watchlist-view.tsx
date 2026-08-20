@@ -33,9 +33,10 @@
  * code, shown in full. A letter is marked as surfaced the moment this face
  * shows it, so it is announced once and then reads as history.
  *
- * The checking itself happens elsewhere and silently (watchlist-poll.ts, run
- * on app load and when The Search comes forward) — this face never waits on
- * it, and never shows a spinner for it. It reads whatever the rows say now.
+ * The checking itself happens elsewhere and silently — SERVER-SIDE, about
+ * once a day (the watchlist-sweep-daily hook on the platform scheduler;
+ * never on app open) — this face never waits on it, and never shows a
+ * spinner for it. It reads whatever the rows say now.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Mail, Store } from 'lucide-react';
@@ -594,8 +595,9 @@ export function HuntWatchlist({ onGoToPicks }: { onGoToPicks: () => void }) {
           <>
             <p style={{ ...body(13, SECONDARY), margin: '5px 0 0', maxWidth: '66ch' }}>
               Watch a piece from Beau’s Picks, an Ask Beau verdict or a Your Calls row and he re-reads its retailer
-              page each time you open the app. Watch the MAKER instead — the text link under the eye — and he reads
-              its new arrivals, and subscribes to it himself, so a drop or a subscriber-only code reaches you here.
+              page for you about once a day, on his own time — no need to keep the app open. Watch the MAKER instead
+              — the text link under the eye — and he reads its new arrivals, and subscribes to it himself, so a drop
+              or a subscriber-only code reaches you here.
             </p>
             <p style={{ ...body(13, SECONDARY), margin: '8px 0 0', maxWidth: '66ch' }}>
               Retailer pages are not always readable. When one will not open, Beau says so on the row rather than

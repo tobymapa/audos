@@ -16,10 +16,10 @@
  *     sortable table, with the call changeable or removable in place.
  *  4. WATCHLIST — what he has asked Beau to keep an eye on, from any of the
  *     three above: PIECES (their price, and whether they are still there) and
- *     whole BRANDS (their new arrivals). Beau re-reads each one quietly in the
- *     background (watchlist-poll.ts — at most once every two hours, never on
- *     every app open), reads his own subscriber inbox for the brands in the
- *     same pass, and the row says what moved.
+ *     whole BRANDS (their new arrivals). Beau re-reads each one SERVER-SIDE,
+ *     about once a day (the watchlist-sweep-daily hook — never from the
+ *     browser, never on app open), and the row says what moved. This tab
+ *     only READS the rows.
  *
  * The chip bar carries THE INDEX'S OWN FACE-TOGGLE TREATMENT (the variant its
  * Pieces · Makers chips use, shared through sub-tabs.tsx), so the two tabs read
@@ -65,7 +65,7 @@ import { HuntAsk } from './hunt-ask';
 import { HuntCalls } from './hunt-calls';
 import { HuntWatchlist } from './watchlist-view';
 import { useWatchlist } from './watchlist-watch';
-import { sweepWatchlistIfStale } from './watchlist-poll';
+import { peekStartupReader } from './startup-prefetch';
 
 type HuntFace = 'picks' | 'ask' | 'calls' | 'watchlist';
 
@@ -112,19 +112,11 @@ export function HuntTab({
   const calls = useHuntCalls();
   const watchlist = useWatchlist();
 
-  // The Watchlist's own quiet housekeeping. Mounting The Search asks for a
-  // check, and coming back to it asks for another — but both go through the
-  // sweep's two-hour cross-session gate (watchlist-poll.ts), so walking in and
-  // out of the tab half a dozen times in an afternoon costs one round of
-  // retailer reads rather than six.
-  useEffect(() => {
-    void sweepWatchlistIfStale();
-    const onActivated = (e: Event) => {
-      if ((e as CustomEvent).detail?.tab === 'hunt') void sweepWatchlistIfStale();
-    };
-    window.addEventListener('ethaion:tab-activated', onActivated);
-    return () => window.removeEventListener('ethaion:tab-activated', onActivated);
-  }, []);
+  // The Watchlist's housekeeping moved SERVER-SIDE (watchlist-sweep-daily,
+  // August 2026): opening The Search costs no retailer reads at all — the
+  // rows arrive already checked, and this tab only reads them.
+  // `sweepWatchlist` (watchlist-poll.ts) remains exported for a deliberate
+  // manual check.
 
   // A Gap row on The Edit deep-links straight into a category's picks: the
   // face comes forward here, and Beau's Picks itself (hunt-picks.tsx) unfolds
@@ -165,7 +157,12 @@ export function HuntTab({
     window.addEventListener('ethaion:tab-home', onTabHome);
     return () => window.removeEventListener('ethaion:tab-home', onTabHome);
   }, []);
-  const [loaded, setLoaded] = useState<HuntReader | null>(null);
+  // THE UPFRONT LOAD's hand-off (Fix 5, startup-prefetch.ts): the open's
+  // prefetch has usually gathered the record already, so the tab paints its
+  // first frame from that reader instead of waiting on seven companion
+  // reads. The effect below still re-loads against the live props and
+  // reconciles.
+  const [loaded, setLoaded] = useState<HuntReader | null>(() => peekStartupReader());
 
   // The ledger's identity, so a logged or removed piece re-reads the record
   // without a name edit re-reading it on every keystroke.

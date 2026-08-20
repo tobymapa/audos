@@ -2,15 +2,16 @@
  * THE SEARCH · THE WATCHLIST · THE BACKGROUND POLL — Beau checking, quietly,
  * on everything the reader has asked him to keep an eye on.
  *
- * WHEN. NOT on every app open any more (startup performance pass, August
- * 2026). The app and The Search both fire it through `sweepWatchlistIfStale`,
- * which does nothing at all unless this device's last sweep was more than TWO
- * HOURS ago — so opening the app, closing it and opening it again costs no
- * network at all, and the retailer pages are re-read a few times a day rather
- * than on every load. `sweepWatchlist` itself is unchanged and still there for
- * a deliberate check, and for a server-side scheduled job when one exists.
- * Nothing about it is on the critical path: it never blocks a render, never
- * shows a spinner and never reports a failure to the reader. The Watchlist tab
+ * WHEN. NOT from the app at all any more (server-side move, August 2026).
+ * The sweep's owner is now the `watchlist-sweep-daily` SERVER HOOK, which
+ * runs about once a day on the platform scheduler with the same logic as
+ * this file — same page reader, same price verdicts, same FNV-1a brand
+ * snapshot, same never-clear-an-unseen-alert rule — so an app open costs no
+ * retailer reads whatsoever. Nothing in the app calls this module on load or
+ * on tab-open: `sweepWatchlist` below is kept ONLY for a deliberate manual
+ * check (and `sweepWatchlistIfStale` as its two-hour-gated wrapper). Nothing
+ * about it is on the critical path: it never blocks a render, never shows a
+ * spinner and never reports a failure to the reader. The Watchlist tab
  * simply reads fresher rows the next time he opens it.
  *
  * HOW. Each active row's retailer page is re-read SERVER-SIDE through the

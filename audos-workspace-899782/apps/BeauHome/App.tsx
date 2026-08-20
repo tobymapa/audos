@@ -74,7 +74,8 @@ import { ArchetypeIllo } from './illustrations';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
 import { sweepSemanticTags } from './semantic-tags';
 import { sweepPieceWarmth } from './warmth-model';
-import { sweepWatchlistIfStale } from './watchlist-poll';
+import { runStartupPrefetch, startupCacheWarm, startupFactsSignature } from './startup-prefetch';
+import { BeauProgressBar } from './beau-progress';
 import { BeauAssessmentProvider } from './beau-assessment-context';
 import { SaveProfileNudge, isGuestUnsaved } from './save-profile';
 
@@ -1985,19 +1986,61 @@ export default function BeauHome() {
     return () => window.removeEventListener('ethaion:prefs', onPrefs);
   }, []);
 
-  // THE WATCHLIST, CHECKED A FEW TIMES A DAY — NOT ON EVERY OPEN (The Search ·
-  // Watchlist; startup performance pass, August 2026). This used to fire a
-  // retailer read for every watched piece and brand seven seconds after EVERY
-  // load, whether or not the reader went anywhere near the Watchlist. It now
-  // goes through the sweep's own two-hour cross-session gate
-  // (`sweepWatchlistIfStale`, watchlist-poll.ts), so an ordinary open costs no
-  // network at all and the pages are still re-read several times a day. Silent
-  // as before: the Watchlist face simply reads fresher rows when he next opens
-  // it, and a page that will not answer changes nothing.
+  // THE WATCHLIST IS SWEPT SERVER-SIDE NOW (startup performance fix, August
+  // 2026): the `watchlist-sweep-daily` server hook re-reads every watched
+  // retailer and brand page once a day on the platform's schedule and writes
+  // what moved onto the rows. The app never sweeps on open any more — the
+  // Watchlist face just READS the rows (watchlist-view.tsx), and
+  // `sweepWatchlist` (watchlist-poll.ts) remains only for a deliberate
+  // manual check.
+
+  // THE UPFRONT LOAD (Fix 5, August 2026). One paid loading moment at open:
+  // once the profile has landed, every DATA READ the tabs lean on — the hunt
+  // reader's companion tables, the wardrobe's piece semantics, Beau's style
+  // memory — is prefetched behind one hairline bar, and the category-verdict
+  // fingerprint is stored (startup-prefetch.ts). Data reads ONLY: nothing
+  // here spends a model call, so Beau's Picks and the written verdicts stay
+  // lazy. Keyed on a signature of the FACTS, it re-runs silently when they
+  // move and never on navigation; a quick return whose stored signature
+  // still matches skips the bar and restores from cache.
+  const [bootPrefetching, setBootPrefetching] = useState(false);
+  const prefetchedSig = useRef<string | null>(null);
   useEffect(() => {
-    whenIdle(() => {
-      void sweepWatchlistIfStale();
-    }, 7000);
+    if (!profileLoaded || rawPieces == null) return;
+    const sig = startupFactsSignature({ profile, pieces, prefs });
+    if (prefetchedSig.current === sig) return;
+    const firstRun = prefetchedSig.current === null;
+    prefetchedSig.current = sig;
+    const showBar = firstRun && !startupCacheWarm(sig);
+    if (showBar) setBootPrefetching(true);
+    void runStartupPrefetch({ profile, pieces, prefs })
+      .catch(() => undefined)
+      .finally(() => {
+        if (showBar) setBootPrefetching(false);
+      });
+  }, [profileLoaded, rawPieces, profile, pieces, prefs]);
+
+  // RESTORED FROM THE BACKGROUND (Fix 5): coming back to the app re-checks
+  // the FINGERPRINT rather than re-fetching everything. One cheap profile
+  // read is the probe; only a signature that actually moved re-runs the
+  // prefetch (the effect above), silently. `pageshow` covers the
+  // back/forward cache, which fires neither focus nor a remount.
+  useEffect(() => {
+    let lastProbe = 0;
+    const probe = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastProbe < 5000) return;
+      lastProbe = Date.now();
+      fetchProfile()
+        .then((p) => setProfile(withLocalOnboardingCompletion(p)))
+        .catch(() => undefined);
+    };
+    document.addEventListener('visibilitychange', probe);
+    window.addEventListener('pageshow', probe);
+    return () => {
+      document.removeEventListener('visibilitychange', probe);
+      window.removeEventListener('pageshow', probe);
+    };
   }, []);
 
   // THE CUTOUT STORE, READ ONCE, BEFORE ANY GRID PAINTS (image pipeline,
@@ -2319,6 +2362,16 @@ export default function BeauHome() {
           through CrumbHeader / CrumbPublisher) and falls back to the active
           tab's root trail. */}
       <ChromeNavBar fallback={crumbFallback} />
+
+      {/* THE UPFRONT LOAD's one visible moment (Fix 5): a hairline bar while
+          the open's single prefetch pays the loading cost — gone the moment
+          it lands. Shown once per genuinely new set of facts, never on a
+          quick return. */}
+      {bootPrefetching && (
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <BeauProgressBar height={2} maxWidth="100%" />
+        </div>
+      )}
 
       {/* Subtle first-load migration pill: every old piece is run through
           background removal + white-card normalization without blocking the
