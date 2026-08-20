@@ -402,15 +402,21 @@ export async function drawCategoryReplacement(input: {
 }
 
 // ---------------------------------------------------------------------------
-// THE CATEGORY READS — the one line each COLLAPSED category carries.
+// THE CATEGORY READS — the one line each UNFOLDED category carries.
 //
-// The list is the first thing on the sub-tab, and a bare list of eleven nouns
-// says nothing about this man. So one call, made once when the list first
-// paints, writes Beau's line for every category at once: where he stands in
-// it, read from his ledger and his calls. It is cached on the same facts the
-// picks are, so it costs nothing on a revisit and re-writes itself when his
-// record moves. Failure is silent — the list simply reads without the lines
-// rather than showing invented ones.
+// A bare list of eleven nouns says nothing about this man, so one call writes
+// Beau's line for every category at once: where he stands in it, read from his
+// ledger and his calls. It is cached on the same facts the picks are, so it
+// costs nothing on a revisit and re-writes itself when his record moves.
+// Failure is silent — the list simply reads without the lines rather than
+// showing invented ones.
+//
+// WHEN THE CALL IS MADE (startup performance pass, August 2026): on the FIRST
+// UNFOLD, not on mount. The lines are only ever drawn on an unfolded row, so
+// writing them the moment The Search mounted spent a model call on copy a
+// reader who never opened a category would never see. `peekHuntCategoryReads`
+// is the mount-time path — a set already written for this exact record paints
+// instantly and costs nothing, because it asks nobody anything.
 // ---------------------------------------------------------------------------
 
 const READS_PREFIX = 'ethaion:hunt-reads:v1:';
@@ -439,33 +445,50 @@ export function peekLatestHuntReads(): Record<string, string> {
   }
 }
 
-export async function getHuntCategoryReads(
-  reader: HuntReader,
-  options: { forceRefresh?: boolean } = {},
-): Promise<Record<string, string>> {
-  const ledger = HUNT_CATEGORIES.map((category) => ({
+function readsLedger(reader: HuntReader) {
+  return HUNT_CATEGORIES.map((category) => ({
     id: category.id,
     name: category.name,
     owned: ownedInCategory(reader, category.id),
     calls: callsInCategory(reader, category.id),
   }));
+}
+
+function readsKey(reader: HuntReader): string {
+  return `${READS_PREFIX}${fingerprint({ brief: huntReaderBrief(reader), ledger: readsLedger(reader) })}`;
+}
+
+/**
+ * The lines THIS record already has, read synchronously from memory or
+ * localStorage. Null means nothing has been written for these facts — the
+ * only case that costs a call. Nothing here asks Beau anything.
+ */
+export function peekHuntCategoryReads(reader: HuntReader): Record<string, string> | null {
+  const key = readsKey(reader);
+  const held = readsMemory.get(key);
+  if (held) return held;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    if (!parsed || typeof parsed !== 'object') return null;
+    readsMemory.set(key, parsed);
+    holdLatestReads(parsed);
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function getHuntCategoryReads(
+  reader: HuntReader,
+  options: { forceRefresh?: boolean } = {},
+): Promise<Record<string, string>> {
+  const ledger = readsLedger(reader);
   const key = `${READS_PREFIX}${fingerprint({ brief: huntReaderBrief(reader), ledger })}`;
   if (!options.forceRefresh) {
-    const held = readsMemory.get(key);
+    const held = peekHuntCategoryReads(reader);
     if (held) return held;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, string>;
-        if (parsed && typeof parsed === 'object') {
-          readsMemory.set(key, parsed);
-          holdLatestReads(parsed);
-          return parsed;
-        }
-      }
-    } catch {
-      /* storage unavailable — fall through and ask him */
-    }
     const running = readsInflight.get(key);
     if (running) return running;
   }

@@ -41,7 +41,7 @@ interface LookMetaRow {
   last_worn_at: string | null;
 }
 
-const bodyFont: React.CSSProperties = { fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.5 };
+const bodyFont: React.CSSProperties = { fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.5 };
 
 function agoLabel(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -117,7 +117,7 @@ function LookCard({
           <p className="group-hover:underline" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '16px', fontWeight: 500, lineHeight: 1.2, color: 'var(--color-text,#241a12)' }}>
             {row.name}
           </p>
-          <p className="text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: 'max(var(--eth-label, 0px), 11.5px)', marginTop: '2px' }}>
+          <p className="text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '11.5px', marginTop: '2px' }}>
             {pieces.length} piece{pieces.length === 1 ? '' : 's'} · {wornLine}
           </p>
         </div>
@@ -129,7 +129,7 @@ function LookCard({
             onClick={onWore}
             disabled={wearBusy}
             className="inline-flex items-center gap-1 min-h-[36px] px-1.5 hover:underline disabled:opacity-50"
-            style={{ ...bodyFont, fontSize: 'max(var(--eth-label, 0px), 12px)', color: 'var(--color-accent,#a8712c)' }}
+            style={{ ...bodyFont, fontSize: '12px', color: 'var(--color-accent,#a8712c)' }}
             title="Wore this look — stamps the look and every owned piece on it"
           >
             {wearBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
@@ -286,7 +286,7 @@ export function SavedLooksScreen({
             type="button"
             onClick={onClose}
             className="inline-flex items-center gap-1.5 min-h-[44px] hover:underline"
-            style={{ ...bodyFont, fontSize: 'max(var(--eth-body, 0px), 13px)', color: 'var(--color-neutral-700,#634e38)' }}
+            style={{ ...bodyFont, fontSize: '13px', color: 'var(--color-neutral-700,#634e38)' }}
           >
             <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> Back to the board
           </button>
@@ -303,38 +303,38 @@ export function SavedLooksScreen({
         <h3 className={typography.color.primary} style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '34px', lineHeight: 1.1, marginTop: '18px' }}>
           Saved
         </h3>
-        <p className={typography.color.primary} style={{ ...bodyFont, fontSize: 'max(var(--eth-body, 0px), 14.5px)', marginTop: '8px', maxWidth: '54ch' }}>
+        <p className={typography.color.primary} style={{ ...bodyFont, fontSize: '14.5px', marginTop: '8px', maxWidth: '54ch' }}>
           Looks are wearable tomorrow — every piece yours. Proposals hold something you don’t own, drawn dashed.
           Most recently worn first; tap any card to open it on the board.
         </p>
 
         {flash && (
-          <p className="mt-3" style={{ ...bodyFont, fontSize: 'max(var(--eth-label, 0px), 12.5px)', color: 'var(--color-accent-700,#7c4a17)' }} aria-live="polite">
+          <p className="mt-3" style={{ ...bodyFont, fontSize: '12.5px', color: 'var(--color-accent-700,#7c4a17)' }} aria-live="polite">
             {flash}
           </p>
         )}
 
         <section aria-label="Saved looks" className="mt-7">
-          <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-text,#3b2b1d)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', letterSpacing: '0.16em' }}>
+          <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-text,#3b2b1d)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}>
             Looks · {looks.length} — sorted by last worn
           </p>
           {looks.length > 0 ? (
             grid(looks)
           ) : (
-            <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
+            <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '13px' }}>
               Nothing saved yet — build a board and tap Save.
             </p>
           )}
         </section>
 
         <section aria-label="Proposals" className="mt-9">
-          <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-text,#3b2b1d)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', letterSpacing: '0.16em' }}>
+          <p className="uppercase text-[var(--color-neutral-700,#634e38)] pb-2 border-b border-[var(--color-text,#3b2b1d)]" style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.16em' }}>
             Proposals · {proposals.length} — dashed = not yours yet
           </p>
           {proposals.length > 0 ? (
             grid(proposals)
           ) : (
-            <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: 'max(var(--eth-body, 0px), 13px)' }}>
+            <p className="pt-3 text-[var(--color-neutral-600,#856c51)]" style={{ ...bodyFont, fontSize: '13px' }}>
               No proposals — a board holding a piece you don’t own saves here, and becomes a look the day you buy it.
             </p>
           )}

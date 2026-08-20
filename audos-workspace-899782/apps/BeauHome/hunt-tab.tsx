@@ -16,9 +16,10 @@
  *     sortable table, with the call changeable or removable in place.
  *  4. WATCHLIST — what he has asked Beau to keep an eye on, from any of the
  *     three above: PIECES (their price, and whether they are still there) and
- *     whole BRANDS (their new arrivals). Beau re-reads each one quietly when
- *     the app opens (watchlist-poll.ts), reads his own subscriber inbox for
- *     the brands in the same pass, and the row says what moved.
+ *     whole BRANDS (their new arrivals). Beau re-reads each one quietly in the
+ *     background (watchlist-poll.ts — at most once every two hours, never on
+ *     every app open), reads his own subscriber inbox for the brands in the
+ *     same pass, and the row says what moved.
  *
  * The chip bar carries THE INDEX'S OWN FACE-TOGGLE TREATMENT (the variant its
  * Pieces · Makers chips use, shared through sub-tabs.tsx), so the two tabs read
@@ -64,7 +65,7 @@ import { HuntAsk } from './hunt-ask';
 import { HuntCalls } from './hunt-calls';
 import { HuntWatchlist } from './watchlist-view';
 import { useWatchlist } from './watchlist-watch';
-import { sweepWatchlist } from './watchlist-poll';
+import { sweepWatchlistIfStale } from './watchlist-poll';
 
 type HuntFace = 'picks' | 'ask' | 'calls' | 'watchlist';
 
@@ -111,14 +112,15 @@ export function HuntTab({
   const calls = useHuntCalls();
   const watchlist = useWatchlist();
 
-  // The Watchlist's own quiet housekeeping: the app kicks the first check on
-  // load (App.tsx), and coming back to The Search asks for another. Both are
-  // throttled per row inside the sweep, so this costs nothing when there is
-  // nothing due.
+  // The Watchlist's own quiet housekeeping. Mounting The Search asks for a
+  // check, and coming back to it asks for another — but both go through the
+  // sweep's two-hour cross-session gate (watchlist-poll.ts), so walking in and
+  // out of the tab half a dozen times in an afternoon costs one round of
+  // retailer reads rather than six.
   useEffect(() => {
-    void sweepWatchlist();
+    void sweepWatchlistIfStale();
     const onActivated = (e: Event) => {
-      if ((e as CustomEvent).detail?.tab === 'hunt') void sweepWatchlist();
+      if ((e as CustomEvent).detail?.tab === 'hunt') void sweepWatchlistIfStale();
     };
     window.addEventListener('ethaion:tab-activated', onActivated);
     return () => window.removeEventListener('ethaion:tab-activated', onActivated);

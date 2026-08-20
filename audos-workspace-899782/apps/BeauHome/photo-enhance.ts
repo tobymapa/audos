@@ -463,17 +463,43 @@ async function removeBackgroundViaPhotoroom(url: string, signal?: AbortSignal): 
   const isRemote = /^https?:\/\//i.test(url.trim());
   let res: Response | null = null;
   if (isRemote) {
-    try {
-      const attempt = await photoroomRequest({ image_url: url.trim(), format: 'png' }, signal, ws);
-      // Only keep this attempt if Photoroom itself accepted the URL form.
-      // A 4xx from Photoroom (rather than the proxy) means it did not like
-      // the parameter or could not fetch the image — retry as base64 below.
-      const peek = attempt.clone();
-      const peeked = await peek.json().catch(() => null);
-      const upstream = Number(peeked?.status || 0);
-      if (attempt.ok && upstream < 300) res = attempt;
-    } catch {
-      /* fall through to the base64 path */
+    const attempt = await photoroomRequest({ image_url: url.trim(), format: 'png' }, signal, ws);
+    const peeked = await attempt.clone().json().catch(() => null);
+
+    // A PROXY-LEVEL refusal is a CONFIGURATION fault, not an image fault: the
+    // PHOTOROOM_API_KEY secret is missing or disabled, or sdk.photoroom.com is
+    // not on that secret's allowed-hosts list. Retrying the same proxy with a
+    // base64 body fails identically — and worse, the base64 path runs the
+    // canvas first, so on a hotlinked retailer image it throws "image failed
+    // to load" and BURIES the real cause.
+    //
+    // An earlier version of this block was `try { … } catch { /* fall through
+    // */ }`, which swallowed every proxy error silently. That single line cost
+    // five rounds of blind testing: missing secret, wrong allowed-host, CORS
+    // and a Photoroom rejection all produced the same silent nothing. Never
+    // discard this error again.
+    if (!attempt.ok) {
+      const code = String(peeked?.code || peeked?.error || '');
+      if (/unknown_secret|host_not_allowed|blocked_host|disabled/i.test(code)) {
+        photoroomUnavailable = true;
+      }
+      throw new Error(
+        `Photoroom secrets proxy refused the call: HTTP ${attempt.status} ${code}`.trim() +
+          ' — check the PHOTOROOM_API_KEY secret exists and that sdk.photoroom.com is on its allowed hosts.',
+      );
+    }
+
+    const upstream = Number(peeked?.status || 0);
+    if (upstream < 300) {
+      res = attempt;
+    } else {
+      // The proxy worked; PHOTOROOM declined the URL form — it may not accept
+      // `image_url` on this endpoint, or could not fetch the image itself.
+      // That is the one case where retrying with a base64 body is worthwhile.
+      console.warn(
+        `[Ethaion] Photoroom declined the URL form (HTTP ${upstream}) — retrying as base64.`,
+        peeked?.body,
+      );
     }
   }
 
@@ -2283,7 +2309,20 @@ export function flatLayAssetFor(request: FlatLayRequest): Promise<FlatLayAsset> 
       }
       throw new Error('no tier produced a clean cutout');
     } catch (error) {
-      console.warn('[Ethaion] flat-lay asset failed at every tier — original image kept:', error);
+      // Loud on purpose. This is the funnel every ingestion failure ends in,
+      // and for a long time it printed a bare message that said nothing about
+      // WHY — so a missing API key, a CORS-blocked retailer image and a
+      // rejected cutout were indistinguishable from each other. `console.error`
+      // rather than `warn` so it survives a filtered console, and the source
+      // URL is included because the cause is usually where the image is hosted.
+      console.error(
+        '[Ethaion] CUTOUT FAILED — every tier gave up. Original image kept.',
+        '\n  piece source:', source,
+        '\n  reason:', error instanceof Error ? error.message : error,
+        '\n  (a "secrets proxy refused" message above means the Photoroom key or',
+        '\n   its allowed-hosts list needs fixing; "image failed to load" means the',
+        '\n   retailer blocks cross-origin reads and the URL path did not run)',
+      );
       settledBoardCutouts.set(source, source);
       // Deliberately NOT written to image_cutouts: a total failure is often a
       // rate-limited remover or a hotlink-blocked file rather than a fact
@@ -2572,6 +2611,61 @@ function markBatchFlag(): void {
   } catch { /* storage unavailable — DB version stamps still gate re-runs */ }
 }
 
+// ---------------------------------------------------------------------------
+// WHERE THE FLAG LIVES (startup performance pass, August 2026)
+//
+// The localStorage flag above is the INSTANT check: no network, readable
+// synchronously, which is what lets the app's load-time effect (App.tsx) rule
+// the whole migration out on its first line instead of spending three metadata
+// reads to discover it has nothing to do.
+//
+// `migration_flags` is the same fact held per VISITOR rather than per device.
+// A man who ran the batch on his phone and then signs in on a laptop has no
+// local flag there, and without this would put his whole ledger through the
+// pipeline again for nothing. The row is read ONLY when the local flag is
+// absent, and an answer of "already done" stamps the device so it is never
+// read a second time.
+// ---------------------------------------------------------------------------
+
+const MIGRATION_FLAGS_TABLE = 'migration_flags';
+
+/** Has the retroactive photo migration already run on THIS device? Synchronous
+ * and network-free — the guard the load-time effect opens with. */
+export function photoMigrationDone(): boolean {
+  return batchFlagSet();
+}
+
+/** As above, but falling back to the visitor's own record of it on the server
+ * when this device carries no flag. Never throws: an unreadable answer simply
+ * means the batch runs, exactly as it did before. */
+export async function photoMigrationSettled(): Promise<boolean> {
+  if (batchFlagSet()) return true;
+  try {
+    const { data } = await db().from(MIGRATION_FLAGS_TABLE).eq('flag_key', BATCH_FLAG_KEY).limit(1).get();
+    if ((data || []).length > 0) {
+      markBatchFlag();
+      return true;
+    }
+  } catch {
+    /* no answer — fall through and let the batch decide for itself */
+  }
+  return false;
+}
+
+/** Stamp the device AND the visitor's record, so the next device is spared. */
+function markMigrationComplete(): void {
+  markBatchFlag();
+  void (async () => {
+    try {
+      const { data } = await db().from(MIGRATION_FLAGS_TABLE).eq('flag_key', BATCH_FLAG_KEY).limit(1).get();
+      if ((data || []).length > 0) return;
+      await db().from(MIGRATION_FLAGS_TABLE).insert({ flag_key: BATCH_FLAG_KEY });
+    } catch {
+      /* non-fatal — the device flag alone still stops the re-run here */
+    }
+  })();
+}
+
 /** Raw uploads live outside the generated-images folder — those are true originals. */
 function looksLikeRawUpload(url: string): boolean {
   return /storage\.googleapis\.com\/audos-images\//i.test(url) && !/\/generated-images\//i.test(url);
@@ -2726,7 +2820,7 @@ export async function runPhotoMigration(
 
     const total = targets.length;
     if (total === 0) {
-      markBatchFlag();
+      markMigrationComplete();
       return changed;
     }
     onProgress?.({ total, done: 0, active: true });
@@ -2753,8 +2847,9 @@ export async function runPhotoMigration(
     }
 
     // The batch ran to completion (failures were logged and skipped by
-    // design) — set the one-time flag so it never re-runs on reload.
-    markBatchFlag();
+    // design) — set the one-time flag so it never re-runs on reload, here or
+    // on the next device this visitor signs in on.
+    markMigrationComplete();
     onProgress?.({ total, done, active: false });
     return changed;
   } finally {

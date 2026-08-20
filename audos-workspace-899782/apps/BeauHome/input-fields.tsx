@@ -275,7 +275,7 @@ export function SizeSelector({
         </select>
       </div>
       {value.trim() && !parsed && (
-        <p className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
+        <p className={`${typography.size.xs} ${typography.color.muted}`} style={{ fontSize: '10px' }}>
           Currently “{value.trim()}” — pick a type and value above to replace it.
         </p>
       )}
@@ -334,7 +334,7 @@ export function ColorSelector({
             ? 'bg-[var(--space-surface-accent-soft)] border-[var(--space-brand-primary)] text-[var(--space-text-brand)] font-medium'
             : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
         }`}
-        style={{ fontSize: 'max(var(--eth-label, 0px), 11px)' }}
+        style={{ fontSize: '11px' }}
         title={active ? `Remove ${formatColorName(id)}` : `Select ${formatColorName(id)}`}
       >
         <span
@@ -360,7 +360,7 @@ export function ColorSelector({
           type="button"
           onClick={() => setOpen((o) => !o)}
           className={`px-2 py-1 rounded-full border border-dashed border-[var(--space-border-strong)] ${typography.size.xs} ${typography.color.muted} hover:text-[var(--space-text-primary)] transition-colors`}
-          style={{ fontSize: 'max(var(--eth-label, 0px), 11px)' }}
+          style={{ fontSize: '11px' }}
           aria-expanded={open}
         >
           {open ? 'Done' : selected.length > 0 ? 'Change…' : 'Pick colours…'}
@@ -368,7 +368,7 @@ export function ColorSelector({
       </div>
       {open && (
         <div className="mt-2 rounded-xl border border-[var(--space-border-default)] bg-[var(--space-surface-card)] p-2.5">
-          <p className={`${typography.size.xs} ${typography.color.muted} mb-1.5`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
+          <p className={`${typography.size.xs} ${typography.color.muted} mb-1.5`} style={{ fontSize: '10px' }}>
             Tap to select{max > 1 ? ` — up to ${max}; the first is the primary colour` : ''}.
           </p>
           <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
@@ -409,7 +409,7 @@ export function PatternSelector({
                 ? 'bg-[var(--space-surface-accent-soft)] text-[var(--space-brand-primary-700)] border-[var(--space-brand-primary)]'
                 : 'border-[var(--space-border-default)] text-[var(--space-text-secondary)] hover:border-[var(--space-border-strong)]'
             }`}
-            style={{ fontSize: 'max(var(--eth-label, 0px), 11px)' }}
+            style={{ fontSize: '11px' }}
           >
             {o.label}
           </button>

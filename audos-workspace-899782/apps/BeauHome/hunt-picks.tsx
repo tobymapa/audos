@@ -14,8 +14,10 @@
  * The collapsed list is not a list of nouns: each category carries Beau's
  * own line on where this man stands in it (hunt-picks-ai.ts
  * `getHuntCategoryReads` — one call for all eleven, written from his
- * ledger), a status word (NOT READ until he has drawn it; then COVERED, or
- * the count of gaps his shortlist found) and its sub-category count.
+ * ledger, and asked for on the FIRST UNFOLD rather than on mount, since the
+ * line is only ever drawn on an unfolded row), a status word (NOT READ until
+ * he has drawn it; then COVERED, or the count of gaps his shortlist found)
+ * and its sub-category count.
  *
  * Unfolded, a category shows THREE SUB-CATEGORY ROWS — the three
  * sub-categories Beau says matter most for this man, drawn live against his
@@ -45,7 +47,7 @@ import {
   serif,
 } from './index-style';
 import { HUNT_CATEGORIES, type HuntCategory } from './hunt-model';
-import { getHuntCategoryReads, peekLatestHuntReads } from './hunt-picks-ai';
+import { getHuntCategoryReads, peekHuntCategoryReads, peekLatestHuntReads } from './hunt-picks-ai';
 import {
   SUB_PICKS_PER_CATEGORY,
   drawCategorySubPicks,
@@ -223,22 +225,37 @@ export function HuntPicks({
     setStates((cur) => ({ ...cur, [categoryId]: { ...(cur[categoryId] || EMPTY_STATE), ...next } }));
   }, []);
 
-  // Beau's line on every category, written once when the list first paints
-  // and again when his record moves. Silent on failure — the list reads
-  // without the lines rather than with invented ones.
+  /** The record whose lines have already been asked for. */
+  const readsAsked = useRef('');
+
+  // Beau's line on every category. A set already written for THIS record is
+  // taken on mount — memory or localStorage, no call, no network. Nothing is
+  // asked for here (startup performance pass, August 2026): the lines only
+  // ever show on an unfolded row, so the call belongs to the first unfold, not
+  // to a reader who may never open The Search at all this session.
   useEffect(() => {
     if (!reader) return;
-    let alive = true;
-    getHuntCategoryReads(reader)
-      .then((next) => {
-        if (alive) setReads(next);
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
+    const held = peekHuntCategoryReads(reader);
+    if (!held) return;
+    readsAsked.current = recordKey;
+    setReads(held);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey, reader ? 'ready' : 'waiting']);
+
+  /**
+   * Ask Beau for the eleven lines — once per record, on the first unfold.
+   * Silent on failure: the list reads without the lines rather than with
+   * invented ones.
+   */
+  const ensureReads = useCallback(() => {
+    if (!reader || readsAsked.current === recordKey) return;
+    readsAsked.current = recordKey;
+    getHuntCategoryReads(reader)
+      .then((next) => {
+        if (Object.keys(next).length > 0) setReads(next);
+      })
+      .catch(() => undefined);
+  }, [reader, recordKey]);
 
   /**
    * Ask Beau for a category's three sub-categories. The engine itself
@@ -303,13 +320,16 @@ export function HuntPicks({
     (categoryId: string) => {
       const nextOpen = !open[categoryId];
       setOpen((cur) => ({ ...cur, [categoryId]: nextOpen }));
+      // The first unfold of the session is what pays for Beau's category
+      // lines; every one after it is served from the same cache.
+      if (nextOpen) ensureReads();
       const held = states[categoryId];
       // Draw on the first unfold, and again if the last one came back with
       // nothing — folding it away and back is the reader's own quiet retry,
       // which is why this surface needs no "try again" control.
       if (nextOpen && !held?.loading && (!held?.subs || held.failed)) void draw(categoryId);
     },
-    [draw, open, states],
+    [draw, ensureReads, open, states],
   );
 
   /**
@@ -329,6 +349,7 @@ export function HuntPicks({
     setDetail(null);
     if (!open[category.id]) {
       setOpen((cur) => ({ ...cur, [category.id]: true }));
+      ensureReads();
       const held = states[category.id];
       if (!held?.loading && (!held?.subs || held.failed)) void draw(category.id);
     }
@@ -375,6 +396,9 @@ export function HuntPicks({
   // trigger this: it reaches the next draw through the same cache key.
   useEffect(() => {
     if (!reader) return;
+    // A category is open, so the lines are on screen: his moved record earns
+    // them a re-write. Nothing is asked for when everything is folded away.
+    if (Object.values(open).some(Boolean)) ensureReads();
     for (const [categoryId, isOpen] of Object.entries(open)) {
       if (isOpen && !states[categoryId]?.loading) void draw(categoryId);
     }

@@ -18,10 +18,14 @@
  *
  * ONE call (claude.ts `callModel` — Sonnet, the same model again, Haiku, then
  * the platform's own text model, so it never dead-ends), read against his
- * whole record (hunt-reader.ts). CACHED PER SESSION on a fingerprint of the
- * facts themselves, in memory and in sessionStorage: re-rendering, switching
- * face, unfolding a category or coming back to the tab all cost nothing,
- * while logging a piece or editing the dossier re-writes the read by itself.
+ * whole record (hunt-reader.ts). CACHED ON A FINGERPRINT OF THE FACTS
+ * THEMSELVES, in three layers: memory, then sessionStorage, then localStorage
+ * (startup performance pass, August 2026). Re-rendering, switching face,
+ * unfolding a category or coming back to the tab all cost nothing — and
+ * neither does coming back TOMORROW, which used to re-write the whole reading
+ * from scratch because the cache died with the browser session. Only the facts
+ * moving — a piece logged, the dossier edited — changes the fingerprint, and
+ * only a changed fingerprint spends a call.
  *
  * NOTHING HERE CAN LEAVE THE PAGE EMPTY. Every one of the three has a
  * deterministic fallback written from the same arithmetic, so the map, the
@@ -74,7 +78,7 @@ export interface EditReading {
 }
 
 // ---------------------------------------------------------------------------
-// The session cache
+// The cache — memory, then the session, then across sessions
 // ---------------------------------------------------------------------------
 
 const CACHE_PREFIX = 'ethaion:edit-reading:v2:';
@@ -91,27 +95,59 @@ function fingerprint(value: unknown): string {
   return (h >>> 0).toString(36);
 }
 
-function readCache(key: string): EditReading | null {
-  const held = memory.get(key);
-  if (held) return held;
+function readStored(pick: () => Storage, key: string): EditReading | null {
   try {
-    const raw = window.sessionStorage.getItem(key);
+    const raw = pick().getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as EditReading;
     if (!parsed || !Array.isArray(parsed.gaps)) return null;
-    memory.set(key, parsed);
     return parsed;
   } catch {
     return null;
   }
 }
 
+function readCache(key: string): EditReading | null {
+  const held = memory.get(key);
+  if (held) return held;
+  // sessionStorage is the fast in-session copy; localStorage is the one that
+  // survives the browser being closed, so a wardrobe that has not moved since
+  // yesterday reads the same reading rather than paying for it again.
+  const parsed =
+    readStored(() => window.sessionStorage, key) || readStored(() => window.localStorage, key);
+  if (parsed) memory.set(key, parsed);
+  return parsed;
+}
+
+/** Only the CURRENT fingerprint is worth keeping across sessions — without
+ * this the durable layer would hold a reading for every state his wardrobe has
+ * ever been in. */
+function dropSupersededReadings(keep: string): void {
+  try {
+    const doomed: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const found = window.localStorage.key(i);
+      if (found && found !== keep && found.startsWith(CACHE_PREFIX)) doomed.push(found);
+    }
+    for (const found of doomed) window.localStorage.removeItem(found);
+  } catch {
+    /* nothing to prune */
+  }
+}
+
 function writeCache(key: string, value: EditReading): void {
   memory.set(key, value);
+  const text = JSON.stringify(value);
   try {
-    window.sessionStorage.setItem(key, JSON.stringify(value));
+    window.sessionStorage.setItem(key, text);
   } catch {
     /* storage unavailable — the memory copy carries the session */
+  }
+  try {
+    dropSupersededReadings(key);
+    window.localStorage.setItem(key, text);
+  } catch {
+    /* storage full or unavailable — the session copy still carries this visit */
   }
 }
 

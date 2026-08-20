@@ -43,7 +43,7 @@ export function ViewToggle<T extends string>({
             className="uppercase whitespace-nowrap transition-colors"
             style={{
               fontFamily: MONO,
-              fontSize: 'max(var(--eth-micro, 0px), 10px)',
+              fontSize: '10px',
               letterSpacing: '0.08em',
               padding: '8px 15px',
               ...(on

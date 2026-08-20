@@ -62,10 +62,8 @@ const MUTED = '#856c51';
 const FAINT = '#a68e70';
 const ACCENT_DEEP = '#7c4a17';
 
-// The phone reading floor: --eth-micro is declared in Desktop.tsx and is 0px
-// above the breakpoint, so the size asked for here is what desktop draws.
 function mono(size = 9, color = FAINT): React.CSSProperties {
-  return { fontFamily: MONO, fontSize: `max(var(--eth-micro, 0px), ${size}px)`, letterSpacing: '0.06em', textTransform: 'uppercase', color };
+  return { fontFamily: MONO, fontSize: `${size}px`, letterSpacing: '0.06em', textTransform: 'uppercase', color };
 }
 
 // ---------------------------------------------------------------------------

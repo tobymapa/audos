@@ -61,6 +61,8 @@ import {
 import {
   flatLayAssetForShelf,
   peekFlatLayAsset,
+  photoMigrationDone,
+  photoMigrationSettled,
   runPhotoMigration,
   type MigrationProgress,
 } from './photo-enhance';
@@ -72,7 +74,7 @@ import { ArchetypeIllo } from './illustrations';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
 import { sweepSemanticTags } from './semantic-tags';
 import { sweepPieceWarmth } from './warmth-model';
-import { sweepWatchlist } from './watchlist-poll';
+import { sweepWatchlistIfStale } from './watchlist-poll';
 import { BeauAssessmentProvider } from './beau-assessment-context';
 import { SaveProfileNudge, isGuestUnsaved } from './save-profile';
 
@@ -1983,16 +1985,18 @@ export default function BeauHome() {
     return () => window.removeEventListener('ethaion:prefs', onPrefs);
   }, []);
 
-  // THE WATCHLIST, CHECKED ON OPEN (The Search · Watchlist). Every piece the
-  // reader has asked Beau to keep an eye on has its retailer page re-read once
-  // per load — on the idle queue, well behind the first paint, and throttled
-  // per row inside the sweep, so a second open in the same half hour costs
-  // nothing. It is deliberately silent: the Watchlist face simply reads fresher
-  // rows when he next opens it, and a page that will not answer changes
-  // nothing (watchlist-poll.ts).
+  // THE WATCHLIST, CHECKED A FEW TIMES A DAY — NOT ON EVERY OPEN (The Search ·
+  // Watchlist; startup performance pass, August 2026). This used to fire a
+  // retailer read for every watched piece and brand seven seconds after EVERY
+  // load, whether or not the reader went anywhere near the Watchlist. It now
+  // goes through the sweep's own two-hour cross-session gate
+  // (`sweepWatchlistIfStale`, watchlist-poll.ts), so an ordinary open costs no
+  // network at all and the pages are still re-read several times a day. Silent
+  // as before: the Watchlist face simply reads fresher rows when he next opens
+  // it, and a page that will not answer changes nothing.
   useEffect(() => {
     whenIdle(() => {
-      void sweepWatchlist();
+      void sweepWatchlistIfStale();
     }, 7000);
   }, []);
 
@@ -2050,7 +2054,7 @@ export default function BeauHome() {
   // real grounds). Runs once (bgRemovalV49 flag); repeat calls are cheap
   // no-ops, and pieces whose photo is already a stored cutout are skipped.
   //
-  // THREE THINGS WERE WRONG HERE AND ALL THREE COST THE USER TIME.
+  // FOUR THINGS WERE WRONG HERE AND ALL FOUR COST THE USER TIME.
   //
   // 1. It started 350ms after the pieces arrived — i.e. right on top of the
   //    first paint, so the heaviest main-thread work in the app (canvas pixel
@@ -2067,8 +2071,17 @@ export default function BeauHome() {
   //    metadata change and immediately bailed on the guard, but only after
   //    React had already torn down and re-created the timer.
   //
+  // 4. THE FLAG WAS CHECKED LAST (startup performance pass, August 2026).
+  //    The migration is one-and-done, but the guard for it lived inside
+  //    photo-enhance.ts — so on every load AFTER it had run, this block still
+  //    spent its metadata reads and only then discovered there was nothing to
+  //    do. The device-local flag is now read on the very first line, before
+  //    anything touches the network, and the visitor's own server-side record
+  //    of it (migration_flags) is read on the idle queue before the metadata,
+  //    so a second device is spared the whole batch as well.
   const photoSweepRan = useRef(false);
   useEffect(() => {
+    if (photoMigrationDone()) return;
     if (pieces.length === 0) return;
     const withPhotos = pieces.filter((p) => p.id > 0 && (p.photo_url || '').trim());
     if (withPhotos.length === 0) return;
@@ -2082,13 +2095,18 @@ export default function BeauHome() {
     // newly added piece) are cheap and can start sooner.
     whenIdle(() => {
       if (!live) return;
-      void Promise.all([fetchMaterials(), fetchPieceAttributes()])
-        .then(([freshMaterials, freshAttributes]) => {
-          if (!live) return 0;
-          const patterns = Object.fromEntries(
-            Object.entries(freshAttributes).map(([id, value]) => [Number(id), value.pattern || null]),
+      void photoMigrationSettled()
+        .then((settled) => {
+          if (settled || !live) return 0;
+          return Promise.all([fetchMaterials(), fetchPieceAttributes()]).then(
+            ([freshMaterials, freshAttributes]) => {
+              if (!live) return 0;
+              const patterns = Object.fromEntries(
+                Object.entries(freshAttributes).map(([id, value]) => [Number(id), value.pattern || null]),
+              );
+              return runPhotoMigration(withPhotos, freshMaterials, setPhotoSweep, patterns);
+            },
           );
-          return runPhotoMigration(withPhotos, freshMaterials, setPhotoSweep, patterns);
         })
         .then((changed) => {
           photoSweepRan.current = true;

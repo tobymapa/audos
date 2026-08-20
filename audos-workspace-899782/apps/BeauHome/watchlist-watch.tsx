@@ -81,9 +81,9 @@ export function useWatchlist(): { items: WatchedPiece[]; loading: boolean } {
 
 /** The measurements each surface's own controls already use. */
 const SIZES = {
-  card: { type: 8.5, padding: '8px 12px', minHeight: 'max(var(--eth-field-h, 0px), 40px)' },
+  card: { type: 8.5, padding: '8px 12px', minHeight: '40px' },
   row: { type: 8, padding: '7px 10px', minHeight: undefined as string | undefined },
-  icon: { type: 8, padding: '7px 8px', minHeight: 'max(var(--eth-field-h, 0px), 34px)' },
+  icon: { type: 8, padding: '7px 8px', minHeight: '34px' },
 };
 
 export function WatchButton({

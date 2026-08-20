@@ -1035,7 +1035,7 @@ function MilestoneRow({ milestone }: { milestone: Milestone & { note?: string | 
             {milestone.summary && (
               <span
                 className="hidden sm:block mt-1 break-words text-[var(--color-neutral-600,#856c51)]"
-                style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.45 }}
+                style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.45 }}
               >
                 {milestone.summary}
               </span>
@@ -1043,7 +1043,7 @@ function MilestoneRow({ milestone }: { milestone: Milestone & { note?: string | 
             {milestone.note && (
               <span
                 className="hidden sm:block mt-1.5 break-words text-[var(--color-neutral-800,#453325)]"
-                style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.5, paddingLeft: '10px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
+                style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, paddingLeft: '10px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
               >
                 {milestone.note}
               </span>
@@ -1071,7 +1071,7 @@ function MilestoneRow({ milestone }: { milestone: Milestone & { note?: string | 
             rationale), the grid column ≥640px. */}
         <span
           className="sm:hidden tabular-nums text-[var(--color-neutral-700,#634e38)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
         >
           {milestone.done} of {milestone.total}
         </span>
@@ -1080,7 +1080,7 @@ function MilestoneRow({ milestone }: { milestone: Milestone & { note?: string | 
         {milestone.summary && (
           <span
             className="sm:hidden break-words text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.45 }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.45 }}
           >
             {milestone.summary}
           </span>
@@ -1088,14 +1088,14 @@ function MilestoneRow({ milestone }: { milestone: Milestone & { note?: string | 
         {milestone.note && (
           <span
             className="sm:hidden break-words text-[var(--color-neutral-800,#453325)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.5, paddingLeft: '10px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, paddingLeft: '10px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
           >
             {milestone.note}
           </span>
         )}
         <span
           className="hidden sm:block text-right tabular-nums whitespace-nowrap text-[var(--color-neutral-700,#634e38)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
         >
           {milestone.done} / {milestone.total}
         </span>
@@ -1235,7 +1235,7 @@ export const MilestoneJourney = memo(function MilestoneJourney({
           <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-[var(--color-text,#3b2b1d)]">
             <span
               className="uppercase text-[var(--color-neutral-700,#634e38)]"
-              style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 12px)', letterSpacing: '0.14em' }}
+              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '12px', letterSpacing: '0.14em' }}
             >
               Progress
             </span>
@@ -1256,7 +1256,7 @@ export const MilestoneJourney = memo(function MilestoneJourney({
               />
             ))}
           </span>
-          <p className="mt-2.5 text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)' }}>
+          <p className="mt-2.5 text-[var(--color-neutral-700,#634e38)]" style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px' }}>
             {progressNote}
           </p>
         </div>
@@ -1303,7 +1303,7 @@ export const MilestoneJourney = memo(function MilestoneJourney({
           {(bridgingNote || doubleDutyNote) && (
             <p
               className="mt-3 break-words text-[var(--color-neutral-800,#453325)]"
-              style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12px)', lineHeight: 1.5, paddingLeft: '10px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
+              style={{ fontFamily: 'var(--space-font-family)', fontSize: '12px', lineHeight: 1.5, paddingLeft: '10px', borderLeft: '2px solid var(--color-accent,#a8712c)' }}
             >
               {[bridgingNote, doubleDutyNote].filter(Boolean).join(' ')}
             </p>
@@ -1364,7 +1364,7 @@ export function MilestoneStrip({ pieces, archetypes = [] }: { pieces: WardrobePi
                 className={`mt-1 text-center leading-tight px-0.5 ${
                   isCurrent && done ? `${typography.weight.semibold} ${typography.color.brand}` : done ? typography.color.secondary : typography.color.muted
                 }`}
-                style={{ fontSize: 'max(var(--eth-micro, 0px), 9px)' }}
+                style={{ fontSize: '9px' }}
               >
                 {stage}
               </span>
@@ -1372,7 +1372,7 @@ export function MilestoneStrip({ pieces, archetypes = [] }: { pieces: WardrobePi
           );
         })}
       </div>
-      <p className={`${typography.size.xs} ${typography.color.secondary} mt-2 text-center`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
+      <p className={`${typography.size.xs} ${typography.color.secondary} mt-2 text-center`} style={{ fontSize: '10px' }}>
         {hint}
       </p>
     </div>

@@ -267,7 +267,7 @@ export function SaveProfileSheet({ onClose, onSaved }: { onClose: () => void; on
                 Not now
               </button>
             </div>
-            <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)' }}>
+            <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontSize: '10px' }}>
               Your email is used only to bring your profile back — no newsletters unless you ask for them.
             </p>
           </>

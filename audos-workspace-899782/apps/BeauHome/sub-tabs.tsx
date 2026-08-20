@@ -16,18 +16,11 @@
  *    filled accent-100 with a tobacco-gold border and accent-800 text; the
  *    row scrolls horizontally on narrow screens.
  *  · `sub-tab--index-face` — THE INDEX'S OWN FACE TOGGLE, the treatment its
- *    Pieces · Makers chips carry (index-tab.tsx): IBM Plex Mono small-caps,
- *    paper ground with a walnut rule when off, filled walnut with cream type
- *    when on, square corners, and the chips butted together on a shared
- *    hairline. Every value is pulled from the same index-style tokens the
- *    Index reads, so the two rows cannot drift. ON A DESKTOP its type size,
- *    tracking and box are THE FITTING'S (founder's correction, August 2026):
- *    the same 9.5px / 0.16em / 11×19px measure its five occasions carry
- *    (SegmentedTabs, fitting-design.tsx), so The Search's four faces, The
- *    Index's two and The Fitting's five all read as one control. The three
- *    values come from Desktop.tsx as variables and fall back to this
- *    variant's original 8.5px / 0.07em / 9×16px on a phone, where the chips
- *    already share the full width.
+ *    Pieces · Makers chips carry (index-tab.tsx): IBM Plex Mono 8.5px
+ *    small-caps, paper ground with a walnut rule when off, filled walnut with
+ *    cream type when on, square corners, 9×16px padding, and the chips butted
+ *    together on a shared hairline. Every value is pulled from the same
+ *    index-style tokens the Index reads, so the two rows cannot drift.
  *
  * Design system untouched: no new colours, no shadows, hairlines only. The
  * variant name is also emitted as a className on the row and on each button,
@@ -117,14 +110,9 @@ const ON_WALNUT_CHIP = '#f6f0e5';
 function indexFaceButton(active: boolean, first: boolean): React.CSSProperties {
   return {
     ...mono(8.5, active ? ON_WALNUT_CHIP : SECONDARY),
-    // THE FITTING'S OWN CHIP MEASURE, above the phone breakpoint only. The
-    // phone floor (--eth-micro) still wins over both sizes, so nothing about
-    // the phone row moves.
-    fontSize: 'max(var(--eth-micro, 0px), var(--eth-face-chip-size, 8.5px))',
-    letterSpacing: 'var(--eth-face-chip-track, 0.07em)',
     background: active ? WALNUT : PAPER,
     border: `1px solid ${active ? WALNUT : RULE}`,
-    padding: 'var(--eth-face-chip-pad, 9px 16px)',
+    padding: '9px 16px',
     whiteSpace: 'nowrap',
     marginLeft: first ? 0 : '-1px',
   };

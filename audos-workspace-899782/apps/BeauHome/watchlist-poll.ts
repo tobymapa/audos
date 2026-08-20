@@ -1,12 +1,17 @@
 /**
- * THE SEARCH · THE WATCHLIST · THE ON-OPEN POLL — Beau checking, quietly, on
- * everything the reader has asked him to keep an eye on.
+ * THE SEARCH · THE WATCHLIST · THE BACKGROUND POLL — Beau checking, quietly,
+ * on everything the reader has asked him to keep an eye on.
  *
- * WHEN. Once when the app loads (App.tsx, on the idle queue behind the first
- * paint) and again when The Search itself comes forward. Nothing about it is
- * on the critical path: it never blocks a render, never shows a spinner and
- * never reports a failure to the reader. The Watchlist tab simply reads
- * fresher rows the next time he opens it.
+ * WHEN. NOT on every app open any more (startup performance pass, August
+ * 2026). The app and The Search both fire it through `sweepWatchlistIfStale`,
+ * which does nothing at all unless this device's last sweep was more than TWO
+ * HOURS ago — so opening the app, closing it and opening it again costs no
+ * network at all, and the retailer pages are re-read a few times a day rather
+ * than on every load. `sweepWatchlist` itself is unchanged and still there for
+ * a deliberate check, and for a server-side scheduled job when one exists.
+ * Nothing about it is on the critical path: it never blocks a render, never
+ * shows a spinner and never reports a failure to the reader. The Watchlist tab
+ * simply reads fresher rows the next time he opens it.
  *
  * HOW. Each active row's retailer page is re-read SERVER-SIDE through the
  * `beau-fetch-page` hook — the same reader Beau's chat uses for a pasted
@@ -63,6 +68,55 @@ const MIN_RECHECK_MS = 30 * 60 * 1000;
 
 /** A breath between pages — the sweep is never in a hurry. */
 const BETWEEN_PAGES_MS = 400;
+
+// ---------------------------------------------------------------------------
+// THE WHOLE-SWEEP GATE (startup performance pass, August 2026)
+//
+// MIN_RECHECK_MS above throttles one ROW inside a sweep. The sweep itself was
+// fired seven seconds after every app load and again on every visit to The
+// Search, so a Watchlist of a dozen rows meant a dozen server-side page reads
+// on an open where the reader never went near it. The stamp below throttles
+// the SWEEP, and lives in localStorage so it survives a reload, a new tab and
+// a new session — not just the page that set it.
+// ---------------------------------------------------------------------------
+
+/** When this device last started a sweep. */
+const SWEEP_STAMP_KEY = 'ethaion:watchlist-sweep:last';
+
+/** Two hours between sweeps. */
+const SWEEP_MIN_GAP_MS = 2 * 60 * 60 * 1000;
+
+function lastSweepAt(): number {
+  try {
+    const raw = window.localStorage.getItem(SWEEP_STAMP_KEY);
+    const at = raw ? Number(raw) : 0;
+    return Number.isFinite(at) ? at : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function stampSweep(): void {
+  try {
+    window.localStorage.setItem(SWEEP_STAMP_KEY, String(Date.now()));
+  } catch {
+    /* storage unavailable — the per-row throttle inside the sweep still holds */
+  }
+}
+
+/** True when it is more than two hours since this device last swept. */
+export function watchlistSweepIsDue(): boolean {
+  return Date.now() - lastSweepAt() > SWEEP_MIN_GAP_MS;
+}
+
+/**
+ * The sweep as the APP fires it — on load, and when The Search comes forward.
+ * A no-op unless the gate above is open, so an app open costs nothing.
+ */
+export async function sweepWatchlistIfStale(): Promise<void> {
+  if (!watchlistSweepIsDue()) return;
+  await sweepWatchlist();
+}
 
 function workspaceIdForHooks(): string {
   return (window as any).__workspaceDb?.workspaceId || 'workspace-899782';
@@ -339,6 +393,9 @@ function due(piece: WatchedPiece, force: boolean): boolean {
 export async function sweepWatchlist({ force = false }: { force?: boolean } = {}): Promise<void> {
   if (sweeping) return;
   sweeping = true;
+  // The stamp moves BEFORE the reads, not after: a sweep that gives up halfway
+  // must not leave the gate open for the next load to start it all again.
+  stampSweep();
   try {
     const pieces = await fetchWatchlist();
     // Pieces and brands share the one budget — a sweep is a handful of reads

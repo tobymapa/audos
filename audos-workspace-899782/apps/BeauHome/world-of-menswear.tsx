@@ -110,7 +110,7 @@ function EntryRow({
           </span>
           <span
             className="uppercase text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 9.5px)', letterSpacing: '0.14em' }}
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '9.5px', letterSpacing: '0.14em' }}
           >
             {kicker || (entry.essential ? 'Essential' : 'Specialist')}
           </span>
@@ -135,7 +135,7 @@ function SectionHead({ children }: { children: string }) {
   return (
     <p
       className="uppercase text-[var(--color-neutral-600,#856c51)]"
-      style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.16em', marginBottom: '6px' }}
+      style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', marginBottom: '6px' }}
     >
       {children}
     </p>
@@ -144,7 +144,7 @@ function SectionHead({ children }: { children: string }) {
 
 const bodyType: React.CSSProperties = {
   fontFamily: 'var(--space-font-family)',
-  fontSize: 'max(var(--eth-body, 0px), 14.5px)',
+  fontSize: '14.5px',
   lineHeight: 1.65,
   maxWidth: '64ch',
 };
@@ -226,14 +226,14 @@ function FindRow({ card, category }: { card: FindCard; category: WorldCategoryId
       >
         <span
           className={`block truncate ${typography.color.primary} group-hover:underline`}
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14.5px)', lineHeight: 1.35 }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14.5px', lineHeight: 1.35 }}
         >
           {card.retailer}
         </span>
         {card.product && (
           <span
             className="block truncate text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12.5px)', marginTop: '2px' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', marginTop: '2px' }}
           >
             {card.product}
           </span>
@@ -241,7 +241,7 @@ function FindRow({ card, category }: { card: FindCard; category: WorldCategoryId
       </a>
       <span
         className="text-[var(--color-neutral-600,#856c51)] tabular-nums text-center truncate"
-        style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12.5px)' }}
+        style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px' }}
       >
         {card.price || ''}
       </span>
@@ -314,7 +314,7 @@ export function WorldEntryPage({
         {category && (
           <p
             className="uppercase text-[var(--color-neutral-600,#856c51)]"
-            style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11px)', letterSpacing: '0.16em', marginBottom: '5px' }}
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11px', letterSpacing: '0.16em', marginBottom: '5px' }}
           >
             {category.label}
           </p>
@@ -327,7 +327,7 @@ export function WorldEntryPage({
           className="inline-block mt-2.5 px-2.5 py-1 uppercase"
           style={{
             fontFamily: 'var(--space-font-heading)',
-            fontSize: 'max(var(--eth-serif, 0px), 10.5px)',
+            fontSize: '10.5px',
             letterSpacing: '0.13em',
             color: 'var(--color-neutral-700,#634e38)',
             border: '1px solid var(--color-divider,rgba(59,43,29,0.34))',
@@ -387,7 +387,7 @@ export function WorldEntryPage({
       <div className="mt-6" style={{ background: WARM, border: `1px solid ${WALNUT}`, padding: '18px 20px 20px' }}>
         <p
           className="uppercase not-italic"
-          style={{ fontFamily: 'var(--space-font-heading)', fontSize: 'max(var(--eth-serif, 0px), 11.5px)', letterSpacing: '0.15em', color: BEAU_INK, marginBottom: '7px' }}
+          style={{ fontFamily: 'var(--space-font-heading)', fontSize: '11.5px', letterSpacing: '0.15em', color: BEAU_INK, marginBottom: '7px' }}
         >
           Beau for you
         </p>
@@ -402,7 +402,7 @@ export function WorldEntryPage({
                   type="button"
                   onClick={() => onSeeForYou(forYouSub)}
                   className="hover:opacity-80 not-italic"
-                  style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14.5px)', color: BEAU_INK, textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '14.5px', color: BEAU_INK, textDecoration: 'underline', textUnderlineOffset: '3px' }}
                 >
                   → See options in For You
                 </button>
@@ -424,7 +424,7 @@ export function WorldEntryPage({
             const chip = (
               <span
                 className={typography.color.primary}
-                style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)', lineHeight: 1.3 }}
+                style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px', lineHeight: 1.3 }}
               >
                 {pairing}
               </span>
@@ -434,7 +434,7 @@ export function WorldEntryPage({
               border: '1px solid var(--color-divider,rgba(59,43,29,0.34))',
               borderRadius: '999px',
               padding: '9px 14px',
-              minHeight: 'max(var(--eth-field-h, 0px), 38px)',
+              minHeight: '38px',
               display: 'inline-flex',
               alignItems: 'center',
             };
@@ -466,7 +466,7 @@ export function WorldEntryPage({
         {personalised && (
           <p
             className="not-italic"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-label, 0px), 12.5px)', lineHeight: 1.5, color: BEAU_INK, marginBottom: '4px', maxWidth: '62ch' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: '12.5px', lineHeight: 1.5, color: BEAU_INK, marginBottom: '4px', maxWidth: '62ch' }}
           >
             Beau’s own picks for this gap — the makers he’d put in front of you on the For You rail.
           </p>
@@ -476,7 +476,7 @@ export function WorldEntryPage({
             <FindRow key={card.key} card={card} category={entry.categoryId} />
           ))}
         </div>
-        <p className={`${typography.size.xs} ${typography.color.muted} mt-3`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)', maxWidth: '62ch' }}>
+        <p className={`${typography.size.xs} ${typography.color.muted} mt-3`} style={{ fontSize: '10px', maxWidth: '62ch' }}>
           {personalised
             ? 'Matched to your profile and your wardrobe. Tap any photograph to open the product page at the source.'
             : 'Item-specific pages on quality retailers and maker sites — never a bare homepage. Fill in your profile and Beau swaps this for the makers he’d recommend to YOU.'}
@@ -544,21 +544,21 @@ export function WorldOfMenswear({
           placeholder="Search every piece type — “balmacaan”, “loafer”, “something for rain”…"
           aria-label="Search the World of Menswear"
           className="w-full bg-transparent focus:outline-none placeholder:text-[var(--color-neutral-500,#a68e70)]"
-          style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14.5px)', color: 'var(--space-text-primary)' }}
+          style={{ fontFamily: 'var(--space-font-family)', fontSize: '14.5px', color: 'var(--space-text-primary)' }}
         />
         {searching && (
           <button
             type="button"
             onClick={() => setQuery('')}
             className="flex-shrink-0 text-[var(--color-neutral-600,#856c51)] hover:text-[var(--space-text-primary)]"
-            style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13px)' }}
+            style={{ fontFamily: 'var(--space-font-family)', fontSize: '13px' }}
             aria-label="Clear the search"
           >
             Clear ×
           </button>
         )}
       </div>
-      <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10.5px)' }}>
+      <p className={`${typography.size.xs} ${typography.color.muted} mt-2`} style={{ fontSize: '10.5px' }}>
         {searching
           ? `${results.length} entr${results.length === 1 ? 'y' : 'ies'} match${results.length === 1 ? 'es' : ''} “${query.trim()}”`
           : `${WORLD_ENTRIES.length} piece types across ${WORLD_CATEGORIES.length} categories — discovery is the default; search is the shortcut.`}
@@ -572,7 +572,7 @@ export function WorldOfMenswear({
             return <EntryRow key={entry.id} entry={entry} kicker={cat ? cat.label : null} onOpen={() => setOpenId(entry.id)} />;
           })}
           {results.length === 0 && (
-            <p className="py-6" style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.6, color: 'var(--color-neutral-600,#856c51)', maxWidth: '58ch' }}>
+            <p className="py-6" style={{ fontFamily: 'var(--space-font-family)', fontSize: '14px', lineHeight: 1.6, color: 'var(--color-neutral-600,#856c51)', maxWidth: '58ch' }}>
               Nothing in the reference matches that — try a simpler word (“boot”, “coat”, “linen”), or ask Beau
               directly and he’ll point you to the right entry.
             </p>
@@ -600,7 +600,7 @@ export function WorldOfMenswear({
                   </div>
                   <p
                     className="text-[var(--color-neutral-700,#634e38)]"
-                    style={{ fontFamily: 'var(--space-font-family)', fontSize: 'max(var(--eth-body, 0px), 13.5px)', lineHeight: 1.55, marginTop: '4px', maxWidth: '62ch' }}
+                    style={{ fontFamily: 'var(--space-font-family)', fontSize: '13.5px', lineHeight: 1.55, marginTop: '4px', maxWidth: '62ch' }}
                   >
                     {category.blurb}
                   </p>
@@ -614,7 +614,7 @@ export function WorldOfMenswear({
             );
           })}
 
-          <p className={`${typography.size.xs} ${typography.color.muted} mt-8`} style={{ fontSize: 'max(var(--eth-micro, 0px), 10px)', maxWidth: '68ch' }}>
+          <p className={`${typography.size.xs} ${typography.color.muted} mt-8`} style={{ fontSize: '10px', maxWidth: '68ch' }}>
             Every entry carries the full file: what it is, where it came from, when to wear it, what it pairs with,
             whether it’s a wardrobe essential or a specialist piece, and where to find a good one. Beau’s note on
             each entry ties it back to YOUR wardrobe — owned, a live gap (with the way into For You), or simply
