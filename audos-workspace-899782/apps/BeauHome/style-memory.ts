@@ -94,6 +94,16 @@ function announce(): void {
   }
 }
 
+/**
+ * Forget one fact outright — the user's quiet right, exercised from the
+ * Dossier's "What Beau remembers" screen. Corrections still happen in chat
+ * (the extractor updates the stored fact); this is only for removal.
+ */
+export async function removeStyleMemoryFact(id: number): Promise<void> {
+  await ws().from(TABLE).delete(id);
+  announce();
+}
+
 function normaliseKeyPart(text: string): string {
   return text
     .toLowerCase()

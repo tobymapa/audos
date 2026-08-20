@@ -67,6 +67,14 @@ import { HowToMeasureButton } from '../BeauHome/measure-guide';
 import { SaveProfileButton } from '../BeauHome/save-profile';
 import { TabHeader } from '../BeauHome/tab-header';
 import { CrumbPublisher, goToEthaionTab } from '../BeauHome/crumb-trail';
+import {
+  STYLE_MEMORY_EVENT,
+  fetchStyleMemory,
+  removeStyleMemoryFact,
+  type StyleMemoryFact,
+  type StyleMemorySignal,
+} from '../BeauHome/style-memory';
+import { MONO, usePlexMono } from '../BeauHome/mono-type';
 import { Onboarding } from '../BeauHome/App';
 import { fetchAvatarInputs, saveAvatarInputs } from '../BeauHome/body-profile';
 import {
@@ -1407,6 +1415,203 @@ function TasteReferencesScreen({ onBack }: { onBack: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// What Beau remembers — the persistent style memory (beau_style_memory), as
+// a dedicated drill-down sub-screen beside Taste References. Editorial
+// register: hairline rows, IBM Plex Mono small-caps working labels,
+// Cormorant heading. Removal is the user's quiet right; there is NO
+// edit-in-place by design — corrections happen by telling Beau in chat,
+// which updates the stored fact.
+// ---------------------------------------------------------------------------
+
+const SIGNAL_LABELS: Record<StyleMemorySignal, string> = {
+  preference: 'Rule',
+  body_feedback: 'Fit',
+  piece_verdict: 'Verdict',
+};
+
+function memoryWhen(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function StyleMemoryScreen({ onBack }: { onBack: () => void }) {
+  usePlexMono();
+  const [facts, setFacts] = useState<StyleMemoryFact[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () =>
+      fetchStyleMemory()
+        .then((f) => {
+          if (!cancelled) {
+            setFacts(f);
+            setLoaded(true);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setLoaded(true);
+        });
+    void refresh();
+    // The memory announces its own changes — a fact Beau files or updates
+    // mid-conversation appears here without a reload, even in the
+    // side-by-side chat + app layout.
+    const onChanged = () => void refresh();
+    window.addEventListener(STYLE_MEMORY_EVENT, onChanged);
+    window.addEventListener('focus', onChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(STYLE_MEMORY_EVENT, onChanged);
+      window.removeEventListener('focus', onChanged);
+    };
+  }, []);
+
+  const remove = async (id: number) => {
+    setRemovingId(id);
+    try {
+      // Deletes the row from beau_style_memory and dispatches
+      // STYLE_MEMORY_EVENT, so every live surface recalibrates at once.
+      await removeStyleMemoryFact(id);
+      setFacts((cur) => cur.filter((f) => f.id !== id));
+    } catch (e) {
+      console.warn('[Ethaion] style memory removal failed:', e);
+    } finally {
+      setRemovingId(null);
+      setConfirmingId(null);
+    }
+  };
+
+  const monoLabel: React.CSSProperties = {
+    fontFamily: MONO,
+    fontSize: 'max(var(--eth-label, 0px), 11px)',
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+  };
+
+  return (
+    <div className="min-h-full bg-transparent">
+      <div className="px-5 py-5 space-y-5 max-w-4xl mx-auto w-full pb-24">
+        {/* No local back control — this screen publishes its whereabouts to
+            the app's ONE floating back + breadcrumb row, exactly like the
+            Taste References screen beside it. */}
+        <CrumbPublisher
+          segs={[
+            { label: 'Ethaion', onClick: () => goToEthaionTab('wardrobe') },
+            { label: 'The Dossier', onClick: onBack },
+            { label: 'What Beau remembers' },
+          ]}
+          onBack={onBack}
+          backLabel="The Dossier"
+        />
+        <div>
+          <h3
+            className={typography.color.primary}
+            style={{ fontFamily: 'var(--space-font-heading)', fontSize: '28px', lineHeight: 1.15, fontWeight: 600 }}
+          >
+            What Beau remembers
+          </h3>
+          <p className={`${typography.size.xs} ${typography.color.muted} mt-1 max-w-md`}>
+            The standing facts he holds from what you’ve told him — your rules, how things fit you, and your own
+            verdicts. To correct one, just tell him in chat and it updates. Removing one is your quiet right — he
+            forgets it immediately.
+          </p>
+        </div>
+
+        {!loaded ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className={`w-6 h-6 animate-spin ${tw.icon.primary}`} />
+          </div>
+        ) : facts.length === 0 ? (
+          <div className="border-t border-b border-[var(--space-border-default)] px-4 py-12 text-center">
+            <p
+              className={typography.color.primary}
+              style={{ fontFamily: 'var(--space-font-heading)', fontSize: '20px', lineHeight: 1.3 }}
+            >
+              Nothing on file yet
+            </p>
+            <p className={`${typography.size.sm} ${typography.color.muted} mt-1.5 max-w-sm mx-auto`}>
+              When you tell Beau a standing rule (“I never wear slim fit”), how something fits your body, or your
+              verdict on a piece, he remembers it here — and applies it in every conversation.
+            </p>
+            <button
+              type="button"
+              onClick={openBeauChat}
+              className={`mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl ${typography.size.sm} ${tw.button.primary}`}
+            >
+              <MessageCircle className="w-4 h-4" /> Tell Beau in chat
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="border-t border-[var(--space-border-default)]">
+              {facts.map((fact) => {
+                const when = memoryWhen(fact.updatedAt);
+                return (
+                  <div
+                    key={fact.id}
+                    className="border-b border-[var(--space-border-default)] py-3.5 flex items-start gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className={typography.color.muted} style={monoLabel}>
+                        {SIGNAL_LABELS[fact.signalType]}
+                        {when ? ` · updated ${when}` : ''}
+                      </p>
+                      <p
+                        className={typography.color.primary}
+                        style={{ fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.55, marginTop: '4px' }}
+                      >
+                        {fact.factText}
+                      </p>
+                    </div>
+                    {confirmingId === fact.id ? (
+                      <span className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => void remove(fact.id)}
+                          disabled={removingId === fact.id}
+                          className={`px-2.5 py-1.5 rounded-lg ${typography.size.xs} ${tw.button.danger} inline-flex items-center gap-1 disabled:opacity-50`}
+                        >
+                          {removingId === fact.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                          Remove
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingId(null)}
+                          className={`p-1.5 rounded-lg ${tw.button.ghost}`}
+                          aria-label="Keep this fact"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingId(fact.id)}
+                        className={`flex-shrink-0 ${typography.size.xs} ${typography.color.muted} hover:text-[var(--space-semantic-danger)] hover:underline`}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className={`${typography.size.xs} ${typography.color.muted} italic pt-3`}>
+              Beau applies every fact here in every conversation. Corrections happen in chat — tell him what changed
+              and the fact updates; what you remove stops counting immediately.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Brand-by-brand size exceptions — repeatable Brand + Size pairs, serialised
 // into the same free-text columns Beau already reads ("Sunspel M, Incotex
 // 46"), so the rubric sync needs no changes.
@@ -1678,7 +1883,7 @@ export default function YourStyle() {
   const [flash, setFlash] = useState<string | null>(null);
 
   // Taste References — drill-down sub-screen.
-  const [view, setView] = useState<'main' | 'taste-references'>('main');
+  const [view, setView] = useState<'main' | 'taste-references' | 'style-memory'>('main');
 
   // Tapping The Dossier's tab label comes back to the tab's home: the Taste
   // references drill-down closes and every section folds away.
@@ -1692,6 +1897,26 @@ export default function YourStyle() {
     return () => window.removeEventListener('ethaion:tab-home', onTabHome);
   }, []);
   const [tasteCount, setTasteCount] = useState<number | null>(null);
+  // The persistent style memory count — kept live via STYLE_MEMORY_EVENT, so
+  // a fact Beau files mid-conversation shows without a reload. Deliberately
+  // outside the Dossier cache: the memory announces its own changes.
+  const [memoryCount, setMemoryCount] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () =>
+      fetchStyleMemory()
+        .then((facts) => {
+          if (!cancelled) setMemoryCount(facts.length);
+        })
+        .catch(() => undefined);
+    void refresh();
+    const onChanged = () => void refresh();
+    window.addEventListener(STYLE_MEMORY_EVENT, onChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(STYLE_MEMORY_EVENT, onChanged);
+    };
+  }, []);
   const profileEditVersion = useRef(0);
   const profileEditsPending = useRef(0);
   const prefsEditVersion = useRef(0);
@@ -2109,6 +2334,14 @@ export default function YourStyle() {
         }}
       />
     );
+  }
+
+  // Dedicated "What Beau remembers" sub-screen — the persistent style
+  // memory, beside Taste References. Tapping the tab label closes it too
+  // (same listener as above); its count refreshes itself via
+  // STYLE_MEMORY_EVENT, so onBack needs no re-fetch.
+  if (view === 'style-memory') {
+    return <StyleMemoryScreen onBack={() => setView('main')} />;
   }
 
   if (!profile) {
@@ -2889,6 +3122,7 @@ export default function YourStyle() {
                 details.paletteNotes,
                 p.fit_notes || '',
                 tasteCount ? `${tasteCount} taste reference${tasteCount === 1 ? '' : 's'}` : '',
+                memoryCount ? `${memoryCount} fact${memoryCount === 1 ? '' : 's'} remembered` : '',
               ]}
               hint="Nothing noted yet — tap Edit. This brief grows as Beau learns what suits you."
             />
@@ -3043,6 +3277,27 @@ export default function YourStyle() {
                     : tasteCount > 0
                       ? `${tasteCount} look${tasteCount === 1 ? '' : 's'} shared with Beau — tap to see the signals he read.`
                       : 'Share looks you’re drawn to with Beau — he’ll extract what they say about your style.'}
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-[var(--space-text-muted)] flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+            {/* What Beau remembers — the persistent style memory: standing
+                rules, fit facts and piece verdicts extracted from what the
+                user explicitly told Beau. Opens its own screen beside Taste
+                references; removal there is the user's quiet right. */}
+            <button
+              type="button"
+              onClick={() => setView('style-memory')}
+              className="w-full text-left flex items-center justify-between gap-3 group border-t border-[var(--space-border-default)] pt-4"
+            >
+              <span className="min-w-0">
+                <span className={statLabelCls}>What Beau remembers</span>
+                <span className={`block ${typography.size.sm} ${memoryCount ? typography.color.primary : typography.color.muted}`}>
+                  {memoryCount == null
+                    ? 'Loading…'
+                    : memoryCount > 0
+                      ? `${memoryCount} standing fact${memoryCount === 1 ? '' : 's'} from what you’ve told him — tap to read or remove them.`
+                      : 'Tell Beau a rule, a fit note or a verdict in chat — he remembers it here.'}
                 </span>
               </span>
               <ChevronRight className="w-4 h-4 text-[var(--space-text-muted)] flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
