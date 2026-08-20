@@ -28,6 +28,13 @@
       "icon": "Search",
       "dataFile": "data/maker-scout.json",
       "component": "apps/MakerScout/App.tsx"
+    },
+    {
+      "id": "business-email",
+      "name": "Business Email",
+      "description": "Your inbox concierge: triage, drafts awaiting approval, and mail on your own domain — owner-only",
+      "icon": "Mail",
+      "component": "apps/BusinessEmail/App.tsx"
     }
   ],
   "terminology": {
