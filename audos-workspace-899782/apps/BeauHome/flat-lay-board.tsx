@@ -155,9 +155,10 @@ export interface FlatLayPiece {
    * uncut photographs — those keep the zone's full width. */
   croppedWidth?: number | null;
   croppedHeight?: number | null;
-  /** DASHED MEANS NOT YOURS (build brief rule 2): true when the piece is a
-   * candidate — something the wearer doesn't own — so the board draws it
-   * with a dashed accent outline. A board holding one saves as a proposal. */
+  /** True when the piece is a candidate — something the wearer doesn't own.
+   * The board no longer draws any outline for it (founder's correction,
+   * August 2026) — the tooltip says “not yours yet”, and a board holding
+   * one still saves as a proposal. */
   notOwned?: boolean;
 }
 
@@ -1071,9 +1072,11 @@ export function FlatLayBoard<T extends FlatLayPiece>({
           ? { touchAction: 'none', cursor: beingDragged ? 'grabbing' : 'grab', userSelect: 'none' }
           : {};
         const selected = !!onRemove && selectedKey === item.piece.key;
-        const selectStyle: React.CSSProperties = selected
-          ? { outline: '1px solid #241a12', outlineOffset: '3px' }
-          : {};
+        // NO SELECTION BOX ON THE CANVAS (founder's correction, August 2026):
+        // a piece on the board carries no outline of any kind. Tapping one
+        // still SELECTS it — it lifts to the front and shows its own ×,
+        // which is the whole affordance.
+        const selectStyle: React.CSSProperties = {};
         const dragHandlers = dragKey
           ? {
               onPointerDown: handlePointerDown(item),
@@ -1145,23 +1148,11 @@ export function FlatLayBoard<T extends FlatLayPiece>({
                 : item.piece.name
           }
         >
-          {/* DASHED MEANS NOT YOURS — the 1px dashed accent outline on any
-              piece the wearer doesn't own, on every surface the flat-lay
-              fronts (build brief rule 2). Outline, not border: the tray's
-              CSS forces border:none on every piece. */}
-          {item.piece.notOwned && (
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                outline: '1.5px dashed var(--color-accent,#a8712c)',
-                outlineOffset: '-1px',
-                pointerEvents: 'none',
-                zIndex: 2,
-              }}
-            />
-          )}
+          {/* The dashed not-owned outline is GONE from the canvas (founder's
+              correction, August 2026): a piece on the board carries no box of
+              any kind. A candidate still announces itself in its tooltip
+              (“not yours yet”) and a board holding one still saves as a
+              proposal. */}
           {cutoutOk ? (
             /* The stored transparent PNG: it lies straight on the board with
                nothing behind it and nothing done to it. A URL that fails to

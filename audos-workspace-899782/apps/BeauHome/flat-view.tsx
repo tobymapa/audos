@@ -121,9 +121,9 @@ export interface BoardPiece {
    * true aspect ratio. Absent on older cuts and uncut photographs. */
   croppedWidth?: number | null;
   croppedHeight?: number | null;
-  /** DASHED MEANS NOT YOURS (build brief rule 2): true for candidates —
-   * pieces the wearer doesn't own. The flat-lay draws them with a dashed
-   * accent outline, and a board holding one saves as a PROPOSAL. */
+  /** True for candidates — pieces the wearer doesn't own. The flat-lay no
+   * longer draws an outline for them (founder's correction, August 2026);
+   * the tooltip says so, and a board holding one saves as a PROPOSAL. */
   notOwned?: boolean;
 }
 
@@ -132,7 +132,7 @@ export type OutfitBoardState = Partial<Record<BoardSlot, BoardPiece>>;
 /** Build the board entry for a rail piece — the image resolves lazily.
  * Ownership reads off the piece key: owned wardrobe pieces carry the
  * `owned-<id>` key; everything else (weighing, Beau's picks, pasted links)
- * is a candidate and draws dashed. */
+ * is a candidate. */
 export function boardPieceFrom(piece: FittingPiece): BoardPiece {
   return {
     slot: boardSlotFor(piece.category, piece.name),

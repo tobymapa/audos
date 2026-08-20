@@ -332,9 +332,13 @@ const ShelfCard = memo(function ShelfCard({
       >
         <span
           className="relative block"
+          // The selection ring is CURVED (founder's correction, August 2026):
+          // the border-radius rounds the outline's corners, so the on-board
+          // ring reads as a soft frame rather than a hard 90° box.
           style={{
             outline: selected ? `1px solid ${ACCENT}` : '1px solid transparent',
             outlineOffset: '6px',
+            borderRadius: '10px',
             opacity: selected ? 1 : 0.92,
           }}
         >
@@ -1665,9 +1669,6 @@ export function FittingRoomTab({
                     />
                   ))}
                 </div>
-                <p style={{ ...body(11.5, MUTED), margin: '8px 0 0' }}>
-                  Hover a swap for why it works — tap it to put it on board.
-                </p>
               </>
             ) : (
               <p style={{ ...body(12.5, MUTED), margin: '12px 0 0' }}>
