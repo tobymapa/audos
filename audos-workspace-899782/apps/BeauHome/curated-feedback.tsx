@@ -316,7 +316,7 @@ export function CuratedFeedbackSheet({
 
         {photoPreview && (
           <div className="flex items-center gap-2 mt-2">
-            <img src={photoPreview} alt="Attached reference" className="w-10 h-10 rounded-lg object-cover border border-[var(--space-border-default)]" />
+            <img src={photoPreview} alt="Attached reference" loading="lazy" className="w-10 h-10 rounded-lg object-cover border border-[var(--space-border-default)]" />
             <span className={`${typography.size.xs} ${typography.color.muted} flex-1 truncate`}>
               Photo attached — Beau reads the aesthetic, never the label
             </span>

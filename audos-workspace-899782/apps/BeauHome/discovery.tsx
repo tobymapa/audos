@@ -173,7 +173,7 @@ function sourceLabel(t: string): string {
 function EntryVisual({ row, size = 'md' }: { row: DiscoveryRow; size?: 'md' | 'sm' }) {
   const box = size === 'sm' ? 'w-11 h-11' : 'w-16 h-16';
   if (row.image_url) {
-    return <img src={row.image_url} alt={row.name} className={`${box} rounded-lg object-cover`} loading="lazy" />;
+    return <img src={row.image_url} alt={row.name} loading="lazy" className={`${box} rounded-lg object-cover`} />;
   }
   // No product photo stored — the clean neutral placeholder (a
   // walnut-bordered paper rectangle). Never an illustration standing in
@@ -246,7 +246,7 @@ function DraftCard({
     >
       <div className="flex items-start gap-2.5">
         {draft.image_url ? (
-          <img src={draft.image_url} alt="" className="w-11 h-11 rounded-lg object-cover flex-shrink-0" />
+          <img src={draft.image_url} alt="" loading="lazy" className="w-11 h-11 rounded-lg object-cover flex-shrink-0" />
         ) : (
           <span className="w-11 h-11 rounded-lg bg-[var(--space-surface-muted)] flex-shrink-0" aria-hidden="true" />
         )}
@@ -694,7 +694,7 @@ function EntryDetail({
         </div>
 
         {row.image_url && (
-          <img src={row.image_url} alt={row.name} className="mt-3 max-h-64 rounded-xl object-contain border border-[var(--space-border-default)]" />
+          <img src={row.image_url} alt={row.name} loading="lazy" className="mt-3 max-h-64 rounded-xl object-contain border border-[var(--space-border-default)]" />
         )}
 
         {/* Own / watch — the bridges into the rest of Ethaion */}

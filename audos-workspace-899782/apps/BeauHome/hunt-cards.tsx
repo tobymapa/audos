@@ -61,6 +61,7 @@ import {
   resolveProductImageCandidates,
   type ProductImageCandidate,
 } from './product-images';
+import { useOnScreen } from './use-on-screen';
 import {
   HUNT_CALLS_EVENT,
   HUNT_TAG_LABELS,
@@ -205,6 +206,12 @@ export function HuntPhoto({
   });
   const [idx, setIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  // A card earns its image resolution by being on screen. See use-on-screen.ts:
+  // `resolveProductImageCandidates` costs up to three network round-trips, and
+  // this component renders in grids, so ungated it fired them for every card
+  // including those below the fold and those in previously-visited tabs that
+  // stay mounted under `display:none`.
+  const [hostRef, onScreen] = useOnScreen<HTMLElement>();
 
   useEffect(() => {
     let alive = true;
@@ -216,8 +223,15 @@ export function HuntPhoto({
         alive = false;
       };
     }
+    // A previously settled answer is free — show it whether or not the card is
+    // on screen. Only the RESOLUTION is gated.
     const settled = peekProductImageCandidate(subject);
     setCandidates(settled ? [settled] : []);
+    if (settled || !onScreen) {
+      return () => {
+        alive = false;
+      };
+    }
     void resolveProductImageCandidates(subject)
       .then((resolved) => {
         if (alive && resolved.length > 0) {
@@ -230,7 +244,7 @@ export function HuntPhoto({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subjectKey]);
+  }, [subjectKey, onScreen]);
 
   const candidate = candidates[idx] || null;
   const src = candidate ? cappedImageUrl(candidate.url, PLATE_WIDTH) : '';
@@ -284,7 +298,7 @@ export function HuntPhoto({
 
   if (!target) {
     return (
-      <span style={frame}>
+      <span ref={hostRef as React.RefObject<HTMLSpanElement>} style={frame}>
         {hatch}
         {inner}
       </span>
@@ -292,6 +306,7 @@ export function HuntPhoto({
   }
   return (
     <a
+      ref={hostRef as React.RefObject<HTMLAnchorElement>}
       href={target}
       target="_blank"
       rel="noopener noreferrer"

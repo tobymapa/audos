@@ -53,6 +53,7 @@ import { useEffect, useState } from 'react';
 import { ingestProductInBackground, peekProductFlatLayAsset } from './flat-lay-sourcing';
 import { isTransparentCutout } from './photo-enhance';
 import { ShimmerDefs, Skeleton } from './skeleton';
+import { useOnScreen } from './use-on-screen';
 import {
   cappedImageUrl,
   confirmProductImage,
@@ -114,6 +115,9 @@ export function ProductPhoto({
   // "a photograph is coming" (hold the space with a shimmer) and "nothing
   // exists for this product" (a quiet empty frame, forever).
   const [resolving, setResolving] = useState(() => !peekProductImageCandidate({ brand, name }));
+  // Viewport gate — see use-on-screen.ts. Resolution is up to three network
+  // round-trips per card, and these render in grids.
+  const [hostRef, onScreen] = useOnScreen<HTMLElement>();
   const [idx, setIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
   // Set once a capped URL has failed for this candidate — the next attempt
@@ -133,6 +137,15 @@ export function ProductPhoto({
     setResolving(!settled);
     const settledAsset = settled ? peekProductFlatLayAsset(settled.url) : null;
     setCutout(settledAsset?.ready ? settledAsset.url : '');
+    // Gated on visibility (see use-on-screen.ts). A settled answer is free and
+    // shows regardless; only the RESOLUTION — up to three network round-trips
+    // per card — waits until the card is actually on screen.
+    if (settled || !onScreen) {
+      setResolving(false);
+      return () => {
+        live = false;
+      };
+    }
     void resolveProductImageCandidates({ brand, name })
       .then((resolved) => {
         if (live && resolved.length > 0) {
@@ -147,7 +160,7 @@ export function ProductPhoto({
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subjectKey]);
+  }, [subjectKey, onScreen]);
 
   const label = `${brand} ${name}`.trim();
   const candidate = candidates[idx];
@@ -202,6 +215,7 @@ export function ProductPhoto({
     // product with no photography anywhere doesn't shimmer forever.
     return (
       <span
+        ref={hostRef as React.RefObject<HTMLSpanElement>}
         className={`block ${className}`}
         aria-label={resolving ? `${label} — photograph loading` : `${label} — photograph unavailable`}
         style={FRAME}
@@ -277,7 +291,7 @@ export function ProductPhoto({
 
   if (!target) {
     return (
-      <span className={`block ${className}`} style={frame}>
+      <span ref={hostRef as React.RefObject<HTMLSpanElement>} className={`block ${className}`} style={frame}>
         {ghost}
         {image}
       </span>
@@ -285,6 +299,7 @@ export function ProductPhoto({
   }
   return (
     <a
+      ref={hostRef as React.RefObject<HTMLAnchorElement>}
       href={target}
       target="_blank"
       rel="noopener noreferrer"

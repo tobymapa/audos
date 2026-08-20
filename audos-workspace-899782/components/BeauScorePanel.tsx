@@ -312,7 +312,7 @@ export default function BeauScorePanel() {
         ))}
         {photo && (
           <div className="flex items-center gap-2" style={{ padding: '10px 16px 0', borderTop: `1px solid ${S_HAIRLINE}` }}>
-            <img src={photo} alt="" className="h-12 w-12 object-cover" style={{ border: `1px solid ${S_HAIRLINE}` }} />
+            <img src={photo} alt="" loading="lazy" className="h-12 w-12 object-cover" style={{ border: `1px solid ${S_HAIRLINE}` }} />
             <span className="max-w-[160px] truncate" style={{ fontSize: '12px', color: '#634e38' }}>{photoName || 'Photo attached'}</span>
             <button
               type="button"

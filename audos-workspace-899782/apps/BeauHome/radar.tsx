@@ -300,7 +300,7 @@ function AddRadarForm({ onAdded, onClose }: { onAdded: () => void; onClose: () =
               aria-label={name ? `${name} — product image` : 'Product image'}
             >
               {previewImage && isTransparentCutout(previewImage) && (
-                <img src={previewImage} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                <img src={previewImage} alt="" loading="lazy" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               )}
             </span>
             <span className={`${typography.size.xs} ${typography.color.muted}`}>

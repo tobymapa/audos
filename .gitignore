@@ -3,7 +3,12 @@
 
 # Dependency folders. Nothing here should ever be committed; the Audos build
 # resolves React and friends from a CDN importmap rather than from disk.
-node_modules/
+#
+# NO TRAILING SLASH. `node_modules/` matches only a DIRECTORY, so a symlink or
+# a plain file of that name slips past it — which is exactly how one ended up
+# committed here, as a regular file containing a path that existed on one
+# machine only. Matching the bare name covers all three cases.
+node_modules
 
 # Local tooling scratch (typecheck configs, build output).
 tsconfig.check.json

@@ -201,6 +201,7 @@ function BrandLogo({ name, logoUrl, size = 44 }: { name: string; logoUrl: string
         <img
           src={logoUrl as string}
           alt=""
+          loading="lazy"
           style={{ maxWidth: '82%', maxHeight: '82%', objectFit: 'contain' }}
           onError={() => setBroken(true)}
         />

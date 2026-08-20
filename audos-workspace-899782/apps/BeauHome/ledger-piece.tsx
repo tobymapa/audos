@@ -462,7 +462,7 @@ export function LedgerPieceSheet({
               }}
             >
               {photo ? (
-                <img src={photo} alt={row.name} className="w-full h-full" style={{ objectFit: 'contain' }} />
+                <img src={photo} alt={row.name} loading="lazy" className="w-full h-full" style={{ objectFit: 'contain' }} />
               ) : (
                 <span style={mono(8, FAINT)}>No photograph yet</span>
               )}
