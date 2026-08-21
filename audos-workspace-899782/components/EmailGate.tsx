@@ -1906,6 +1906,9 @@ export default function EmailGate({
         .el-submit { padding: 13px 24px; border: 1px solid #a8712c; background: rgba(168,113,44,.12); font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #241a12; cursor: pointer; white-space: nowrap; display: flex; align-items: center; }
         .el-submit:hover { background: rgba(168,113,44,.24); }
         .el-submit:disabled { opacity: .55; cursor: not-allowed; }
+        .el-risk-jump { width: 100%; min-height: 52px; justify-content: center; border-color: #7c4a17; background: #7c4a17; color: #fbf1de; font-size: 11px; box-shadow: 5px 5px 0 rgba(168,113,44,.2); }
+        .el-risk-jump:hover { background: #5c3413; }
+        .el-risk-section { scroll-margin-top: 76px; }
         .el-pill:hover { border-color: #a8712c !important; }
         .el-prompt-row:hover { background: rgba(168,113,44,.06); }
         .el-enemy { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 56px; align-items: baseline; }
@@ -2114,6 +2117,18 @@ export default function EmailGate({
             </p>
 
             <div data-rise="" data-delay="3" style={{ display: 'flex', flexDirection: 'column', gap: '11px', marginTop: '30px', maxWidth: '470px' }}>
+              <button
+                type="button"
+                className="el-submit el-risk-jump"
+                onClick={() => {
+                  document.getElementById('regret-risk')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  window.setTimeout(() => document.querySelector<HTMLInputElement>('[data-testid="input-regret-risk"]')?.focus(), 500);
+                }}
+                data-testid="button-jump-regret-risk"
+              >
+                Try the Regret Risk Calculator
+              </button>
+              <div style={{ ...landingMono(9, '#7c4a17'), textAlign: 'center' }}>Free · no account needed</div>
               <form
                 className="el-hero-form"
                 style={{ display: 'flex', gap: '11px' }}
@@ -2252,7 +2267,7 @@ export default function EmailGate({
         </section>
 
         {/* ——— public regret risk calculator ——— */}
-        <div className="el-pad el-risk-section" data-screen-label="Regret Risk Calculator" style={{ padding: '64px 56px 0' }}>
+        <div id="regret-risk" className="el-pad el-risk-section" data-screen-label="Regret Risk Calculator" style={{ padding: '64px 56px 0' }}>
           <section className="el-risk-shell" aria-labelledby="regret-risk-heading">
             <div className="el-risk-intro">
               <div>
