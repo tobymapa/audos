@@ -437,6 +437,7 @@ export default function EmailGate({
   const [scrolled, setScrolled] = useState(false);
   // Which piece the hero’s live Beau-verdict card is showing (v137 landing).
   const [verdictPiece, setVerdictPiece] = useState(0);
+  const [riskOpen, setRiskOpen] = useState(false);
   const [riskInput, setRiskInput] = useState('');
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
@@ -445,6 +446,15 @@ export default function EmailGate({
     overall: 'Low' | 'Moderate' | 'High';
     reasoning: string;
   }>(null);
+
+  useEffect(() => {
+    if (!riskOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !riskLoading) setRiskOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [riskOpen, riskLoading]);
   // Keep the email field uncontrolled: several iOS/password-manager autofill
   // implementations mutate the DOM value before firing a reliable React
   // change event. A controlled value used to snap that fill back to its first
@@ -1908,7 +1918,6 @@ export default function EmailGate({
         .el-submit:disabled { opacity: .55; cursor: not-allowed; }
         .el-risk-jump { width: 100%; min-height: 52px; justify-content: center; border-color: #7c4a17; background: #7c4a17; color: #fbf1de; font-size: 11px; box-shadow: 5px 5px 0 rgba(168,113,44,.2); }
         .el-risk-jump:hover { background: #5c3413; }
-        .el-risk-section { scroll-margin-top: 76px; }
         .el-pill:hover { border-color: #a8712c !important; }
         .el-prompt-row:hover { background: rgba(168,113,44,.06); }
         .el-enemy { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 56px; align-items: baseline; }
@@ -2043,7 +2052,6 @@ export default function EmailGate({
           .el-risk-intro { grid-template-columns: 1fr; gap: 14px; }
         }
         @media (max-width: 640px) {
-          .el-risk-section { padding-top: 44px !important; }
           .el-risk-shell { padding: 24px 18px; box-shadow: 6px 6px 0 rgba(168,113,44,.12); }
           .el-risk-form { flex-direction: column; margin-top: 24px; }
           .el-risk-input, .el-risk-submit { width: 100%; min-height: 50px; }
@@ -2121,8 +2129,8 @@ export default function EmailGate({
                 type="button"
                 className="el-submit el-risk-jump"
                 onClick={() => {
-                  document.getElementById('regret-risk')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  window.setTimeout(() => document.querySelector<HTMLInputElement>('[data-testid="input-regret-risk"]')?.focus(), 500);
+                  setRiskOpen(true);
+                  window.setTimeout(() => document.querySelector<HTMLInputElement>('[data-testid="input-regret-risk"]')?.focus(), 0);
                 }}
                 data-testid="button-jump-regret-risk"
               >
@@ -2265,93 +2273,6 @@ export default function EmailGate({
             </div>
           </div>
         </section>
-
-        {/* ——— public regret risk calculator ——— */}
-        <div id="regret-risk" className="el-pad el-risk-section" data-screen-label="Regret Risk Calculator" style={{ padding: '64px 56px 0' }}>
-          <section className="el-risk-shell" aria-labelledby="regret-risk-heading">
-            <div className="el-risk-intro">
-              <div>
-                <p data-rise="" style={{ ...landingMono(10, '#7c4a17'), margin: '0 0 12px', letterSpacing: '.14em', textTransform: 'uppercase' }}>
-                  Before the till · A public Beau verdict
-                </p>
-                <h2 id="regret-risk-heading" data-rise="" style={{ margin: 0, fontSize: 'clamp(34px, 4.2vw, 56px)', fontWeight: 400, lineHeight: .98, color: '#241a12' }}>
-                  Will you regret it?
-                </h2>
-              </div>
-              <p data-rise="" data-delay="1" style={{ ...landingSerif(17, '#634e38'), margin: 0, lineHeight: 1.62 }}>
-                Give Beau the brand, the piece and the price. He’ll weigh the cloth, cut, make and longevity — no account required.
-              </p>
-            </div>
-
-            <form className="el-risk-form" onSubmit={submitRegretRisk} aria-busy={riskLoading}>
-              <input
-                className="el-risk-input"
-                type="text"
-                value={riskInput}
-                onChange={(event) => {
-                  setRiskInput(event.target.value);
-                  setRiskError('');
-                }}
-                placeholder="Tell Beau what you’re thinking of buying"
-                aria-label="Tell Beau what you are thinking of buying"
-                aria-invalid={Boolean(riskError)}
-                aria-describedby={riskError ? 'regret-risk-error' : undefined}
-                maxLength={1200}
-                disabled={riskLoading}
-                data-testid="input-regret-risk"
-              />
-              <button className="el-risk-submit" type="submit" disabled={riskLoading || riskInput.trim().length < 5} data-testid="button-regret-risk">
-                {riskLoading ? 'Beau is weighing it…' : 'Get Beau’s verdict'}
-              </button>
-            </form>
-            <p style={{ ...landingMono(10, '#856c51'), margin: '9px 0 0', letterSpacing: '.04em' }}>Or paste the product URL</p>
-
-            {riskError && <p id="regret-risk-error" role="alert" style={{ ...landingSerif(14, '#6f2a20'), margin: '14px 0 0' }}>{riskError}</p>}
-
-            {riskResult && (
-              <div className="el-risk-result" aria-live="polite" data-testid="regret-risk-result">
-                <div className="el-risk-grid">
-                  {([
-                    ['cloth', 'Cloth'],
-                    ['cut', 'Cut'],
-                    ['make', 'Make'],
-                    ['longevity', 'Longevity'],
-                  ] as const).map(([key, label]) => {
-                    const score = riskResult.dimensions[key];
-                    return (
-                      <div className="el-risk-dimension" key={key}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <span style={{ ...landingSerif(16, '#241a12'), fontWeight: 600 }}>{label}</span>
-                          <span className={`el-risk-score is-${score.toLowerCase()}`}>{score}</span>
-                        </div>
-                        <div className={`el-risk-track el-risk-score is-${score.toLowerCase()}`} aria-hidden="true">
-                          <span style={{ width: score === 'Low' ? '33%' : score === 'Medium' ? '66%' : '100%' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div style={{ marginTop: 24 }}>
-                  <div className="el-risk-verdict">
-                    <p style={{ ...landingMono(10, '#7c4a17'), margin: 0, letterSpacing: '.13em', textTransform: 'uppercase' }}>Beau’s verdict</p>
-                    <h3 style={{ ...landingSerif(29, '#241a12'), margin: 0, lineHeight: 1.08, fontWeight: 500 }}>
-                      {riskResult.overall === 'Low' ? '🟢 Low Regret Risk' : riskResult.overall === 'Moderate' ? '🟡 Moderate Regret Risk' : '🔴 High Regret Risk'}
-                    </h3>
-                  </div>
-                  <p style={{ ...landingSerif(15, '#7c4a17'), margin: '7px 0 0', fontStyle: 'italic' }}>
-                    {riskResult.overall === 'Low' ? 'Worth considering.' : riskResult.overall === 'Moderate' ? 'Proceed carefully.' : 'Beau would leave this one.'}
-                  </p>
-                  <p style={{ ...landingSerif(17, '#3b2b1d'), margin: '14px 0 0', lineHeight: 1.65, maxWidth: 760 }}>{riskResult.reasoning}</p>
-                  <button type="button" className="el-risk-cta" onClick={() => openLogin('register')} disabled={loading} data-testid="button-regret-risk-signup">
-                    <span>Get the full Beau analysis — with your wardrobe, your proportions, your colourway</span>
-                    <ArrowRight size={16} aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </section>
-        </div>
 
         {/* ——— the enemy ——— */}
         <div className="el-pad" data-screen-label="The enemy" style={{ padding: '64px 56px 0' }}>
@@ -2554,6 +2475,125 @@ export default function EmailGate({
       </div>
     </div>
       {/* AUDOS:LANDING_SHELL:END */}
+
+      {riskOpen && (
+        <div
+          className="eg-portal fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-6 sm:py-8 backdrop-blur-sm"
+          style={{ backgroundColor: colorWithAlpha(palette?.text?.primary || primaryColor, 0.62) }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="regret-risk-heading"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !riskLoading) setRiskOpen(false);
+          }}
+        >
+          <div className="eg-modal w-full max-w-3xl relative max-h-[92dvh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setRiskOpen(false)}
+              disabled={riskLoading}
+              aria-label="Close Regret Risk Calculator"
+              className="eg-close absolute right-4 top-4 z-10"
+            >
+              <X size={18} strokeWidth={2} />
+            </button>
+            <section className="el-risk-shell" style={{ border: 0, boxShadow: 'none' }} aria-labelledby="regret-risk-heading">
+              <div className="el-risk-intro">
+                <div>
+                  <p style={{ ...landingMono(10, '#7c4a17'), margin: '0 0 12px', letterSpacing: '.14em', textTransform: 'uppercase' }}>
+                    Before the till · A public Beau verdict
+                  </p>
+                  <h2 id="regret-risk-heading" style={{ margin: 0, paddingRight: 48, fontSize: 'clamp(34px, 4.2vw, 56px)', fontWeight: 400, lineHeight: .98, color: '#241a12' }}>
+                    Will you regret it?
+                  </h2>
+                </div>
+                <p style={{ ...landingSerif(17, '#634e38'), margin: 0, lineHeight: 1.62 }}>
+                  Paste a product URL, or type the brand, piece, price and any fabric or construction details you know. No account required.
+                </p>
+              </div>
+
+              <form className="el-risk-form" onSubmit={submitRegretRisk} aria-busy={riskLoading}>
+                <input
+                  className="el-risk-input"
+                  type="text"
+                  value={riskInput}
+                  onChange={(event) => {
+                    setRiskInput(event.target.value);
+                    setRiskError('');
+                  }}
+                  placeholder="Paste a product URL or describe the clothes"
+                  aria-label="Product URL or clothing details"
+                  aria-invalid={Boolean(riskError)}
+                  aria-describedby={riskError ? 'regret-risk-error' : 'regret-risk-help'}
+                  maxLength={1200}
+                  disabled={riskLoading}
+                  data-testid="input-regret-risk"
+                />
+                <button className="el-risk-submit" type="submit" disabled={riskLoading || riskInput.trim().length < 5} data-testid="button-regret-risk">
+                  {riskLoading ? 'Beau is weighing it…' : 'Get Beau’s verdict'}
+                </button>
+              </form>
+              <p id="regret-risk-help" style={{ ...landingMono(10, '#856c51'), margin: '9px 0 0', letterSpacing: '.04em' }}>
+                One field: a link on its own is enough, or enter the details by hand.
+              </p>
+
+              {riskError && <p id="regret-risk-error" role="alert" style={{ ...landingSerif(14, '#6f2a20'), margin: '14px 0 0' }}>{riskError}</p>}
+
+              {riskResult && (
+                <div className="el-risk-result" aria-live="polite" data-testid="regret-risk-result">
+                  <div className="el-risk-grid">
+                    {([
+                      ['cloth', 'Cloth'],
+                      ['cut', 'Cut'],
+                      ['make', 'Make'],
+                      ['longevity', 'Longevity'],
+                    ] as const).map(([key, label]) => {
+                      const score = riskResult.dimensions[key];
+                      return (
+                        <div className="el-risk-dimension" key={key}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ ...landingSerif(16, '#241a12'), fontWeight: 600 }}>{label}</span>
+                            <span className={`el-risk-score is-${score.toLowerCase()}`}>{score}</span>
+                          </div>
+                          <div className={`el-risk-track el-risk-score is-${score.toLowerCase()}`} aria-hidden="true">
+                            <span style={{ width: score === 'Low' ? '33%' : score === 'Medium' ? '66%' : '100%' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: 24 }}>
+                    <div className="el-risk-verdict">
+                      <p style={{ ...landingMono(10, '#7c4a17'), margin: 0, letterSpacing: '.13em', textTransform: 'uppercase' }}>Beau’s verdict</p>
+                      <h3 style={{ ...landingSerif(29, '#241a12'), margin: 0, lineHeight: 1.08, fontWeight: 500 }}>
+                        {riskResult.overall === 'Low' ? '🟢 Low Regret Risk' : riskResult.overall === 'Moderate' ? '🟡 Moderate Regret Risk' : '🔴 High Regret Risk'}
+                      </h3>
+                    </div>
+                    <p style={{ ...landingSerif(15, '#7c4a17'), margin: '7px 0 0', fontStyle: 'italic' }}>
+                      {riskResult.overall === 'Low' ? 'Worth considering.' : riskResult.overall === 'Moderate' ? 'Proceed carefully.' : 'Beau would leave this one.'}
+                    </p>
+                    <p style={{ ...landingSerif(17, '#3b2b1d'), margin: '14px 0 0', lineHeight: 1.65, maxWidth: 760 }}>{riskResult.reasoning}</p>
+                    <button
+                      type="button"
+                      className="el-risk-cta"
+                      onClick={() => {
+                        setRiskOpen(false);
+                        openLogin('register');
+                      }}
+                      disabled={loading}
+                      data-testid="button-regret-risk-signup"
+                    >
+                      <span>Get the full Beau analysis — with your wardrobe, your proportions, your colourway</span>
+                      <ArrowRight size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+      )}
 
       {loginOpen && (
         <div
