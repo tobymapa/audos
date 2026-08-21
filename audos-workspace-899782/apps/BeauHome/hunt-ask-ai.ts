@@ -20,7 +20,7 @@
  * actually returned, never invented. When the market cannot be reached Beau
  * says so and answers from judgement alone rather than fabricating a listing.
  */
-import { CLAUDE_HAIKU, CLAUDE_SONNET, callClaude, type ClaudeSystemBlock } from './claude';
+import { callOpenAiText, type ClaudeSystemBlock } from './claude';
 import { searchWeb } from './scout-ai';
 import { isFastFashionBrand } from './hunt-ai';
 import { secondhandAllowed } from './profile-data';
@@ -289,8 +289,12 @@ export async function runAskBeau(input: {
     .filter(Boolean)
     .join('\n\n');
 
-  let raw = await callClaude({ model: CLAUDE_SONNET, system: [ASK_VOICE], user, maxTokens: 2400, temperature: 0.45 });
-  if (!raw) raw = await callClaude({ model: CLAUDE_HAIKU, system: [ASK_VOICE], user, maxTokens: 2400, temperature: 0.45 });
+  const raw = await callOpenAiText({
+    system: [ASK_VOICE],
+    user,
+    maxTokens: 2400,
+    json: true,
+  });
   if (!raw) throw new Error('Beau is away from his desk this minute — try that again shortly.');
   const parsed = parseJson(raw);
   const headline = str(parsed?.headline, 140);
@@ -348,8 +352,12 @@ export async function compareQueued(input: {
       + 'Return JSON: {"columns": [{"productId": "<the id, verbatim>", "standing": "The one"|"Close"|"No", "fit": "…", "make": "…", "colour": "…", "value": "…"}], "call": "…", "runnerUp": "…"|null} — one column per product, in the order given; each criterion ONE short sentence (max 140 chars) written TO the wearer as “you/your” (never “he”, “his” or “this man”): "fit" against their frame and sizes, "make" the cloth and construction, "colour" against his complexion and what he owns, "value" against his budget and cost per wear. Exactly ONE column may be "The one". "call" is two or three sentences naming your choice and why. "runnerUp" names the second and the condition under which it wins instead, or null when nothing else earns it.',
   ].join('\n\n');
 
-  let raw = await callClaude({ model: CLAUDE_SONNET, system: [ASK_VOICE], user, maxTokens: 2000, temperature: 0.4 });
-  if (!raw) raw = await callClaude({ model: CLAUDE_HAIKU, system: [ASK_VOICE], user, maxTokens: 2000, temperature: 0.4 });
+  const raw = await callOpenAiText({
+    system: [ASK_VOICE],
+    user,
+    maxTokens: 2000,
+    json: true,
+  });
   const parsed = parseJson(raw);
   const rawColumns: any[] = Array.isArray(parsed?.columns) ? parsed.columns : [];
   if (rawColumns.length === 0) return null;

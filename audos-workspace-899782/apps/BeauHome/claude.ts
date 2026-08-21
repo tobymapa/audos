@@ -176,13 +176,11 @@ async function callPlatformGpt({
   system,
   user,
   maxTokens,
-  temperature,
   json,
 }: {
   system: string;
   user: string;
   maxTokens: number;
-  temperature: number;
   json: boolean;
 }): Promise<string | null> {
   try {
@@ -190,7 +188,8 @@ async function callPlatformGpt({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.6-terra',
+        reasoning_effort: 'none',
         messages: [
           { role: 'system', content: system },
           {
@@ -200,9 +199,7 @@ async function callPlatformGpt({
               : user,
           },
         ],
-        max_tokens: maxTokens,
-        temperature,
-        ...(json ? { response_format: { type: 'json_object' } } : {}),
+        max_completion_tokens: maxTokens,
       }),
     });
     if (!res.ok) return null;
@@ -213,6 +210,25 @@ async function callPlatformGpt({
     console.warn('[Ethaion] platform text-generation fallback failed:', e);
     return null;
   }
+}
+
+export async function callOpenAiText({
+  system,
+  user,
+  maxTokens = 2000,
+  json = true,
+}: {
+  system: ClaudeSystemBlock[];
+  user: string;
+  maxTokens?: number;
+  json?: boolean;
+}): Promise<string | null> {
+  return callPlatformGpt({
+    system: system.map((block) => block.text).join('\n\n'),
+    user,
+    maxTokens,
+    json,
+  });
 }
 
 function pause(ms: number): Promise<void> {
@@ -265,7 +281,6 @@ export async function callModel({
     system: system.map((b) => b.text).join('\n\n'),
     user,
     maxTokens,
-    temperature,
     json,
   });
 }

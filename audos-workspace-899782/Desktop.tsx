@@ -1280,7 +1280,7 @@ export default function SpaceDesktop({
               slot itself stays — it is the mirror that keeps the wordmark
               centred. */}
           <div className="flex items-center justify-end gap-2 min-w-0">
-            {!appOwnsChromeControls && (
+            {!appOwnsChromeControls && activePanelId !== defaultLandingApp?.id && (
             <>
             <button
               onClick={toggleAgentView}
