@@ -437,6 +437,14 @@ export default function EmailGate({
   const [scrolled, setScrolled] = useState(false);
   // Which piece the hero’s live Beau-verdict card is showing (v137 landing).
   const [verdictPiece, setVerdictPiece] = useState(0);
+  const [riskInput, setRiskInput] = useState('');
+  const [riskLoading, setRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState('');
+  const [riskResult, setRiskResult] = useState<null | {
+    dimensions: Record<'cloth' | 'cut' | 'make' | 'longevity', 'Low' | 'Medium' | 'High'>;
+    overall: 'Low' | 'Moderate' | 'High';
+    reasoning: string;
+  }>(null);
   // Keep the email field uncontrolled: several iOS/password-manager autofill
   // implementations mutate the DOM value before firing a reliable React
   // change event. A controlled value used to snap that fill back to its first
@@ -1363,6 +1371,36 @@ export default function EmailGate({
   const heroVideoFallback = palette?.primaryScale?.['900'] || primaryColor;
   const loginPanelId = 'email-gate-login-panel';
 
+  const submitRegretRisk = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const item = riskInput.trim();
+    if (riskLoading) return;
+    if (item.length < 5) {
+      setRiskError('Add the brand, piece and approximate price — or paste the product URL.');
+      return;
+    }
+
+    setRiskLoading(true);
+    setRiskError('');
+    setRiskResult(null);
+    try {
+      const response = await fetch('/api/hooks/execute/workspace-899782/regret-risk-calculator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.dimensions || !data?.overall || !data?.reasoning) {
+        throw new Error(data?.error || 'Beau could not assess this piece just now.');
+      }
+      setRiskResult(data);
+    } catch (caught) {
+      setRiskError(caught instanceof Error ? caught.message : 'Beau could not assess this piece just now.');
+    } finally {
+      setRiskLoading(false);
+    }
+  };
+
   const openLogin = (mode: 'register' | 'signin') => {
     setAuthMode(mode);
     setError('');
@@ -1977,6 +2015,39 @@ export default function EmailGate({
           .el-colophon { gap: 10px 22px !important; padding: 18px 18px !important; }
         }
 
+        .el-risk-shell { border: 1px solid rgba(59,43,29,.4); background: #fbf8f1; padding: clamp(26px, 4vw, 48px); box-shadow: 10px 10px 0 rgba(168,113,44,.12); }
+        .el-risk-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .72fr); gap: 28px; align-items: end; }
+        .el-risk-form { display: flex; gap: 11px; margin-top: 30px; }
+        .el-risk-input { width: 100%; min-width: 0; min-height: 52px; padding: 14px 16px; border: 1px solid rgba(59,43,29,.55); border-radius: 0; background: #fffdf8; color: #241a12; font-family: 'Lora', serif; font-size: 16px; outline: none; }
+        .el-risk-input:focus { border-color: #a8712c; box-shadow: 0 0 0 3px rgba(168,113,44,.13); }
+        .el-risk-input::placeholder { color: #856c51; opacity: .82; }
+        .el-risk-submit { min-height: 52px; padding: 13px 22px; border: 1px solid #7c4a17; background: #7c4a17; color: #fbf1de; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+        .el-risk-submit:hover { background: #5c3413; }
+        .el-risk-submit:disabled { opacity: .6; cursor: wait; }
+        .el-risk-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
+        .el-risk-dimension { border: 1px solid rgba(59,43,29,.24); background: #fffdf8; padding: 15px; }
+        .el-risk-score { display: inline-flex; align-items: center; min-height: 25px; padding: 3px 8px; border: 1px solid currentColor; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+        .el-risk-score.is-low { color: #37503c; background: #eef2ec; }
+        .el-risk-score.is-medium { color: #7c4a17; background: #fbf1de; }
+        .el-risk-score.is-high { color: #6f2a20; background: #f2c9c1; }
+        .el-risk-track { height: 3px; margin-top: 14px; background: rgba(59,43,29,.12); overflow: hidden; }
+        .el-risk-track > span { display: block; height: 100%; background: currentColor; }
+        .el-risk-result { margin-top: 18px; border-top: 1px solid rgba(59,43,29,.25); padding-top: 22px; }
+        .el-risk-verdict { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: baseline; }
+        .el-risk-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 20px; padding: 13px 16px; border: 1px solid #a8712c; background: rgba(168,113,44,.12); color: #241a12; font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.5; letter-spacing: .07em; text-transform: uppercase; text-align: left; cursor: pointer; }
+        .el-risk-cta:hover { background: rgba(168,113,44,.24); }
+        @media (max-width: 900px) {
+          .el-risk-intro { grid-template-columns: 1fr; gap: 14px; }
+        }
+        @media (max-width: 640px) {
+          .el-risk-section { padding-top: 44px !important; }
+          .el-risk-shell { padding: 24px 18px; box-shadow: 6px 6px 0 rgba(168,113,44,.12); }
+          .el-risk-form { flex-direction: column; margin-top: 24px; }
+          .el-risk-input, .el-risk-submit { width: 100%; min-height: 50px; }
+          .el-risk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .el-risk-cta { width: 100%; justify-content: space-between; }
+        }
+
         /* The "Read on" control is a phone affordance only: above 640px the
            paragraph is always shown in full and the button never renders, so
            the desktop page keeps reading straight through. */
@@ -2179,6 +2250,93 @@ export default function EmailGate({
             </div>
           </div>
         </section>
+
+        {/* ——— public regret risk calculator ——— */}
+        <div className="el-pad el-risk-section" data-screen-label="Regret Risk Calculator" style={{ padding: '64px 56px 0' }}>
+          <section className="el-risk-shell" aria-labelledby="regret-risk-heading">
+            <div className="el-risk-intro">
+              <div>
+                <p data-rise="" style={{ ...landingMono(10, '#7c4a17'), margin: '0 0 12px', letterSpacing: '.14em', textTransform: 'uppercase' }}>
+                  Before the till · A public Beau verdict
+                </p>
+                <h2 id="regret-risk-heading" data-rise="" style={{ margin: 0, fontSize: 'clamp(34px, 4.2vw, 56px)', fontWeight: 400, lineHeight: .98, color: '#241a12' }}>
+                  Will you regret it?
+                </h2>
+              </div>
+              <p data-rise="" data-delay="1" style={{ ...landingSerif(17, '#634e38'), margin: 0, lineHeight: 1.62 }}>
+                Give Beau the brand, the piece and the price. He’ll weigh the cloth, cut, make and longevity — no account required.
+              </p>
+            </div>
+
+            <form className="el-risk-form" onSubmit={submitRegretRisk} aria-busy={riskLoading}>
+              <input
+                className="el-risk-input"
+                type="text"
+                value={riskInput}
+                onChange={(event) => {
+                  setRiskInput(event.target.value);
+                  setRiskError('');
+                }}
+                placeholder="Tell Beau what you’re thinking of buying"
+                aria-label="Tell Beau what you are thinking of buying"
+                aria-invalid={Boolean(riskError)}
+                aria-describedby={riskError ? 'regret-risk-error' : undefined}
+                maxLength={1200}
+                disabled={riskLoading}
+                data-testid="input-regret-risk"
+              />
+              <button className="el-risk-submit" type="submit" disabled={riskLoading || riskInput.trim().length < 5} data-testid="button-regret-risk">
+                {riskLoading ? 'Beau is weighing it…' : 'Get Beau’s verdict'}
+              </button>
+            </form>
+            <p style={{ ...landingMono(10, '#856c51'), margin: '9px 0 0', letterSpacing: '.04em' }}>Or paste the product URL</p>
+
+            {riskError && <p id="regret-risk-error" role="alert" style={{ ...landingSerif(14, '#6f2a20'), margin: '14px 0 0' }}>{riskError}</p>}
+
+            {riskResult && (
+              <div className="el-risk-result" aria-live="polite" data-testid="regret-risk-result">
+                <div className="el-risk-grid">
+                  {([
+                    ['cloth', 'Cloth'],
+                    ['cut', 'Cut'],
+                    ['make', 'Make'],
+                    ['longevity', 'Longevity'],
+                  ] as const).map(([key, label]) => {
+                    const score = riskResult.dimensions[key];
+                    return (
+                      <div className="el-risk-dimension" key={key}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ ...landingSerif(16, '#241a12'), fontWeight: 600 }}>{label}</span>
+                          <span className={`el-risk-score is-${score.toLowerCase()}`}>{score}</span>
+                        </div>
+                        <div className={`el-risk-track el-risk-score is-${score.toLowerCase()}`} aria-hidden="true">
+                          <span style={{ width: score === 'Low' ? '33%' : score === 'Medium' ? '66%' : '100%' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ marginTop: 24 }}>
+                  <div className="el-risk-verdict">
+                    <p style={{ ...landingMono(10, '#7c4a17'), margin: 0, letterSpacing: '.13em', textTransform: 'uppercase' }}>Beau’s verdict</p>
+                    <h3 style={{ ...landingSerif(29, '#241a12'), margin: 0, lineHeight: 1.08, fontWeight: 500 }}>
+                      {riskResult.overall === 'Low' ? '🟢 Low Regret Risk' : riskResult.overall === 'Moderate' ? '🟡 Moderate Regret Risk' : '🔴 High Regret Risk'}
+                    </h3>
+                  </div>
+                  <p style={{ ...landingSerif(15, '#7c4a17'), margin: '7px 0 0', fontStyle: 'italic' }}>
+                    {riskResult.overall === 'Low' ? 'Worth considering.' : riskResult.overall === 'Moderate' ? 'Proceed carefully.' : 'Beau would leave this one.'}
+                  </p>
+                  <p style={{ ...landingSerif(17, '#3b2b1d'), margin: '14px 0 0', lineHeight: 1.65, maxWidth: 760 }}>{riskResult.reasoning}</p>
+                  <button type="button" className="el-risk-cta" onClick={() => openLogin('register')} disabled={loading} data-testid="button-regret-risk-signup">
+                    <span>Get the full Beau analysis — with your wardrobe, your proportions, your colourway</span>
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
 
         {/* ——— the enemy ——— */}
         <div className="el-pad" data-screen-label="The enemy" style={{ padding: '64px 56px 0' }}>
