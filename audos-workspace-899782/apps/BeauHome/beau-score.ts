@@ -1,17 +1,10 @@
 /**
  * SCORE A PIECE — the Ask Beau drawer's second mode (August 2026).
  *
- * One input takes a URL, a description, or a photograph, and Beau assesses
- * the piece across the four pillars of the house thesis:
- *
- *   · CLOTH     — material and fabric quality
- *   · CUT       — silhouette, proportion, the construction cut
- *   · MAKE      — craftsmanship, finishing, stitching
- *   · LONGEVITY — will it still look right in ten years: timeless, or
- *                 trend-dependent
- *
- * …and closes with a REGRET RISK verdict — Low / Moderate / High — and one
- * sentence of reasoning. The scoring runs through the SAME mechanism the
+ * One input takes a URL, a description, or a photograph, and Beau scores
+ * the piece across the five locked variables: Material and Construction ×5,
+ * Timelessness ×4, Versatility and Brand Integrity ×3. The weighted composite
+ * resolves to BUY IT, HOLD or WALK AWAY. The scoring runs through the SAME mechanism the
  * Search tab's Ask Beau uses: the shared Claude transport (claude.ts) with
  * the platform proxy fallback, the man's full dossier brief (hunt-reader's
  * huntReaderBrief — name, frame, colouring, sizes, directions, registers,
@@ -31,6 +24,7 @@ import { firstUrl, huntReaderBrief, loadHuntReader, readProductLink, type HuntRe
 import { huntCategory, loadHuntCallsMirror, setHuntTag } from './hunt-model';
 import { DOSSIER_DETAILS_EVENT } from './dossier-details';
 import { COVERAGE_PREFS_EVENT } from './coverage-prefs';
+import { normalizeBeauVerdict, type BeauVerdict } from '../../components/BeauVerdictCard';
 
 // window.__workspaceDb is auto-injected by the platform compiler when it
 // sees this literal token in app source.
@@ -42,9 +36,7 @@ function ws(): any {
 // The result shape + the chat-thread store
 // ---------------------------------------------------------------------------
 
-export type RegretRisk = 'Low' | 'Moderate' | 'High';
-
-export interface BeauScore {
+export interface BeauScore extends BeauVerdict {
   id: string;
   createdAt: string;
   /** What was put in the box — the URL, the description, or 'A photographed piece'. */
@@ -55,28 +47,22 @@ export interface BeauScore {
   productUrl: string | null;
   imageUrl: string | null;
   categoryId: string | null;
-  cloth: string;
-  cut: string;
-  make: string;
-  longevity: string;
-  risk: RegretRisk;
-  reason: string;
 }
 
-const STORE_KEY = 'ethaion:beau-scores:v1';
+const STORE_KEY = 'ethaion:beau-scores:v2';
 export const BEAU_SCORES_EVENT = 'ethaion:beau-scores-changed';
-
-function isRisk(v: unknown): v is RegretRisk {
-  return v === 'Low' || v === 'Moderate' || v === 'High';
-}
 
 /** Every assessment on file for the chat thread, newest last (reading order). */
 export function loadBeauScores(): BeauScore[] {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(STORE_KEY) || '[]');
-    return Array.isArray(parsed)
-      ? (parsed as BeauScore[]).filter((s) => s && s.id && s.pieceName && isRisk(s.risk))
-      : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((stored: any) => {
+        const verdict = normalizeBeauVerdict(stored, true);
+        return verdict && stored?.id && stored?.pieceName ? ({ ...stored, ...verdict } as BeauScore) : null;
+      })
+      .filter((stored: BeauScore | null): stored is BeauScore => !!stored);
   } catch {
     return [];
   }
@@ -123,13 +109,6 @@ function parseJson(raw: string | null): any {
 
 function str(v: unknown, max = 300): string {
   return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '';
-}
-
-function cleanRisk(v: unknown): RegretRisk {
-  const raw = str(v, 20).toLowerCase();
-  if (raw.startsWith('low')) return 'Low';
-  if (raw.startsWith('high')) return 'High';
-  return 'Moderate';
 }
 
 /** The ledger, read directly — the drawer has no App-level pieces prop. */
@@ -278,18 +257,18 @@ async function loadScoreReader(): Promise<HuntReader> {
 }
 
 // ---------------------------------------------------------------------------
-// The scoring prompt — Beau's voice, the four pillars, the verdict.
+// The scoring prompt — Beau's voice and the locked five-variable verdict.
 // ---------------------------------------------------------------------------
 
 const SCORE_VOICE: ClaudeSystemBlock = {
   text:
-    'You are Beau, the valet voice of Ethaion — a classic-menswear wardrobe app. A man is weighing a purchase and has put ONE piece in front of you: a link, a description, or a photograph. '
-    + 'Assess it for HIM — against his frame, colouring, sizes, registers, climate, budget and what he already owns — across exactly FOUR pillars: '
-    + 'CLOTH (material and fabric quality), CUT (silhouette, proportion, construction cut), MAKE (craftsmanship, finishing, stitching), LONGEVITY (will this piece still look right in ten years — is it timeless or trend-dependent). '
-    + 'Then derive a REGRET RISK verdict: "Low" (buy with confidence), "Moderate" (worth it with caveats), or "High" (likely regretted), with ONE sentence of reasoning. '
-    + 'Voice: quiet, knowing, concrete, lightly British; short declarative sentences written TO him ("you"); no marketing, no hedging, no exclamation marks, no emoji. '
-    + 'Judge only from the facts given — where a fact is missing, say what you would check rather than inventing it. Never invent a price or a maker. '
-    + 'Return STRICT JSON only — no markdown fences, no prose around it.',
+    'You are Beau, the valet voice of Ethaion — a classic-menswear wardrobe app. A man is weighing ONE piece: a link, a description, or a photograph. '
+    + 'Score it for HIM against his profile and wardrobe using exactly these locked variables and weights: Material 5, Construction 5, Timelessness 4, Versatility 3, Brand Integrity 3. '
+    + 'Material: fibre content, origin, percentage composition and how it ages. Construction: seam finishing, stitching, lining, hardware and quality-control evidence. Timelessness: classic versus trend-adjacent cut and distance from the trend cycle. Versatility: colour essentiality, formality range and cross-season wearability. Brand Integrity: quality consistency, price honesty and manufacturing transparency. '
+    + 'Give each variable one whole-number score from 1 to 10. Composite is the weighted sum divided by 20, to one decimal. 8.0–10 is BUY IT; 5.5–7.9 is HOLD; 0–5.4 is WALK AWAY. '
+    + 'Voice: quiet, knowing, concrete, lightly British. The summary is one direct, decisive sentence. Each tag is 2–4 words and each reason is one concise line. '
+    + 'Use only supported facts. Where evidence is missing, say so in the relevant reason and score accordingly; never invent fabric, construction, origin, price or maker facts. '
+    + 'Return STRICT JSON only — no markdown fences or prose around it. Always set scoredForProfile to true.',
   cache: true,
 };
 
@@ -347,14 +326,19 @@ export async function runBeauScore({
       .join('; ') || 'nothing logged yet'}`,
     pieceFacts,
     ask && (!link || ask !== link) ? `HIS OWN WORDS ON IT: ${ask}` : null,
-    imageDataUrl ? 'HE HAS PHOTOGRAPHED THE PIECE — the image above is the piece itself. Read the cloth, cut and make from it.' : null,
-    'Assess this ONE piece across the four pillars and derive the Regret Risk. Return JSON: '
-      + '{"pieceName": "…" (max 70 chars — colour and cloth included where known), '
+    imageDataUrl ? 'HE HAS PHOTOGRAPHED THE PIECE — the image above is the piece itself. Read every visible material, construction, silhouette and versatility signal from it.' : null,
+    'Score this ONE piece. Return JSON: '
+      + '{"pieceName": "…" (max 70 chars — colour and material included where known), '
       + '"maker": "…"|null, '
       + `"categoryId": one of ${CATEGORY_IDS} or null, `
-      + '"cloth": "…", "cut": "…", "make": "…", "longevity": "…" (each ONE brief line, max 160 chars, specific to THIS man), '
-      + '"risk": "Low"|"Moderate"|"High", '
-      + '"reason": "…" (ONE sentence, max 200 chars — why that verdict for him)}.',
+      + '"composite": 7.8, "verdict": "BUY IT"|"HOLD"|"WALK AWAY", "summary": "One decisive sentence.", '
+      + '"scores": ['
+      + '{"variable":"Material","weight":5,"score":1-10 integer,"tag":"2–4 words","reason":"one concise evidence line"},'
+      + '{"variable":"Construction","weight":5,"score":1-10 integer,"tag":"2–4 words","reason":"one concise evidence line"},'
+      + '{"variable":"Timelessness","weight":4,"score":1-10 integer,"tag":"2–4 words","reason":"one concise evidence line"},'
+      + '{"variable":"Versatility","weight":3,"score":1-10 integer,"tag":"2–4 words","reason":"one concise evidence line"},'
+      + '{"variable":"Brand Integrity","weight":3,"score":1-10 integer,"tag":"2–4 words","reason":"one concise evidence line"}], '
+      + '"scoredForProfile": true}.',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -363,16 +347,14 @@ export async function runBeauScore({
     ? await callVisionModel({ system: SCORE_VOICE.text, user, imageDataUrl })
     : await callModel({ model: CLAUDE_SONNET, second: CLAUDE_HAIKU, system: [SCORE_VOICE], user, maxTokens: 900, temperature: 0.4 });
   const parsed = parseJson(raw);
-  const cloth = str(parsed?.cloth, 200);
-  const cut = str(parsed?.cut, 200);
-  const make = str(parsed?.make, 200);
-  const longevity = str(parsed?.longevity, 200);
-  if (!cloth && !cut && !make && !longevity) {
-    throw new Error('Beau couldn\u2019t read that one — try a fuller description, a clearer photo, or the product link itself.');
+  const verdict = normalizeBeauVerdict(parsed, true);
+  if (!verdict) {
+    throw new Error('Beau couldn\u2019t complete all five scores — try a fuller description, a clearer photo, or the product link itself.');
   }
 
   const categoryRaw = str(parsed?.categoryId, 40).toLowerCase();
   const score: BeauScore = {
+    ...verdict,
     id: `score-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
     subject: ask || 'A photographed piece',
@@ -382,12 +364,6 @@ export async function runBeauScore({
     productUrl: linkRead?.url || link || null,
     imageUrl: linkRead?.imageUrl || null,
     categoryId: huntCategory(categoryRaw) ? categoryRaw : linkRead?.categoryId || null,
-    cloth: cloth || 'Not enough on the cloth to judge — check the composition label.',
-    cut: cut || 'Not enough on the cut to judge — check the measurements against yours.',
-    make: make || 'Not enough on the make to judge — look at the seams and finishing up close.',
-    longevity: longevity || 'Not enough to judge how it ages — classic shapes outlast the trend cycle.',
-    risk: cleanRisk(parsed?.risk),
-    reason: str(parsed?.reason, 240) || 'Judged against your dossier and what already hangs on your rail.',
   };
 
   // AUTO-SAVE, both homes at once — each copy independently deletable.
@@ -401,7 +377,7 @@ export async function runBeauScore({
       source: 'score',
       maker: score.maker,
       priceGuide: score.priceGuide,
-      note: `Regret Risk ${score.risk} — ${score.reason} · Cloth: ${score.cloth} · Cut: ${score.cut} · Make: ${score.make} · Longevity: ${score.longevity}`.slice(0, 600),
+      note: `${score.composite.toFixed(1)} · ${score.verdict} — ${score.summary} · ${score.scores.map((row) => `${row.variable}: ${row.score}/10`).join(' · ')}`.slice(0, 600),
       productUrl: score.productUrl,
       imageUrl: score.imageUrl,
     },

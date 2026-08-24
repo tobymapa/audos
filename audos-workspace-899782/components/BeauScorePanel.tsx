@@ -1,9 +1,8 @@
 /**
  * SCORE A PIECE — the Ask Beau drawer's second mode (August 2026).
  *
- * One input takes a URL, a description, or a photograph; Beau assesses the
- * piece across Cloth · Cut · Make · Longevity and closes with a Regret Risk
- * verdict (Low / Moderate / High) and one sentence of reasoning. The engine
+ * One input takes a URL, a description, or a photograph; Beau returns the
+ * locked five-variable weighted score and BUY IT / HOLD / WALK AWAY verdict. The engine
  * lives in apps/BeauHome/beau-score.ts — this file is the drawer surface:
  * the input, the phase line, the inline result card, and the shared
  * BeauScoreCard the chat thread re-uses for the saved copies.
@@ -16,6 +15,7 @@ import {
   type BeauScore,
 } from '../apps/BeauHome/beau-score';
 import { openYourCalls } from '../apps/BeauHome/edit-links';
+import BeauVerdictCard from './BeauVerdictCard';
 
 /** Land on The Search → Your Calls behind the drawer: open the home app,
  * navigate its tab, then close ONLY the chat overlay (never a toggle). */
@@ -76,31 +76,6 @@ function sMono(size: number, color: string, tracking = '0.1em') {
   };
 }
 
-const RISK_TONES: Record<BeauScore['risk'], { ink: string; wash: string; border: string }> = {
-  Low: {
-    ink: 'var(--space-semantic-success-700)',
-    wash: 'color-mix(in srgb, var(--space-semantic-success-500) 12%, transparent)',
-    border: 'color-mix(in srgb, var(--space-semantic-success-500) 45%, transparent)',
-  },
-  Moderate: {
-    ink: 'var(--space-semantic-warning-700)',
-    wash: 'color-mix(in srgb, var(--space-semantic-warning-500) 12%, transparent)',
-    border: 'color-mix(in srgb, var(--space-semantic-warning-500) 45%, transparent)',
-  },
-  High: {
-    ink: 'var(--space-semantic-danger-700)',
-    wash: 'color-mix(in srgb, var(--space-semantic-danger-500) 12%, transparent)',
-    border: 'color-mix(in srgb, var(--space-semantic-danger-500) 45%, transparent)',
-  },
-};
-
-const PILLARS: Array<{ key: 'cloth' | 'cut' | 'make' | 'longevity'; label: string }> = [
-  { key: 'cloth', label: 'Cloth' },
-  { key: 'cut', label: 'Cut' },
-  { key: 'make', label: 'Make' },
-  { key: 'longevity', label: 'Longevity' },
-];
-
 /** One assessment, as a card — the inline result AND the chat-thread copy
  * wear the same treatment. Deleting the chat copy never touches the Your
  * Calls record; they are independent by design. */
@@ -114,16 +89,11 @@ export function BeauScoreCard({
   onDelete?: () => void;
   showSavedLine?: boolean;
 }) {
-  const tone = RISK_TONES[score.risk];
   return (
-    <div
-      className="relative bg-[var(--space-surface-card)] overflow-hidden"
-      style={{ border: '1px solid rgba(59,43,29,0.34)' }}
-      data-testid={`beau-score-card-${score.id}`}
-    >
-      <div className="flex items-start gap-3" style={{ padding: '13px 16px 11px', borderBottom: `1px solid ${S_HAIRLINE}` }}>
+    <div className="relative" data-testid={`beau-score-card-${score.id}`}>
+      <div className="flex items-start gap-3" style={{ padding: '0 0 10px' }}>
         <div className="min-w-0 flex-1">
-          <p style={sMono(8.5, S_OXBLOOD, '0.13em')}>Regret Risk assessment</p>
+          <p style={sMono(8.5, S_OXBLOOD, '0.13em')}>Beau verdict</p>
           <p
             className="truncate"
             style={{ fontFamily: 'var(--space-font-heading)', fontSize: '18px', fontWeight: 400, lineHeight: 1.2, color: S_INK, margin: '6px 0 0' }}
@@ -150,55 +120,23 @@ export function BeauScoreCard({
         )}
       </div>
 
-      <div style={{ padding: '4px 0 6px' }}>
-        {PILLARS.map(({ key, label }, i) => (
-          <div
-            key={key}
-            className="grid grid-cols-[86px_minmax(0,1fr)] gap-2 items-baseline"
-            style={{ padding: '8px 16px', borderTop: i === 0 ? 'none' : `1px solid ${S_HAIRLINE}` }}
-          >
-            <span style={sMono(8.5, '#7c4a17', '0.13em')}>{label}</span>
-            <span style={{ fontSize: '13.5px', lineHeight: 1.55, color: S_BODY }}>{score[key]}</span>
-          </div>
-        ))}
-      </div>
+      <BeauVerdictCard verdict={score} />
 
-      <div style={{ padding: '0 16px 14px' }}>
-        <div style={{ background: tone.wash, border: `1px solid ${tone.border}`, padding: '10px 14px' }}>
-          <span style={{ ...sMono(9, tone.ink, '0.13em') }}>Regret Risk · {score.risk}</span>
-          <p style={{ fontFamily: 'var(--space-font-heading)', fontSize: '17px', fontWeight: 400, lineHeight: 1.35, color: S_INK, margin: '5px 0 0' }}>
-            {score.reason}
-          </p>
-        </div>
-        {showSavedLine && (
-          <button
-            type="button"
-            onClick={goToYourCallsFromDrawer}
-            className="mt-2.5 text-left hover:opacity-75 transition-opacity"
-            style={{ ...sMono(8.5, S_MUTED, '0.07em'), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-            data-testid="link-view-in-your-calls"
-          >
-            Saved to Your Calls — <span style={{ color: S_OXBLOOD }}>View in Your Calls →</span>
-          </button>
-        )}
-        {!showSavedLine && (
-          <button
-            type="button"
-            onClick={goToYourCallsFromDrawer}
-            className="mt-2.5 text-left hover:opacity-75 transition-opacity"
-            style={{ ...sMono(8.5, S_OXBLOOD, '0.07em'), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-            data-testid="link-view-in-your-calls"
-          >
-            View in Your Calls →
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={goToYourCallsFromDrawer}
+        className="mt-2.5 text-left hover:opacity-75 transition-opacity"
+        style={{ ...sMono(8.5, showSavedLine ? S_MUTED : S_OXBLOOD, '0.07em'), background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+        data-testid="link-view-in-your-calls"
+      >
+        {showSavedLine ? 'Saved to Your Calls — ' : ''}<span style={{ color: S_OXBLOOD }}>View in Your Calls →</span>
+      </button>
     </div>
   );
 }
 
-/** The Score-a-piece pane — structured fields (the public regret
- * calculator's treatment): a link, the piece, maker and price — or a photo.
+/** The Score-a-piece pane — structured fields matching the public
+ * calculator: a link, the piece, maker and price — or a photo.
  * The intro copy is gone (founder's correction, August 2026); the fields
  * say it themselves. */
 export default function BeauScorePanel() {
@@ -206,11 +144,13 @@ export default function BeauScorePanel() {
   const [pieceField, setPieceField] = useState('');
   const [makerField, setMakerField] = useState('');
   const [priceField, setPriceField] = useState('');
-  // The pillar facts Beau scores on — fill what you know (founder's
-  // correction, August 2026); longevity is his call, not an input.
-  const [clothField, setClothField] = useState('');
-  const [cutField, setCutField] = useState('');
-  const [makeField, setMakeField] = useState('');
+  // Optional evidence for the five locked variables — Beau never invents
+  // missing facts, so the user can supply what the product page leaves out.
+  const [materialField, setMaterialField] = useState('');
+  const [constructionField, setConstructionField] = useState('');
+  const [timelessnessField, setTimelessnessField] = useState('');
+  const [versatilityField, setVersatilityField] = useState('');
+  const [brandIntegrityField, setBrandIntegrityField] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string>('');
   const [busy, setBusy] = useState(false);
@@ -235,9 +175,11 @@ export default function BeauScorePanel() {
     pieceField.trim() ? `The piece: ${pieceField.trim()}` : null,
     makerField.trim() ? `Maker: ${makerField.trim()}` : null,
     priceField.trim() ? `Price: ${priceField.trim()}` : null,
-    clothField.trim() ? `Cloth / material: ${clothField.trim()}` : null,
-    cutField.trim() ? `Cut / fit: ${cutField.trim()}` : null,
-    makeField.trim() ? `Make / construction: ${makeField.trim()}` : null,
+    materialField.trim() ? `Material: ${materialField.trim()}` : null,
+    constructionField.trim() ? `Construction: ${constructionField.trim()}` : null,
+    timelessnessField.trim() ? `Timelessness / silhouette: ${timelessnessField.trim()}` : null,
+    versatilityField.trim() ? `Versatility / colour / occasions: ${versatilityField.trim()}` : null,
+    brandIntegrityField.trim() ? `Brand integrity: ${brandIntegrityField.trim()}` : null,
   ]
     .filter(Boolean)
     .join('\n');
@@ -258,9 +200,11 @@ export default function BeauScorePanel() {
       setPieceField('');
       setMakerField('');
       setPriceField('');
-      setClothField('');
-      setCutField('');
-      setMakeField('');
+      setMaterialField('');
+      setConstructionField('');
+      setTimelessnessField('');
+      setVersatilityField('');
+      setBrandIntegrityField('');
       setPhoto(null);
       setPhotoName('');
     } catch (e) {
@@ -276,9 +220,11 @@ export default function BeauScorePanel() {
     { label: 'The piece', value: pieceField, set: setPieceField, placeholder: 'e.g. navy wool overcoat', testid: 'input-score-piece' },
     { label: 'Maker', value: makerField, set: setMakerField, placeholder: 'optional', testid: 'input-score-maker' },
     { label: 'Price', value: priceField, set: setPriceField, placeholder: 'optional', testid: 'input-score-price' },
-    { label: 'Cloth', value: clothField, set: setClothField, placeholder: 'material, if you know it — e.g. 100% lambswool', testid: 'input-score-cloth' },
-    { label: 'Cut', value: cutField, set: setCutField, placeholder: 'fit · silhouette (optional)', testid: 'input-score-cut' },
-    { label: 'Make', value: makeField, set: setMakeField, placeholder: 'construction · where it’s made (optional)', testid: 'input-score-make' },
+    { label: 'Material', value: materialField, set: setMaterialField, placeholder: 'fibre, origin, composition (optional)', testid: 'input-score-material' },
+    { label: 'Construction', value: constructionField, set: setConstructionField, placeholder: 'seams, lining, hardware (optional)', testid: 'input-score-construction' },
+    { label: 'Timelessness', value: timelessnessField, set: setTimelessnessField, placeholder: 'cut · silhouette (optional)', testid: 'input-score-timelessness' },
+    { label: 'Versatility', value: versatilityField, set: setVersatilityField, placeholder: 'colour · occasions · seasons (optional)', testid: 'input-score-versatility' },
+    { label: 'Brand', value: brandIntegrityField, set: setBrandIntegrityField, placeholder: 'quality history · sourcing (optional)', testid: 'input-score-brand-integrity' },
   ];
 
   return (

@@ -772,6 +772,29 @@ export default function SpaceDesktop({
     }
   }, [sessionId, trackEvent]);
 
+  // A visitor can bring a cold landing-page verdict into Beau. The gate parks
+  // only the original product description; after registration Beau reruns it
+  // against the real dossier and wardrobe, then the shared card renders the
+  // structured response inline in this chat.
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      const raw = sessionStorage.getItem('ethaion:landing-verdict-chat');
+      if (!raw) return;
+      sessionStorage.removeItem('ethaion:landing-verdict-chat');
+      const pending = JSON.parse(raw) as { message?: unknown; queuedAt?: unknown };
+      const message = typeof pending.message === 'string' ? pending.message.trim() : '';
+      const queuedAt = typeof pending.queuedAt === 'number' ? pending.queuedAt : Date.now();
+      if (!message || Date.now() - queuedAt > 30 * 60_000) return;
+      setPendingAgentMessage(message);
+      setOverlayView('chat');
+      setMobileView('panel');
+      trackEvent('landing_verdict_continued_in_chat', {});
+    } catch {
+      // A malformed or unavailable handoff must never block normal entry.
+    }
+  }, [sessionId, trackEvent]);
+
   // Handle URL hash-based deep linking (ONLY on initial mount).
   // Agent-first default: no panel open — the conversation is the landing surface.
   useEffect(() => {

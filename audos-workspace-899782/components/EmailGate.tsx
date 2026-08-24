@@ -11,10 +11,11 @@ import {
 } from 'lucide-react';
 import { useSpaceRuntime } from '../SpaceRuntimeContext';
 import type { DesktopThemeTokens } from '../types';
+import BeauVerdictCard, { normalizeBeauVerdict, type BeauVerdict } from './BeauVerdictCard';
 
 // Version marker for auto-upgrade detection
 // Increment this when making breaking changes that stale copies need
-export const EMAIL_GATE_VERSION = 139; // v139: new-vs-returning is decided by the register endpoint’s isReturningUser answer, not by which button was pressed — a brand-new email through “Sign in” now lands in onboarding first (with its always-visible skips) instead of being force-marked returning and dropped on an empty dashboard; a known account still goes straight to its dashboard. // v138: OTP removed from Register and Sign in (founder’s request) — one register call resolves the session and enters the space directly with no verification-code step; boot restore re-resolves the stored email through the same idempotent register call instead of demanding an OTP-verified session (and falls back to a stored durable id when the network is down); the gate also asks the platform to disable the space’s OTP config on mount. The 'otp' step machinery remains in the file but is never entered. // v137: landing page rebuilt to the founder’s editorial reference — sticky masthead, hero with the live Beau-verdict card, the enemy, Plate I, four doubts, how Beau works, the house rules, on the name, the dark join band and the colophon; auth, session restore and the sign-in/register modal untouched. // v136: Sign in marks the stored session as returning (isReturningUser) so an existing user never lands in onboarding; Register keeps the server’s own answer so new accounts still get the wizard with its visible skips. // v131: auth rewritten from scratch — ONE register call resolves the session for both Sign in and Register, the client never supplies a sessionId, the identity switches in place (no OTP detour, no post-auth reload, no null render), and every entry point settles in either the signed-in shell or the sign-in form, so no path can leave a blank screen or a spinner that never resolves. // v130: preserve an existing canonical session during boot, recover only genuinely missing ids, and enter restored sessions without a second reload. // v129: bound every auth/session recovery request and render a visible restoring state instead of a blank screen. // v128: reload once after verification so the injected WorkspaceDB client boots under the canonical verified owner; the SDK has no runtime session-switch API, so in-place entry left profile reads on the pre-auth identity. // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
+export const EMAIL_GATE_VERSION = 140; // v140: all landing verdicts use the shared five-score Beau card, and the profile-aware CTA carries the piece into chat after registration. // v139: new-vs-returning is decided by the register endpoint’s isReturningUser answer, not by which button was pressed — a brand-new email through “Sign in” now lands in onboarding first (with its always-visible skips) instead of being force-marked returning and dropped on an empty dashboard; a known account still goes straight to its dashboard. // v138: OTP removed from Register and Sign in (founder’s request) — one register call resolves the session and enters the space directly with no verification-code step; boot restore re-resolves the stored email through the same idempotent register call instead of demanding an OTP-verified session (and falls back to a stored durable id when the network is down); the gate also asks the platform to disable the space’s OTP config on mount. The 'otp' step machinery remains in the file but is never entered. // v137: landing page rebuilt to the founder’s editorial reference — sticky masthead, hero with the live Beau-verdict card, the enemy, Plate I, four doubts, how Beau works, the house rules, on the name, the dark join band and the colophon; auth, session restore and the sign-in/register modal untouched. // v136: Sign in marks the stored session as returning (isReturningUser) so an existing user never lands in onboarding; Register keeps the server’s own answer so new accounts still get the wizard with its visible skips. // v131: auth rewritten from scratch — ONE register call resolves the session for both Sign in and Register, the client never supplies a sessionId, the identity switches in place (no OTP detour, no post-auth reload, no null render), and every entry point settles in either the signed-in shell or the sign-in form, so no path can leave a blank screen or a spinner that never resolves. // v130: preserve an existing canonical session during boot, recover only genuinely missing ids, and enter restored sessions without a second reload. // v129: bound every auth/session recovery request and render a visible restoring state instead of a blank screen. // v128: reload once after verification so the injected WorkspaceDB client boots under the canonical verified owner; the SDK has no runtime session-switch API, so in-place entry left profile reads on the pre-auth identity. // v127: complete verified sign-in in place now that WorkspaceDB is synchronized, avoiding the redundant reload/blank state. // v126: synchronize the verified canonical identity into both SpaceRuntime and WorkspaceDB before any profile read or piece write. // v125: resolve every email to its stable server session, recover stale cached identities before mounting, and reboot WorkspaceDB under the verified owner. // v124: restore the canonical register → OTP → verified workspace-session flow, match the documented registration payload exactly, and never treat a local fallback id as an authenticated session. // v123: if App Preview’s register endpoint still returns its generic “Required” validation failure, preserve the entered email in a local session and continue instead of trapping the user. // v122: restores the previously working direct email-registration entry path; onboarding no longer depends on the failing upfront OTP detour. // v121: supplies this workspace’s id when App Preview does not inject __WORKSPACE_ID__, preventing registration and OTP validation from returning “Required”. // v120: restores the sessionId field required by this workspace’s register endpoint while retaining canonical response resolution for OTP. // v119: OTP sign-in now registers without a client-made id and resolves the canonical workspace session from both documented and enveloped responses before sending the code. // v118: every real workspace registration now completes OTP verification before entering onboarding, including first-time emails, so profile saves and Skip run under a genuinely verified session. // v117: registration now accepts the canonical session id when returned and otherwise keeps the submitted registered session id, instead of incorrectly rejecting a successful response. // v116: registration CTAs now require an email-backed session before onboarding, and real workspace sessions are server-verified instead of trusting local guest flags. // v115: the sign-in / register popup now shares the landing page’s visual language — parchment paper, hairline edges, 4px corners, Cormorant heading, Lora body, one outlined-gold control, and text fields identical to the Settings panel’s. The dialog renders outside .eg-root, so it carries its own copy of the design tokens (.eg-portal). Copy and structure unchanged. // v114: hero opts out of the platform’s injected "hero legibility floor" via data-light-hero. That published-bundle stylesheet paints a rgba(2,6,23,0.55) scrim + white copy over `.eg-root > section:first-of-type:not([data-light-hero])` (meant for dark video heroes) — it was the real cause of the grey "wardrobe advisor who already knows you" section; the section’s own background was always literal cream #efe7d9 (v113).
 
 // Ethaion favicon: hosted serif Cormorant-style "H" in warm ink #241a12 on
 // cream #efe7d9. The `?v=habitus4` query param is a cache-buster: browsers
@@ -346,19 +347,11 @@ function LandingProse({
   );
 }
 
-interface LandingPieceRow {
-  label: string;
-  note: string;
-  mark2: string;
-  good: boolean;
-}
-
 interface LandingPiece {
   label: string;
   name: string;
   meta: string;
-  verdict: string;
-  rows: LandingPieceRow[];
+  verdict: BeauVerdict;
 }
 
 const LANDING_PIECES: LandingPiece[] = [
@@ -366,25 +359,37 @@ const LANDING_PIECES: LandingPiece[] = [
     label: 'Lambswool crew · £145',
     name: 'The Peregrine crew, in oatmeal',
     meta: 'British lambswool · made in Yorkshire · 12 years in the line',
-    verdict: 'Buy it. This one you keep.',
-    rows: [
-      { label: 'Quality', note: 'Fully-fashioned knit, no cut-and-sew seams. Wool grown and spun in the UK — spinning, knitting and finishing all in one country.', mark2: 'Holds up', good: true },
-      { label: 'Fit', note: 'Body length runs short — the one house that does, and the one you need at 5′7″.', mark2: 'Right on you', good: true },
-      { label: 'Continuity', note: 'Same colour, same gauge, every autumn since 2014. You can buy a second in two years.', mark2: 'Repeatable', good: true },
-      { label: 'In ten years', note: 'Oatmeal against your colouring, no logo, no season. Nothing here dates.', mark2: 'Still yours', good: true },
-    ],
+    verdict: {
+      composite: 8.9,
+      verdict: 'BUY IT',
+      summary: 'The material, make and quiet colour earn their keep — this is the one you will still reach for in ten years.',
+      scores: [
+        { variable: 'Material', weight: 5, score: 9, tag: 'British lambswool', reason: 'Natural wool with transparent UK growing, spinning and finishing.' },
+        { variable: 'Construction', weight: 5, score: 9, tag: 'Fully fashioned', reason: 'Knitted to shape with no cut-and-sew side construction.' },
+        { variable: 'Timelessness', weight: 4, score: 9, tag: 'Beyond the cycle', reason: 'A plain crew silhouette with twelve years of continuity.' },
+        { variable: 'Versatility', weight: 3, score: 9, tag: 'Quiet anchor neutral', reason: 'Oatmeal crosses tailoring, denim and most cool-weather layers.' },
+        { variable: 'Brand Integrity', weight: 3, score: 8, tag: 'Proven continuity', reason: 'The same gauge and colour have returned every autumn since 2014.' },
+      ],
+      scoredForProfile: false,
+    },
   },
   {
     label: 'Technical overshirt · £320',
     name: 'The overshirt you asked me about',
     meta: 'Cotton-nylon blend · capsule drop · third year of the label',
-    verdict: 'Pass. Not this one, not at that price.',
-    rows: [
-      { label: 'Quality', note: '38% nylon in a piece sold as cotton, and “made in Portugal” covers the finishing only — it was cut and sewn elsewhere.', mark2: 'Thin for the money', good: false },
-      { label: 'Fit', note: 'Drop shoulder set for a taller frame; the seam lands halfway down your upper arm.', mark2: 'Wrong lines', good: false },
-      { label: 'Continuity', note: 'Capsule drop — gone in eight weeks, with nothing in the colour to build against.', mark2: 'One-off', good: false },
-      { label: 'In ten years', note: 'Reads as 2026 the moment the cut moves on. You’d resent it by spring.', mark2: 'Dates fast', good: false },
-    ],
+    verdict: {
+      composite: 3.8,
+      verdict: 'WALK AWAY',
+      summary: 'The trend-led cut and vague construction do not justify the price — leave this capsule where it is.',
+      scores: [
+        { variable: 'Material', weight: 5, score: 4, tag: 'Synthetic-heavy blend', reason: 'The cloth contains 38% nylon despite being sold primarily as cotton.' },
+        { variable: 'Construction', weight: 5, score: 4, tag: 'Origin stays vague', reason: 'The stated country covers finishing, not the undisclosed cut and sew.' },
+        { variable: 'Timelessness', weight: 4, score: 3, tag: 'Trend-led shoulder', reason: 'The exaggerated drop shoulder is tightly tied to the current cycle.' },
+        { variable: 'Versatility', weight: 3, score: 5, tag: 'Limited layering role', reason: 'The proportions narrow what can sit above and below it.' },
+        { variable: 'Brand Integrity', weight: 3, score: 3, tag: 'Capsule, little record', reason: 'A third-year label and short drop offer little evidence of consistency.' },
+      ],
+      scoredForProfile: false,
+    },
   },
 ];
 
@@ -441,11 +446,7 @@ export default function EmailGate({
   const [riskInput, setRiskInput] = useState('');
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
-  const [riskResult, setRiskResult] = useState<null | {
-    dimensions: Record<'cloth' | 'cut' | 'make' | 'longevity', 'Low' | 'Medium' | 'High'>;
-    overall: 'Low' | 'Moderate' | 'High';
-    reasoning: string;
-  }>(null);
+  const [riskResult, setRiskResult] = useState<BeauVerdict | null>(null);
 
   useEffect(() => {
     if (!riskOpen) return;
@@ -1400,15 +1401,32 @@ export default function EmailGate({
         body: JSON.stringify({ item }),
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.dimensions || !data?.overall || !data?.reasoning) {
+      const verdict = normalizeBeauVerdict(data, false);
+      if (!response.ok || !verdict) {
         throw new Error(data?.error || 'Beau could not assess this piece just now.');
       }
-      setRiskResult(data);
+      setRiskResult(verdict);
     } catch (caught) {
       setRiskError(caught instanceof Error ? caught.message : 'Beau could not assess this piece just now.');
     } finally {
       setRiskLoading(false);
     }
+  };
+
+  const continueVerdictInChat = () => {
+    const item = riskInput.trim();
+    if (!item) return;
+    try {
+      sessionStorage.setItem(
+        'ethaion:landing-verdict-chat',
+        JSON.stringify({
+          message: `Give me your verdict on this piece using the five-score Beau format. Score it for my profile and wardrobe when those records are available; otherwise mark it as a cold score: ${item}`,
+          queuedAt: Date.now(),
+        }),
+      );
+    } catch { /* Desktop can still open normally when storage is unavailable. */ }
+    setRiskOpen(false);
+    openLogin('register');
   };
 
   const openLogin = (mode: 'register' | 'signin') => {
@@ -2192,8 +2210,8 @@ export default function EmailGate({
           </div>
 
           {/* Beau’s verdict card — live: tap a piece to read the other verdict. */}
-          <div data-screen-label="Beau verdict" data-rise="" data-delay="1" style={{ border: '1px solid #3b2b1d', background: '#fbf8f1' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexWrap: 'wrap', padding: '13px 18px', borderBottom: '1px solid rgba(59,43,29,.2)' }}>
+          <div data-screen-label="Beau verdict" data-rise="" data-delay="1">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexWrap: 'wrap', padding: '0 0 13px' }}>
               <span style={landingMono(8.5, '#a68e70')}>Under consideration</span>
               {LANDING_PIECES.map((p, i) => {
                 const on = i === verdictPiece;
@@ -2218,59 +2236,11 @@ export default function EmailGate({
                 );
               })}
             </div>
-
-            <div style={{ padding: '16px 18px 4px' }}>
+            <div style={{ marginBottom: '10px' }}>
               <div style={{ ...landingSerif(26, '#241a12'), lineHeight: 1.13 }}>{LANDING_PIECES[verdictPiece].name}</div>
               <div style={{ ...landingMono(9, '#856c51', '0.05em'), marginTop: '5px', fontFeatureSettings: "'tnum'" }}>{LANDING_PIECES[verdictPiece].meta}</div>
             </div>
-
-            <div className="el-verdict-marks" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: '10px', padding: '14px 18px 0' }}>
-              {LANDING_PIECES[verdictPiece].rows.map((row) => (
-                <div key={row.label}>
-                  <div style={{ height: '3px', background: row.good ? LANDING_GOOD : 'rgba(140,90,60,.35)' }} />
-                  <div style={{ ...landingMono(7.5, '#856c51', '0.1em'), marginTop: '6px' }}>{row.label}</div>
-                  <div style={{ ...landingMono(7.5, row.good ? '#7c4a17' : LANDING_BAD, '0.1em'), marginTop: '2px' }}>
-                    {row.good ? 'Answered' : 'Not answered'}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="el-verdict-head" style={{ display: 'grid', gridTemplateColumns: '82px minmax(0,1fr)', gap: '10px', padding: '14px 18px 7px', ...landingMono(8, '#a68e70', '0.06em') }}>
-              <span>The test</span>
-              <span>What Beau found</span>
-            </div>
-
-            {LANDING_PIECES[verdictPiece].rows.map((row) => (
-              <div
-                key={row.label}
-                className="el-verdict-row"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '82px minmax(0,1fr)',
-                  gap: '10px',
-                  padding: '11px 18px',
-                  borderTop: '1px solid rgba(59,43,29,.13)',
-                  borderLeft: `3px solid ${row.good ? LANDING_GOOD : LANDING_BAD}`,
-                }}
-              >
-                <span style={landingMono(8.5, '#856c51', '0.05em')}>{row.label}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 'max(var(--el-body-min, 0px), 13.5px)', lineHeight: 1.5, color: '#3b2b1d' }}>{row.note}</div>
-                  <div style={{ ...landingMono(8.5, row.good ? '#7c4a17' : LANDING_BAD, '0.05em'), marginTop: '3px' }}>{row.mark2}</div>
-                </div>
-              </div>
-            ))}
-
-            <div style={{ padding: '14px 18px 17px', borderTop: '1px solid #3b2b1d', background: 'rgba(168,113,44,.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '16px' }}>
-                <span style={landingMono(8, '#7c4a17', '0.07em')}>Beau, on whether to buy</span>
-                <span style={landingMono(8, '#856c51', '0.07em')}>
-                  {LANDING_PIECES[verdictPiece].rows.filter((r) => r.good).length} of 4 questions answered
-                </span>
-              </div>
-              <p style={{ ...landingSerif(21, '#241a12'), margin: '7px 0 0', lineHeight: 1.2 }}>{LANDING_PIECES[verdictPiece].verdict}</p>
-            </div>
+            <BeauVerdictCard verdict={LANDING_PIECES[verdictPiece].verdict} />
           </div>
         </section>
 
@@ -2541,53 +2511,17 @@ export default function EmailGate({
 
               {riskResult && (
                 <div className="el-risk-result" aria-live="polite" data-testid="regret-risk-result">
-                  <div className="el-risk-grid">
-                    {([
-                      ['cloth', 'Cloth'],
-                      ['cut', 'Cut'],
-                      ['make', 'Make'],
-                      ['longevity', 'Longevity'],
-                    ] as const).map(([key, label]) => {
-                      const score = riskResult.dimensions[key];
-                      return (
-                        <div className="el-risk-dimension" key={key}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                            <span style={{ ...landingSerif(16, '#241a12'), fontWeight: 600 }}>{label}</span>
-                            <span className={`el-risk-score is-${score.toLowerCase()}`}>{score}</span>
-                          </div>
-                          <div className={`el-risk-track el-risk-score is-${score.toLowerCase()}`} aria-hidden="true">
-                            <span style={{ width: score === 'Low' ? '33%' : score === 'Medium' ? '66%' : '100%' }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div style={{ marginTop: 24 }}>
-                    <div className="el-risk-verdict">
-                      <p style={{ ...landingMono(10, '#7c4a17'), margin: 0, letterSpacing: '.13em', textTransform: 'uppercase' }}>Beau’s verdict</p>
-                      <h3 style={{ ...landingSerif(29, '#241a12'), margin: 0, lineHeight: 1.08, fontWeight: 500 }}>
-                        {riskResult.overall === 'Low' ? '🟢 Low Regret Risk' : riskResult.overall === 'Moderate' ? '🟡 Moderate Regret Risk' : '🔴 High Regret Risk'}
-                      </h3>
-                    </div>
-                    <p style={{ ...landingSerif(15, '#7c4a17'), margin: '7px 0 0', fontStyle: 'italic' }}>
-                      {riskResult.overall === 'Low' ? 'Worth considering.' : riskResult.overall === 'Moderate' ? 'Proceed carefully.' : 'Beau would leave this one.'}
-                    </p>
-                    <p style={{ ...landingSerif(17, '#3b2b1d'), margin: '14px 0 0', lineHeight: 1.65, maxWidth: 760 }}>{riskResult.reasoning}</p>
-                    <button
-                      type="button"
-                      className="el-risk-cta"
-                      onClick={() => {
-                        setRiskOpen(false);
-                        openLogin('register');
-                      }}
-                      disabled={loading}
-                      data-testid="button-regret-risk-signup"
-                    >
-                      <span>Get the full Beau analysis — with your wardrobe, your proportions, your colourway</span>
-                      <ArrowRight size={16} aria-hidden="true" />
-                    </button>
-                  </div>
+                  <BeauVerdictCard verdict={riskResult} />
+                  <button
+                    type="button"
+                    className="el-risk-cta"
+                    onClick={continueVerdictInChat}
+                    disabled={loading}
+                    data-testid="button-regret-risk-signup"
+                  >
+                    <span>Ask Beau again — scored for your wardrobe and profile</span>
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
                 </div>
               )}
             </section>

@@ -42,6 +42,7 @@ import type { AgentChatRuntime } from './useAgentChatRuntime';
 import BeauScorePanel, { BeauScoreCard } from './BeauScorePanel';
 import { BEAU_SCORES_EVENT, deleteBeauScore, loadBeauScores, type BeauScore } from '../apps/BeauHome/beau-score';
 import { currentBeauContext } from '../apps/BeauHome/crumb-trail';
+import BeauVerdictCard, { parseBeauVerdict } from './BeauVerdictCard';
 
 interface AgentChatViewProps {
   runtime: AgentChatRuntime;
@@ -313,6 +314,25 @@ const beauVoice = {
 
 /** The customer's words — the body face, smaller and quieter. */
 const yourVoice = { fontSize: 'max(var(--eth-body, 0px), 14px)', lineHeight: 1.55, color: V_BODY } as const;
+
+function MessageContent({ text, isUser }: { text: string; isUser: boolean }) {
+  const verdict = isUser ? null : parseBeauVerdict(text);
+  if (verdict) return <BeauVerdictCard verdict={verdict} />;
+  return (
+    <div
+      className="prose prose-base max-w-none min-w-0"
+      style={{ ...(isUser ? yourVoice : beauVoice), marginTop: '7px' }}
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+        urlTransform={markdownUrlTransform}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 export default function AgentChatView({ runtime }: AgentChatViewProps) {
   const {
@@ -1007,32 +1027,13 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
                 )}
 
                 {typeof msg.content === 'string' || msg.content == null ? (
-                  <div
-                    className="prose prose-base max-w-none min-w-0"
-                    style={{ ...(isUser ? yourVoice : beauVoice), marginTop: '7px' }}
-                  >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={markdownComponents}
-                      urlTransform={markdownUrlTransform}
-                    >
-                      {typeof msg.content === 'string' ? msg.content : ''}
-                    </ReactMarkdown>
-                  </div>
+                  <MessageContent text={typeof msg.content === 'string' ? msg.content : ''} isUser={isUser} />
                 ) : (
                   <div className="space-y-2" style={{ marginTop: '7px' }}>
                     {(Array.isArray(msg.content) ? msg.content : []).map((chunk, chunkIdx) => (
                       <div key={chunkIdx}>
                         {chunk.type === 'text' && chunk.text && (
-                          <div className="prose prose-base max-w-none min-w-0" style={isUser ? yourVoice : beauVoice}>
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              components={markdownComponents}
-                              urlTransform={markdownUrlTransform}
-                            >
-                              {chunk.text}
-                            </ReactMarkdown>
-                          </div>
+                          <MessageContent text={chunk.text} isUser={isUser} />
                         )}
                         {chunk.type === 'tool_use' && (
                           <div className="flex items-center flex-wrap" style={{ gap: '8px', padding: '6px 0 2px' }}>

@@ -26,6 +26,7 @@ import { isFastFashionBrand } from './hunt-ai';
 import { secondhandAllowed } from './profile-data';
 import { HUNT_CATEGORIES, huntCategory } from './hunt-model';
 import { firstUrl, hostLabel, huntReaderBrief, pieceNameFromUrl, type HuntReader } from './hunt-reader';
+import { normalizeBeauVerdict, type BeauVerdict } from '../../components/BeauVerdictCard';
 
 /** How many products the bench holds — the founder's cap. */
 export const ASK_QUEUE_LIMIT = 4;
@@ -74,10 +75,12 @@ export interface AskResultProduct {
 }
 
 export interface AskAnswer {
-  /** Beau's stance in one line — the headline of the verdict area. */
+  /** Beau's stance in one line — retained for questions and market briefs. */
   headline: string;
-  /** The verdict and the recommendation, 2–4 short paragraphs' worth. */
+  /** The answer for questions and market briefs; specific-piece verdicts use verdictCard. */
   verdict: string;
+  /** Present whenever Beau is scoring one specific piece. */
+  verdictCard: BeauVerdict | null;
   /** Real pieces to act on, when the ask wanted pieces. */
   products: AskResultProduct[];
   /** True when the live market sweep actually returned something. */
@@ -113,7 +116,9 @@ const ASK_VOICE: ClaudeSystemBlock = {
   text:
     'You are Beau, the valet voice of Ethaion — a classic-menswear wardrobe app. A man is asking you something directly: a question, a brief to go and find something, or a product he is weighing. Answer as a valet who knows him: quiet, knowing, concrete, lightly British; short declarative sentences; take a STANCE and say it first; no marketing, no hedging into a non-answer, no exclamation marks, no emoji. Write TO him (“you”). '
     + 'THE THESIS, without exception: natural or genuinely good materials, considered construction, timeless design, a piece that can be repaired and still reads right in fifteen years. Fast fashion never appears whatever the price fits. When his budget and the quality bar genuinely conflict, SAY SO and tell him what stretching a little, or going secondhand where he allows it, would buy him. '
-    + 'GROUNDING: every price and every url must be copied from the LIVE MARKET RESULTS given to you — never invent either, and never point at a brand homepage or a search results page. If the results do not support a claim, leave the field empty and say what you do not know. Reason only from the facts in the brief. Return STRICT JSON only — no markdown fences, no prose around it.',
+    + 'GROUNDING: every price and every url must be copied from the LIVE MARKET RESULTS given to you — never invent either, and never point at a brand homepage or a search results page. If the results do not support a claim, leave the field empty and say what you do not know. Reason only from the facts in the brief. '
+    + 'When he is asking for a verdict on ONE specific piece, score exactly Material 5, Construction 5, Timelessness 4, Versatility 3 and Brand Integrity 3. Each score is a whole number 1–10. Composite is weighted sum divided by 20: 8.0–10 BUY IT, 5.5–7.9 HOLD, 0–5.4 WALK AWAY. Return that assessment in verdictCard and set scoredForProfile true. '
+    + 'Return STRICT JSON only — no markdown fences, no prose around it.',
   cache: true,
 };
 
@@ -253,6 +258,8 @@ export async function runAskBeau(input: {
   const { query, reader, queued, onPhase } = input;
   const ask = query.trim();
   const link = firstUrl(ask);
+  const wantsSpecificVerdict =
+    !!link || /\b(verdict on|assess this|evaluate this|should i buy|buy this|keep or return|is (?:this|it) worth it)\b/i.test(ask);
 
   // A brief that wants PIECES gets a live sweep; a pure question does not
   // need one, and a pasted link is searched by its own url.
@@ -283,7 +290,14 @@ export async function runAskBeau(input: {
     `HIS ASK: ${ask}`,
     hitsBlock(hits),
     'Read what he is doing — asking a question, briefing you to find something, or putting a specific product to you — and answer in that form. '
-      + 'Return JSON: {"headline": "…" (your stance in ONE line, max 90 chars), "verdict": "…" (the verdict AND the recommendation — two or three short paragraphs, separated by a blank line; the reasoning that earns the headline), '
+      + 'For ONE specific product, return verdictCard with exactly: {"composite":7.8,"verdict":"BUY IT|HOLD|WALK AWAY","summary":"one decisive sentence","scores":['
+      + '{"variable":"Material","weight":5,"score":1-10 integer,"tag":"2–4 words","reason":"one evidence line"},'
+      + '{"variable":"Construction","weight":5,"score":1-10 integer,"tag":"2–4 words","reason":"one evidence line"},'
+      + '{"variable":"Timelessness","weight":4,"score":1-10 integer,"tag":"2–4 words","reason":"one evidence line"},'
+      + '{"variable":"Versatility","weight":3,"score":1-10 integer,"tag":"2–4 words","reason":"one evidence line"},'
+      + '{"variable":"Brand Integrity","weight":3,"score":1-10 integer,"tag":"2–4 words","reason":"one evidence line"}],"scoredForProfile":true}. '
+      + 'For a general question or market brief, set verdictCard to null and use headline plus verdict prose. '
+      + 'Return JSON: {"headline":"…","verdict":"…","verdictCard":object|null,'
       + `"products": [ … ] } — products holds the real pieces to act on (at most four; an empty array when the ask was a pure question). Each product: {"pieceName", "maker", "priceGuide" (copied from a result, else ""), "whyYou" (1–2 sentences for THIS man), "qualitySignals" (one sentence), "url" (copied VERBATIM from a result, else ""), "retailer", "categoryId" (one of ${CATEGORY_IDS}), "subCategory" (the run within that category, when you can place it)}.`,
   ]
     .filter(Boolean)
@@ -299,15 +313,20 @@ export async function runAskBeau(input: {
   const parsed = parseJson(raw);
   const headline = str(parsed?.headline, 140);
   const verdict = para(parsed?.verdict);
-  if (!headline && !verdict) throw new Error('Beau couldn\u2019t read that one — try putting it another way.');
+  const verdictCard = normalizeBeauVerdict(parsed?.verdictCard, true);
+  if (wantsSpecificVerdict && !verdictCard) {
+    throw new Error('Beau couldn\u2019t complete all five scores — try that verdict again.');
+  }
+  if (!headline && !verdict && !verdictCard) throw new Error('Beau couldn\u2019t read that one — try putting it another way.');
   const allowed = new Map(hits.map((h) => [urlKey(h.link), h.link]));
   const products = (Array.isArray(parsed?.products) ? parsed.products : [])
     .map((p: any) => sanitizeProduct(p, allowed))
     .filter((p: AskResultProduct | null): p is AskResultProduct => !!p)
     .slice(0, 4);
   return {
-    headline: headline || 'Here\u2019s my read.',
+    headline: headline || (verdictCard ? verdictCard.summary : 'Here\u2019s my read.'),
     verdict,
+    verdictCard,
     products,
     grounded: hits.length > 0,
   };

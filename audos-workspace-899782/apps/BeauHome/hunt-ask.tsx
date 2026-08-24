@@ -60,6 +60,7 @@ import {
 } from './hunt-reader';
 import { HuntButton, HuntCard, HuntPhoto, HuntWorkingLine, type HuntCallsState } from './hunt-cards';
 import { HUNT_ASK_EVENT, takeAskQuery } from './edit-links';
+import BeauVerdictCard from '../../components/BeauVerdictCard';
 
 let queueSeq = 0;
 function nextQueueId(): string {
@@ -522,25 +523,29 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
               <p style={{ ...serif(20, WALNUT), margin: '5px 0 0', maxWidth: '58ch', lineHeight: 1.28 }}>{asked}</p>
             </div>
           )}
-          <div style={{ background: WALNUT, padding: '26px 24px 28px' }}>
-            <p style={{ ...mono(9, ON_WALNUT_GOLD), margin: '0 0 9px' }}>Beau · his verdict</p>
-            <p style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '24px', lineHeight: 1.32, color: ON_WALNUT, margin: 0, maxWidth: '54ch' }}>
-              {answer.headline}
-            </p>
-            {answer.verdict.split(/\n{2,}/).filter(Boolean).map((para, i) => (
-              <p
-                key={i}
-                style={{ fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.62, color: ON_WALNUT, opacity: 0.86, margin: '15px 0 0', maxWidth: '58ch' }}
-              >
-                {para}
+          {answer.verdictCard ? (
+            <BeauVerdictCard verdict={answer.verdictCard} />
+          ) : (
+            <div style={{ background: WALNUT, padding: '26px 24px 28px' }}>
+              <p style={{ ...mono(9, ON_WALNUT_GOLD), margin: '0 0 9px' }}>Beau · his answer</p>
+              <p style={{ fontFamily: 'var(--space-font-heading)', fontWeight: 400, fontSize: '24px', lineHeight: 1.32, color: ON_WALNUT, margin: 0, maxWidth: '54ch' }}>
+                {answer.headline}
               </p>
-            ))}
-            {!answer.grounded && (
-              <p style={{ ...mono(8, ON_WALNUT_GOLD), margin: '16px 0 0', opacity: 0.8 }}>
-                The market would not answer him this minute — this is his judgement, not today’s prices
-              </p>
-            )}
-          </div>
+              {answer.verdict.split(/\n{2,}/).filter(Boolean).map((para, i) => (
+                <p
+                  key={i}
+                  style={{ fontFamily: 'var(--space-font-family)', fontSize: '15px', lineHeight: 1.62, color: ON_WALNUT, opacity: 0.86, margin: '15px 0 0', maxWidth: '58ch' }}
+                >
+                  {para}
+                </p>
+              ))}
+              {!answer.grounded && (
+                <p style={{ ...mono(8, ON_WALNUT_GOLD), margin: '16px 0 0', opacity: 0.8 }}>
+                  The market would not answer him this minute — this is his judgement, not today’s prices
+                </p>
+              )}
+            </div>
+          )}
         </section>
       )}
 

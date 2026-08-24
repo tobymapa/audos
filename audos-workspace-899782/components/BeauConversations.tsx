@@ -250,6 +250,14 @@ export default function BeauConversations({
     } catch (e) { /* ignore */ }
   }, [view, activeThreadId, navKey]);
 
+  // A landing-page verdict handoff must reach a mounted AgentChat even when
+  // this visitor last left the drawer on the Threads list.
+  useEffect(() => {
+    if (!pendingMessage) return;
+    setActiveThreadId((current) => current || PRIMARY_THREAD_ID);
+    setView('thread');
+  }, [pendingMessage]);
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [folders, setFolders] = useState<ChatFolder[]>([]);
   const [loaded, setLoaded] = useState(false);
