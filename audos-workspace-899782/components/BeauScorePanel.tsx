@@ -86,11 +86,22 @@ export function BeauScoreCard({
 }: {
   score: BeauScore;
   /** Present on the deletable copies — removes THIS copy only. */
-  onDelete?: () => void;
+  onDelete?: (id: string) => void;
   showSavedLine?: boolean;
 }) {
+  const [shown, setShown] = useState(score);
+
+  const refresh = async () => {
+    const refreshInput = shown.subject === 'A photographed piece'
+      ? [shown.maker, shown.pieceName, shown.priceGuide].filter(Boolean).join(' ')
+      : shown.subject;
+    const fresh = await runBeauScore({ input: refreshInput });
+    deleteBeauScore(shown.id);
+    setShown(fresh);
+  };
+
   return (
-    <div className="relative" data-testid={`beau-score-card-${score.id}`}>
+    <div className="relative" data-testid={`beau-score-card-${shown.id}`}>
       <div className="flex items-start gap-3" style={{ padding: '0 0 10px' }}>
         <div className="min-w-0 flex-1">
           <p style={sMono(8.5, S_OXBLOOD, '0.13em')}>Beau verdict</p>
@@ -98,17 +109,17 @@ export function BeauScoreCard({
             className="truncate"
             style={{ fontFamily: 'var(--space-font-heading)', fontSize: '18px', fontWeight: 400, lineHeight: 1.2, color: S_INK, margin: '6px 0 0' }}
           >
-            {score.pieceName}
-            {score.maker ? <span style={{ color: '#634e38' }}> · {score.maker}</span> : null}
+            {shown.pieceName}
+            {shown.maker ? <span style={{ color: '#634e38' }}> · {shown.maker}</span> : null}
           </p>
-          {score.priceGuide && (
-            <p style={{ ...sMono(8.5, S_FAINT, '0.07em'), margin: '4px 0 0' }}>{score.priceGuide}</p>
+          {shown.priceGuide && (
+            <p style={{ ...sMono(8.5, S_FAINT, '0.07em'), margin: '4px 0 0' }}>{shown.priceGuide}</p>
           )}
         </div>
         {onDelete && (
           <button
             type="button"
-            onClick={onDelete}
+            onClick={() => onDelete(shown.id)}
             title="Delete this copy — the Your Calls record keeps its own"
             aria-label="Delete this assessment from the conversation"
             className="flex-shrink-0 h-7 w-7 flex items-center justify-center transition-opacity hover:opacity-70"
@@ -120,7 +131,7 @@ export function BeauScoreCard({
         )}
       </div>
 
-      <BeauVerdictCard verdict={score} />
+      <BeauVerdictCard verdict={shown} onRefresh={refresh} />
 
       <button
         type="button"
@@ -324,8 +335,8 @@ export default function BeauScorePanel() {
         <div className="mt-4">
           <BeauScoreCard
             score={result}
-            onDelete={() => {
-              deleteBeauScore(result.id);
+            onDelete={(id) => {
+              deleteBeauScore(id);
               setResult(null);
             }}
           />

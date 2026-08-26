@@ -1076,7 +1076,7 @@ export default function AgentChatView({ runtime }: AgentChatViewProps) {
         {scores.length > 0 && (
           <div className="space-y-3" style={{ padding: '12px 20px 4px' }}>
             {scores.map((s) => (
-              <BeauScoreCard key={s.id} score={s} onDelete={() => deleteBeauScore(s.id)} />
+              <BeauScoreCard key={s.id} score={s} onDelete={(id) => deleteBeauScore(id)} />
             ))}
           </div>
         )}

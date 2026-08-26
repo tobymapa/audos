@@ -66,6 +66,8 @@ import { HuntCalls } from './hunt-calls';
 import { HuntWatchlist } from './watchlist-view';
 import { useWatchlist } from './watchlist-watch';
 import { peekStartupReader } from './startup-prefetch';
+import { SearchWorkspaceSkeleton } from './skeleton';
+import { signalTabPrimaryReady } from './experience-feedback';
 
 type HuntFace = 'picks' | 'ask' | 'calls' | 'watchlist';
 
@@ -206,6 +208,10 @@ export function HuntTab({
     [loaded, calls.calls],
   );
 
+  useEffect(() => {
+    if (reader) signalTabPrimaryReady('hunt');
+  }, [reader]);
+
   /**
    * What a re-draw is allowed to depend on. His RECORD moving (a piece
    * logged, the dossier edited) should re-read an open category; a tag being
@@ -266,18 +272,24 @@ export function HuntTab({
       />
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-        <KeepFace active={face === 'picks'}>
-          <HuntPicks reader={reader} calls={calls} recordKey={recordKey} />
-        </KeepFace>
-        <KeepFace active={face === 'ask'}>
-          <HuntAsk reader={reader} calls={calls} />
-        </KeepFace>
-        <KeepFace active={face === 'calls'}>
-          <HuntCalls calls={calls} onGoToPicks={() => setFace('picks')} />
-        </KeepFace>
-        <KeepFace active={face === 'watchlist'}>
-          <HuntWatchlist onGoToPicks={() => setFace('picks')} />
-        </KeepFace>
+        {!reader ? (
+          <SearchWorkspaceSkeleton />
+        ) : (
+          <>
+            <KeepFace active={face === 'picks'}>
+              <HuntPicks reader={reader} calls={calls} recordKey={recordKey} />
+            </KeepFace>
+            <KeepFace active={face === 'ask'}>
+              <HuntAsk reader={reader} calls={calls} />
+            </KeepFace>
+            <KeepFace active={face === 'calls'}>
+              <HuntCalls calls={calls} onGoToPicks={() => setFace('picks')} />
+            </KeepFace>
+            <KeepFace active={face === 'watchlist'}>
+              <HuntWatchlist onGoToPicks={() => setFace('picks')} />
+            </KeepFace>
+          </>
+        )}
       </div>
     </div>
   );

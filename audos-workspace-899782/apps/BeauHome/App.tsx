@@ -69,13 +69,28 @@ import {
 import { hydrateImagePipelineStore, whenIdle } from './image-pipeline';
 import { OnboardingTour } from './onboarding-tour';
 import { AskBeauCorner, ChromeNavBar, type CrumbPublication } from './crumb-trail';
-import { HairlineRowsSkeleton, HomeSkeleton } from './skeleton';
+import {
+  EditCalendarSkeleton,
+  FittingRoomSkeleton,
+  HairlineRowsSkeleton,
+  HomeSkeleton,
+  IndexPieceCardsSkeleton,
+  RailLedgerSkeleton,
+  SearchWorkspaceSkeleton,
+} from './skeleton';
 import { ArchetypeIllo } from './illustrations';
 import { fetchAvatarInputs, saveAvatarInputs } from './body-profile';
 import { sweepSemanticTags } from './semantic-tags';
 import { sweepPieceWarmth } from './warmth-model';
-import { runStartupPrefetch, startupCacheWarm, startupFactsSignature } from './startup-prefetch';
-import { BeauProgressBar } from './beau-progress';
+import { runStartupPrefetch, startupFactsSignature } from './startup-prefetch';
+import {
+  GlobalTopProgress,
+  MutationConfirmationHost,
+  TAB_PRIMARY_READY_EVENT,
+  installMutationFeedback,
+  signalTabPrimaryReady,
+  type PrimaryTabId,
+} from './experience-feedback';
 import { BeauAssessmentProvider } from './beau-assessment-context';
 import { SaveProfileNudge, isGuestUnsaved } from './save-profile';
 
@@ -1385,6 +1400,8 @@ export function Onboarding({ profile, prefs, onDone }: OnboardingProps) {
 
 type TabId = 'wardrobe' | 'beau' | 'curated' | 'fitting-room' | 'hunt' | 'index' | 'saved' | 'radar' | 'reads' | 'rail' | 'your-style' | 'dressed';
 
+const PRIMARY_TRANSITION_TABS = new Set<PrimaryTabId>(['wardrobe', 'beau', 'fitting-room', 'hunt', 'index']);
+
 /** Hairline, stroke-only tab icons — no fills (Part 1's icon column). */
 const TABS: Array<{ id: TabId; label: string; short: string; icon: 'book' | 'grid' | 'hanger' | 'hourglass' | 'figure' | 'folder' | 'library' | 'compass' }> = [
   // The Rail wears the HANGER (founder's request, August 2026) — the clean
@@ -1599,14 +1616,18 @@ function KeepMounted({ active, children }: { active: boolean; children: React.Re
   return <div style={active ? undefined : { display: 'none' }}>{children}</div>;
 }
 
-/** Suspense fallback while a lazy tab's code loads — the standard shimmer
- * hairline rows in the page frame, never a blank screen or a spinner. */
-function TabLoadingSkeleton() {
+/** Suspense fallback while a lazy tab's code loads. Each primary tab keeps
+ * the silhouette of the content that will replace it. */
+function TabLoadingSkeleton({ kind }: { kind?: PrimaryTabId }) {
+  const content = kind === 'wardrobe' ? <RailLedgerSkeleton />
+    : kind === 'beau' ? <EditCalendarSkeleton />
+    : kind === 'fitting-room' ? <FittingRoomSkeleton />
+    : kind === 'hunt' ? <SearchWorkspaceSkeleton />
+    : kind === 'index' ? <IndexPieceCardsSkeleton />
+    : <HairlineRowsSkeleton rows={6} />;
   return (
     <div className="px-6 sm:px-10 pt-[52px]">
-      <div className="max-w-[1180px] mx-auto">
-        <HairlineRowsSkeleton rows={6} />
-      </div>
+      <div className="max-w-[1180px] mx-auto">{content}</div>
     </div>
   );
 }
@@ -1616,6 +1637,10 @@ function TabLoadingSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function BeauHome() {
+  // Install before any child editor renders so every WorkspaceDB mutation —
+  // regardless of which tab owns it — gets the same quiet confirmation.
+  installMutationFeedback();
+
   const [profile, setProfile] = useState<StyleProfile | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileBootAttempt, setProfileBootAttempt] = useState(0);
@@ -1630,6 +1655,12 @@ export default function BeauHome() {
   // ledger-tab.tsx, which holds its own state).
   const [openStyleToday, setOpenStyleToday] = useState(false);
   const [tab, setTab] = useState<TabId>('wardrobe');
+  const readyTabs = useRef<Set<PrimaryTabId>>(new Set());
+  const previousProgressTab = useRef<TabId>('wardrobe');
+  const activeProgressTab = useRef<TabId>('wardrobe');
+  activeProgressTab.current = tab;
+  const [progressKey, setProgressKey] = useState(0);
+  const [progressComplete, setProgressComplete] = useState(false);
   // The single end-of-onboarding save nudge — set once when a guest finishes
   // onboarding, dismissed forever after (Save or Skip).
   const [showSaveNudge, setShowSaveNudge] = useState(false);
@@ -1957,6 +1988,37 @@ export default function BeauHome() {
     window.dispatchEvent(new CustomEvent('ethaion:tab-activated', { detail: { tab } }));
   }, [tab]);
 
+  // The global stripe follows ONLY the visible primary tab's first meaningful
+  // read. A tab can keep secondary skeletons after it completes; those waits
+  // are deliberately independent.
+  useEffect(() => {
+    const onReady = (event: Event) => {
+      const ready = (event as CustomEvent).detail?.tab as PrimaryTabId | undefined;
+      if (!ready || !PRIMARY_TRANSITION_TABS.has(ready)) return;
+      readyTabs.current.add(ready);
+      if (activeProgressTab.current === ready) setProgressComplete(true);
+    };
+    window.addEventListener(TAB_PRIMARY_READY_EVENT, onReady);
+    return () => window.removeEventListener(TAB_PRIMARY_READY_EVENT, onReady);
+  }, []);
+
+  useEffect(() => {
+    if (previousProgressTab.current === tab) return;
+    previousProgressTab.current = tab;
+    if (!PRIMARY_TRANSITION_TABS.has(tab as PrimaryTabId)) {
+      setProgressComplete(true);
+      return;
+    }
+    setProgressKey((key) => key + 1);
+    setProgressComplete(readyTabs.current.has(tab as PrimaryTabId));
+  }, [tab]);
+
+  useEffect(() => {
+    if (!profileLoaded || rawPieces == null || piecesLoading) return;
+    readyTabs.current.add('wardrobe');
+    signalTabPrimaryReady('wardrobe');
+  }, [profileLoaded, rawPieces, piecesLoading]);
+
   // Beau and Your Style both broadcast profile changes. Re-read on focus too,
   // so a chat-authored edit is visible the moment the app comes forward.
   useEffect(() => {
@@ -1994,30 +2056,16 @@ export default function BeauHome() {
   // `sweepWatchlist` (watchlist-poll.ts) remains only for a deliberate
   // manual check.
 
-  // THE UPFRONT LOAD (Fix 5, August 2026). One paid loading moment at open:
-  // once the profile has landed, every DATA READ the tabs lean on — the hunt
-  // reader's companion tables, the wardrobe's piece semantics, Beau's style
-  // memory — is prefetched behind one hairline bar, and the category-verdict
-  // fingerprint is stored (startup-prefetch.ts). Data reads ONLY: nothing
-  // here spends a model call, so Beau's Picks and the written verdicts stay
-  // lazy. Keyed on a signature of the FACTS, it re-runs silently when they
-  // move and never on navigation; a quick return whose stored signature
-  // still matches skips the bar and restores from cache.
-  const [bootPrefetching, setBootPrefetching] = useState(false);
+  // Warm secondary tab reads after first paint. This never controls the
+  // global stripe: that stripe completes with the visible tab's own primary
+  // fetch, while these background reads stay silent.
   const prefetchedSig = useRef<string | null>(null);
   useEffect(() => {
     if (!profileLoaded || rawPieces == null) return;
     const sig = startupFactsSignature({ profile, pieces, prefs });
     if (prefetchedSig.current === sig) return;
-    const firstRun = prefetchedSig.current === null;
     prefetchedSig.current = sig;
-    const showBar = firstRun && !startupCacheWarm(sig);
-    if (showBar) setBootPrefetching(true);
-    void runStartupPrefetch({ profile, pieces, prefs })
-      .catch(() => undefined)
-      .finally(() => {
-        if (showBar) setBootPrefetching(false);
-      });
+    void runStartupPrefetch({ profile, pieces, prefs }).catch(() => undefined);
   }, [profileLoaded, rawPieces, profile, pieces, prefs]);
 
   // RESTORED FROM THE BACKGROUND (Fix 5): coming back to the app re-checks
@@ -2253,9 +2301,12 @@ export default function BeauHome() {
   }, [tab, openStyleToday, goHome, closeStyleToday, backToWardrobe, backToCurated]);
 
   if (!profileLoaded) {
-    // Skeleton over spinner (Track J): ghost outlines of the page that's
-    // coming, so opening the wardrobe feels instant rather than waited-for.
-    return <HomeSkeleton />;
+    return (
+      <>
+        <GlobalTopProgress transitionKey={progressKey} complete={false} />
+        <HomeSkeleton />
+      </>
+    );
   }
 
   // A failed profile read earns the retry screen only when there is something
@@ -2363,15 +2414,8 @@ export default function BeauHome() {
           tab's root trail. */}
       <ChromeNavBar fallback={crumbFallback} />
 
-      {/* THE UPFRONT LOAD's one visible moment (Fix 5): a hairline bar while
-          the open's single prefetch pays the loading cost — gone the moment
-          it lands. Shown once per genuinely new set of facts, never on a
-          quick return. */}
-      {bootPrefetching && (
-        <div className="fixed top-0 left-0 right-0 z-50">
-          <BeauProgressBar height={2} maxWidth="100%" />
-        </div>
-      )}
+      <GlobalTopProgress transitionKey={progressKey} complete={progressComplete} />
+      <MutationConfirmationHost />
 
       {/* Subtle first-load migration pill: every old piece is run through
           background removal + white-card normalization without blocking the
@@ -2407,7 +2451,7 @@ export default function BeauHome() {
           </Suspense>
         ) : (
           <>
-            <Suspense fallback={<TabLoadingSkeleton />}>
+            <Suspense fallback={<TabLoadingSkeleton kind="wardrobe" />}>
               <LedgerTab
                 profile={effectiveProfile}
                 pieces={pieces}
@@ -2455,7 +2499,7 @@ export default function BeauHome() {
             <Suspense
               fallback={
                 <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full">
-                  <HairlineRowsSkeleton rows={6} />
+                  <EditCalendarSkeleton />
                 </div>
               }
             >
@@ -2469,7 +2513,7 @@ export default function BeauHome() {
             On your Radar · What you own). Every "Try this on" button across
             the app lands here with its piece already rendering. */}
         <KeepMounted active={tab === 'fitting-room'}>
-          <Suspense fallback={<TabLoadingSkeleton />}>
+          <Suspense fallback={<TabLoadingSkeleton kind="fitting-room" />}>
             <FittingRoomTab profile={effectiveProfile} budgets={budgets} pieces={pieces} prefs={prefs} />
           </Suspense>
         </KeepMounted>
@@ -2512,7 +2556,7 @@ export default function BeauHome() {
             holding up to four for a side-by-side) and Your Calls (everything
             tagged, sortable, changeable). Sits LEFT of The Index. */}
         <KeepMounted active={tab === 'hunt'}>
-          <Suspense fallback={<TabLoadingSkeleton />}>
+          <Suspense fallback={<TabLoadingSkeleton kind="hunt" />}>
             <HuntTab profile={effectiveProfile} pieces={pieces} prefs={prefs} budgets={budgets} />
           </Suspense>
         </KeepMounted>
@@ -2521,7 +2565,7 @@ export default function BeauHome() {
             screenshots: Pieces and Makers as two faces of one page. Sits
             LEFT of The Dossier in the strip. */}
         <KeepMounted active={tab === 'index'}>
-          <Suspense fallback={<TabLoadingSkeleton />}>
+          <Suspense fallback={<TabLoadingSkeleton kind="index" />}>
             <IndexTab pieces={pieces} profile={effectiveProfile} />
           </Suspense>
         </KeepMounted>

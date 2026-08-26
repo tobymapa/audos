@@ -28,6 +28,10 @@ import { HUNT_CATEGORIES, huntCategory } from './hunt-model';
 import { firstUrl, hostLabel, huntReaderBrief, pieceNameFromUrl, type HuntReader } from './hunt-reader';
 import { normalizeBeauVerdict, type BeauVerdict } from '../../components/BeauVerdictCard';
 
+function ws(): any {
+  return (window as any).__workspaceDb;
+}
+
 /** How many products the bench holds — the founder's cap. */
 export const ASK_QUEUE_LIMIT = 4;
 
@@ -313,7 +317,15 @@ export async function runAskBeau(input: {
   const parsed = parseJson(raw);
   const headline = str(parsed?.headline, 140);
   const verdict = para(parsed?.verdict);
-  const verdictCard = normalizeBeauVerdict(parsed?.verdictCard, true);
+  const normalizedVerdictCard = normalizeBeauVerdict(parsed?.verdictCard, true);
+  const scoredAt = normalizedVerdictCard ? new Date().toISOString() : null;
+  const verdictCard = normalizedVerdictCard && scoredAt
+    ? {
+        ...normalizedVerdictCard,
+        scoredAt,
+        ...(reader.profile?.profile_last_updated ? { profileLastUpdated: reader.profile.profile_last_updated } : null),
+      }
+    : null;
   if (wantsSpecificVerdict && !verdictCard) {
     throw new Error('Beau couldn\u2019t complete all five scores — try that verdict again.');
   }
@@ -323,6 +335,15 @@ export async function runAskBeau(input: {
     .map((p: any) => sanitizeProduct(p, allowed))
     .filter((p: AskResultProduct | null): p is AskResultProduct => !!p)
     .slice(0, 4);
+  if (verdictCard && scoredAt) {
+    void ws().from('verdicts').insert({
+      item: ask.slice(0, 500),
+      verdict: verdictCard.verdict === 'BUY IT' ? 'buy' : verdictCard.verdict === 'WALK AWAY' ? 'skip' : 'conditional',
+      reasoning: verdictCard.summary,
+      source_url: link,
+      scored_at: scoredAt,
+    }).catch((error: unknown) => console.warn('[Ethaion] Ask Beau verdict history write failed:', error));
+  }
   return {
     headline: headline || (verdictCard ? verdictCard.summary : 'Here\u2019s my read.'),
     verdict,

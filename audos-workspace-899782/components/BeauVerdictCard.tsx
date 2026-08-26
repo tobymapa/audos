@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 export const BEAU_VERDICT_VARIABLES = [
   { variable: 'Material', weight: 5 },
@@ -25,6 +25,9 @@ export interface BeauVerdict {
   summary: string;
   scores: BeauVerdictScore[];
   scoredForProfile: boolean;
+  /** Generation time and the profile-context clock captured with the score. */
+  scoredAt?: string;
+  profileLastUpdated?: string;
 }
 
 const MONO = "'IBM Plex Mono', monospace";
@@ -95,12 +98,16 @@ export function normalizeBeauVerdict(value: unknown, scoredForProfile?: boolean)
   if (!summary) return null;
   const weightedTotal = scores.reduce((total, row) => total + row.score * row.weight, 0);
   const composite = Math.round((weightedTotal / 20 + Number.EPSILON) * 10) / 10;
+  const scoredAt = cleanText(raw.scoredAt ?? raw.scored_at, 48);
+  const profileLastUpdated = cleanText(raw.profileLastUpdated ?? raw.profile_last_updated, 48);
   return {
     composite,
     verdict: verdictTagForComposite(composite),
     summary,
     scores,
     scoredForProfile: typeof scoredForProfile === 'boolean' ? scoredForProfile : raw.scoredForProfile === true,
+    ...(scoredAt ? { scoredAt } : null),
+    ...(profileLastUpdated ? { profileLastUpdated } : null),
   };
 }
 
@@ -144,10 +151,56 @@ const TONES: Record<BeauVerdictTag, { ink: string; wash: string; border: string 
   },
 };
 
-export function BeauVerdictCard({ verdict, className = '' }: { verdict: BeauVerdict; className?: string }) {
+export function BeauVerdictCard({
+  verdict,
+  className = '',
+  onRefresh,
+}: {
+  verdict: BeauVerdict;
+  className?: string;
+  onRefresh?: () => Promise<void> | void;
+}) {
+  const [refreshing, setRefreshing] = useState(false);
   const normalized = normalizeBeauVerdict(verdict);
+  const [currentProfileTimestamp, setCurrentProfileTimestamp] = useState(normalized?.profileLastUpdated || '');
+
+  useEffect(() => {
+    if (!normalized?.scoredForProfile) return;
+    let alive = true;
+    const apply = (value: unknown) => {
+      const stamp = typeof value === 'string' ? value : '';
+      if (alive && stamp) setCurrentProfileTimestamp(stamp);
+    };
+    const onProfileUpdate = (event: Event) => apply((event as CustomEvent).detail?.profileLastUpdated);
+    window.addEventListener('ethaion:profile-context-updated', onProfileUpdate);
+    void (async () => {
+      try {
+        const runtime = (window as any).__workspaceDb;
+        const { data } = await runtime.from('style_profile').orderBy('created_at', 'asc').limit(1).get();
+        apply(data?.[0]?.profile_last_updated);
+      } catch { /* the score remains usable without a freshness read */ }
+    })();
+    return () => {
+      alive = false;
+      window.removeEventListener('ethaion:profile-context-updated', onProfileUpdate);
+    };
+  }, [normalized?.scoredForProfile, normalized?.profileLastUpdated]);
+
   if (!normalized) return null;
   const tone = TONES[normalized.verdict];
+  const scoredMs = normalized.scoredAt ? Date.parse(normalized.scoredAt) : NaN;
+  const profileMs = Date.parse(currentProfileTimestamp || normalized.profileLastUpdated || '');
+  const stale = Number.isFinite(scoredMs) && Number.isFinite(profileMs) && scoredMs < profileMs;
+
+  const refresh = async () => {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <div className={className} data-testid="beau-verdict-card">
@@ -208,6 +261,24 @@ export function BeauVerdictCard({ verdict, className = '' }: { verdict: BeauVerd
           ))}
         </div>
       </article>
+      {stale && (
+        <div className="flex items-start justify-between gap-3" style={{ marginTop: '8px' }}>
+          <p style={{ fontSize: '11px', lineHeight: 1.45, color: MUTED, margin: 0 }}>
+            Scored before your last update — refresh for Beau&apos;s latest read.
+          </p>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+              className="flex-shrink-0 hover:opacity-70 disabled:opacity-50"
+              style={{ ...mono(8, MUTED, '0.07em'), border: 0, background: 'transparent', padding: 0, cursor: 'pointer' }}
+            >
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+          )}
+        </div>
+      )}
       {normalized.scoredForProfile && (
         <p style={{ ...mono(8, MUTED, '0.07em'), margin: '8px 0 0' }}>Scored for your wardrobe and profile.</p>
       )}

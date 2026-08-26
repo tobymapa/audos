@@ -107,7 +107,8 @@ import {
 } from './index-style';
 import { openInBeausPicks } from './edit-links';
 import { TabHeader } from './tab-header';
-import { BeauProgressBar } from './beau-progress';
+import { Skeleton } from './skeleton';
+import { signalTabPrimaryReady } from './experience-feedback';
 import {
   DayRail,
   FittingContextBar,
@@ -915,6 +916,10 @@ export function FittingRoomTab({
   // The IBM Plex Mono register — every small-caps label on this screen.
   usePlexMono();
 
+  useEffect(() => {
+    signalTabPrimaryReady('fitting-room');
+  }, []);
+
   // One-shot read of the piece another surface opened the tab with — a
   // “Try this on” handoff lands the piece straight on the board.
   const pendingRef = useRef<FittingPiece | null | undefined>(undefined);
@@ -1614,13 +1619,22 @@ export function FittingRoomTab({
                       shoes — and the 260px cap lands the canvas's bottom
                       right at the day rail's last day, WITHOUT stretching
                       the canvas taller. The composition scales itself to
-                      fill the cap and the canvas ends at the lowest piece. */}
+                      fill the cap and the canvas ends at the lowest piece.
+                      THE PHONE'S LONGER FLOOR (founder's correction, August
+                      2026): shoes may settle into the slack band just below
+                      the stage floor, and on a phone that overhang was
+                      crossing the canvas's bottom edge. The phone cap
+                      carries ~1cm more (480 → 528px), paired with the bare
+                      canvas's matching phone bottom padding in
+                      flat-lay-board's TRAY_CSS — the composition itself
+                      stays the same size, and the overhang lands INSIDE the
+                      canvas. */}
                   <StyledOutfitBoard
                     pieces={activeBoard}
                     onRemove={removeFromBoard}
                     seed={`fitting-${fittingKey}`}
                     canvasMaxWidth="760px"
-                    canvasMaxHeight={phoneCanvas ? '480px' : '260px'}
+                    canvasMaxHeight={phoneCanvas ? '528px' : '260px'}
                     quiet={composing}
                   />
                 </AnnotatedBoard>
@@ -1631,8 +1645,10 @@ export function FittingRoomTab({
                   style={{ background: 'rgba(244,238,227,0.9)' }}
                   aria-live="polite"
                 >
-                  <span className="block w-48 max-w-full" aria-hidden="true">
-                    <BeauProgressBar />
+                  <span className="grid w-48 max-w-full grid-cols-3 gap-2" aria-hidden="true">
+                    <Skeleton className="aspect-[3/4]" />
+                    <Skeleton className="aspect-[3/4]" />
+                    <Skeleton className="aspect-[3/4]" />
                   </span>
                   <p style={{ fontFamily: SERIF, fontSize: '18px', lineHeight: 1.3, maxWidth: '28ch', color: WALNUT, marginTop: '16px' }}>
                     {composingLine}

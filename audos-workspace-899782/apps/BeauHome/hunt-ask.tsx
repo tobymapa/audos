@@ -524,7 +524,14 @@ export function HuntAsk({ reader, calls }: { reader: HuntReader | null; calls: H
             </div>
           )}
           {answer.verdictCard ? (
-            <BeauVerdictCard verdict={answer.verdictCard} />
+            <BeauVerdictCard
+              verdict={answer.verdictCard}
+              onRefresh={async () => {
+                if (!asked || !reader) return;
+                const refreshed = await runAskBeau({ query: asked, reader, queued, onPhase: setPhase });
+                setAnswer(refreshed);
+              }}
+            />
           ) : (
             <div style={{ background: WALNUT, padding: '26px 24px 28px' }}>
               <p style={{ ...mono(9, ON_WALNUT_GOLD), margin: '0 0 9px' }}>Beau · his answer</p>

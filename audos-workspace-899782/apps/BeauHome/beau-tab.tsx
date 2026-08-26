@@ -42,7 +42,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlexMono } from './mono-type';
 import { ACCENT, ACCENT_DEEP, FAINT, INK, SECONDARY, WALNUT, body, mono, serif } from './index-style';
 import { TabHeader } from './tab-header';
-import { BeauProgressBar } from './beau-progress';
+import { EditCalendarSkeleton, HairlineRowsSkeleton } from './skeleton';
+import { signalTabPrimaryReady } from './experience-feedback';
 import { CrumbPublisher } from './crumb-trail';
 import { fetchMaterials, type CategoryBudget, type StylePrefs, type StyleProfile, type WardrobePiece } from './profile-data';
 import { fetchPieceWarmth, type PieceWarmth } from './warmth-model';
@@ -142,18 +143,20 @@ export function BeauTab(props: {
   // The Index's band strip runs on, so the two tabs cannot disagree.
   const [warmth, setWarmth] = useState<Record<number, PieceWarmth>>({});
   const [materials, setMaterials] = useState<Record<number, string>>({});
+  const [primaryLoading, setPrimaryLoading] = useState(true);
   useEffect(() => {
     let alive = true;
-    fetchPieceWarmth()
-      .then((rows) => {
-        if (alive) setWarmth(rows);
-      })
-      .catch(() => undefined);
-    fetchMaterials()
-      .then((rows) => {
-        if (alive) setMaterials(rows);
-      })
-      .catch(() => undefined);
+    setPrimaryLoading(true);
+    Promise.all([
+      fetchPieceWarmth().catch(() => ({} as Record<number, PieceWarmth>)),
+      fetchMaterials().catch(() => ({} as Record<number, string>)),
+    ]).then(([nextWarmth, nextMaterials]) => {
+      if (!alive) return;
+      setWarmth(nextWarmth);
+      setMaterials(nextMaterials);
+      setPrimaryLoading(false);
+      signalTabPrimaryReady('beau');
+    });
     return () => {
       alive = false;
     };
@@ -333,6 +336,17 @@ export function BeauTab(props: {
     .filter(Boolean)
     .join(' \u00b7 ');
 
+  if (primaryLoading) {
+    return (
+      <div>
+        <TabHeader title="The Edit" standfirst={standfirst} />
+        <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
+          <EditCalendarSkeleton />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <TabHeader
@@ -356,22 +370,24 @@ export function BeauTab(props: {
             closing rule, so this tab's header is exactly the height of the
             other five. */}
         {/* No rule of its own above the four figures (founder's correction,
-            August 2026) — the masthead's grey line is the only one. */}
+            August 2026) — the masthead's grey line is the only one. The
+            dividing rules BETWEEN the figures are gone too, and each figure
+            stands centred in its column (founder's correction, August
+            2026). */}
         <div
           className="grid grid-cols-2 md:grid-cols-4"
           style={{ marginBottom: '26px' }}
         >
-          {figures.map((figure, i) => (
+          {figures.map((figure) => (
             <div
               key={figure.label}
-              style={{
-                padding: '16px 22px 17px 0',
-                borderRight: i === figures.length - 1 ? 'none' : '1px solid rgba(59,43,29,0.14)',
-              }}
+              style={{ padding: '16px 12px 17px', textAlign: 'center' }}
             >
               <div style={mono(9, FAINT)}>{figure.label}</div>
               <div style={{ ...serif(27, figure.fg), marginTop: '6px', lineHeight: 1 }}>{figure.value}</div>
-              <div style={{ ...body(12.5, SECONDARY), marginTop: '6px', lineHeight: 1.45 }}>{figure.note}</div>
+              <div style={{ ...body(12.5, SECONDARY), marginTop: '6px', lineHeight: 1.45, maxWidth: '30ch', marginLeft: 'auto', marginRight: 'auto' }}>
+                {figure.note}
+              </div>
             </div>
           ))}
         </div>
@@ -387,18 +403,19 @@ export function BeauTab(props: {
                 only tells it where the reader is. */}
             <CrumbPublisher segs={crumbSegs} />
 
-            {/* Read it · the two faces, and the legend the map is shaded by. */}
+            {/* The two faces, and the legend the map is shaded by. The
+                "Read it" prefix label is gone (founder's correction, August
+                2026) — the two chips speak for themselves. */}
             <div
               className="flex items-center justify-between flex-wrap"
               style={{ gap: '14px 24px', paddingBottom: '12px' }}
             >
               <div className="flex items-center flex-wrap" style={{ gap: '8px' }}>
-                <span style={mono(9, FAINT)}>Read it</span>
                 <ViewChip label="By temperature" active={view === 'ruler'} onClick={() => setView('ruler')} />
                 <ViewChip label="By category" active={view === 'cats'} onClick={() => setView('cats')} />
                 {thinking && !reading && (
                   <span aria-live="polite" className="w-full sm:w-auto sm:min-w-[220px]">
-                    <BeauProgressBar label={'Beau is reading your year\u2026'} />
+                    <HairlineRowsSkeleton rows={1} />
                   </span>
                 )}
               </div>

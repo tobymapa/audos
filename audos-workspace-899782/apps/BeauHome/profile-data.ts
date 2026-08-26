@@ -280,6 +280,8 @@ export interface StyleProfile {
   budget_range: string | null;
   onboarding_step: number | null;
   onboarding_complete: boolean | null;
+  /** Advances whenever any fact Beau scores against changes. */
+  profile_last_updated?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -3299,12 +3301,12 @@ async function fetchStructuredProfile(force = false): Promise<StyleProfile | nul
   );
 }
 
-export async function fetchProfile(): Promise<StyleProfile | null> {
+export async function fetchProfile(force = false): Promise<StyleProfile | null> {
   // The rubric read used to run AFTER the profile resolved, adding a second
   // serial round-trip to first paint. They are independent reads, so they go
   // out together and the reconciliation happens once both have landed.
   const [profile, rubricRows] = await Promise.all([
-    fetchStructuredProfile(),
+    fetchStructuredProfile(force),
     cachedGet<any[]>('single', 'style_rubric', async () => {
       const { data } = await db().from('style_rubric').orderBy('created_at', 'asc').limit(1).get();
       return (data || []) as any[];

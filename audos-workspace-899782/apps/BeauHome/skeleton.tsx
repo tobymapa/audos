@@ -163,3 +163,100 @@ export function PickCardsSkeleton({ cards = 4, columns = 'grid-cols-1 lg:grid-co
     </div>
   );
 }
+
+/** The Rail: ledger rows with compact piece thumbnails and ruled metadata. */
+export function RailLedgerSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div role="status" aria-label="Loading The Rail" className="border-t border-[var(--space-border-default)]">
+      <ShimmerDefs />
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="grid grid-cols-[48px_minmax(0,1fr)_64px] items-center gap-4 border-b border-[var(--space-border-default)] py-3">
+          <span aria-hidden="true" className="block h-14 w-12" style={SHIMMER_BG} />
+          <span className="space-y-2">
+            <ShimmerBar width={i % 2 ? '48%' : '62%'} height="15px" />
+            <ShimmerBar width={i % 2 ? '72%' : '55%'} height="10px" />
+          </span>
+          <ShimmerBar width="100%" height="10px" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The Edit: the year grid's band headers and calendar-like coverage cells. */
+export function EditCalendarSkeleton() {
+  return (
+    <div role="status" aria-label="Loading The Edit" className="space-y-5">
+      <ShimmerDefs />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-20" />)}
+      </div>
+      <div className="grid grid-cols-[92px_repeat(4,minmax(0,1fr))] sm:grid-cols-[140px_repeat(8,minmax(0,1fr))] gap-px bg-[var(--space-border-default)] border border-[var(--space-border-default)]">
+        {Array.from({ length: 45 }, (_, i) => (
+          <span key={i} aria-hidden="true" className={`${i % 9 === 0 ? 'h-11' : 'h-9'} bg-[var(--space-surface-card)] p-2`}>
+            <ShimmerBar width={i % 9 === 0 ? '78%' : '100%'} height="100%" />
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The Fitting: day rail, portrait outfit canvas and three garment shelves. */
+export function FittingRoomSkeleton() {
+  return (
+    <div role="status" aria-label="Loading The Fitting" className="space-y-6">
+      <ShimmerDefs />
+      <div className="grid grid-cols-7 gap-2">
+        {Array.from({ length: 7 }, (_, i) => <Skeleton key={i} className="h-10" />)}
+      </div>
+      <div className="grid md:grid-cols-[minmax(0,1.2fr)_minmax(260px,.8fr)] gap-6">
+        <Skeleton className="h-[330px] sm:h-[420px]" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }, (_, row) => (
+            <div key={row} className="space-y-2">
+              <ShimmerBar width="34%" height="11px" />
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="aspect-[3/4]" />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The Search: question box, category rows and product result cards. */
+export function SearchWorkspaceSkeleton() {
+  return (
+    <div role="status" aria-label="Loading The Search" className="space-y-5">
+      <ShimmerDefs />
+      <Skeleton className="h-24 w-full" />
+      <HairlineRowsSkeleton rows={4} />
+      <PickCardsSkeleton cards={4} columns="grid-cols-1 sm:grid-cols-2" />
+    </div>
+  );
+}
+
+/** The Index: reference piece cards in the same responsive editorial grid. */
+export function IndexPieceCardsSkeleton() {
+  return (
+    <div role="status" aria-label="Loading The Index" className="space-y-5">
+      <ShimmerDefs />
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 8 }, (_, i) => (
+          <div key={i} className="border border-[var(--space-border-default)] p-3 space-y-3">
+            <Skeleton className="aspect-[4/5] w-full" />
+            <ShimmerBar width={i % 2 ? '68%' : '82%'} height="14px" />
+            <ShimmerBar width="46%" height="10px" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

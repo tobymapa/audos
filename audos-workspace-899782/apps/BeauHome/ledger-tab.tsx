@@ -42,7 +42,7 @@ import { ChevronsDownUp, ChevronsUpDown, Info } from 'lucide-react';
 import { usePlexMono, capWord, numberWord } from './mono-type';
 import { TabHeader } from './tab-header';
 import { matchGarmentTypeId } from './index-model';
-import { openInTheIndex } from './edit-links';
+import { openInAskBeau, openInTheIndex } from './edit-links';
 import { openMakerSheet } from './maker-sheet';
 import { CrumbPublisher, type CrumbSegment } from './crumb-trail';
 import {
@@ -71,8 +71,8 @@ import {
   mono,
   serif,
 } from './index-style';
-import { HairlineRowsSkeleton } from './skeleton';
-import { BeauProgressBar } from './beau-progress';
+import { HairlineRowsSkeleton, RailLedgerSkeleton } from './skeleton';
+import { signalTabPrimaryReady } from './experience-feedback';
 import { useReassessStatus } from './reassess-queue';
 import { hostLabel, loadHuntReader, looksLikeBareUrl, normaliseUrl } from './hunt-reader';
 import { loadHuntCallsMirror } from './hunt-model';
@@ -229,21 +229,132 @@ function PieceRow({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void }) 
   );
 }
 
+/** The unfolded phone row's quiet band — a shade toward paper, bled to the
+ * screen edges through the page's own side padding (the reference design's
+ * box-shadow trick: there is no wider element to paint). */
+const UNFOLD_TINT = 'rgba(251,248,241,0.6)';
+const UNFOLD_BLEED = `-40px 0 ${UNFOLD_TINT}, 40px 0 ${UNFOLD_TINT}`;
+
+/**
+ * THE PHONE'S ROSTER ROW (founder's reference, August 2026 — "two-line rows,
+ * essay on tap"). Below md a piece is a compact row: the thumb, the name in
+ * Cormorant on one line, ONE mono maker · cloth · band line, and Beau's
+ * one-word read. Tapping the row unfolds the essay behind it — Beau's note,
+ * with Open and Ask Beau — indented to the text column's own left edge. The
+ * desktop's five-column table is untouched.
+ */
+function MobilePieceRow({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void }) {
+  const [unfolded, setUnfolded] = useState(false);
+  const meta = [row.maker, row.cloth === UNREAD_CLOTH ? null : row.cloth, row.band]
+    .filter(Boolean)
+    .join(` ${MIDDOT} `);
+  return (
+    <div style={{ borderBottom: '1px solid rgba(59,43,29,0.12)' }}>
+      <button
+        type="button"
+        onClick={() => setUnfolded((v) => !v)}
+        aria-expanded={unfolded}
+        className="w-full text-left grid grid-cols-[56px_minmax(0,1fr)] items-center"
+        style={{
+          gap: '12px',
+          padding: '11px 0',
+          borderRadius: 0,
+          background: unfolded ? UNFOLD_TINT : 'transparent',
+          boxShadow: unfolded ? UNFOLD_BLEED : 'none',
+        }}
+      >
+        <PieceFrame row={row} height="64px" />
+        <span className="min-w-0 block">
+          <span
+            className="block"
+            style={{ ...serif(19, WALNUT), lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
+            {row.name}
+          </span>
+          <span
+            className="block"
+            style={{ ...mono(9, MUTED), marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
+            {meta || row.sub || '\u00a0'}
+          </span>
+          <span className="block" style={{ ...mono(8.5, READ_INK[row.read]), marginTop: '5px' }}>{row.read}</span>
+        </span>
+      </button>
+      {unfolded && (
+        <div style={{ padding: '2px 0 14px 68px', background: UNFOLD_TINT, boxShadow: UNFOLD_BLEED }}>
+          {row.note && (
+            <p style={{ ...body(13.5, INK), margin: 0, lineHeight: 1.5 }}>{row.note}</p>
+          )}
+          <div className="flex" style={{ gap: '8px', marginTop: row.note ? '10px' : '2px' }}>
+            <button
+              type="button"
+              onClick={onOpen}
+              className="transition-colors hover:border-[#a8712c] hab-tap"
+              style={{ ...mono(8.5, WALNUT), border: '1px solid rgba(59,43,29,0.3)', background: 'transparent', padding: '7px 13px' }}
+            >
+              Open
+            </button>
+            <button
+              type="button"
+              onClick={() => openInAskBeau(`How should I wear my ${row.name}${row.maker ? ` from ${row.maker}` : ''}?`)}
+              className="transition-colors hover:border-[#a8712c] hab-tap"
+              style={{ ...mono(8.5, WALNUT), border: '1px solid rgba(59,43,29,0.3)', background: 'transparent', padding: '7px 13px' }}
+            >
+              Ask Beau
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PieceTile({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void }) {
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="text-left transition-colors hover:border-[#a8712c]"
+      className="text-left transition-colors hover:border-[#a8712c] flex flex-col"
       style={{ border: '1px solid rgba(59,43,29,0.28)', background: PAPER, padding: '12px', borderRadius: 0 }}
     >
+      {/* ALIGNED SECTIONS (founder's correction, August 2026): every band of
+          a tile reserves the SAME height as its neighbours' — the photograph
+          is fixed, the name always holds three lines' room (and clamps at
+          three, a step smaller than before so long names fit them), the
+          maker line exactly one, the tag row exactly one — so two tiles side
+          by side line up section for section whatever their labels hold, and
+          every read sits on one shared rule at the foot. */}
       <PieceFrame row={row} height="150px" />
-      <div style={{ ...serif(19, WALNUT), marginTop: '10px', lineHeight: 1.14 }}>{row.name}</div>
-      <div style={{ ...mono(8.5, MUTED), marginTop: '4px' }}>{row.maker || row.sub}</div>
-      <div className="flex flex-wrap" style={{ marginTop: '8px', gap: '4px' }}>
+      <div
+        style={{
+          ...serif(17, WALNUT),
+          marginTop: '10px',
+          lineHeight: 1.2,
+          height: '61px',
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical' as const,
+          WebkitLineClamp: 3,
+          overflow: 'hidden',
+        }}
+      >
+        {row.name}
+      </div>
+      <div
+        style={{
+          ...mono(8.5, MUTED),
+          marginTop: '4px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {row.maker || row.sub || '\u00a0'}
+      </div>
+      <div className="flex items-start" style={{ marginTop: '8px', gap: '4px', height: '22px', overflow: 'hidden' }}>
         {[row.colour, row.band].filter(Boolean).map((tag) => (
           <span
             key={tag}
+            className="whitespace-nowrap"
             style={{ ...mono(8, SECONDARY), border: '1px solid rgba(59,43,29,0.22)', padding: '2px 7px' }}
           >
             {tag}
@@ -251,9 +362,10 @@ function PieceTile({ row, onOpen }: { row: LedgerPieceRow; onOpen: () => void })
         ))}
       </div>
       <div
+        className="w-full"
         style={{
           ...mono(9, READ_INK[row.read]),
-          marginTop: '9px',
+          marginTop: 'auto',
           paddingTop: '8px',
           borderTop: '1px solid rgba(59,43,29,0.16)',
         }}
@@ -330,19 +442,30 @@ function CategoryBlock({
         <div className="md:pl-[52px]" style={{ paddingBottom: '22px' }}>
           {view === 'list' ? (
             <div>
-              <div
-                className={`${ROW_GRID} items-baseline hidden md:grid`}
-                style={{ padding: '8px 0', borderBottom: '1px solid rgba(59,43,29,0.24)' }}
-              >
-                <span />
-                <span style={mono(8.5, FAINT)}>The piece</span>
-                <span style={mono(8.5, FAINT)}>{`Cloth ${MIDDOT} colour ${MIDDOT} band`}</span>
-                <span style={mono(8.5, FAINT)}>{'Beau\u2019s read'}</span>
-                <span />
+              {/* THE PHONE'S ROSTER (founder's reference, August 2026):
+                  below md the pieces are compact two-line rows with the
+                  essay behind each one — MobilePieceRow above. The
+                  five-column table remains the desktop's read. */}
+              <div className="md:hidden">
+                {category.pieces.map((row) => (
+                  <MobilePieceRow key={row.id} row={row} onOpen={() => onOpenPiece(row.id)} />
+                ))}
               </div>
-              {category.pieces.map((row) => (
-                <PieceRow key={row.id} row={row} onOpen={() => onOpenPiece(row.id)} />
-              ))}
+              <div className="hidden md:block">
+                <div
+                  className={`${ROW_GRID} items-baseline hidden md:grid`}
+                  style={{ padding: '8px 0', borderBottom: '1px solid rgba(59,43,29,0.24)' }}
+                >
+                  <span />
+                  <span style={mono(8.5, FAINT)}>The piece</span>
+                  <span style={mono(8.5, FAINT)}>{`Cloth ${MIDDOT} colour ${MIDDOT} band`}</span>
+                  <span style={mono(8.5, FAINT)}>{'Beau\u2019s read'}</span>
+                  <span />
+                </div>
+                {category.pieces.map((row) => (
+                  <PieceRow key={row.id} row={row} onOpen={() => onOpenPiece(row.id)} />
+                ))}
+              </div>
             </div>
           ) : (
             <div
@@ -481,6 +604,10 @@ export function LedgerTab({
   onChanged: () => void;
 }) {
   usePlexMono();
+
+  useEffect(() => {
+    if (!loading) signalTabPrimaryReady('wardrobe');
+  }, [loading]);
 
   const [view, setView] = useState<LedgerView>('list');
   const [openIds, setOpenIds] = useState<string[] | null>(null);
@@ -870,7 +997,7 @@ export function LedgerTab({
             </button>
             {thinking && !reading && (
               <span aria-live="polite" className="w-full sm:w-auto sm:min-w-[220px]">
-                <BeauProgressBar label={'Beau is reading your rail\u2026'} />
+                <HairlineRowsSkeleton rows={1} />
               </span>
             )}
           </div>
@@ -909,7 +1036,7 @@ export function LedgerTab({
         </div>
 
         {loading && model.total === 0 ? (
-          <HairlineRowsSkeleton rows={6} />
+          <RailLedgerSkeleton rows={6} />
         ) : (
           <section data-tour="tour-ledger-pieces" aria-label="Everything you own, by category">
             {filtered.map((category) => (

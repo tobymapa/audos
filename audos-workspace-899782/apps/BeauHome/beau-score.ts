@@ -39,6 +39,8 @@ function ws(): any {
 export interface BeauScore extends BeauVerdict {
   id: string;
   createdAt: string;
+  scoredAt: string;
+  profileLastUpdated?: string;
   /** What was put in the box — the URL, the description, or 'A photographed piece'. */
   subject: string;
   pieceName: string;
@@ -239,6 +241,7 @@ function invalidateReaderCache(): void {
 if (typeof window !== 'undefined') {
   window.addEventListener(DOSSIER_DETAILS_EVENT, invalidateReaderCache);
   window.addEventListener(COVERAGE_PREFS_EVENT, invalidateReaderCache);
+  window.addEventListener('ethaion:profile-context-updated', invalidateReaderCache);
 }
 
 /** The man's full record, cached for the session (see above). */
@@ -247,7 +250,7 @@ async function loadScoreReader(): Promise<HuntReader> {
     return { ...readerCache.reader, calls: loadHuntCallsMirror() };
   }
   const [profile, prefs, pieces] = await Promise.all([
-    fetchProfile().catch(() => null),
+    fetchProfile(true).catch(() => null),
     fetchPrefs().catch(() => null),
     fetchWardrobePieces(),
   ]);
@@ -353,10 +356,13 @@ export async function runBeauScore({
   }
 
   const categoryRaw = str(parsed?.categoryId, 40).toLowerCase();
+  const scoredAt = new Date().toISOString();
   const score: BeauScore = {
     ...verdict,
     id: `score-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    createdAt: new Date().toISOString(),
+    createdAt: scoredAt,
+    scoredAt,
+    ...(reader.profile?.profile_last_updated ? { profileLastUpdated: reader.profile.profile_last_updated } : null),
     subject: ask || 'A photographed piece',
     pieceName: str(parsed?.pieceName, 90) || linkRead?.pieceName || (ask ? ask.slice(0, 70) : 'A photographed piece'),
     maker: str(parsed?.maker, 60) || linkRead?.maker || null,
@@ -369,6 +375,18 @@ export async function runBeauScore({
   // AUTO-SAVE, both homes at once — each copy independently deletable.
   onPhase?.('Filing it to your record…');
   storeScores([...loadBeauScores(), score]);
+  // The durable verdict history carries the generation timestamp explicitly;
+  // local chat history and Your Calls remain independent copies as before.
+  void ws().from('verdicts').insert({
+    item: score.pieceName,
+    verdict: score.verdict === 'BUY IT' ? 'buy' : score.verdict === 'WALK AWAY' ? 'skip' : 'conditional',
+    reasoning: score.summary,
+    source_url: score.productUrl,
+    brand: score.maker,
+    price: score.priceGuide,
+    category: score.categoryId,
+    scored_at: scoredAt,
+  }).catch((e: unknown) => console.warn('[Ethaion] score could not reach verdict history (the visible copy still holds):', e));
   void setHuntTag(
     {
       pieceName: score.pieceName,

@@ -111,6 +111,8 @@ import {
 import { findNewMakers } from './maker-search';
 import { PieceDetailPage } from './piece-detail-page';
 import { openMakerSheet } from './maker-sheet';
+import { IndexPieceCardsSkeleton } from './skeleton';
+import { signalTabPrimaryReady } from './experience-feedback';
 
 // ---------------------------------------------------------------------------
 // Shared furniture
@@ -2488,18 +2490,20 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
   // per-band counts are read from the pieces themselves, never authored.
   const [warmth, setWarmth] = useState<Record<number, PieceWarmth>>({});
   const [materials, setMaterials] = useState<Record<number, string>>({});
+  const [primaryLoading, setPrimaryLoading] = useState(true);
   useEffect(() => {
     let alive = true;
-    fetchPieceWarmth()
-      .then((rows) => {
-        if (alive) setWarmth(rows);
-      })
-      .catch(() => undefined);
-    fetchMaterials()
-      .then((rows) => {
-        if (alive) setMaterials(rows);
-      })
-      .catch(() => undefined);
+    setPrimaryLoading(true);
+    Promise.all([
+      fetchPieceWarmth().catch(() => ({} as Record<number, PieceWarmth>)),
+      fetchMaterials().catch(() => ({} as Record<number, string>)),
+    ]).then(([nextWarmth, nextMaterials]) => {
+      if (!alive) return;
+      setWarmth(nextWarmth);
+      setMaterials(nextMaterials);
+      setPrimaryLoading(false);
+      signalTabPrimaryReady('index');
+    });
     return () => {
       alive = false;
     };
@@ -2632,25 +2636,31 @@ export function IndexTab({ pieces, profile }: { pieces: WardrobePiece[]; profile
       />
 
       <div className="px-6 sm:px-10 py-8 max-w-[1180px] mx-auto w-full pb-28">
-        {/* Both faces stay mounted — filters, selections and scroll survive
-            the toggle; only one shows. */}
-        <div style={{ display: face === 'pieces' ? undefined : 'none' }}>
-          <PiecesFace model={model} pieces={pieces} profile={profile} warmth={warmth} materials={materials} onMakersForType={onMakersForType} />
-        </div>
-        <div style={{ display: face === 'makers' ? undefined : 'none' }}>
-          <MakersFace
-            entries={entries}
-            metaRows={metaRows || []}
-            refreshMeta={refreshMeta}
-            model={model}
-            pieces={pieces}
-            profile={profile}
-            typeFilter={typeFilter}
-            onClearTypeFilter={() => setTypeFilter(null)}
-            namesFilter={makerNamesFilter}
-            onClearNamesFilter={() => setMakerNamesFilter(null)}
-          />
-        </div>
+        {primaryLoading ? (
+          <IndexPieceCardsSkeleton />
+        ) : (
+          <>
+            {/* Both faces stay mounted — filters, selections and scroll survive
+                the toggle; only one shows. */}
+            <div style={{ display: face === 'pieces' ? undefined : 'none' }}>
+              <PiecesFace model={model} pieces={pieces} profile={profile} warmth={warmth} materials={materials} onMakersForType={onMakersForType} />
+            </div>
+            <div style={{ display: face === 'makers' ? undefined : 'none' }}>
+              <MakersFace
+                entries={entries}
+                metaRows={metaRows || []}
+                refreshMeta={refreshMeta}
+                model={model}
+                pieces={pieces}
+                profile={profile}
+                typeFilter={typeFilter}
+                onClearTypeFilter={() => setTypeFilter(null)}
+                namesFilter={makerNamesFilter}
+                onClearNamesFilter={() => setMakerNamesFilter(null)}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
