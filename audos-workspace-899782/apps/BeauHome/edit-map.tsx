@@ -438,7 +438,11 @@ export function EditRuler({
                     />
                   ))}
                 </div>
-                <div style={{ ...mono(9, '#856c51'), marginTop: '6px' }}>
+                {/* The counts carry their own bottom padding (founder's
+                    correction, August 2026): on a phone the horizontal
+                    scroller rides the scroll area's bottom edge, and without
+                    this room it overlapped the line's descenders. */}
+                <div style={{ ...mono(9, '#856c51'), marginTop: '6px', paddingBottom: '14px' }}>
                   {`${ruler.answeredDays} answered \u00b7 ${ruler.shortDays} short \u00b7 ${ruler.totalDays} days in the year`}
                 </div>
               </div>

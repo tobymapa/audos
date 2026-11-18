@@ -739,7 +739,15 @@ const TRAY_CSS =
   'z-index:var(--z);box-sizing:border-box;display:flex;align-items:center;' +
   'justify-content:center;padding:0;background:transparent!important;background-color:transparent!important;' +
   'border:none!important;box-shadow:none!important;border-radius:0}' +
-  '.today-piece img{max-width:100%;max-height:100%;object-fit:contain;background:transparent;border:none;border-radius:0;box-shadow:none}';
+  '.today-piece img{max-width:100%;max-height:100%;object-fit:contain;background:transparent;border:none;border-radius:0;box-shadow:none}' +
+  // THE PHONE'S LONGER FLOOR (founder's correction, August 2026): on a phone
+  // the shoes' BOTTOM_SLACK overhang was crossing the bare canvas's bottom
+  // edge and lapping the content beneath the board. Below the phone
+  // breakpoint the bare canvas now keeps ~1cm of extra floor inside its own
+  // box (the Fitting's phone height cap grew by the same 48px, so the
+  // composition itself is not shrunk) — the overhang lands inside the
+  // canvas. The framed Today card (non-bare) is untouched.
+  '@media (max-width:639.98px){.today-canvas--bare{padding-bottom:48px}}';
 
 export function FlatLayBoard<T extends FlatLayPiece>({
   pieces,
